@@ -1,0 +1,53 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [{
+          "type": "command",
+          "command": "bash .claude/scripts/session-start.sh"
+        }]
+      }
+    ],
+    "PostCompact": [
+      {
+        "matcher": "",
+        "hooks": [{
+          "type": "command",
+          "command": "bash .claude/scripts/post-compact-guard.sh"
+        }]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [{
+          "type": "command",
+          "command": "bash .claude/scripts/auto-format.sh"
+        }]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash(git commit*--no-verify*)|Bash(git commit*-n *)",
+        "hooks": [{
+          "type": "command",
+          "command": "echo '❌ --no-verify 금지.' && exit 2"
+        }]
+      },
+      {
+        "matcher": "Bash(git commit*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/scripts/pre-commit-check.sh"
+          },
+          {
+            "type": "agent",
+            "prompt": "커밋 전 테스트 커버리지 확인. git diff --cached --name-only로 변경된 파일을 확인하고, 각 파일에 대응하는 테스트 파일이 tests/ 또는 __tests__/에 있는지 Glob으로 검사하라. 테스트가 없는 핵심 파일(유틸, 설정 등 제외)이 있으면 경고하되 커밋은 허용하라. JSON으로 결과를 반환: {\"ok\": true} 또는 {\"ok\": true, \"warning\": \"테스트 없는 파일: payments_api.ts\"}. 변경 파일 데이터: $ARGUMENTS"
+          }
+        ]
+      }
+    ]
+  }
+}
