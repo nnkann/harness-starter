@@ -56,9 +56,8 @@ docs/
 
 | 강도 | 기준 | 적용 |
 |------|------|------|
-| light | 프로토타입, 학습용 | commit light |
-| standard | 사용자 있는 소규모 | 핵심 경로 리뷰 |
-| strict | 장기 유지보수 | commit --strict |
+| light | 프로토타입, 학습용, 소규모 | commit light. 리뷰 최소. |
+| strict | 장기 유지보수, 사용자 다수 | commit --strict. 전체 리뷰. |
 
 ## 다른 도구
 
