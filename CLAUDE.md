@@ -7,6 +7,7 @@
 - 린터 에러 0인 상태에서만 커밋하라.
 - 새 파일 생성 전 .claude/rules/naming.md를 읽어라.
 - grep 대신 LSP를 우선 사용하라.
+- **worktree를 생성하지 마라.** main에서 직접 작업한다. Agent 호출 시 `isolation: "worktree"` 사용 금지.
 
 ## 환경
 <!-- harness-init 스킬 실행 후 채워진다 -->
