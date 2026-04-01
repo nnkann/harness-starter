@@ -160,6 +160,37 @@ flat / feature-based / layered / monorepo.
 | 린터/포매터 | 프로젝트 루트 설정 파일 |
 | 테스트 프레임워크 | CLAUDE.md 또는 .claude/rules/ |
 | UI/디자인 스택 | CLAUDE.md `## 환경` |
+| 프로젝트 소개 | README.md (신규 생성) |
+
+**3) README.md 생성**
+
+CPS와 스택이 확정된 시점이므로 프로젝트 README를 생성한다.
+
+```markdown
+# [프로젝트명]
+
+[Step 1의 한 줄 정의]
+
+## 스택
+
+- **언어/런타임**: [Step 6 결과]
+- **프레임워크**: [Step 6 결과]
+- **패키지 매니저**: [Step 6 결과]
+
+## 시작하기
+
+\```bash
+[설치 및 실행 명령어]
+\```
+
+## 구조
+
+\```
+[Step 5 아키텍처 기반 폴더 구조]
+\```
+```
+
+프로젝트가 구체화되면서 내용을 보강한다. 이 시점에서는 확정된 것만 적는다.
 
 **반영 전 사용자에게 요약을 보여주고 확인받는다.**
 
@@ -176,8 +207,7 @@ flat / feature-based / layered / monorepo.
 
 #### 8b. 첫 번째 작업 문서 생성
 
-사용자가 선택한 첫 번째 도메인에 대해, implementation 스킬의 형식으로
-`docs/wip/`에 구현 계획 문서를 **직접 생성한다.**
+사용자가 선택한 도메인에 대해 `docs/wip/`에 구현 계획 문서를 **직접 생성한다.**
 
 파일명: `development_{도메인명}_{YYMMDD}.md`
 
@@ -206,9 +236,9 @@ flat / feature-based / layered / monorepo.
 
 이 문서가 존재해야 harness-init이 완료된 것이다.
 
-#### 8c. 결정 문서 완료 처리
+#### 8c. 완료 처리
 
-- Step 7의 결정 문서 status를 `completed`로 변경한다.
+- Step 7의 결정 문서(CPS + 스택) status를 `completed`로 변경한다.
 - 커밋 시 commit 스킬이 `docs/setup/`으로 이동시킨다.
 
 #### 8d. 완료 메시지
