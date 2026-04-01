@@ -45,6 +45,32 @@ docs/
 └── archived/                    종료된 작업
 ```
 
+## 워크플로우
+
+하네스를 설치한 프로젝트에서 작업하는 흐름:
+
+```
+1. /harness-init     프로젝트 초기화. CPS 정리, 스택 결정, 하네스 빈 칸 채움.
+                     완료 시 docs/wip/에 첫 번째 작업 문서가 생성된다.
+
+2. docs/wip/ 확인    여기 파일이 있으면 할 일이 있다.
+                     파일 1개 = 작업 1개. 번호 낮은 것부터 시작.
+
+3. /implementation   작업 시작 전 계획 문서 생성. CPS와 대조.
+                     status: pending → in-progress.
+
+4. 구현              코드 작성. 결정 사항과 메모를 계획 문서에 기록.
+
+5. /commit           작업 잔여물 정리, 완료 문서 이동, 커밋+푸시.
+                     completed 문서는 docs/setup/ 등으로 자동 이동.
+
+6. 반복              docs/wip/에 다음 작업이 남아있으면 3번으로.
+```
+
+**docs/wip/가 비어있으면 할 일이 없다는 뜻이다.**
+
+상태값: `pending` → `in-progress` → `completed` (커밋 시 이동) / `abandoned` (archived로 이동)
+
 ## 핵심 원칙
 
 - **CLAUDE.md는 소원 목록이다. Hooks는 법이다. Linter는 물리 법칙이다.**
