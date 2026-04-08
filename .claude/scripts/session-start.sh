@@ -3,11 +3,11 @@
 
 echo "═══ SESSION START ═══"
 
-# 1. docs/wip/ 진행 중 작업 확인
-if [ -d "docs/wip" ] && [ "$(ls -A docs/wip 2>/dev/null)" ]; then
+# 1. docs/WIP/ 진행 중 작업 확인
+if [ -d "docs/WIP" ] && [ "$(ls -A docs/WIP 2>/dev/null)" ]; then
   echo ""
   echo "📋 진행 중인 작업:"
-  for f in docs/wip/*.md; do
+  for f in docs/WIP/*.md; do
     [ -f "$f" ] || continue
     status=$(grep -m1 '^> status:' "$f" 2>/dev/null | sed 's/> status: //')
     title=$(grep -m1 '^# ' "$f" 2>/dev/null | sed 's/^# //')
@@ -22,7 +22,7 @@ fi
 todo_count=$(grep -rn "TODO\|FIXME\|HACK" src/ --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.py" 2>/dev/null | wc -l)
 if [ "$todo_count" -gt 0 ]; then
   echo ""
-  echo "⚠️ 코드에 TODO/FIXME/HACK $todo_count개 발견. docs/wip/에 옮겨야 함."
+  echo "⚠️ 코드에 TODO/FIXME/HACK $todo_count개 발견. docs/WIP/에 옮겨야 함."
 fi
 
 # 3. 좀비 프로세스 확인 (node, python 테스트 서버 등)

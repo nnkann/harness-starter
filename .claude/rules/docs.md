@@ -15,12 +15,12 @@ docs/
 ## 규칙
 
 ### 문서 생성
-- 작업 시작 전 docs/wip/에 문서를 먼저 만든다 (implementation 스킬 참조).
+- 작업 시작 전 docs/WIP/에 문서를 먼저 만든다 (implementation 스킬 참조).
 - 파일명: snake_case. 간결하게. 예: `auth_stack_decision.md`
 - 상태 헤더 필수: `> status: pending | in-progress | completed | abandoned`
 
 ### 문서 이동
-- 완료/중단된 문서는 docs/wip/에 남기지 않는다.
+- 완료/중단된 문서는 docs/WIP/에 남기지 않는다.
 - 이동은 commit 스킬이 처리한다. 수동으로 이동하지 마라.
 - 이동 대상 폴더가 없으면 만든다.
 

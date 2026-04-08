@@ -1,6 +1,6 @@
 ---
 name: commit
-description: 작업 잔여물 정리, 계획 문서 완료 처리, 변경 사항 분석 후 커밋+푸시. 기본은 light(빠른 커밋). --strict 또는 하네스 강도 strict이면 Review 검증 추가. `/commit` 또는 "커밋해줘" 요청 시 사용.
+description: 작업 잔여물 정리, 계획 문서 완료 처리, 변경 사항 분석 후 커밋+푸시. 모드는 CLAUDE.md의 하네스 강도에 따라 결정. 명시적으로 `--light` / `--strict`로 오버라이드 가능. `/commit` 또는 "커밋해줘" 요청 시 사용.
 ---
 
 # /commit 스킬
@@ -12,10 +12,23 @@ description: 작업 잔여물 정리, 계획 문서 완료 처리, 변경 사항
 
 | 사용법 | 설명 |
 |--------|------|
-| `/commit` | light 모드 (기본). 정리 + 커밋. |
-| `/commit --strict` | strict 모드. 정리 + Review 검증 + 커밋. |
+| `/commit` | CLAUDE.md `## 환경`의 `하네스 강도`에 따라 자동 선택. |
+| `/commit --light` | light 모드 강제. 정리 + 커밋. |
+| `/commit --strict` | strict 모드 강제. 정리 + Review 검증 + 커밋. |
 
-하네스 강도가 strict이면 `/commit`도 자동으로 strict 모드로 실행된다.
+## 모드 결정 규칙
+
+**기본값 없음.** 커밋 스킬은 절대 임의로 모드를 선택하지 않는다.
+
+1. 명시적 플래그(`--light`/`--strict`)가 있으면 그걸 따른다.
+2. 플래그가 없으면 `CLAUDE.md` `## 환경` 섹션의 `하네스 강도:` 값을 읽는다.
+   - `strict` → strict 모드
+   - `light` → light 모드
+3. 강도가 **비어 있거나 기록되지 않았으면** → 커밋을 진행하지 말고 사용자에게 묻는다:
+   > 하네스 강도가 설정되지 않았습니다. `harness-init`을 먼저 실행하거나,
+   > 이번 커밋에 한해 `--light` / `--strict`를 지정하세요.
+
+절대 "기본 light"로 떨어지지 말 것. 학습/프로토타입 성격이라도 **사용자가 선택한 결과**여야 한다.
 
 ---
 
@@ -33,14 +46,14 @@ description: 작업 잔여물 정리, 계획 문서 완료 처리, 변경 사항
 
 ### 2. 계획 문서 완료 처리
 
-docs/wip/에서 이번 작업과 연결된 문서를 처리한다.
+docs/WIP/에서 이번 작업과 연결된 문서를 처리한다.
 
 - git diff로 이번 세션의 작업 범위를 파악한다.
 - 완료된 작업과 연결된 계획 문서를 찾는다.
 
 | 문서 상태 | 처리 |
 |----------|------|
-| pending / in-progress | docs/wip/에 유지 |
+| pending / in-progress | docs/WIP/에 유지 |
 | completed | 파일명 접두사로 이동 대상 결정 |
 | abandoned | docs/archived/로 이동 |
 
@@ -68,7 +81,7 @@ docs/wip/에서 이번 작업과 연결된 문서를 처리한다.
 
 ---
 
-## light 모드 (기본)
+## light 모드
 
 Step 4까지 완료 후, 바로 커밋 메시지 작성 → 푸시.
 빠른 커밋이 목적. 세부 검증은 생략한다.
@@ -103,7 +116,7 @@ Step 4까지 완료 후, Review 검증을 추가로 실행한다.
 #### 검증 항목
 
 **계획 vs 구현**
-- docs/wip/에 이 작업의 계획 문서가 있는가?
+- docs/WIP/에 이 작업의 계획 문서가 있는가?
 - 계획 문서의 목표와 실제 변경 사항이 일치하는가?
 - 계획에 없던 변경이 포함되어 있으면 지적하라 (스코프 크리프).
 - 계획보다 덜 구현된 것이 있으면 지적하라 (미완료).
@@ -164,5 +177,5 @@ Conventional Commits 규약 준수.
 ## 주의
 
 - `--no-verify` 사용 금지 (hooks에서 차단됨).
-- docs/wip/에 completed/abandoned 파일이 남아있으면 안 된다.
+- docs/WIP/에 completed/abandoned 파일이 남아있으면 안 된다.
 - 커밋 메시지는 한국어.

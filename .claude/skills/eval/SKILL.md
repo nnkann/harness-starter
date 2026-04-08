@@ -35,7 +35,7 @@ description: 놓치고 있는 것을 찾는다. 기본은 코드 간극 분석. 
 
 **1. 최종 형태 확인** — docs/setup/의 CPS 문서를 연다. 원래 Problem, Solution, 아키텍처 결정. 이것이 "목적지".
 
-**2. 현재 상태 파악** — 실제 코드와 docs/를 본다. 구현된 기능, 폴더 구조, 진행 중 작업(docs/wip/). 이것이 "현재 위치".
+**2. 현재 상태 파악** — 실제 코드와 docs/를 본다. 구현된 기능, 폴더 구조, 진행 중 작업(docs/WIP/). 이것이 "현재 위치".
 
 **3. 간극 분석** — 목적지와 현재 위치를 대조해서 네 가지를 찾는다.
 
@@ -113,7 +113,7 @@ CLAUDE.md, .claude/rules/ 전체, .claude/skills/ 전체를 읽는다.
 - 없음 ✅
 
 ### 부패
-- naming.md: docs/plans/ 참조하지만 실제 폴더는 docs/wip/
+- naming.md: docs/plans/ 참조하지만 실제 폴더는 docs/WIP/
 
 ### 강제력 배치
 - rules/coding.md: "console.log 금지" → 린터(no-console)로 승격 가능

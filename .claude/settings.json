@@ -1,39 +1,54 @@
 {
+  "permissions": {
+    "allow": [
+      "Edit(/.claude/skills/commit/**)",
+      "Edit(/.claude/skills/harness-init/**)",
+      "Bash(bash -n setup.sh)"
+    ]
+  },
   "hooks": {
     "SessionStart": [
       {
         "matcher": "",
-        "hooks": [{
-          "type": "command",
-          "command": "bash .claude/scripts/session-start.sh"
-        }]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/scripts/session-start.sh"
+          }
+        ]
       }
     ],
     "PostCompact": [
       {
         "matcher": "",
-        "hooks": [{
-          "type": "command",
-          "command": "bash .claude/scripts/post-compact-guard.sh"
-        }]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/scripts/post-compact-guard.sh"
+          }
+        ]
       }
     ],
     "PostToolUse": [
       {
         "matcher": "Write|Edit|MultiEdit",
-        "hooks": [{
-          "type": "command",
-          "command": "bash .claude/scripts/auto-format.sh"
-        }]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/scripts/auto-format.sh"
+          }
+        ]
       }
     ],
     "PreToolUse": [
       {
         "matcher": "Bash(git commit*--no-verify*)|Bash(git commit*-n *)",
-        "hooks": [{
-          "type": "command",
-          "command": "echo '❌ --no-verify 금지.' && exit 2"
-        }]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '❌ --no-verify 금지.' && exit 2"
+          }
+        ]
       },
       {
         "matcher": "Bash(git commit*)",

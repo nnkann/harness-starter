@@ -4,10 +4,10 @@
 echo "⚠️ COMPACTION COMPLETE — 컨텍스트 재주입"
 
 # 1. 현재 작업 상태 복원
-if [ -d "docs/wip" ] && [ "$(ls -A docs/wip 2>/dev/null)" ]; then
+if [ -d "docs/WIP" ] && [ "$(ls -A docs/WIP 2>/dev/null)" ]; then
   echo ""
   echo "📋 진행 중인 작업:"
-  for f in docs/wip/*.md; do
+  for f in docs/WIP/*.md; do
     [ -f "$f" ] || continue
     status=$(grep -m1 '^> status:' "$f" 2>/dev/null | sed 's/> status: //')
     title=$(grep -m1 '^# ' "$f" 2>/dev/null | sed 's/^# //')
