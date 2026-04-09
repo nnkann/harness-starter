@@ -12,17 +12,44 @@ if [ -n "$todo_files" ]; then
   ERRORS=$((ERRORS + 1))
 fi
 
-# 2. 린터 검사 (프로젝트에 린터가 있을 때만)
-if [ -f "package.json" ] && grep -q '"lint"' package.json 2>/dev/null; then
-  npm run lint --silent 2>/dev/null
+# 2. 린터 검사 (CLAUDE.md의 패키지 매니저 설정을 읽어서 동적 결정)
+LINT_CMD=""
+PKG_MGR=""
+
+# CLAUDE.md에서 패키지 매니저 읽기
+if [ -f "CLAUDE.md" ]; then
+  PKG_MGR=$(grep -m1 '패키지 매니저:' CLAUDE.md 2>/dev/null | sed 's/.*패키지 매니저:[[:space:]]*//' | tr -d ' ')
+fi
+
+# 패키지 매니저 기반 lint 명령 결정
+case "$PKG_MGR" in
+  npm)  [ -f "package.json" ] && grep -q '"lint"' package.json 2>/dev/null && LINT_CMD="npm run lint --silent" ;;
+  pnpm) [ -f "package.json" ] && grep -q '"lint"' package.json 2>/dev/null && LINT_CMD="pnpm lint" ;;
+  yarn) [ -f "package.json" ] && grep -q '"lint"' package.json 2>/dev/null && LINT_CMD="yarn lint" ;;
+  bun)  [ -f "package.json" ] && grep -q '"lint"' package.json 2>/dev/null && LINT_CMD="bun run lint" ;;
+  pip|poetry|uv)
+    if command -v ruff &>/dev/null; then
+      LINT_CMD="ruff check . --quiet"
+    fi
+    ;;
+  *)
+    # 패키지 매니저 미설정 시 자동 감지 (기존 방식)
+    if [ -f "package.json" ] && grep -q '"lint"' package.json 2>/dev/null; then
+      if [ -f "pnpm-lock.yaml" ]; then LINT_CMD="pnpm lint"
+      elif [ -f "yarn.lock" ]; then LINT_CMD="yarn lint"
+      elif [ -f "bun.lockb" ]; then LINT_CMD="bun run lint"
+      else LINT_CMD="npm run lint --silent"
+      fi
+    elif [ -f "pyproject.toml" ] && command -v ruff &>/dev/null; then
+      LINT_CMD="ruff check . --quiet"
+    fi
+    ;;
+esac
+
+if [ -n "$LINT_CMD" ]; then
+  $LINT_CMD 2>/dev/null
   if [ $? -ne 0 ]; then
-    echo "❌ 린터 에러. 에러 0에서만 커밋 가능."
-    ERRORS=$((ERRORS + 1))
-  fi
-elif [ -f "pyproject.toml" ] && command -v ruff &>/dev/null; then
-  ruff check . --quiet 2>/dev/null
-  if [ $? -ne 0 ]; then
-    echo "❌ 린터 에러. 에러 0에서만 커밋 가능."
+    echo "❌ 린터 에러. 에러 0에서만 커밋 가능. (실행: $LINT_CMD)"
     ERRORS=$((ERRORS + 1))
   fi
 fi

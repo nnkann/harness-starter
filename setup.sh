@@ -6,7 +6,7 @@
 # 프로파일:
 #   minimal  (기본) — harness-init, commit, implementation + rules + CLAUDE.md
 #   standard        — minimal + check-existing, naming-convention
-#   full            — 전부 (coding-convention, eval 포함)
+#   full            — 전부 (coding-convention, eval, advisor 포함)
 # 필요한 스킬은 나중에 `bash setup.sh --add <skill>`로 추가 가능.
 
 set -e
@@ -41,7 +41,7 @@ case "$PROFILE" in
   standard)
     SKILLS="harness-init commit implementation check-existing naming-convention" ;;
   full)
-    SKILLS="harness-init commit implementation check-existing naming-convention coding-convention eval" ;;
+    SKILLS="harness-init commit implementation check-existing naming-convention coding-convention eval advisor" ;;
   *)
     echo -e "${RED}❌ 알 수 없는 프로파일: $PROFILE${NC}"
     echo "사용 가능: minimal | standard | full"
@@ -164,10 +164,12 @@ chmod +x "$TARGET/.claude/scripts/"*.sh 2>/dev/null
 GI="$TARGET/.gitignore"
 if [ -f "$GI" ]; then
   grep -q '^\.claude/\.env_synced$' "$GI" || echo '.claude/.env_synced' >> "$GI"
+  grep -q '^\.claude/\.compact_count$' "$GI" || echo '.claude/.compact_count' >> "$GI"
 else
   cat > "$GI" <<'EOF'
-# 하네스 — 머신별 동기화 마커
+# 하네스 — 머신별/세션별 파일 제외
 .claude/.env_synced
+.claude/.compact_count
 EOF
   echo -e "  ${GREEN}✓ 생성${NC}: .gitignore"
   CREATED=$((CREATED + 1))
