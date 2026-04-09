@@ -3,7 +3,7 @@
     "allow": [
       "Edit(/.claude/skills/commit/**)",
       "Edit(/.claude/skills/harness-init/**)",
-      "Bash(bash -n setup.sh)"
+      "Bash(bash -n h-setup.sh)"
     ]
   },
   "hooks": {

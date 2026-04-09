@@ -6,15 +6,15 @@
 
 harness-starter가 6단계 업그레이드(7c14536)를 거쳤다. 변경 내용:
 - 새 파일 5개: `memory.md`, `stop-guard.sh`, `write-guard.sh`, `advisor/SKILL.md`, `harness-sync/SKILL.md`
-- 수정 파일 9개: 스크립트 3개, settings.json, 스킬 4개, setup.sh
+- 수정 파일 9개: 스크립트 3개, settings.json, 스킬 4개, h-setup.sh
 
-**문제**: 현재 `setup.sh`의 `copy_if_new`는 기존 파일을 덮어쓰지 않으므로, 이미 적용된 프로젝트에 업그레이드를 반영할 방법이 없다.
+**문제**: 현재 `h-setup.sh`의 `copy_if_new`는 기존 파일을 덮어쓰지 않으므로, 이미 적용된 프로젝트에 업그레이드를 반영할 방법이 없다.
 
 ## 시나리오 분류
 
 | 시나리오 | 설명 | 복잡도 |
 |----------|------|--------|
-| A. 신규 프로젝트 | setup.sh 실행하면 최신 버전 적용 | 없음 (현재 작동) |
+| A. 신규 프로젝트 | h-setup.sh 실행하면 최신 버전 적용 | 없음 (현재 작동) |
 | B. 하네스만 적용, 코드 없음 | harness-init 실행 전. 파일 커스터마이징 없음 | 낮음 |
 | C. 진행 중인 프로젝트 | harness-init 완료, 코드 작성 중. 파일 커스터마이징 있음 | **높음** |
 
@@ -54,10 +54,10 @@ harness-starter가 6단계 업그레이드(7c14536)를 거쳤다. 변경 내용:
 
 ## 접근법 후보
 
-### 방안 1: `setup.sh --upgrade` 플래그
+### 방안 1: `h-setup.sh --upgrade` 플래그
 
 ```bash
-bash setup.sh --upgrade [타겟_디렉토리]
+bash h-setup.sh --upgrade [타겟_디렉토리]
 ```
 
 동작:
@@ -88,12 +88,12 @@ Claude가 직접:
 
 ### 방안 3: 하이브리드 (추천)
 
-1. `setup.sh --upgrade` — 새 파일 복사 + 변경 감지 + 병합 시도까지 자동
+1. `h-setup.sh --upgrade` — 새 파일 복사 + 변경 감지 + 병합 시도까지 자동
 2. `harness-upgrade` 스킬 — 자동 병합 실패 항목에 대해 사용자에게 **승인 요청**. 별도 스킬 호출을 요구하지 않고, 업그레이드 흐름 내에서 바로 처리.
 
 흐름:
 ```
-사용자: bash setup.sh --upgrade /path/to/project
+사용자: bash h-setup.sh --upgrade /path/to/project
   → 새 파일 5개 복사됨
   → 자동 병합 성공 3개, 충돌 5개 감지됨
   → 충돌 항목별 diff + 병합 제안을 보여주고 승인 요청
@@ -104,7 +104,7 @@ Claude가 직접:
 
 ## 세부 설계: 하이브리드 방안
 
-### Part A: `setup.sh --upgrade` 추가
+### Part A: `h-setup.sh --upgrade` 추가
 
 ```bash
 # 새 동작
@@ -142,7 +142,7 @@ Claude가 직접:
 /harness-upgrade
 ```
 
-전제: `.claude/.upgrade/` 디렉토리가 존재 (setup.sh --upgrade 실행 완료)
+전제: `.claude/.upgrade/` 디렉토리가 존재 (h-setup.sh --upgrade 실행 완료)
 
 흐름:
 1. `.upgrade/UPGRADE_REPORT.md` 읽기
@@ -181,7 +181,7 @@ Claude가 직접:
 
 스타터 repo:
 - `.claude/VERSION` 파일에 현재 버전 명시 (예: `0.6.0`)
-- `setup.sh --upgrade` 실행 시 스타터의 VERSION과 타겟의 harness.json version 비교
+- `h-setup.sh --upgrade` 실행 시 스타터의 VERSION과 타겟의 harness.json version 비교
 - major 변경(1.x): 수동 마이그레이션 필요할 수 있음 경고
 - minor 변경(0.x→0.y): 자동 병합 시도
 - patch 변경(0.6.x): 안전한 업데이트
@@ -191,18 +191,18 @@ Claude가 직접:
 | 순서 | 작업 | 파일 |
 |------|------|------|
 | 1 | 버전 체계 도입 | `.claude/VERSION`, `harness.json` 스키마 변경 |
-| 2 | `setup.sh --upgrade` 구현 | `setup.sh` |
+| 2 | `h-setup.sh --upgrade` 구현 | `h-setup.sh` |
 | 3 | `harness-upgrade` 스킬 작성 | `.claude/skills/harness-upgrade/SKILL.md` |
 | 4 | `.upgrade/` 를 `.gitignore`에 추가 | `.gitignore` 템플릿 |
-| 5 | UPGRADE_REPORT.md 생성 로직 | `setup.sh` 내부 |
-| 6 | settings.json 병합 유틸 | `setup.sh` 또는 별도 스크립트 |
+| 5 | UPGRADE_REPORT.md 생성 로직 | `h-setup.sh` 내부 |
+| 6 | settings.json 병합 유틸 | `h-setup.sh` 또는 별도 스크립트 |
 | 7 | README.md 업그레이드 내역 반영 | `README.md` |
 | 8 | 기존 프로젝트 테스트 | 실제 적용 프로젝트에서 검증 |
 
 ## 미결정 사항
 
 - [x] 버전 체계: **semver** 채택. 변경 크기를 시그널링할 수 있어 업그레이드 판단에 유리. 현재 버전: 0.6.0.
-- [x] 스타터 repo 연결: **독립 복사 유지**. submodule은 부적합 — setup.sh 실행 후 프로젝트 고유 파일(CLAUDE.md 환경, rules 내용)이 스타터와 달라지므로 submodule로 추적할 수 없음. 업그레이드는 `setup.sh --upgrade`로 해결.
+- [x] 스타터 repo 연결: **독립 복사 유지**. submodule은 부적합 — h-setup.sh 실행 후 프로젝트 고유 파일(CLAUDE.md 환경, rules 내용)이 스타터와 달라지므로 submodule로 추적할 수 없음. 업그레이드는 `h-setup.sh --upgrade`로 해결.
 - [x] CLAUDE.md `## 절대 규칙` 동기화: **한다**. 하네스 공통 규칙이므로 병합 대상. `## 환경` 섹션만 보존.
 - [x] `--force` 옵션: **불허**. 사용자 확인 없는 전체 덮어쓰기는 커스터마이징 소실 위험이 너무 큼.
 - [x] harness-sync vs harness-upgrade 역할 분리: **확정**. sync = 환경(의존성, 권한), upgrade = 하네스 파일 업데이트.

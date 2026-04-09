@@ -219,7 +219,7 @@ harness-init ──→ implementation ──→ (작업) ──→ commit ──
 | `.claude/skills/advisor/SKILL.md` | **새 파일** (멀티 에이전트 검증 스킬) |
 | `.claude/skills/implementation/SKILL.md` | 수정 (접근법 검증 단계 추가) |
 | `.claude/skills/commit/SKILL.md` | 수정 (strict 리뷰를 Agent로 분리) |
-| `setup.sh` | 수정 (memory 디렉토리 + advisor 스킬 포함) |
+| `h-setup.sh` | 수정 (memory 디렉토리 + advisor 스킬 포함) |
 
 ## 결정 사항
 

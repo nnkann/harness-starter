@@ -34,18 +34,18 @@
 ## 이슈 2. 첫 프로젝트 셋업 후 WIP 시작 문서 누락
 
 ### 현상
-`setup.sh` 실행 → `docs/WIP/`가 비어 있음. `.gitkeep`만 생성. 사용자가 다음에 뭘 해야 할지 문서로 존재하지 않음.
+`h-setup.sh` 실행 → `docs/WIP/`가 비어 있음. `.gitkeep`만 생성. 사용자가 다음에 뭘 해야 할지 문서로 존재하지 않음.
 
 ### 현재 상태
 - [harness-init/SKILL.md:197-254](.claude/skills/harness-init/SKILL.md#L197-L254)에 Step 8 "첫 번째 작업 생성"이 이미 정의돼 있음 — 도메인별 작업 문서를 만들게 돼 있음.
-- 하지만 **그 이전**, `setup.sh` 직후 `harness-init`을 돌리기 전까지의 공백이 문제. 사용자는 `docs/WIP/`를 봤는데 아무것도 없으니 "다음에 뭘 해야 하는지" 모름.
+- 하지만 **그 이전**, `h-setup.sh` 직후 `harness-init`을 돌리기 전까지의 공백이 문제. 사용자는 `docs/WIP/`를 봤는데 아무것도 없으니 "다음에 뭘 해야 하는지" 모름.
 
 ### 방향
 두 가지 선택지:
 
-**A. `setup.sh`가 직접 시작 문서를 생성**
+**A. `h-setup.sh`가 직접 시작 문서를 생성**
 - `docs/WIP/harness_init_pending.md` 같은 파일을 만들고 내용은 "harness-init 스킬을 실행하세요" + 안내.
-- `setup.sh` 완료 메시지와 중복이지만, 세션을 새로 켰을 때 session-start hook이 이 문서를 "진행 중인 작업"으로 보여줌 → 자연스럽게 유도됨. //실제 클로드 코드에서 하네스-스타터 프로젝트를 실행하면 자연스럽게 단계별로 필요 문서 요청하고 그에 맞는 스펙과 문서들을 정리하게 되는데 이 과정으로 인해 결정된 사안과 처음 시작해야 하는 간단한 시작 문서가 필요하다는 거야. 이는 프로젝트의 시작점을 알리는 문서이기도 하고 이후의 작업들을 생성하게 되는 첫 시작점이 되는거지.
+- `h-setup.sh` 완료 메시지와 중복이지만, 세션을 새로 켰을 때 session-start hook이 이 문서를 "진행 중인 작업"으로 보여줌 → 자연스럽게 유도됨. //실제 클로드 코드에서 하네스-스타터 프로젝트를 실행하면 자연스럽게 단계별로 필요 문서 요청하고 그에 맞는 스펙과 문서들을 정리하게 되는데 이 과정으로 인해 결정된 사안과 처음 시작해야 하는 간단한 시작 문서가 필요하다는 거야. 이는 프로젝트의 시작점을 알리는 문서이기도 하고 이후의 작업들을 생성하게 되는 첫 시작점이 되는거지.
 
 **B. session-start hook에서 wip 비어 있고 하네스 초기화 안 된 상태 감지 → 안내 출력**
 - CLAUDE.md의 `## 환경` 섹션 비어 있음 등을 플래그로 사용.
@@ -61,7 +61,7 @@
 하네스 셋업된 프로젝트를 다른 머신에 클론 → 의존성/도구 미설치 상태로 돌리면 오류. 필요한 걸 하나씩 찾아서 깔아야 함.
 
 ### 원인
-`setup.sh`는 **하네스 파일 복사**만 함. 프로젝트 의존성 설치는 사용자가 각 스택 기본 명령어(`npm i`, `pip install`, 등)로 해야 하는데, 하네스가 이걸 "클론 후 첫 실행" 흐름으로 통합해주지 않음.
+`h-setup.sh`는 **하네스 파일 복사**만 함. 프로젝트 의존성 설치는 사용자가 각 스택 기본 명령어(`npm i`, `pip install`, 등)로 해야 하는데, 하네스가 이걸 "클론 후 첫 실행" 흐름으로 통합해주지 않음.
 //맞아. PRD문서등을 통해서 스펙이 정해지면서 여러가지 필요 프로그램들을 설치하게 되는데 이를 저장하고 다른 곳에서 클론햇을 경우 이를 감지하고 설치해 주는 프로세스가 필요해.
 `CLAUDE.md`의 `## 환경` 섹션에 패키지 매니저/빌드 명령어가 적혀 있긴 하지만, 읽는 주체가 **Claude**이지 **사람/자동화**가 아님.
 
@@ -75,9 +75,9 @@
 - 클론 직후 이걸 돌림.
 - 역할: 하네스 파일 존재 확인 + 환경 의존성 설치 + 스크립트 권한 설정(`chmod +x .claude/scripts/*.sh`). //다만 맨 처음 설치한 프로젝트에서 이걸 다시 돌릴 이유는 없고, 다른 곳에서도 한번만 돌리면 되는거니까. 이 부분만 확실히 체크해주면 좋을듯.
 
-**C. `setup.sh`에 `--sync` 플래그**
+**C. `h-setup.sh`에 `--sync` 플래그**
 - 기존 파일이 있으면 복사 스킵 + 환경 명령어 실행.
-- 가장 간단하지만 setup.sh가 "하네스 스타터 repo 안에" 있어야 함 → 클론한 프로젝트에선 접근 불가. **이 옵션은 부적합.**
+- 가장 간단하지만 h-setup.sh가 "하네스 스타터 repo 안에" 있어야 함 → 클론한 프로젝트에선 접근 불가. **이 옵션은 부적합.**
 
 **추천: B (별도 스킬 + 문서화) + A (보조).**
 - 스킬 이름은 `harness-sync`. SKILL.md 1개로 충분.
@@ -123,8 +123,8 @@
 
 **핵심 원칙: 기본은 최소, 필요 시 추가.**
 
-1. **setup.sh에 프로파일 개념 도입**
-   - `bash setup.sh --profile minimal|standard|full`
+1. **h-setup.sh에 프로파일 개념 도입**
+   - `bash h-setup.sh --profile minimal|standard|full`
    - minimal: harness-init, commit, implementation, CLAUDE.md, rules만.
    - standard: + check-existing, naming-convention.
    - full: 전부.
@@ -150,8 +150,8 @@
 ## 작업 순서 제안
 
 1. **이슈 1**: 간단. 위치 확정 후 즉시 수정. (사용자 확인 선행)
-2. **이슈 2**: A안 채택 시 `setup.sh` 10줄 추가 수준.
-3. **이슈 4**: 프로파일 개념 도입. setup.sh 구조 변경.
+2. **이슈 2**: A안 채택 시 `h-setup.sh` 10줄 추가 수준.
+3. **이슈 4**: 프로파일 개념 도입. h-setup.sh 구조 변경.
 4. **이슈 3**: `harness-sync` 스킬 + `bootstrap.sh` 템플릿. 가장 큼.
 
 각각 별도 WIP 문서로 분리할지, 이 문서에서 in-progress로 이어갈지는 사용자 결정.
@@ -164,7 +164,7 @@
 - 옵션으로 남기지 않음. 필요하면 나중에 추가하면 됨.
 
 ### 이슈 2
-- **확정**: A안. `setup.sh` 직후가 아니라 **harness-init 완료 시점**에 생성되는 "프로젝트 출범 문서".
+- **확정**: A안. `h-setup.sh` 직후가 아니라 **harness-init 완료 시점**에 생성되는 "프로젝트 출범 문서".
 - 역할: 대화로 결정된 CPS/스택/스펙을 담는 **첫 시작점 문서**. 이후 모든 작업 문서의 발원지.
 - 기존 Step 8(도메인별 작업 문서)과는 별개. 순서: 출범 문서 → 첫 도메인 작업 문서.
 - 파일명 후보: `project_kickoff.md` 또는 `project_start_{YYMMDD}.md`.
@@ -191,17 +191,17 @@
 - [README.md](README.md): 하네스 강도 섹션 업데이트, "학습용" 제거.
 
 ### 이슈 2 ✅
-- [setup.sh](setup.sh): `docs/WIP/harness_init_pending.md` placeholder 자동 생성. session-start hook이 자연스럽게 유도.
+- [h-setup.sh](h-setup.sh): `docs/WIP/harness_init_pending.md` placeholder 자동 생성. session-start hook이 자연스럽게 유도.
 - [harness-init/SKILL.md:148-200](.claude/skills/harness-init/SKILL.md#L148-L200): Step 7-1을 "프로젝트 출범 문서 생성"으로 구체화. `project_kickoff_YYMMDD.md` 템플릿 포함. 프로젝트가 존재하는 한 유지되는 **living document**.
 
 ### 이슈 3 ✅
 - [.claude/skills/harness-sync/SKILL.md](.claude/skills/harness-sync/SKILL.md) 신규 스킬.
 - 멱등성: `.claude/.env_synced` 마커로 "한 번만" 보장. 최초 머신 재실행 불필요.
 - CLAUDE.md `## 환경` 파싱 → 패키지 매니저별 설치 명령 매핑 → 사용자 확인 후 실행.
-- setup.sh가 `.gitignore`에 `.claude/.env_synced` 자동 추가.
+- h-setup.sh가 `.gitignore`에 `.claude/.env_synced` 자동 추가.
 
 ### 이슈 4 ✅
-- [setup.sh](setup.sh): `--profile minimal|standard|full` 도입. **기본 minimal**(harness-init/commit/implementation만).
+- [h-setup.sh](h-setup.sh): `--profile minimal|standard|full` 도입. **기본 minimal**(harness-init/commit/implementation만).
 - `--add <skill>` 옵션으로 후속 추가 가능.
 - `.claude/harness.json` 메타데이터 생성(프로파일, 스킬 목록, 설치 시각).
 - harness-sync가 이 메타데이터 참조해 무결성 검사.
@@ -210,7 +210,7 @@
 - **폴더명 대문자화**: `docs/wip` → `docs/WIP` (git mv). 모든 참조 치환 완료.
 
 ## 남은 것
-- 수동 테스트: 빈 디렉토리에서 `setup.sh --profile minimal` 실제 실행 확인.
+- 수동 테스트: 빈 디렉토리에서 `h-setup.sh --profile minimal` 실제 실행 확인.
 - harness-sync 스킬의 실제 동작 검증 (클론 시뮬레이션).
 - 커밋은 사용자 승인 후.
 

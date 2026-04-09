@@ -1,15 +1,15 @@
 #!/bin/bash
 # 하네스 셋업 — 이 repo의 하네스 파일을 타겟 프로젝트에 복사한다.
-# 사용법: bash setup.sh [--profile minimal|standard|full] [타겟_디렉토리]
-#         bash setup.sh --upgrade [타겟_디렉토리]
-#         bash setup.sh --add <skill> [타겟_디렉토리]
+# 사용법: bash h-setup.sh [--profile minimal|standard|full] [타겟_디렉토리]
+#         bash h-setup.sh --upgrade [타겟_디렉토리]
+#         bash h-setup.sh --add <skill> [타겟_디렉토리]
 # 멱등성 보장: 기존 파일을 덮어쓰지 않음.
 #
 # 프로파일:
 #   minimal  (기본) — harness-init, commit, implementation + rules + CLAUDE.md
 #   standard        — minimal + check-existing, naming-convention
 #   full            — 전부 (coding-convention, eval, advisor 포함)
-# 필요한 스킬은 나중에 `bash setup.sh --add <skill>`로 추가 가능.
+# 필요한 스킬은 나중에 `bash h-setup.sh --add <skill>`로 추가 가능.
 #
 # --upgrade: 기존 하네스를 최신 버전으로 업그레이드.
 #   새 파일은 바로 복사, 수정된 파일은 .claude/.upgrade/에 스테이징 후 리포트 생성.
@@ -121,7 +121,7 @@ EOF
       echo -e "${GREEN}✓ harness.json 생성 (프로파일: $DETECTED_PROFILE)${NC}"
       echo ""
     else
-      echo -e "${RED}❌ 하네스가 설치되지 않은 프로젝트. setup.sh를 먼저 실행하라.${NC}"
+      echo -e "${RED}❌ 하네스가 설치되지 않은 프로젝트. h-setup.sh를 먼저 실행하라.${NC}"
       exit 1
     fi
   fi
@@ -209,23 +209,34 @@ EOF
     stage_or_copy "$src" "$dst"
   done
 
-  # rules
+  # rules — 하네스 관리 rule은 비교, 사용자 템플릿 rule은 제외.
+  # coding.md, naming.md: 빈 템플릿 → 사용자가 채움 → 비교하면 항상 "변경됨"
+  # docs.md, self-verify.md, memory.md: 하네스 규칙 → 업그레이드 대상
+  USER_TEMPLATE_RULES="coding.md naming.md"
   echo ""
   echo "📁 .claude/rules/"
   for f in "$SCRIPT_DIR/.claude/rules/"*; do
     [ -f "$f" ] || continue
-    stage_or_copy "$f" "$TARGET/.claude/rules/$(basename "$f")"
+    fname=$(basename "$f")
+    # 사용자 템플릿 rule은 새 파일만 복사, 기존 파일은 건드리지 않음
+    if echo " $USER_TEMPLATE_RULES " | grep -qF " $fname "; then
+      dst="$TARGET/.claude/rules/$fname"
+      if [ ! -f "$dst" ]; then
+        mkdir -p "$(dirname "$dst")"
+        cp "$f" "$dst"
+        echo -e "  ${GREEN}✓ 새 파일${NC}: .claude/rules/$fname"
+        NEW_COUNT=$((NEW_COUNT + 1))
+      else
+        echo -e "  ⏭ 제외 (사용자 템플릿): .claude/rules/$fname"
+      fi
+    else
+      stage_or_copy "$f" "$TARGET/.claude/rules/$fname"
+    fi
   done
 
-  # settings.json
+  # settings.json, CLAUDE.md — 사용자가 프로젝트에 맞게 커스터마이징하는 파일. 업그레이드 제외.
   echo ""
-  echo "⚙️  .claude/settings.json"
-  stage_or_copy "$SCRIPT_DIR/.claude/settings.json" "$TARGET/.claude/settings.json"
-
-  # CLAUDE.md
-  echo ""
-  echo "📄 CLAUDE.md"
-  stage_or_copy "$SCRIPT_DIR/CLAUDE.md" "$TARGET/CLAUDE.md"
+  echo "⏭  settings.json, CLAUDE.md — 사용자 커스터마이징 파일, 업그레이드 제외"
 
   # VERSION 복사
   cp "$SCRIPT_DIR/.claude/VERSION" "$TARGET/.claude/VERSION" 2>/dev/null
@@ -422,7 +433,7 @@ if [ ! -f "$KICKOFF" ] && [ ! -f "$TARGET/docs/setup/project_kickoff.md" ]; then
 
 # 하네스 초기화 대기 중
 
-이 프로젝트는 `setup.sh`로 하네스 파일이 복사되었지만, **프로젝트 결정(CPS/스택/강도)** 이 아직 이뤄지지 않았습니다.
+이 프로젝트는 `h-setup.sh`로 하네스 파일이 복사되었지만, **프로젝트 결정(CPS/스택/강도)** 이 아직 이뤄지지 않았습니다.
 
 ## 다음 할 일
 
