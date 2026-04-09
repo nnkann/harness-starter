@@ -458,6 +458,35 @@ EOF
   CREATED=$((CREATED + 1))
 fi
 
+# 스타터 remote 보호 — push 원천 차단
+# 타겟이 git repo이고 origin이 스타터를 가리키면 pull-only로 전환
+normalize_git_url() {
+  echo "$1" | sed -e 's|^git@github.com:|https://github.com/|' \
+                   -e 's|\.git$||' \
+                   -e 's|/$||'
+}
+
+if git -C "$TARGET" rev-parse --is-inside-work-tree > /dev/null 2>&1; then
+  STARTER_URL=$(normalize_git_url "$(git -C "$SCRIPT_DIR" remote get-url origin 2>/dev/null)")
+  TARGET_ORIGIN=$(normalize_git_url "$(git -C "$TARGET" remote get-url origin 2>/dev/null)")
+
+  if [ -n "$STARTER_URL" ] && [ "$TARGET_ORIGIN" = "$STARTER_URL" ]; then
+    echo ""
+    echo "🔒 스타터 remote 보호"
+    if git -C "$TARGET" remote | grep -qx harness-upstream; then
+      echo -e "  ${YELLOW}⏭${NC} harness-upstream이 이미 존재. 보호 스킵."
+    else
+      # origin → harness-upstream (pull 전용)으로 리네임
+      git -C "$TARGET" remote rename origin harness-upstream
+      # push URL을 DISABLED로 설정하여 push 원천 차단
+      git -C "$TARGET" remote set-url --push harness-upstream DISABLED_PUSH_TO_STARTER
+      echo -e "  ${GREEN}✓${NC} origin → harness-upstream (pull 전용)"
+      echo -e "  ${YELLOW}ℹ${NC} 프로젝트 remote를 origin으로 등록하세요:"
+      echo "    git remote add origin <프로젝트_repo_URL>"
+    fi
+  fi
+fi
+
 echo ""
 echo "═══ 완료 ═══"
 echo -e "  ${GREEN}생성: ${CREATED}개${NC}"
