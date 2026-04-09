@@ -1,4 +1,4 @@
-> status: in-progress
+> status: completed
 
 # 하네스 스타터 업그레이드 전파 전략
 
