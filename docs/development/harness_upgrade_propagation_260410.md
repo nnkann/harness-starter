@@ -180,7 +180,7 @@ Claude가 직접:
 ```
 
 스타터 repo:
-- `.claude/VERSION` 파일에 현재 버전 명시 (예: `0.6.0`)
+- `.claude/HARNESS_VERSION` 파일에 현재 버전 명시 (예: `0.6.0`)
 - `h-setup.sh --upgrade` 실행 시 스타터의 VERSION과 타겟의 harness.json version 비교
 - major 변경(1.x): 수동 마이그레이션 필요할 수 있음 경고
 - minor 변경(0.x→0.y): 자동 병합 시도
@@ -190,7 +190,7 @@ Claude가 직접:
 
 | 순서 | 작업 | 파일 |
 |------|------|------|
-| 1 | 버전 체계 도입 | `.claude/VERSION`, `harness.json` 스키마 변경 |
+| 1 | 버전 체계 도입 | `.claude/HARNESS_VERSION`, `harness.json` 스키마 변경 |
 | 2 | `h-setup.sh --upgrade` 구현 | `h-setup.sh` |
 | 3 | `harness-upgrade` 스킬 작성 | `.claude/skills/harness-upgrade/SKILL.md` |
 | 4 | `.upgrade/` 를 `.gitignore`에 추가 | `.gitignore` 템플릿 |

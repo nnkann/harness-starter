@@ -127,13 +127,20 @@ EOF
   fi
 
   # 버전 비교
-  SRC_VERSION=$(cat "$SCRIPT_DIR/.claude/VERSION" 2>/dev/null | tr -d '[:space:]')
+  SRC_VERSION=$(cat "$SCRIPT_DIR/.claude/HARNESS_VERSION" 2>/dev/null | tr -d '[:space:]')
   CUR_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "$META" 2>/dev/null | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+
+  # 소스 VERSION이 비어있으면 스타터 리포가 아닌 곳에서 실행한 것
+  if [ -z "$SRC_VERSION" ]; then
+    echo -e "${RED}❌ .claude/HARNESS_VERSION이 없거나 비어있음. harness-starter 리포에서 실행하고 있는지 확인하라.${NC}"
+    echo "    사용법: cd /path/to/harness-starter && bash h-setup.sh --upgrade /path/to/project"
+    exit 1
+  fi
 
   echo "═══ 하네스 업그레이드 ═══"
   echo "타겟:    $TARGET"
   echo "현재:    ${CUR_VERSION:-unknown}"
-  echo "최신:    ${SRC_VERSION:-unknown}"
+  echo "최신:    ${SRC_VERSION}"
   echo ""
 
   if [ "$CUR_VERSION" = "$SRC_VERSION" ]; then
@@ -239,7 +246,7 @@ EOF
   echo "⏭  settings.json, CLAUDE.md — 사용자 커스터마이징 파일, 업그레이드 제외"
 
   # VERSION 복사
-  cp "$SCRIPT_DIR/.claude/VERSION" "$TARGET/.claude/VERSION" 2>/dev/null
+  cp "$SCRIPT_DIR/.claude/HARNESS_VERSION" "$TARGET/.claude/HARNESS_VERSION" 2>/dev/null
 
   # 업그레이드 리포트 생성
   if [ "$STAGED_COUNT" -gt 0 ]; then
@@ -411,7 +418,7 @@ fi
 # 하네스 메타데이터 기록 (프로파일 + 버전)
 META="$TARGET/.claude/harness.json"
 if [ ! -f "$META" ]; then
-  HARNESS_VERSION=$(cat "$SCRIPT_DIR/.claude/VERSION" 2>/dev/null | tr -d '[:space:]')
+  HARNESS_VERSION=$(cat "$SCRIPT_DIR/.claude/HARNESS_VERSION" 2>/dev/null | tr -d '[:space:]')
   cat > "$META" <<EOF
 {
   "profile": "$PROFILE",
