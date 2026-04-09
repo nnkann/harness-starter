@@ -75,6 +75,64 @@ if [ -d "docs/WIP" ]; then
   fi
 fi
 
+# 5. 위험도 기반 리뷰 게이트 (light 모드일 때만)
+HARNESS_LEVEL=""
+if [ -f "CLAUDE.md" ]; then
+  HARNESS_LEVEL=$(grep -m1 '하네스 강도:' CLAUDE.md 2>/dev/null | sed 's/.*하네스 강도:[[:space:]]*//' | tr -d ' ')
+fi
+
+if [ "$HARNESS_LEVEL" = "light" ]; then
+  RISK_REASONS=""
+
+  # 5a. 변경 파일 수 5개 이상
+  CHANGED_COUNT=$(git diff --cached --name-only | wc -l | tr -d ' ')
+  if [ "$CHANGED_COUNT" -ge 5 ]; then
+    RISK_REASONS="${RISK_REASONS}\n   - 변경 파일 ${CHANGED_COUNT}개 (≥5)"
+  fi
+
+  # 5b. 삭제 라인 50줄 이상
+  DELETED_LINES=$(git diff --cached --numstat | awk '{s+=$2} END {print s+0}')
+  if [ "$DELETED_LINES" -ge 50 ]; then
+    RISK_REASONS="${RISK_REASONS}\n   - 삭제 ${DELETED_LINES}줄 (≥50)"
+  fi
+
+  # 5c. 핵심 설정 파일 변경
+  CORE_FILES=$(git diff --cached --name-only | grep -E '^(CLAUDE\.md|\.claude/settings\.json|\.claude/rules/|\.claude/scripts/)' 2>/dev/null)
+  if [ -n "$CORE_FILES" ]; then
+    RISK_REASONS="${RISK_REASONS}\n   - 핵심 설정 파일 변경"
+  fi
+
+  # 5d. 보안 관련 패턴
+  SEC_MATCH=$(git diff --cached --name-only | grep -iE 'auth|token|secret|key|credential|password' 2>/dev/null)
+  if [ -z "$SEC_MATCH" ]; then
+    SEC_MATCH=$(git diff --cached -U0 | grep -iE '^\+.*(auth|token|secret|key|credential|password)' 2>/dev/null | head -1)
+  fi
+  if [ -n "$SEC_MATCH" ]; then
+    RISK_REASONS="${RISK_REASONS}\n   - 보안 관련 패턴 감지"
+  fi
+
+  # 5e. 인프라/배포 파일
+  INFRA_FILES=$(git diff --cached --name-only | grep -iE '(Dockerfile|docker-compose|\.github/workflows/|\.gitlab-ci|deploy)' 2>/dev/null)
+  if [ -n "$INFRA_FILES" ]; then
+    RISK_REASONS="${RISK_REASONS}\n   - 인프라/배포 파일 변경"
+  fi
+
+  # 5f. 단일 파일에서 추가+삭제 동시 30줄 이상
+  COMPLEX=$(git diff --cached --numstat | awk '$1+0 >= 30 && $2+0 >= 30 {print $3}')
+  if [ -n "$COMPLEX" ]; then
+    RISK_REASONS="${RISK_REASONS}\n   - 구조적 수정 감지: $(echo "$COMPLEX" | head -1)"
+  fi
+
+  if [ -n "$RISK_REASONS" ]; then
+    echo ""
+    echo "⚡ 위험도 감지 (light 모드):"
+    echo -e "$RISK_REASONS"
+    echo ""
+    echo "   /commit --strict 로 리뷰 후 커밋하세요."
+    ERRORS=$((ERRORS + 1))
+  fi
+fi
+
 # 결과
 if [ $ERRORS -gt 0 ]; then
   echo ""
