@@ -16,26 +16,39 @@ bash /path/to/harness-starter/setup.sh .
 
 setup.sh는 멱등성 보장. 이미 있는 파일은 건드리지 않는다.
 
+```bash
+# 기존 프로젝트의 하네스를 최신 버전으로 업그레이드
+bash /path/to/harness-starter/setup.sh --upgrade /path/to/my-project
+
+# Claude Code에서 충돌 파일 병합
+# → /harness-upgrade
+```
+
 ## 구조
 
 ```
 CLAUDE.md                        에이전트 루트 인스트럭션 (≤30줄)
 .claude/
 ├── settings.json                hooks 정의
-├── rules/                       자동 로드 규칙
+├── VERSION                      하네스 버전 (semver)
+├── rules/                       자동 로드 규칙 (5개)
 │   ├── self-verify.md           [상시] 작업 중 자기 검증
 │   ├── coding.md                [상시] 코딩 컨벤션 (플레이스홀더)
 │   ├── naming.md                [paths] 네이밍 규칙 (플레이스홀더)
-│   └── docs.md                  [paths] 문서 구조 규칙
-├── skills/                      온디맨드 스킬 (7개)
+│   ├── docs.md                  [paths] 문서 구조 규칙
+│   └── memory.md                [상시] 메모리 활용 규칙
+├── skills/                      온디맨드 스킬 (10개)
 │   ├── harness-init/            프로젝트 초기화 (CPS + 스택 결정)
+│   ├── harness-sync/            클론 후 환경 동기화
+│   ├── harness-upgrade/         하네스 버전 업그레이드 + 병합
 │   ├── implementation/          작업 문서 라이프사이클
 │   ├── commit/                  커밋 + Review (light/strict)
-│   ├── eval/                    건강 검진 (3모드 + --deep)
+│   ├── eval/                    건강 검진 (--quick/--harness/--surface/--deep)
+│   ├── advisor/                 멀티 에이전트 3관점 검증
 │   ├── check-existing/          기존 코드 중복 확인
 │   ├── naming-convention/       네이밍 규칙 설정
 │   └── coding-convention/       코딩 컨벤션 설정
-└── scripts/                     hook 스크립트 (4개)
+└── scripts/                     hook 스크립트 (6개)
 docs/
 ├── WIP/                         진행 중 (파일 있으면 할 일 있다)
 ├── setup/                       초기 결정
@@ -69,6 +82,11 @@ docs/
 5. /commit           작업 잔여물 정리, 완료 문서 이동, 커밋+푸시.
 
 6. 반복              docs/WIP/에 다음 작업이 남아있으면 3번으로.
+
+--- 업그레이드 (하네스 스타터 새 버전 출시 시) ---
+
+7. setup.sh --upgrade  새 파일 복사 + 변경 파일 .upgrade/에 스테이징.
+8. /harness-upgrade    스테이징된 파일을 대화형으로 병합. 사용자 커스터마이징 보존.
 ```
 
 **docs/WIP/가 비어있으면 할 일이 없다는 뜻이다.**

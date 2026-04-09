@@ -1,6 +1,8 @@
 #!/bin/bash
 # 하네스 셋업 — 이 repo의 하네스 파일을 타겟 프로젝트에 복사한다.
 # 사용법: bash setup.sh [--profile minimal|standard|full] [타겟_디렉토리]
+#         bash setup.sh --upgrade [타겟_디렉토리]
+#         bash setup.sh --add <skill> [타겟_디렉토리]
 # 멱등성 보장: 기존 파일을 덮어쓰지 않음.
 #
 # 프로파일:
@@ -8,6 +10,10 @@
 #   standard        — minimal + check-existing, naming-convention
 #   full            — 전부 (coding-convention, eval, advisor 포함)
 # 필요한 스킬은 나중에 `bash setup.sh --add <skill>`로 추가 가능.
+#
+# --upgrade: 기존 하네스를 최신 버전으로 업그레이드.
+#   새 파일은 바로 복사, 수정된 파일은 .claude/.upgrade/에 스테이징 후 리포트 생성.
+#   충돌 해결은 harness-upgrade 스킬이 대화형으로 처리.
 
 set -e
 
@@ -21,6 +27,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # 인자 파싱
 PROFILE="minimal"
 ADD_SKILL=""
+UPGRADE_MODE=""
 TARGET=""
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -28,6 +35,8 @@ while [ $# -gt 0 ]; do
       PROFILE="$2"; shift 2 ;;
     --add)
       ADD_SKILL="$2"; shift 2 ;;
+    --upgrade)
+      UPGRADE_MODE="1"; shift ;;
     *)
       TARGET="$1"; shift ;;
   esac
@@ -37,11 +46,11 @@ TARGET="${TARGET:-.}"
 # 프로파일별 스킬 목록
 case "$PROFILE" in
   minimal)
-    SKILLS="harness-init commit implementation" ;;
+    SKILLS="harness-init commit implementation harness-upgrade" ;;
   standard)
-    SKILLS="harness-init commit implementation check-existing naming-convention" ;;
+    SKILLS="harness-init commit implementation harness-upgrade check-existing naming-convention" ;;
   full)
-    SKILLS="harness-init commit implementation check-existing naming-convention coding-convention eval advisor" ;;
+    SKILLS="harness-init commit implementation harness-upgrade check-existing naming-convention coding-convention eval advisor" ;;
   *)
     echo -e "${RED}❌ 알 수 없는 프로파일: $PROFILE${NC}"
     echo "사용 가능: minimal | standard | full"
@@ -75,6 +84,186 @@ if [ -n "$ADD_SKILL" ]; then
     cp "$SRC" "$DST"
     echo -e "${GREEN}✓ 스킬 추가: $ADD_SKILL${NC}"
   fi
+  exit 0
+fi
+
+# --upgrade 모드: 기존 하네스를 최신으로 업그레이드
+if [ -n "$UPGRADE_MODE" ]; then
+  META="$TARGET/.claude/harness.json"
+  if [ ! -f "$META" ]; then
+    echo -e "${RED}❌ 하네스가 설치되지 않은 프로젝트. setup.sh를 먼저 실행하라.${NC}"
+    exit 1
+  fi
+
+  # 버전 비교
+  SRC_VERSION=$(cat "$SCRIPT_DIR/.claude/VERSION" 2>/dev/null | tr -d '[:space:]')
+  CUR_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "$META" 2>/dev/null | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+
+  echo "═══ 하네스 업그레이드 ═══"
+  echo "타겟:    $TARGET"
+  echo "현재:    ${CUR_VERSION:-unknown}"
+  echo "최신:    ${SRC_VERSION:-unknown}"
+  echo ""
+
+  if [ "$CUR_VERSION" = "$SRC_VERSION" ]; then
+    echo -e "${GREEN}✅ 이미 최신 버전 ($SRC_VERSION). 업그레이드 불필요.${NC}"
+    exit 0
+  fi
+
+  # 프로파일에서 스킬 목록 읽기
+  CUR_PROFILE=$(grep -o '"profile"[[:space:]]*:[[:space:]]*"[^"]*"' "$META" 2>/dev/null | sed 's/.*"profile"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+  case "${CUR_PROFILE:-minimal}" in
+    minimal)  SKILLS="harness-init commit implementation harness-upgrade" ;;
+    standard) SKILLS="harness-init commit implementation harness-upgrade check-existing naming-convention" ;;
+    full)     SKILLS="harness-init commit implementation harness-upgrade check-existing naming-convention coding-convention eval advisor" ;;
+    *)        SKILLS="harness-init commit implementation harness-upgrade" ;;
+  esac
+
+  UPGRADE_DIR="$TARGET/.claude/.upgrade"
+  rm -rf "$UPGRADE_DIR"
+  mkdir -p "$UPGRADE_DIR"
+
+  NEW_COUNT=0
+  STAGED_COUNT=0
+  UNCHANGED_COUNT=0
+
+  # 업그레이드용 파일 비교 함수
+  stage_or_copy() {
+    local src="$1"
+    local dst="$2"
+    local rel=$(echo "$dst" | sed "s|$TARGET/||")
+    local stage_path="$UPGRADE_DIR/$rel"
+
+    if [ ! -f "$dst" ]; then
+      # 새 파일 — 바로 복사
+      mkdir -p "$(dirname "$dst")"
+      cp "$src" "$dst"
+      echo -e "  ${GREEN}✓ 새 파일${NC}: $rel"
+      NEW_COUNT=$((NEW_COUNT + 1))
+    elif diff -q "$src" "$dst" > /dev/null 2>&1; then
+      # 변경 없음
+      UNCHANGED_COUNT=$((UNCHANGED_COUNT + 1))
+    else
+      # 변경 있음 — .upgrade/에 스테이징
+      mkdir -p "$(dirname "$stage_path")"
+      cp "$src" "$stage_path"
+      echo -e "  ${YELLOW}⚡ 변경됨${NC}: $rel"
+      STAGED_COUNT=$((STAGED_COUNT + 1))
+    fi
+  }
+
+  # 스크립트
+  echo "📁 .claude/scripts/"
+  for f in "$SCRIPT_DIR/.claude/scripts/"*; do
+    [ -f "$f" ] || continue
+    stage_or_copy "$f" "$TARGET/.claude/scripts/$(basename "$f")"
+  done
+
+  # 스킬 (프로파일 기준)
+  echo ""
+  echo "📁 .claude/skills/ ($CUR_PROFILE)"
+  for skill in $SKILLS; do
+    src="$SCRIPT_DIR/.claude/skills/$skill/SKILL.md"
+    [ -f "$src" ] || continue
+    stage_or_copy "$src" "$TARGET/.claude/skills/$skill/SKILL.md"
+  done
+  # 스타터에 있지만 프로파일에 없는 스킬도 타겟에 있으면 업그레이드 대상
+  for src in "$SCRIPT_DIR/.claude/skills/"*/SKILL.md; do
+    [ -f "$src" ] || continue
+    skill=$(basename "$(dirname "$src")")
+    dst="$TARGET/.claude/skills/$skill/SKILL.md"
+    [ -f "$dst" ] || continue
+    # 이미 위에서 처리한 스킬은 건너뛰기
+    echo "$SKILLS" | grep -qw "$skill" && continue
+    stage_or_copy "$src" "$dst"
+  done
+
+  # rules
+  echo ""
+  echo "📁 .claude/rules/"
+  for f in "$SCRIPT_DIR/.claude/rules/"*; do
+    [ -f "$f" ] || continue
+    stage_or_copy "$f" "$TARGET/.claude/rules/$(basename "$f")"
+  done
+
+  # settings.json
+  echo ""
+  echo "⚙️  .claude/settings.json"
+  stage_or_copy "$SCRIPT_DIR/.claude/settings.json" "$TARGET/.claude/settings.json"
+
+  # CLAUDE.md
+  echo ""
+  echo "📄 CLAUDE.md"
+  stage_or_copy "$SCRIPT_DIR/CLAUDE.md" "$TARGET/CLAUDE.md"
+
+  # VERSION 복사
+  cp "$SCRIPT_DIR/.claude/VERSION" "$TARGET/.claude/VERSION" 2>/dev/null
+
+  # 업그레이드 리포트 생성
+  if [ "$STAGED_COUNT" -gt 0 ]; then
+    REPORT="$UPGRADE_DIR/UPGRADE_REPORT.md"
+    cat > "$REPORT" <<EOF
+> status: pending
+
+# 하네스 업그레이드 리포트
+
+- 소스 버전: ${SRC_VERSION}
+- 현재 버전: ${CUR_VERSION}
+- 프로파일: ${CUR_PROFILE}
+- 생성일: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+## 변경 파일 목록
+
+EOF
+    # 스테이징된 파일들의 diff 요약 추가
+    find "$UPGRADE_DIR" -type f ! -name "UPGRADE_REPORT.md" | sort | while read staged_file; do
+      rel=$(echo "$staged_file" | sed "s|$UPGRADE_DIR/||")
+      target_file="$TARGET/$rel"
+      echo "### $rel" >> "$REPORT"
+      echo '```diff' >> "$REPORT"
+      diff -u "$target_file" "$staged_file" 2>/dev/null | head -50 >> "$REPORT"
+      echo '```' >> "$REPORT"
+      echo "" >> "$REPORT"
+    done
+
+    cat >> "$REPORT" <<'EOF'
+
+## 다음 단계
+
+Claude Code에서 아래를 실행하세요:
+
+> harness-upgrade 스킬을 실행해줘
+
+harness-upgrade 스킬이 각 파일의 diff를 분석하고, 사용자 커스터마이징을 보존하면서 병합을 수행합니다.
+EOF
+  fi
+
+  # 실행 권한
+  chmod +x "$TARGET/.claude/scripts/"*.sh 2>/dev/null
+
+  echo ""
+  echo "═══ 업그레이드 준비 완료 ═══"
+  echo -e "  ${GREEN}새 파일:   ${NEW_COUNT}개${NC}"
+  echo -e "  ${YELLOW}병합 필요: ${STAGED_COUNT}개${NC} (.claude/.upgrade/에 스테이징됨)"
+  echo -e "  변경 없음: ${UNCHANGED_COUNT}개"
+  echo ""
+
+  if [ "$STAGED_COUNT" -gt 0 ]; then
+    echo "다음: Claude Code에서 'harness-upgrade 스킬을 실행해줘'"
+    echo "      → 각 파일의 diff를 보고 승인하면서 병합합니다."
+  else
+    # 새 파일만 있고 충돌 없으면 바로 harness.json 업데이트
+    if command -v jq > /dev/null 2>&1; then
+      jq --arg v "$SRC_VERSION" --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        '.version = $v | .upgraded_at = $t' "$META" > "$META.tmp" && mv "$META.tmp" "$META"
+    else
+      sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$SRC_VERSION\"/" "$META"
+      sed -i "s/\"upgraded_at\": [^,}]*/\"upgraded_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"/" "$META"
+    fi
+    echo -e "${GREEN}✅ 업그레이드 완료 (${CUR_VERSION} → ${SRC_VERSION})${NC}"
+    rm -rf "$UPGRADE_DIR"
+  fi
+
   exit 0
 fi
 
@@ -165,11 +354,13 @@ GI="$TARGET/.gitignore"
 if [ -f "$GI" ]; then
   grep -q '^\.claude/\.env_synced$' "$GI" || echo '.claude/.env_synced' >> "$GI"
   grep -q '^\.claude/\.compact_count$' "$GI" || echo '.claude/.compact_count' >> "$GI"
+  grep -q '^\.claude/\.upgrade/$' "$GI" || echo '.claude/.upgrade/' >> "$GI"
 else
   cat > "$GI" <<'EOF'
 # 하네스 — 머신별/세션별 파일 제외
 .claude/.env_synced
 .claude/.compact_count
+.claude/.upgrade/
 EOF
   echo -e "  ${GREEN}✓ 생성${NC}: .gitignore"
   CREATED=$((CREATED + 1))
@@ -178,11 +369,14 @@ fi
 # 하네스 메타데이터 기록 (프로파일 + 버전)
 META="$TARGET/.claude/harness.json"
 if [ ! -f "$META" ]; then
+  HARNESS_VERSION=$(cat "$SCRIPT_DIR/.claude/VERSION" 2>/dev/null | tr -d '[:space:]')
   cat > "$META" <<EOF
 {
   "profile": "$PROFILE",
   "skills": "$SKILLS",
-  "installed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  "version": "${HARNESS_VERSION:-unknown}",
+  "installed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "upgraded_at": null
 }
 EOF
   echo -e "  ${GREEN}✓ 생성${NC}: .claude/harness.json"
