@@ -95,12 +95,14 @@ Step 4까지 완료 후, **위험도 판단**을 거쳐 커밋 메시지 작성 
 
 | 조건 | 기준 |
 |------|------|
+| 신규 모듈 | 신규 소스 파일(.cpp/.h/.ts/.py 등) 1개 이상 추가 |
 | 변경 파일 수 | 5개 이상 |
 | 대규모 삭제 | 삭제 라인이 50줄 이상 (리팩토링/제거) |
 | 핵심 설정 파일 | CLAUDE.md, settings.json, rules/*, scripts/* 변경 |
 | 보안 관련 | 파일명이나 변경 내용에 auth, token, secret, key, credential, password 패턴 |
 | 인프라/배포 | Dockerfile, docker-compose, CI 설정(.github/workflows/, .gitlab-ci), deploy 관련 파일 |
 | 복잡한 로직 변경 | 단일 파일에서 추가+삭제가 동시에 30줄 이상 (단순 추가가 아닌 구조적 수정) |
+| 공개 API 변경 | 기존 함수 시그니처 변경, 구조체 필드 추가/삭제 (하위 호환 깨짐) |
 
 **해당 없으면** → 커밋 허용, 5L로 진행.
 **해당하면** → 커밋 차단. 사용자가 `/commit --strict`로 재시도해야 한다.
