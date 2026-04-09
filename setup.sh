@@ -14,6 +14,7 @@
 # --upgrade: 기존 하네스를 최신 버전으로 업그레이드.
 #   새 파일은 바로 복사, 수정된 파일은 .claude/.upgrade/에 스테이징 후 리포트 생성.
 #   충돌 해결은 harness-upgrade 스킬이 대화형으로 처리.
+#   harness.json이 없는 fork 프로젝트도 지원 (.claude/ 존재 시 자동 생성).
 
 set -e
 
@@ -91,8 +92,38 @@ fi
 if [ -n "$UPGRADE_MODE" ]; then
   META="$TARGET/.claude/harness.json"
   if [ ! -f "$META" ]; then
-    echo -e "${RED}❌ 하네스가 설치되지 않은 프로젝트. setup.sh를 먼저 실행하라.${NC}"
-    exit 1
+    # harness.json 없지만 .claude/ 디렉토리가 있으면 fork 프로젝트로 판단
+    if [ -d "$TARGET/.claude" ]; then
+      echo -e "${YELLOW}⚠ harness.json 없음 — fork 프로젝트로 판단. harness.json을 자동 생성합니다.${NC}"
+      # 설치된 스킬 목록으로 프로파일 추정
+      DETECTED_PROFILE="minimal"
+      if [ -f "$TARGET/.claude/skills/eval/SKILL.md" ] || [ -f "$TARGET/.claude/skills/advisor/SKILL.md" ]; then
+        DETECTED_PROFILE="full"
+      elif [ -f "$TARGET/.claude/skills/check-existing/SKILL.md" ] || [ -f "$TARGET/.claude/skills/naming-convention/SKILL.md" ]; then
+        DETECTED_PROFILE="standard"
+      fi
+      # 설치된 스킬 실제 목록 수집
+      DETECTED_SKILLS=""
+      for d in "$TARGET/.claude/skills/"*/; do
+        [ -d "$d" ] || continue
+        DETECTED_SKILLS="$DETECTED_SKILLS $(basename "$d")"
+      done
+      DETECTED_SKILLS=$(echo "$DETECTED_SKILLS" | xargs)
+      cat > "$META" <<EOF
+{
+  "profile": "$DETECTED_PROFILE",
+  "skills": "$DETECTED_SKILLS",
+  "version": "unknown",
+  "installed_at": "unknown",
+  "upgraded_at": null
+}
+EOF
+      echo -e "${GREEN}✓ harness.json 생성 (프로파일: $DETECTED_PROFILE)${NC}"
+      echo ""
+    else
+      echo -e "${RED}❌ 하네스가 설치되지 않은 프로젝트. setup.sh를 먼저 실행하라.${NC}"
+      exit 1
+    fi
   fi
 
   # 버전 비교
