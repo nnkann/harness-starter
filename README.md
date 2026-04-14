@@ -93,6 +93,18 @@ docs/
 
 상태값: `pending` → `in-progress` → `completed` (커밋 시 이동) / `abandoned` (archived로 이동)
 
+## CPS (Context / Problem / Solution)
+
+모든 프로젝트 결정의 출발점. `harness-init`이 대화를 통해 구조화한다.
+
+- **Context**: 배경, 제약, 프로젝트 중요도 → 하네스 강도 결정
+- **Problem**: 해결해야 할 핵심 문제 1~3개
+- **Solution**: 각 Problem에 대한 대응 방안 + 강제력 설계
+
+CPS 문서는 `docs/setup/project_kickoff_YYMMDD.md`에 저장된다. `docs/setup/project_kickoff_sample.md`에 예제가 포함되어 있으며, `harness-init` 실행 시 실제 내용으로 대체된다.
+
+`/implementation` 스킬은 작업 시작 전 CPS와 대조하여 방향성을 검증한다. init을 아직 실행하지 않았으면 안내 메시지를 표시한다.
+
 ## 핵심 원칙
 
 - **CLAUDE.md는 소원 목록이다. Hooks는 법이다. Linter는 물리 법칙이다.**
