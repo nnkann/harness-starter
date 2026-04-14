@@ -275,7 +275,7 @@ CPS와 스택이 확정된 시점이므로 프로젝트 README를 생성한다.
 
 사용자가 선택한 도메인에 대해 `docs/WIP/`에 구현 계획 문서를 **직접 생성한다.**
 
-파일명: `development_{도메인명}_{YYMMDD}.md`
+파일명: `development--{도메인명}_{YYMMDD}.md`
 
 ```markdown
 > status: pending
@@ -306,6 +306,7 @@ CPS와 스택이 확정된 시점이므로 프로젝트 README를 생성한다.
 
 - Step 7의 결정 문서(CPS + 스택) status를 `completed`로 변경한다.
 - 커밋 시 commit 스킬이 `docs/setup/`으로 이동시킨다.
+- `docs/setup/project_kickoff_sample.md`가 존재하면 삭제한다 (실제 CPS로 대체되었으므로).
 
 #### 8d. 완료 메시지
 
@@ -313,7 +314,7 @@ CPS와 스택이 확정된 시점이므로 프로젝트 README를 생성한다.
 ✅ 하네스 초기화 완료.
 
 📄 docs/WIP/:
-  - development_[도메인]_[날짜].md (pending) ← 첫 번째 작업
+  - development--[도메인]_[날짜].md (pending) ← 첫 번째 작업
 
 📋 다음: 이 문서의 status를 in-progress로 바꾸고 구현 시작.
    바로 시작하시겠습니까?

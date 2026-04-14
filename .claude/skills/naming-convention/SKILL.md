@@ -137,17 +137,18 @@ packages/
 
 ### 계획 문서 (docs/WIP/)
 
-패턴: `{대상폴더}_{작업내용}_{YYMMDD}.md`
-- 대상폴더: 완료 시 이동할 docs/ 하위 폴더명
+패턴: `{대상폴더}--{작업내용}_{YYMMDD}.md`
+- `{대상폴더}--`: 완료 시 이동할 docs/ 하위 폴더명. `--`는 라우팅 구분자.
 - 작업내용: snake_case, 간결하게
 - YYMMDD: 생성 날짜
+- 이동 시 `{대상폴더}--` 접두사가 제거된다.
 
-유효한 접두사: setup_, design_, history_, development_, harness_
+유효한 접두사: `setup--`, `history--`, `development--`, `harness--`
 
-예시:
-- `setup_auth_stack_decision_260330.md`
-- `design_payment_api_260330.md`
-- `history_token_refresh_fix_260330.md`
+예시 (WIP → 이동 후):
+- `setup--auth_stack_decision_260330.md` → `docs/setup/auth_stack_decision_260330.md`
+- `development--payment_api_260330.md` → `docs/development/payment_api_260330.md`
+- `history--token_refresh_fix_260330.md` → `docs/history/token_refresh_fix_260330.md`
 
 ### 파일명/클래스/함수/메소드
 

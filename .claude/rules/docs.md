@@ -16,13 +16,14 @@ docs/
 
 ### 문서 생성
 - 작업 시작 전 docs/WIP/에 문서를 먼저 만든다 (implementation 스킬 참조).
-- 파일명: snake_case. 간결하게. 예: `auth_stack_decision.md`
+- WIP 파일명: `{대상폴더}--{작업내용}_{YYMMDD}.md`. `--`는 라우팅 태그.
 - 상태 헤더 필수: `> status: pending | in-progress | completed | abandoned`
 
 ### 문서 이동
 - 완료/중단된 문서는 docs/WIP/에 남기지 않는다.
 - 이동은 commit 스킬이 처리한다. 수동으로 이동하지 마라.
-- 이동 대상 폴더가 없으면 만든다.
+- 이동 시 `{대상폴더}--` 접두사를 제거한다. 최종 파일명은 `{작업내용}_{YYMMDD}.md`.
+- 이동 대상은 위 구조에 정의된 폴더만 허용. **새 하위 폴더를 만들지 마라.**
 
 ### 금지
 - docs/ 외의 위치에 문서를 만들지 마라 (README.md, CHANGELOG.md 등 루트 표준 파일 제외).

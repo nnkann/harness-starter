@@ -57,18 +57,22 @@ docs/WIP/에서 이번 작업과 연결된 문서를 처리한다.
 | completed | 파일명 접두사로 이동 대상 결정 |
 | abandoned | docs/archived/로 이동 |
 
-파일명 접두사 → 이동 대상:
+파일명 형식: `{대상폴더}--{작업내용}_{YYMMDD}.md`
 
-| 접두사 | 이동 대상 |
-|--------|----------|
-| setup_ | docs/setup/ |
-| history_ | docs/history/ |
-| development_ | docs/development/ |
-| harness_ | docs/harness/ |
-| 접두사 없음 또는 판단 불가 | 사용자에게 질문 |
+`--` 앞의 접두사로 이동 대상을 결정하고, **이동 시 접두사(`{대상폴더}--`)를 제거**한다.
+
+| 접두사 | 이동 대상 | 이동 후 파일명 |
+|--------|----------|---------------|
+| `setup--` | docs/setup/ | 접두사 제거 |
+| `history--` | docs/history/ | 접두사 제거 |
+| `development--` | docs/development/ | 접두사 제거 |
+| `harness--` | docs/harness/ | 접두사 제거 |
+| 접두사 없음 또는 판단 불가 | 사용자에게 질문 | — |
+
+예시: `docs/WIP/history--token_refresh_fix_260330.md` → `docs/history/token_refresh_fix_260330.md`
 
 - 계획 문서가 없는 작업이면 넘어간다.
-- 이동 대상 폴더가 없으면 만든다.
+- 이동 대상은 docs/ 규칙에 정의된 폴더만 허용한다 (setup, history, development, harness, archived). 새 폴더를 만들지 않는다.
 
 ### 3. 스테이징
 
