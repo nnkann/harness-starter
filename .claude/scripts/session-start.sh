@@ -65,7 +65,35 @@ if [ "$zombie_total" -gt 0 ]; then
   echo "⚠️ 테스트 관련 좀비 프로세스 ${zombie_total}개 발견."
 fi
 
-# 6. 핵심 규칙 리마인드
+# 6. 하네스 업그레이드 필요 여부 확인
+# harness-upstream remote가 있는 프로젝트에서만 체크
+if git remote | grep -qx harness-upstream 2>/dev/null; then
+  if [ -f ".claude/harness.json" ] && [ -f ".claude/HARNESS_VERSION" ]; then
+    INSTALLED_VER=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' .claude/harness.json 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/')
+    LATEST_VER=$(cat .claude/HARNESS_VERSION 2>/dev/null | tr -d '[:space:]')
+    if [ -n "$INSTALLED_VER" ] && [ -n "$LATEST_VER" ] && [ "$INSTALLED_VER" != "$LATEST_VER" ]; then
+      echo ""
+      echo "╔════════════════════════════════════════════════════════════╗"
+      echo "║  🔄 하네스 업그레이드 가능: ${INSTALLED_VER} → ${LATEST_VER}  ║"
+      echo "║                                                            ║"
+      echo "║  harness-starter에서 실행:                                ║"
+      echo "║    bash h-setup.sh --upgrade $(pwd)"
+      echo "╚════════════════════════════════════════════════════════════╝"
+    fi
+  fi
+  # .upgrade/ 디렉토리가 남아있으면 미완료 업그레이드 경고
+  if [ -d ".claude/.upgrade" ] && [ -f ".claude/.upgrade/UPGRADE_REPORT.md" ]; then
+    echo ""
+    echo "╔════════════════════════════════════════════════════════════╗"
+    echo "║  ⚠️  미완료 업그레이드 감지                               ║"
+    echo "║                                                            ║"
+    echo "║  .claude/.upgrade/에 스테이징된 파일이 있습니다.          ║"
+    echo "║  'harness-upgrade 스킬을 실행해줘' 로 병합하세요.        ║"
+    echo "╚════════════════════════════════════════════════════════════╝"
+  fi
+fi
+
+# 7. 핵심 규칙 리마인드
 echo ""
 echo "═══ RULES ═══"
 echo "1. 린터 에러 0에서만 커밋."
