@@ -14,9 +14,9 @@ FILE=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
 # src/ 하위 새 파일이면 check-existing 안내
 case "$FILE" in
   src/*|app/*|lib/*|packages/*)
-    echo "📌 새 소스 파일 생성 감지: $FILE"
-    echo "   → check-existing 스킬로 중복 확인 했는가?"
-    echo "   → naming.md 규칙에 맞는 파일명인가?"
+    echo "📌 새 소스 파일 생성 감지: $FILE" >&2
+    echo "   → check-existing 스킬로 중복 확인 했는가?" >&2
+    echo "   → naming.md 규칙에 맞는 파일명인가?" >&2
     ;;
 esac
 
@@ -31,7 +31,7 @@ case "$FILE" in
       # 컴포넌트 파일 (PascalCase 허용 가능)은 제외
       case "$BASENAME_NO_EXT" in
         [A-Z]*)
-          echo "⚠️ PascalCase 파일명: $BASENAME — 컴포넌트 파일이 맞는지 확인."
+          echo "⚠️ PascalCase 파일명: $BASENAME — 컴포넌트 파일이 맞는지 확인." >&2
           ;;
       esac
     fi

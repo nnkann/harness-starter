@@ -5,9 +5,9 @@ ERRORS=0
 # 1. TODO/FIXME/HACK 검사 (staged 파일만)
 todo_files=$(git diff --cached --name-only | xargs grep -l "TODO\|FIXME\|HACK" 2>/dev/null)
 if [ -n "$todo_files" ]; then
-  echo "❌ TODO/FIXME/HACK 발견. 코드가 아니라 docs/WIP/에 기록하라."
+  echo "❌ TODO/FIXME/HACK 발견. 코드가 아니라 docs/WIP/에 기록하라." >&2
   echo "$todo_files" | while read f; do
-    echo "   $f"
+    echo "   $f" >&2
   done
   ERRORS=$((ERRORS + 1))
 fi
@@ -49,7 +49,7 @@ esac
 if [ -n "$LINT_CMD" ]; then
   $LINT_CMD 2>/dev/null
   if [ $? -ne 0 ]; then
-    echo "❌ 린터 에러. 에러 0에서만 커밋 가능. (실행: $LINT_CMD)"
+    echo "❌ 린터 에러. 에러 0에서만 커밋 가능. (실행: $LINT_CMD)" >&2
     ERRORS=$((ERRORS + 1))
   fi
 fi
@@ -57,9 +57,9 @@ fi
 # 3. tests/ 밖에 테스트 파일 있는지 검사
 test_outside=$(git diff --cached --name-only | grep -E '\.test\.|\.spec\.|_test\.' | grep -v '^tests/' | grep -v '^__tests__/')
 if [ -n "$test_outside" ]; then
-  echo "❌ 테스트 파일이 tests/ 밖에 있음:"
+  echo "❌ 테스트 파일이 tests/ 밖에 있음:" >&2
   echo "$test_outside" | while read f; do
-    echo "   $f"
+    echo "   $f" >&2
   done
   ERRORS=$((ERRORS + 1))
 fi
@@ -69,9 +69,9 @@ if [ -d "docs/WIP" ]; then
   # 프론트매터 또는 인라인 status에서 completed/abandoned 감지
   stale=$(grep -rl '^status:.*\(completed\|abandoned\)\|^> status:.*\(completed\|abandoned\)' docs/WIP/ 2>/dev/null)
   if [ -n "$stale" ]; then
-    echo "⚠️ docs/WIP/에 완료/중단 문서가 남아있음. 이동 필요:"
+    echo "⚠️ docs/WIP/에 완료/중단 문서가 남아있음. 이동 필요:" >&2
     echo "$stale" | while read f; do
-      echo "   $(basename "$f")"
+      echo "   $(basename "$f")" >&2
     done
   fi
 fi
@@ -125,18 +125,18 @@ if [ "$HARNESS_LEVEL" = "light" ]; then
   fi
 
   if [ -n "$RISK_REASONS" ]; then
-    echo ""
-    echo "⚡ 위험도 감지 (light 모드):"
-    echo -e "$RISK_REASONS"
-    echo ""
-    echo "   /commit --strict 로 리뷰 후 커밋하세요."
+    echo "" >&2
+    echo "⚡ 위험도 감지 (light 모드):" >&2
+    echo -e "$RISK_REASONS" >&2
+    echo "" >&2
+    echo "   /commit --strict 로 리뷰 후 커밋하세요." >&2
     ERRORS=$((ERRORS + 1))
   fi
 fi
 
 # 결과
 if [ $ERRORS -gt 0 ]; then
-  echo ""
-  echo "🚫 커밋 차단. 위 문제를 해결하라."
+  echo "" >&2
+  echo "🚫 커밋 차단. 위 문제를 해결하라." >&2
   exit 2
 fi

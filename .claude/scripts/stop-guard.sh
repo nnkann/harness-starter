@@ -4,7 +4,7 @@
 # 1. 미커밋 변경 확인
 uncommitted=$(git status --porcelain 2>/dev/null | wc -l)
 if [ "$uncommitted" -gt 0 ]; then
-  echo "⚠️ 미커밋 변경 ${uncommitted}개. 커밋 잊지 마."
+  echo "⚠️ 미커밋 변경 ${uncommitted}개. 커밋 잊지 마." >&2
 fi
 
 # 2. in-progress WIP 문서 확인
@@ -20,7 +20,7 @@ if [ -d "docs/WIP" ]; then
     fi
   done
   if [ "$in_progress" -gt 0 ]; then
-    echo "📋 in-progress 작업 ${in_progress}개 남아있음."
+    echo "📋 in-progress 작업 ${in_progress}개 남아있음." >&2
   fi
 fi
 
