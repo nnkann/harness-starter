@@ -46,6 +46,16 @@ description: 하네스 업그레이드. harness-upstream remote에서 fetch → 
    또는 /harness-adopt를 실행하면 remote가 자동 설정됩니다.
    ```
 2. `.claude/HARNESS.json` 존재 확인. 없으면 중단.
+3. `HARNESS.json`에 `adopted_at` 필드 확인:
+   - **있으면** → 정상. Step 1로 진행.
+   - **없고 `is_starter: true`** → 스타터 자체이므로 adopt 불필요. Step 1로 진행.
+   - **없고 `is_starter`가 false/없음** → adopt 미완료 프로젝트.
+     ```
+     ⚠️ adopt가 완료되지 않은 프로젝트입니다.
+     upgrade 전에 harness-adopt를 먼저 실행합니다.
+     (문서 재분류, 프론트매터, INDEX/clusters 생성이 필요합니다)
+     ```
+     harness-adopt 스킬을 실행한다. adopt 완료 후 upgrade를 이어서 진행.
 
 ### Step 1. Fetch + 버전 비교
 
