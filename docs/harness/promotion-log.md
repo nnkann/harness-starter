@@ -37,3 +37,5 @@ created: 2026-04-08
 | 2026-04-16 | advisor/review/docs-lookup/docs-manager | docs/ 클러스터 탐색 통합 | 에이전트들이 decisions/incidents/guides/를 직접 참조하도록 개선 |
 | 2026-04-16 | harness-init/upgrade/adopt | docs-manager 위임·정합성 검증 추가 | INDEX.md/clusters 생성·검증을 docs-manager에 위임, 분류 기준 명시 |
 | 2026-04-16 | 버전 | 1.0.1 → 1.0.2 | 전체 에이전트·스킬의 docs/ 클러스터 활용 누락 수정 (patch) |
+| 2026-04-16 | settings.json | 훅 중복 제거 + permissions 분리 | [skip-review] 중복 matcher 제거, permissions를 settings.local.json으로 이동, .gitignore 추가 |
+| 2026-04-16 | 버전 | 1.0.2 → 1.0.3 | 설정 파일 구조 정리 (patch) |
