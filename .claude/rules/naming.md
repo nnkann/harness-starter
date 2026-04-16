@@ -3,7 +3,7 @@
 <!-- naming-convention 스킬 실행 후 채워진다 -->
 
 ## 도메인 목록
-확정:
+확정: harness, meta
 후보:
 
 ## 폴더명

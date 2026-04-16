@@ -169,7 +169,14 @@ flat / feature-based / layered / monorepo.
 이 문서는 **프로젝트의 시작점**이다. harness-init 대화에서 결정된 모든 것의 단일 기록지이자, 이후 모든 작업 문서의 발원지. 안내성 플레이스홀더가 아니라 **실제 결정으로 채워진 문서**여야 한다.
 
 ```markdown
-> status: in-progress
+---
+title: 프로젝트 출범: [프로젝트명]
+domain: meta
+tags: [cps, stack]
+relates-to: []
+status: in-progress
+created: {YYYY-MM-DD}
+---
 
 # 프로젝트 출범: [프로젝트명]
 
@@ -212,7 +219,9 @@ flat / feature-based / layered / monorepo.
 (프로젝트 진행 중 주요 결정 변화를 간단히 기록)
 ```
 
-이 문서는 프로젝트가 존재하는 한 유지된다. commit 스킬이 이동시키지 않는다. 커밋 시점에는 `status`를 `completed`가 아닌 `in-progress`(또는 장기 유지 시 `living`)로 유지하고, 해당 문서는 **수동으로 `docs/setup/`으로 이동**시켜 프로젝트 루트 기록지로 보존한다.
+이 문서 생성 직후 `docs/INDEX.md`도 초기 생성한다 (첫 번째 엔트리 = project_kickoff).
+
+이 문서는 프로젝트가 존재하는 한 유지된다. commit 스킬이 이동시키지 않는다. 커밋 시점에는 `status`를 `completed`가 아닌 `in-progress`(또는 장기 유지 시 `living`)로 유지하고, 해당 문서는 **수동으로 `docs/guides/`로 이동**시켜 프로젝트 루트 기록지로 보존한다.
 
 **2) 하네스 파일 반영**
 
@@ -275,10 +284,19 @@ CPS와 스택이 확정된 시점이므로 프로젝트 README를 생성한다.
 
 사용자가 선택한 도메인에 대해 `docs/WIP/`에 구현 계획 문서를 **직접 생성한다.**
 
-파일명: `development--{도메인명}_{YYMMDD}.md`
+파일명: `guides--{도메인명}_{YYMMDD}.md`
 
 ```markdown
-> status: pending
+---
+title: [도메인명] 구현
+domain: [도메인명]
+tags: []
+relates-to:
+  - path: guides/project_kickoff_{YYMMDD}.md
+    rel: implements
+status: pending
+created: {YYYY-MM-DD}
+---
 
 # [도메인명] 구현
 
@@ -305,8 +323,8 @@ CPS와 스택이 확정된 시점이므로 프로젝트 README를 생성한다.
 #### 8c. 완료 처리
 
 - Step 7의 결정 문서(CPS + 스택) status를 `completed`로 변경한다.
-- 커밋 시 commit 스킬이 `docs/setup/`으로 이동시킨다.
-- `docs/setup/project_kickoff_sample.md`가 존재하면 삭제한다 (실제 CPS로 대체되었으므로).
+- 커밋 시 commit 스킬이 `docs/guides/`로 이동시킨다.
+- `docs/guides/project_kickoff_sample.md`가 존재하면 삭제한다 (실제 CPS로 대체되었으므로).
 
 #### 8d. 완료 메시지
 
@@ -314,7 +332,7 @@ CPS와 스택이 확정된 시점이므로 프로젝트 README를 생성한다.
 ✅ 하네스 초기화 완료.
 
 📄 docs/WIP/:
-  - development--[도메인]_[날짜].md (pending) ← 첫 번째 작업
+  - guides--[도메인]_[날짜].md (pending) ← 첫 번째 작업
 
 📋 다음: 이 문서의 status를 in-progress로 바꾸고 구현 시작.
    바로 시작하시겠습니까?

@@ -143,12 +143,12 @@ packages/
 - YYMMDD: 생성 날짜
 - 이동 시 `{대상폴더}--` 접두사가 제거된다.
 
-유효한 접두사: `setup--`, `history--`, `development--`, `harness--`
+유효한 접두사: `decisions--`, `guides--`, `incidents--`, `harness--`
 
 예시 (WIP → 이동 후):
-- `setup--auth_stack_decision_260330.md` → `docs/setup/auth_stack_decision_260330.md`
-- `development--payment_api_260330.md` → `docs/development/payment_api_260330.md`
-- `history--token_refresh_fix_260330.md` → `docs/history/token_refresh_fix_260330.md`
+- `decisions--auth_stack_decision_260330.md` → `docs/decisions/auth_stack_decision_260330.md`
+- `guides--payment_api_260330.md` → `docs/guides/payment_api_260330.md`
+- `incidents--token_refresh_fix_260330.md` → `docs/incidents/token_refresh_fix_260330.md`
 
 ### 파일명/클래스/함수/메소드
 

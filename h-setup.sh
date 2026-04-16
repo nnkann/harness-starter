@@ -463,7 +463,7 @@ copy_if_new "$SCRIPT_DIR/.claude/settings.json" "$TARGET/.claude/settings.json"
 # docs/
 echo ""
 echo "📁 docs/"
-for dir in wip setup history development harness archived; do
+for dir in WIP decisions guides incidents harness archived clusters; do
   if [ ! -d "$TARGET/docs/$dir" ]; then
     mkdir -p "$TARGET/docs/$dir"
     echo -e "  ${GREEN}✓ 생성${NC}: docs/$dir/"
@@ -476,7 +476,7 @@ done
 copy_if_new "$SCRIPT_DIR/docs/harness/promotion-log.md" "$TARGET/docs/harness/promotion-log.md"
 
 # .gitkeep
-for dir in wip setup history development archived; do
+for dir in WIP decisions guides incidents archived; do
   if [ -z "$(ls -A "$TARGET/docs/$dir" 2>/dev/null)" ]; then
     touch "$TARGET/docs/$dir/.gitkeep"
   fi
@@ -521,7 +521,7 @@ fi
 
 # 프로젝트 출범 문서 placeholder — harness-init이 아직 안 돌았을 때 "다음 할 일"을 보여줌
 KICKOFF="$TARGET/docs/WIP/harness_init_pending.md"
-if [ ! -f "$KICKOFF" ] && [ ! -f "$TARGET/docs/setup/project_kickoff.md" ]; then
+if [ ! -f "$KICKOFF" ] && [ ! -f "$TARGET/docs/guides/project_kickoff.md" ]; then
   cat > "$KICKOFF" <<'EOF'
 > status: pending
 

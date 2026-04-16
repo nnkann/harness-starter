@@ -19,12 +19,16 @@ if [ -d "docs/WIP" ] && [ "$(ls -A docs/WIP 2>/dev/null)" ]; then
   echo "📋 진행 중인 작업:"
   for f in docs/WIP/*.md; do
     [ -f "$f" ] || continue
-    status=$(grep -m1 '^> status:' "$f" 2>/dev/null | sed 's/> status: //')
-    title=$(grep -m1 '^# ' "$f" 2>/dev/null | sed 's/^# //')
+    # 프론트매터에서 status 읽기 (fallback: 인라인 > status:)
+    status=$(sed -n '/^---$/,/^---$/{ /^status:/{ s/status:[[:space:]]*//; p; q; } }' "$f" 2>/dev/null)
+    [ -z "$status" ] && status=$(grep -m1 '^> status:' "$f" 2>/dev/null | sed 's/> status: //')
+    # 프론트매터에서 title 읽기 (fallback: 첫 # 제목)
+    title=$(sed -n '/^---$/,/^---$/{ /^title:/{ s/title:[[:space:]]*//; p; q; } }' "$f" 2>/dev/null)
+    [ -z "$title" ] && title=$(grep -m1 '^# ' "$f" 2>/dev/null | sed 's/^# //')
     echo "  - [$status] $title"
 
     # in-progress 문서의 결정 사항 재주입
-    clean_status=$(echo "$status" | tr -d ' ')
+    clean_status=$(echo "$status" | tr -d '[:space:]')
     if [ "$clean_status" = "in-progress" ]; then
       decisions=$(sed -n '/^## 결정 사항/,/^## /{ /^## /d; /^$/d; p; }' "$f" 2>/dev/null)
       if [ -n "$decisions" ] && [ "$decisions" != "(작업 중 기록)" ] && [ "$decisions" != "(작업하면서 채움)" ]; then
@@ -54,7 +58,8 @@ todo_done=0
 if [ -d "docs/WIP" ]; then
   for f in docs/WIP/*.md; do
     [ -f "$f" ] || continue
-    s=$(grep -m1 '^> status:' "$f" 2>/dev/null | sed 's/> status: //' | tr -d ' ')
+    s=$(sed -n '/^---$/,/^---$/{ /^status:/{ s/status:[[:space:]]*//; p; q; } }' "$f" 2>/dev/null | tr -d '[:space:]')
+    [ -z "$s" ] && s=$(grep -m1 '^> status:' "$f" 2>/dev/null | sed 's/> status: //' | tr -d ' ')
     todo_total=$((todo_total + 1))
     if [ "$s" = "completed" ] || [ "$s" = "abandoned" ]; then
       todo_done=$((todo_done + 1))

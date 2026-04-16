@@ -1,4 +1,11 @@
-> status: sample
+---
+title: 프로젝트 출범 샘플
+domain: meta
+tags: [cps, stack, sample]
+relates-to: []
+status: sample
+created: 2026-04-08
+---
 
 # 프로젝트 출범: [프로젝트명]
 

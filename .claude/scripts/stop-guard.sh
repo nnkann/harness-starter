@@ -12,7 +12,9 @@ if [ -d "docs/WIP" ]; then
   in_progress=0
   for f in docs/WIP/*.md; do
     [ -f "$f" ] || continue
-    s=$(grep -m1 '^> status:' "$f" 2>/dev/null | sed 's/> status: //' | tr -d ' ')
+    # 프론트매터에서 status 읽기 (fallback: 인라인 > status:)
+    s=$(sed -n '/^---$/,/^---$/{ /^status:/{ s/status:[[:space:]]*//; p; q; } }' "$f" 2>/dev/null | tr -d '[:space:]')
+    [ -z "$s" ] && s=$(grep -m1 '^> status:' "$f" 2>/dev/null | sed 's/> status: //' | tr -d ' ')
     if [ "$s" = "in-progress" ]; then
       in_progress=$((in_progress + 1))
     fi

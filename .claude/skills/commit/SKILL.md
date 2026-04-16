@@ -63,16 +63,22 @@ docs/WIP/에서 이번 작업과 연결된 문서를 처리한다.
 
 | 접두사 | 이동 대상 | 이동 후 파일명 |
 |--------|----------|---------------|
-| `setup--` | docs/setup/ | 접두사 제거 |
-| `history--` | docs/history/ | 접두사 제거 |
-| `development--` | docs/development/ | 접두사 제거 |
+| `decisions--` | docs/decisions/ | 접두사 제거 |
+| `guides--` | docs/guides/ | 접두사 제거 |
+| `incidents--` | docs/incidents/ | 접두사 제거 |
 | `harness--` | docs/harness/ | 접두사 제거 |
 | 접두사 없음 또는 판단 불가 | 사용자에게 질문 | — |
 
-예시: `docs/WIP/history--token_refresh_fix_260330.md` → `docs/history/token_refresh_fix_260330.md`
+예시: `docs/WIP/decisions--api_design_260416.md` → `docs/decisions/api_design_260416.md`
 
 - 계획 문서가 없는 작업이면 넘어간다.
-- 이동 대상은 docs/ 규칙에 정의된 폴더만 허용한다 (setup, history, development, harness, archived). 새 폴더를 만들지 않는다.
+- 이동 대상은 docs/ 규칙에 정의된 폴더만 허용한다 (decisions, guides, incidents, harness, archived). 새 폴더를 만들지 않는다.
+- 이동 처리는 docs-manager 에이전트에 위임할 수 있다.
+
+**문서 이동 시 추가 작업:**
+- 프론트매터의 `status` → completed (또는 abandoned)으로 갱신
+- 프론트매터의 `updated` → 오늘 날짜로 갱신
+- `docs/INDEX.md`에 이동된 문서 항목 추가 (해당 domain 섹션 하위에 배치, 관계 맵에 relates-to 반영)
 
 ### 3. 스테이징
 
@@ -154,7 +160,7 @@ Step 4까지 완료 후, Review 검증을 추가로 실행한다.
 **CPS 정합성**
 - 이 변경이 CPS의 어떤 Problem을 해결하는가? 연결이 불명확하면 질문하라.
 - 기존 Solution 방향과 충돌하는 변경이 있으면 드러내라.
-- docs/setup/의 초기 결정과 모순되는 구현이 있으면 지적하라.
+- docs/guides/의 초기 결정(CPS 문서)과 모순되는 구현이 있으면 지적하라.
 
 **하네스 규칙 준수**
 - naming.md 규칙을 따르는가? (파일명, 클래스명, 폴더 위치)
@@ -194,7 +200,7 @@ Conventional Commits 규약 준수.
 - 이번 작업의 아키텍처/설계 결정
 - 까다로운 버그의 원인과 해결 방식
 - 추후 주의할 점, 남은 기술 부채
-- 연관 문서 경로 (예: `📄 상세: docs/history/auth-token-fix.md`)
+- 연관 문서 경로 (예: `📄 상세: docs/incidents/auth-token-fix.md`)
 - Review가 보고한 주의/참고 이슈 (있으면)
 
 ### 7S. 푸시

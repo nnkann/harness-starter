@@ -1,4 +1,13 @@
-> status: completed
+---
+title: 하네스 스타터 업그레이드 전파 전략
+domain: harness
+tags: [upgrade, propagation, versioning]
+relates-to:
+  - path: decisions/harness_upgrade_260410.md
+    rel: implements
+status: completed
+created: 2026-04-10
+---
 
 # 하네스 스타터 업그레이드 전파 전략
 

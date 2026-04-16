@@ -66,7 +66,8 @@ fi
 
 # 4. docs/WIP/에 completed/abandoned 파일이 남아있는지
 if [ -d "docs/WIP" ]; then
-  stale=$(grep -rl '> status: completed\|> status: abandoned' docs/WIP/ 2>/dev/null)
+  # 프론트매터 또는 인라인 status에서 completed/abandoned 감지
+  stale=$(grep -rl '^status:.*\(completed\|abandoned\)\|^> status:.*\(completed\|abandoned\)' docs/WIP/ 2>/dev/null)
   if [ -n "$stale" ]; then
     echo "⚠️ docs/WIP/에 완료/중단 문서가 남아있음. 이동 필요:"
     echo "$stale" | while read f; do

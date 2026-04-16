@@ -33,8 +33,12 @@ if [ -d "docs/WIP" ] && [ "$(ls -A docs/WIP 2>/dev/null)" ]; then
   echo "📋 진행 중인 작업:"
   for f in docs/WIP/*.md; do
     [ -f "$f" ] || continue
-    status=$(grep -m1 '^> status:' "$f" 2>/dev/null | sed 's/> status: //')
-    title=$(grep -m1 '^# ' "$f" 2>/dev/null | sed 's/^# //')
+    # 프론트매터에서 status 읽기 (fallback: 인라인 > status:)
+    status=$(sed -n '/^---$/,/^---$/{ /^status:/{ s/status:[[:space:]]*//; p; q; } }' "$f" 2>/dev/null)
+    [ -z "$status" ] && status=$(grep -m1 '^> status:' "$f" 2>/dev/null | sed 's/> status: //')
+    # 프론트매터에서 title 읽기 (fallback: 첫 # 제목)
+    title=$(sed -n '/^---$/,/^---$/{ /^title:/{ s/title:[[:space:]]*//; p; q; } }' "$f" 2>/dev/null)
+    [ -z "$title" ] && title=$(grep -m1 '^# ' "$f" 2>/dev/null | sed 's/^# //')
     echo "  - [$status] $title ($(basename "$f"))"
   done
 else
