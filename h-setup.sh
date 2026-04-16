@@ -126,6 +126,37 @@ EOF
     fi
   fi
 
+  # ─── 구 메타데이터 파일 마이그레이션 ───
+  # v1.0.0 이전: HARNESS_VERSION, .harness_adopted 가 별도 파일로 존재
+  LEGACY_CLEANED=""
+  if [ -f "$TARGET/.claude/HARNESS_VERSION" ]; then
+    # 버전 정보를 HARNESS.json에 반영 (version이 unknown이면)
+    OLD_VER=$(cat "$TARGET/.claude/HARNESS_VERSION" 2>/dev/null | tr -d '[:space:]')
+    CUR_JSON_VER=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "$META" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/')
+    if [ "$CUR_JSON_VER" = "unknown" ] && [ -n "$OLD_VER" ]; then
+      sed -i "s/\"version\"[[:space:]]*:[[:space:]]*\"unknown\"/\"version\": \"$OLD_VER\"/" "$META"
+    fi
+    rm -f "$TARGET/.claude/HARNESS_VERSION"
+    echo -e "${GREEN}✓ 마이그레이션: HARNESS_VERSION → HARNESS.json (삭제됨)${NC}"
+    LEGACY_CLEANED="1"
+  fi
+  if [ -f "$TARGET/.claude/.harness_adopted" ]; then
+    # adopted_at 정보를 HARNESS.json에 추가
+    ADOPTED_TIME=$(grep -o 'adopted_at:.*' "$TARGET/.claude/.harness_adopted" 2>/dev/null | sed 's/adopted_at:[[:space:]]*//')
+    [ -z "$ADOPTED_TIME" ] && ADOPTED_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    if ! grep -q '"adopted_at"' "$META" 2>/dev/null; then
+      sed -i "s/}$/,\n  \"adopted_at\": \"$ADOPTED_TIME\"\n}/" "$META"
+    fi
+    rm -f "$TARGET/.claude/.harness_adopted"
+    echo -e "${GREEN}✓ 마이그레이션: .harness_adopted → HARNESS.json (삭제됨)${NC}"
+    LEGACY_CLEANED="1"
+  fi
+  # 런타임 찌꺼기 정리
+  rm -f "$TARGET/.claude/scheduled_tasks.lock" "$TARGET/.claude/ts_errors.log" 2>/dev/null
+  if [ -n "$LEGACY_CLEANED" ]; then
+    echo ""
+  fi
+
   # 프로파일에서 스킬 목록 읽기
   CUR_PROFILE=$(grep -o '"profile"[[:space:]]*:[[:space:]]*"[^"]*"' "$META" 2>/dev/null | sed 's/.*"profile"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
   CUR_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "$META" 2>/dev/null | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
