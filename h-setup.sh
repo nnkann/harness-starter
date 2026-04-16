@@ -14,7 +14,7 @@
 # --upgrade: 기존 하네스를 최신 버전으로 업그레이드.
 #   새 파일은 바로 복사, 수정된 파일은 .claude/.upgrade/에 스테이징 후 리포트 생성.
 #   충돌 해결은 harness-upgrade 스킬이 대화형으로 처리.
-#   harness.json이 없는 fork 프로젝트도 지원 (.claude/ 존재 시 자동 생성).
+#   HARNESS.json이 없는 fork 프로젝트도 지원 (.claude/ 존재 시 자동 생성).
 
 set -e
 
@@ -91,11 +91,11 @@ fi
 # --upgrade 모드: 기존 하네스를 최신으로 업그레이드
 # remote(harness-upstream) 우선, 없으면 파일 복사 fallback
 if [ -n "$UPGRADE_MODE" ]; then
-  META="$TARGET/.claude/harness.json"
+  META="$TARGET/.claude/HARNESS.json"
   if [ ! -f "$META" ]; then
-    # harness.json 없지만 .claude/ 디렉토리가 있으면 fork 프로젝트로 판단
+    # HARNESS.json 없지만 .claude/ 디렉토리가 있으면 fork 프로젝트로 판단
     if [ -d "$TARGET/.claude" ]; then
-      echo -e "${YELLOW}⚠ harness.json 없음 — fork 프로젝트로 판단. harness.json을 자동 생성합니다.${NC}"
+      echo -e "${YELLOW}⚠ HARNESS.json 없음 — fork 프로젝트로 판단. HARNESS.json을 자동 생성합니다.${NC}"
       DETECTED_PROFILE="minimal"
       if [ -f "$TARGET/.claude/skills/eval/SKILL.md" ] || [ -f "$TARGET/.claude/skills/advisor/SKILL.md" ]; then
         DETECTED_PROFILE="full"
@@ -118,7 +118,7 @@ if [ -n "$UPGRADE_MODE" ]; then
   "upgraded_at": null
 }
 EOF
-      echo -e "${GREEN}✓ harness.json 생성 (프로파일: $DETECTED_PROFILE)${NC}"
+      echo -e "${GREEN}✓ HARNESS.json 생성 (프로파일: $DETECTED_PROFILE)${NC}"
       echo ""
     else
       echo -e "${RED}❌ 하네스가 설치되지 않은 프로젝트. h-setup.sh를 먼저 실행하라.${NC}"
@@ -146,7 +146,7 @@ EOF
     if git -C "$TARGET" fetch harness-upstream 2>/dev/null; then
       USE_REMOTE="1"
       UPSTREAM_REF=$(git -C "$TARGET" rev-parse harness-upstream/main 2>/dev/null)
-      SRC_VERSION=$(git -C "$TARGET" show harness-upstream/main:.claude/HARNESS_VERSION 2>/dev/null | tr -d '[:space:]')
+      SRC_VERSION=$(git -C "$TARGET" show harness-upstream/main:.claude/HARNESS.json 2>/dev/null | grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"\([^"]*\)"$/\1/')
     else
       echo -e "${YELLOW}⚠ fetch 실패 (네트워크?) — 파일 복사 방식으로 전환${NC}"
     fi
@@ -154,7 +154,7 @@ EOF
 
   # 파일 복사 방식일 때 소스 버전은 스크립트 디렉토리에서 읽기
   if [ -z "$USE_REMOTE" ]; then
-    SRC_VERSION=$(cat "$SCRIPT_DIR/.claude/HARNESS_VERSION" 2>/dev/null | tr -d '[:space:]')
+    SRC_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "$SCRIPT_DIR/.claude/HARNESS.json" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/')
   fi
 
   if [ -z "$SRC_VERSION" ]; then
@@ -163,7 +163,7 @@ EOF
       echo "    harness-starter 리포에서 실행하고 있는지 확인하라."
       echo "    사용법: cd /path/to/harness-starter && bash h-setup.sh --upgrade /path/to/project"
     else
-      echo "    harness-upstream remote의 .claude/HARNESS_VERSION을 확인하라."
+      echo "    harness-upstream remote의 .claude/HARNESS.json을 확인하라."
     fi
     exit 1
   fi
@@ -197,7 +197,7 @@ EOF
     UNCHANGED_COUNT=0
 
     # 하네스 파일 범위 정의 (업그레이드 대상)
-    HARNESS_PATHS=".claude/skills .claude/scripts .claude/rules .claude/agents .claude/settings.json .claude/HARNESS_VERSION CLAUDE.md h-setup.sh docs/harness docs/guides/project_kickoff_sample.md"
+    HARNESS_PATHS=".claude/skills .claude/scripts .claude/rules .claude/agents .claude/settings.json .claude/HARNESS.json CLAUDE.md h-setup.sh docs/harness docs/guides/project_kickoff_sample.md"
 
     # base가 없거나 unknown이면 upstream의 태그로 추정 시도
     if [ -z "$BASE_REF" ] || [ "$BASE_REF" = "unknown" ]; then
@@ -245,7 +245,7 @@ EOF
 
     # 파일 분류 (자동 덮어쓰기 / 3-way merge / 사용자 전용 / 신규 / 삭제)
     # 사용자 전용 파일: 건드리지 않음
-    USER_OWNED="harness.json .claude/rules/coding.md .claude/rules/naming.md"
+    USER_OWNED="HARNESS.json .claude/rules/coding.md .claude/rules/naming.md"
 
     # 카테고리별 파일 목록
     AUTO_OVERWRITE=""
@@ -275,7 +275,7 @@ EOF
       else
         # 파일 유형에 따라 분류
         case "$fpath" in
-          .claude/scripts/*|h-setup.sh|.claude/HARNESS_VERSION)
+          .claude/scripts/*|h-setup.sh)
             # 스크립트/인프라: 자동 덮어쓰기
             AUTO_OVERWRITE="${AUTO_OVERWRITE}${fpath}\n"
             CHANGED_COUNT=$((CHANGED_COUNT + 1))
@@ -587,9 +587,6 @@ EOF
     NEW_COUNT=$((NEW_COUNT + 1))
   fi
 
-  # VERSION 복사
-  cp "$SCRIPT_DIR/.claude/HARNESS_VERSION" "$TARGET/.claude/HARNESS_VERSION" 2>/dev/null
-
   # 업그레이드 리포트 생성
   if [ "$STAGED_COUNT" -gt 0 ]; then
     REPORT="$UPGRADE_DIR/UPGRADE_REPORT.md"
@@ -761,33 +758,37 @@ if [ -f "$GI" ]; then
   grep -q '^\.claude/\.env_synced$' "$GI" || echo '.claude/.env_synced' >> "$GI"
   grep -q '^\.claude/\.compact_count$' "$GI" || echo '.claude/.compact_count' >> "$GI"
   grep -q '^\.claude/\.upgrade/$' "$GI" || echo '.claude/.upgrade/' >> "$GI"
+  grep -q '^\.claude/scheduled_tasks\.lock$' "$GI" || echo '.claude/scheduled_tasks.lock' >> "$GI"
+  grep -q '^\.claude/ts_errors\.log$' "$GI" || echo '.claude/ts_errors.log' >> "$GI"
 else
   cat > "$GI" <<'EOF'
 # 하네스 — 머신별/세션별 파일 제외
 .claude/.env_synced
 .claude/.compact_count
 .claude/.upgrade/
+.claude/scheduled_tasks.lock
+.claude/ts_errors.log
 EOF
   echo -e "  ${GREEN}✓ 생성${NC}: .gitignore"
   CREATED=$((CREATED + 1))
 fi
 
 # 하네스 메타데이터 기록 (프로파일 + 버전)
-META="$TARGET/.claude/harness.json"
+META="$TARGET/.claude/HARNESS.json"
 if [ ! -f "$META" ]; then
-  HARNESS_VERSION=$(cat "$SCRIPT_DIR/.claude/HARNESS_VERSION" 2>/dev/null | tr -d '[:space:]')
+  SRC_VER=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "$SCRIPT_DIR/.claude/HARNESS.json" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/')
   INSTALLED_REF=$(git -C "$SCRIPT_DIR" rev-parse HEAD 2>/dev/null || echo "unknown")
   cat > "$META" <<EOF
 {
   "profile": "$PROFILE",
   "skills": "$SKILLS",
-  "version": "${HARNESS_VERSION:-unknown}",
+  "version": "${SRC_VER:-unknown}",
   "installed_from_ref": "${INSTALLED_REF}",
   "installed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "upgraded_at": null
 }
 EOF
-  echo -e "  ${GREEN}✓ 생성${NC}: .claude/harness.json"
+  echo -e "  ${GREEN}✓ 생성${NC}: .claude/HARNESS.json"
   CREATED=$((CREATED + 1))
 fi
 

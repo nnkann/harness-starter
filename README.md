@@ -31,8 +31,7 @@ bash /path/to/harness-starter/h-setup.sh --upgrade /path/to/my-project
 CLAUDE.md                        에이전트 루트 인스트럭션 (≤30줄)
 .claude/
 ├── settings.json                hooks 정의
-├── HARNESS_VERSION              하네스 버전 (semver)
-├── harness.json                 설치 메타 (프로파일, 버전, installed_from_ref)
+├── HARNESS.json                 하네스 메타 (버전, 프로파일, installed_from_ref)
 ├── rules/                       자동 로드 규칙 (5개)
 │   ├── self-verify.md           [상시] 작업 중 자기 검증
 │   ├── coding.md                [상시] 코딩 컨벤션 (플레이스홀더)

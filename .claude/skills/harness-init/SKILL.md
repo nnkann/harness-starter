@@ -23,8 +23,8 @@ init 시작 전 **반드시** 다음을 확인한다:
 3. `.claude/settings.json`에 하네스 것이 아닌 기존 hooks/permissions가 있는가?
 
 **하나라도 해당하면** adopt 완료 여부를 확인한다:
-- `.claude/.harness_adopted` 마커 파일이 존재하면 → adopt 완료. **게이트 통과, init 진행.**
-- 마커가 없으면 → init을 실행하지 않고 중단:
+- `.claude/HARNESS.json`에 `adopted_at` 필드가 존재하면 → adopt 완료. **게이트 통과, init 진행.**
+- `adopted_at`이 없으면 → init을 실행하지 않고 중단:
 
 > ⛔ 기존 프로젝트가 감지되었습니다.
 >

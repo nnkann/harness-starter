@@ -1,0 +1,9 @@
+{
+  "profile": "full",
+  "skills": "harness-init,harness-adopt,harness-sync,harness-upgrade,implementation,commit,advisor,check-existing,docs-manager,docs-lookup,review",
+  "version": "0.10.0",
+  "is_starter": true,
+  "installed_from_ref": "4ec2a9899ee11e1a2620cb424299db53d392644d",
+  "installed_at": "2026-04-16T00:00:00Z",
+  "upgraded_at": null
+}

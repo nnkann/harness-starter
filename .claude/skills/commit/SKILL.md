@@ -95,7 +95,7 @@ docs/WIP/에서 이번 작업과 연결된 문서를 처리한다.
 ### 3. 하네스 버전 체크 (harness-starter 전용)
 
 > 이 단계는 **harness-starter 리포에서만** 실행한다. 일반 프로젝트에서는 건너뛴다.
-> `.claude/HARNESS_VERSION` 파일이 존재하고, `harness.json`의 `is_starter`가 true일 때만 해당.
+> 리포 이름이 `harness-starter`이고, `.claude/HARNESS.json`이 존재할 때만 해당.
 
 이번 커밋이 하네스 스타터에 의미 있는 업그레이드인지 판단한다.
 
@@ -106,7 +106,7 @@ docs/WIP/에서 이번 작업과 연결된 문서를 처리한다.
 | 문서만 수정, 오타 수정, 주석 변경 | 올리지 않음 | README 업데이트, 프론트매터 수정 |
 
 **버전을 올릴 때:**
-1. `.claude/HARNESS_VERSION` 갱신
+1. `.claude/HARNESS.json`의 `version` 필드 갱신
 2. `docs/harness/promotion-log.md`에 이력 추가 (날짜, 변경 내용, 이전→이후 버전)
 
 **판단이 애매하면** 사용자에게 묻는다. 자의적으로 올리지 않는다.

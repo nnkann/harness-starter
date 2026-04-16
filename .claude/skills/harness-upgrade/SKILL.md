@@ -66,7 +66,7 @@ git show <upstream_ref>:<파일경로> > <파일경로>
 
   .claude/scripts/session-start.sh
   .claude/scripts/pre-commit-check.sh
-  .claude/HARNESS_VERSION
+  .claude/HARNESS.json
   h-setup.sh
 
 적용할까요? [Y/n]
@@ -188,7 +188,7 @@ upstream에서 제거된 파일이 있으면:
 
 ### Step 5R. 완료 처리
 
-1. `harness.json` 갱신:
+1. `HARNESS.json` 갱신:
    - `version` → 새 버전
    - `installed_from_ref` → upstream ref
    - `upgraded_at` → 현재 시각
@@ -196,7 +196,7 @@ upstream에서 제거된 파일이 있으면:
    # jq가 있으면
    jq --arg v "$NEW_VERSION" --arg r "$UPSTREAM_REF" --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
      '.version = $v | .installed_from_ref = $r | .upgraded_at = $t' \
-     .claude/harness.json > .claude/harness.json.tmp && mv .claude/harness.json.tmp .claude/harness.json
+     .claude/HARNESS.json > .claude/HARNESS.json.tmp && mv .claude/HARNESS.json.tmp .claude/HARNESS.json
    ```
 2. `.claude/.upgrade/` 디렉토리 삭제
 3. 완료 보고:
@@ -276,7 +276,7 @@ remote가 없고, `.claude/.upgrade/`에 스테이징된 파일이 있을 때.
 3. 프론트매터 없는 문서에 프론트매터 추가.
 4. INDEX.md + clusters/ 갱신.
 
-### Step 4F. harness.json 업데이트
+### Step 4F. HARNESS.json 업데이트
 
 1. `version` 갱신
 2. `upgraded_at` 기록

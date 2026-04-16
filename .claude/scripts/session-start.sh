@@ -72,9 +72,9 @@ fi
 # 6. 하네스 업그레이드 필요 여부 확인
 # harness-upstream remote가 있는 프로젝트에서만 체크
 if git remote | grep -qx harness-upstream 2>/dev/null; then
-  if [ -f ".claude/harness.json" ] && [ -f ".claude/HARNESS_VERSION" ]; then
-    INSTALLED_VER=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' .claude/harness.json 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/')
-    LATEST_VER=$(cat .claude/HARNESS_VERSION 2>/dev/null | tr -d '[:space:]')
+  if [ -f ".claude/HARNESS.json" ]; then
+    INSTALLED_VER=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' .claude/HARNESS.json 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/')
+    LATEST_VER=$(git show harness-upstream/main:.claude/HARNESS.json 2>/dev/null | grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"\([^"]*\)"$/\1/')
     if [ -n "$INSTALLED_VER" ] && [ -n "$LATEST_VER" ] && [ "$INSTALLED_VER" != "$LATEST_VER" ]; then
       echo ""
       echo "╔════════════════════════════════════════════════════════════╗"

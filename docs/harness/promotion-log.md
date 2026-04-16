@@ -29,3 +29,5 @@ created: 2026-04-08
 | 2026-04-16 | commit 스킬 Review | hook으로 분리 | Review를 스킬 내부에서 PreToolUse agent hook으로 이동, 위험도 기반 조건부 실행 |
 | 2026-04-16 | pre-commit-check.sh | 위험도 차단→경고 | light 모드 위험도 감지 시 차단 대신 경고만 출력, 리뷰 판단은 hook agent가 담당 |
 | 2026-04-16 | 버전 | 0.9.1 → 0.9.2 | commit 스킬 리뷰 분리 (patch) |
+| 2026-04-16 | 메타데이터 통합 | HARNESS_VERSION + harness.json + .harness_adopted → HARNESS.json | 3개 파일을 단일 HARNESS.json으로 통합 |
+| 2026-04-16 | 버전 | 0.9.2 → 0.10.0 | 메타데이터 구조 변경 (minor) |

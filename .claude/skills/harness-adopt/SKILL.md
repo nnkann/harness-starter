@@ -394,9 +394,9 @@ updated: 2026-04-10     ← git log에서 추출한 최근 수정 날짜
    UPSTREAM_REF=$(git rev-parse harness-upstream/main)
    ```
 
-4. `harness.json`의 `installed_from_ref`를 갱신한다:
+4. `HARNESS.json`의 `installed_from_ref`를 갱신한다:
    ```bash
-   jq --arg r "$UPSTREAM_REF" '.installed_from_ref = $r' .claude/harness.json > tmp && mv tmp .claude/harness.json
+   jq --arg r "$UPSTREAM_REF" '.installed_from_ref = $r' .claude/HARNESS.json > tmp && mv tmp .claude/HARNESS.json
    ```
 
 **이미 `harness-upstream` remote가 있으면** 이 단계를 건너뛴다.
@@ -404,19 +404,17 @@ updated: 2026-04-10     ← git log에서 추출한 최근 수정 날짜
 
 ---
 
-### Step 7. adopt 완료 마커 생성
+### Step 7. adopt 완료 마커 기록
 
-검증 게이트 통과 후, `.claude/.harness_adopted` 마커 파일을 생성한다.
-이 마커는 harness-init의 Step 0 게이트가 "adopt 완료된 기존 프로젝트"를 인식하는 데 사용된다.
+검증 게이트 통과 후, `.claude/HARNESS.json`에 `adopted_at` 필드를 추가한다.
+이 필드는 harness-init의 Step 0 게이트가 "adopt 완료된 기존 프로젝트"를 인식하는 데 사용된다.
 
-```bash
-cat > .claude/.harness_adopted <<EOF
-adopted_at: $(date -u +%Y-%m-%dT%H:%M:%SZ)
-harness_version: $(cat .claude/HARNESS_VERSION)
-EOF
+HARNESS.json에 다음 필드를 추가/갱신:
+```json
+{
+  "adopted_at": "2026-04-16T14:30:00Z"
+}
 ```
-
-`.gitignore`에 추가 권고 (머신별 상태가 아니라 프로젝트 상태이므로 커밋해도 됨).
 
 ### Step 8. 완료 리포트
 
