@@ -65,8 +65,13 @@ WIP에서 대상 폴더로 문서를 이동한다:
 2. `git mv`로 이동 (접두사 제거)
 3. 프론트매터 status → completed/abandoned, updated 갱신
 4. relates-to.path 경로 갱신 (자기 자신 + 자신을 참조하는 다른 문서)
-5. clusters/{domain}.md에 추가
-6. INDEX.md 문서 수 갱신
+5. **관계 제안**: 같은 도메인의 기존 문서와 관계가 있는지 확인
+   - incidents/ → decisions/에 같은 영역의 결정이 있으면 `caused-by` 또는 `conflicts-with` 제안
+   - decisions/ → 기존 decisions/에 같은 주제가 있으면 `supersedes` 또는 `extends` 제안
+   - guides/ → decisions/에 근거 문서가 있으면 `implements` 제안
+   - 제안이지 강제가 아님. 관계가 자명하지 않으면 건너뜀
+6. clusters/{domain}.md에 추가
+7. INDEX.md 문서 수 갱신
 
 ## 출력 형식
 

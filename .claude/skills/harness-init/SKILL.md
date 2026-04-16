@@ -244,7 +244,12 @@ created: {YYYY-MM-DD}
 (프로젝트 진행 중 주요 결정 변화를 간단히 기록)
 ```
 
-이 문서 생성 직후 `docs/INDEX.md`도 초기 생성한다 (첫 번째 엔트리 = project_kickoff).
+이 문서 생성 직후 **docs-manager 에이전트를 호출**하여:
+- `docs/INDEX.md` 초기 생성 (도메인 목록 + clusters/ 포인터)
+- `docs/clusters/{domain}.md` 초기 생성 (도메인별 문서 목록)
+- 첫 번째 엔트리 = project_kickoff 문서
+
+docs-manager가 docs.md 규칙에 따라 구조를 생성하므로, init 스킬이 INDEX 형식을 직접 알 필요 없다.
 
 이 문서는 프로젝트가 존재하는 한 유지된다. commit 스킬이 이동시키지 않는다. 커밋 시점에는 `status`를 `completed`가 아닌 `in-progress`(또는 장기 유지 시 `living`)로 유지하고, 해당 문서는 **수동으로 `docs/guides/`로 이동**시켜 프로젝트 루트 기록지로 보존한다.
 

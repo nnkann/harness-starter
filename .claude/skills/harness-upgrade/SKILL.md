@@ -282,7 +282,18 @@ settings.json은 통째로 교체하지 않는다. **누락된 hook만 추가한
    ```
 4. 기존 permissions와 사용자 커스텀 hook 보존.
 
-### Step 9. 완료 처리
+### Step 9. docs/ 정합성 검증
+
+업그레이드로 docs/ 관련 규칙(docs.md, 폴더 구조, 프론트매터 스펙)이 변경되었을 수 있다.
+**docs-manager 에이전트를 호출**하여:
+- 프론트매터 검증 (새 필수 필드 추가 등)
+- INDEX.md + clusters/ 정합성 확인
+- relates-to 경로 유효성 확인
+
+문제가 발견되면 사용자에게 보고하고 수정을 제안한다.
+문제가 없으면 "docs/ 정합성 확인 완료"로 넘어간다.
+
+### Step 10. 완료 처리
 
 1. `HARNESS.json` 갱신:
    - `version` → 새 버전

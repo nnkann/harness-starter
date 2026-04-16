@@ -34,3 +34,6 @@ created: 2026-04-08
 | 2026-04-16 | harness-upgrade 스킬 | remote 로직 흡수 | h-setup.sh의 remote 업그레이드를 스킬이 직접 처리. h-setup.sh는 fallback만 |
 | 2026-04-16 | harness-upgrade Step 0 | adopt 사전 점검 추가 | adopt 미완료 프로젝트에서 upgrade 시 adopt를 먼저 자동 실행 |
 | 2026-04-16 | 버전 | 1.0.0 → 1.0.1 | 기존 스킬 로직 수정 (patch) |
+| 2026-04-16 | advisor/review/docs-lookup/docs-manager | docs/ 클러스터 탐색 통합 | 에이전트들이 decisions/incidents/guides/를 직접 참조하도록 개선 |
+| 2026-04-16 | harness-init/upgrade/adopt | docs-manager 위임·정합성 검증 추가 | INDEX.md/clusters 생성·검증을 docs-manager에 위임, 분류 기준 명시 |
+| 2026-04-16 | 버전 | 1.0.1 → 1.0.2 | 전체 에이전트·스킬의 docs/ 클러스터 활용 누락 수정 (patch) |

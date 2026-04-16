@@ -29,6 +29,13 @@ tools: Read, Glob, Grep, Bash
 - **새 Problem 미기록**: 작업 중 발견된 새 문제가 CPS에 추가되지 않았으면 지적.
 - **Solution 괴리**: 구현이 CPS의 Solution과 다른 방향으로 갔으면 드러내라. 의도적 변경이면 CPS 갱신 필요.
 
+### 기존 결정과의 정합성
+- `docs/INDEX.md` → 변경 영역과 관련된 도메인의 `clusters/{domain}.md`를 확인하라.
+- 해당 도메인의 `decisions/` 문서에 이 영역의 기존 결정과 근거가 있는가?
+- **결정 위반**: 변경이 기존 decisions/의 근거에 반하면 [차단] — 의도적 변경이면 decisions/ 갱신 필요.
+- **incidents/ 재발**: 변경이 과거 incidents/에 기록된 실패 패턴을 반복하면 [차단].
+- 관련 문서가 없으면 무시. 있는데 안 봤으면 문제.
+
 ### 하네스 규칙 준수
 - naming.md 규칙을 따르는가?
 - docs.md 규칙을 따르는가? (프론트매터, 폴더 구조, INDEX.md 정합성)
