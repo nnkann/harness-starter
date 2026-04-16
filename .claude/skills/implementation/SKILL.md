@@ -1,6 +1,10 @@
 ---
 name: implementation
-description: 작업 시작 전 CPS 대조 + docs/WIP/에 계획 문서 생성, 작업 중 상태 기록. 완료 후 정리는 commit 스킬이 처리.
+description: >-
+  작업 시작 전 CPS 대조 + docs/WIP/에 계획 문서 생성, 작업 중 상태 기록. 완료 후 정리는 commit 스킬이 처리.
+  TRIGGER when: 사용자가 기능 구현, 버그 수정, 리팩토링 등 코드 작업을 요청했을 때,
+  "~해줘", "~만들어", "~고쳐", "~추가해" 등 구현 의도가 있는 요청.
+  SKIP: 단순 질문, 설명 요청, 문서만 수정, 설정 변경, 커밋 요청, 1줄 타이포 수정.
 ---
 
 # Implementation
