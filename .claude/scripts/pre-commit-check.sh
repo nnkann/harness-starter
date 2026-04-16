@@ -126,11 +126,9 @@ if [ "$HARNESS_LEVEL" = "light" ]; then
 
   if [ -n "$RISK_REASONS" ]; then
     echo "" >&2
-    echo "⚡ 위험도 감지 (light 모드):" >&2
+    echo "⚡ 위험도 감지 — 리뷰 에이전트가 자동 실행됩니다:" >&2
     echo -e "$RISK_REASONS" >&2
     echo "" >&2
-    echo "   /commit --strict 로 리뷰 후 커밋하세요." >&2
-    ERRORS=$((ERRORS + 1))
   fi
 fi
 
