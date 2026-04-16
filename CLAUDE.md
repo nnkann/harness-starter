@@ -25,6 +25,10 @@
 .claude/rules/naming.md를 먼저 읽고 규칙에 맞는 이름으로 생성하라.
 </important>
 
+<important if="코드 작업 없이 문서만 단독으로 생성할 때">
+write-doc 스킬을 사용하라. docs/에 직접 파일을 만들지 마라.
+</important>
+
 <important if="기존 코드 수정 중 새 함수를 만들려 할 때">
 check-existing 스킬로 같은 도메인에 유사 함수가 있는지 먼저 확인하라.
 </important>

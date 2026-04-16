@@ -39,3 +39,5 @@ created: 2026-04-08
 | 2026-04-16 | 버전 | 1.0.1 → 1.0.2 | 전체 에이전트·스킬의 docs/ 클러스터 활용 누락 수정 (patch) |
 | 2026-04-16 | settings.json | 훅 중복 제거 + permissions 분리 | [skip-review] 중복 matcher 제거, permissions를 settings.local.json으로 이동, .gitignore 추가 |
 | 2026-04-16 | 버전 | 1.0.2 → 1.0.3 | 설정 파일 구조 정리 (patch) |
+| 2026-04-16 | write-doc 스킬 | 신설 | 코드 작업 없이 문서만 단독 생성할 때 폴더 판단·프론트매터·파일명 규칙 강제 |
+| 2026-04-16 | 버전 | 1.0.3 → 1.1.0 | 신규 스킬 추가 (minor) |

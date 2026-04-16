@@ -100,7 +100,8 @@ INDEX.md (어떤 도메인?) → clusters/해당.md (어떤 문서?) → 본문 
 ## 규칙
 
 ### 문서 생성
-- 작업 시작 전 docs/WIP/에 문서를 먼저 만든다 (implementation 스킬 참조).
+- 코드 작업과 함께 → implementation 스킬이 docs/WIP/에 계획 문서를 만든다.
+- 문서만 단독 생성 → write-doc 스킬이 폴더 판단, 프론트매터, 파일명을 강제한다.
 - WIP 파일명: `{대상폴더}--{작업내용}_{YYMMDD}.md`. `--`는 라우팅 태그.
 - 대상폴더: decisions, guides, incidents, harness 중 하나.
 - 프론트매터 포함 필수. `relates-to`는 작업 중이라 비어도 됨.
