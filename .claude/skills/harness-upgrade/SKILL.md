@@ -10,10 +10,11 @@ description: 하네스 업그레이드. harness-upstream remote에서 fetch → 
 
 ## 전제
 
-- `harness-upstream` remote가 프로젝트에 설정되어 있어야 한다.
+- 일반 프로젝트: `harness-upstream` remote가 설정되어 있어야 한다.
   - `h-setup.sh`로 설치했으면 자동 설정됨.
   - `/harness-adopt`로 이식했으면 Step 6에서 설정됨.
   - 없으면 안내 후 중단.
+- harness-starter 자체(`is_starter: true`): `origin`을 upstream으로 사용. 별도 remote 불필요.
 - `.claude/HARNESS.json`이 존재해야 한다.
 
 ## 핵심 원칙
@@ -27,7 +28,11 @@ description: 하네스 업그레이드. harness-upstream remote에서 fetch → 
 
 ### Step 0. 사전 점검
 
-1. `harness-upstream` remote 존재 확인:
+1. `.claude/HARNESS.json` 존재 확인. 없으면 중단.
+2. **스타터 자체 여부 판별** — `HARNESS.json`의 `is_starter` 확인:
+   - **`is_starter: true`** → 이 리포가 harness-starter 자체. `harness-upstream` remote가 필요 없다. `origin`을 upstream으로 사용하고 Step 1로 진행.
+   - **그 외** → 아래 3~4번으로 진행.
+3. `harness-upstream` remote 존재 확인:
    ```bash
    git remote get-url harness-upstream
    ```
@@ -45,10 +50,8 @@ description: 하네스 업그레이드. harness-upstream remote에서 fetch → 
 
    또는 /harness-adopt를 실행하면 remote가 자동 설정됩니다.
    ```
-2. `.claude/HARNESS.json` 존재 확인. 없으면 중단.
-3. `HARNESS.json`에 `adopted_at` 필드 확인:
+4. `HARNESS.json`에 `adopted_at` 필드 확인:
    - **있으면** → 정상. Step 1로 진행.
-   - **없고 `is_starter: true`** → 스타터 자체이므로 adopt 불필요. Step 1로 진행.
    - **없고 `is_starter`가 false/없음** → adopt 미완료 프로젝트.
      ```
      ⚠️ adopt가 완료되지 않은 프로젝트입니다.
@@ -59,8 +62,12 @@ description: 하네스 업그레이드. harness-upstream remote에서 fetch → 
 
 ### Step 1. Fetch + 버전 비교
 
+Step 0에서 결정된 upstream remote를 사용한다:
+- `is_starter: true` → `UPSTREAM_REMOTE=origin`
+- 그 외 → `UPSTREAM_REMOTE=harness-upstream`
+
 ```bash
-git fetch harness-upstream
+git fetch $UPSTREAM_REMOTE
 ```
 
 fetch 실패 시 네트워크 문제로 보고하고 중단.
@@ -71,7 +78,7 @@ fetch 실패 시 네트워크 문제로 보고하고 중단.
 CUR_VERSION=$(현재 HARNESS.json의 version 필드)
 
 # 업스트림 버전
-SRC_VERSION=$(git show harness-upstream/main:.claude/HARNESS.json에서 version 필드)
+SRC_VERSION=$(git show $UPSTREAM_REMOTE/main:.claude/HARNESS.json에서 version 필드)
 ```
 
 - 이미 최신이면: `✅ 이미 최신 버전 (X.Y.Z). 업그레이드 불필요.` → 종료.
@@ -82,7 +89,7 @@ SRC_VERSION=$(git show harness-upstream/main:.claude/HARNESS.json에서 version 
 ═══ 하네스 업그레이드 ═══
 현재:    0.9.2
 최신:    1.0.0
-방식:    remote (harness-upstream)
+방식:    remote ($UPSTREAM_REMOTE)
 base:    abc1234 (또는 "없음")
 ```
 
