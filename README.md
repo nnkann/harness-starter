@@ -97,7 +97,7 @@ docs/
 0. h-setup.sh         하네스 파일 복사 (기존 파일은 건드리지 않음).
 
 1. /harness-adopt    기존 .claude/, docs/ 병합. 문서 재분류 + 프론트매터 추가.
-                     harness-upstream remote 설정. adopt 완료 마커 생성.
+                     harness-upstream remote 설정. HARNESS.json에 adopted_at 기록.
 
 2. /harness-init     CPS 정리 + 환경 빈 칸 채우기 (기존 프로젝트라도 필요).
                      adopt 없이 init 실행 시 차단됨.
@@ -110,6 +110,7 @@ docs/
 ```
 1. h-setup.sh --upgrade  harness-upstream remote가 있으면 git fetch로 변경 감지.
                          없으면 파일 복사 fallback.
+                         v1.0.0: 구 파일(HARNESS_VERSION, .harness_adopted) 자동 마이그레이션.
 
 2. /harness-upgrade      remote 방식: git merge-file로 3-way merge.
                          fallback: 스테이징 파일 대화형 병합.
