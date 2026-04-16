@@ -31,3 +31,4 @@ created: 2026-04-08
 | 2026-04-16 | 버전 | 0.9.1 → 0.9.2 | commit 스킬 리뷰 분리 (patch) |
 | 2026-04-16 | 메타데이터 통합 | HARNESS_VERSION + harness.json + .harness_adopted → HARNESS.json | 3개 파일을 단일 HARNESS.json으로 통합 |
 | 2026-04-16 | 버전 | 0.9.2 → 1.0.0 | 메타데이터 구조 전면 변경 — 안정 버전 전환 |
+| 2026-04-16 | harness-upgrade 스킬 | remote 로직 흡수 | h-setup.sh의 remote 업그레이드를 스킬이 직접 처리. h-setup.sh는 fallback만 |

@@ -108,13 +108,13 @@ docs/
 ### 업그레이드
 
 ```
-1. h-setup.sh --upgrade  harness-upstream remote가 있으면 git fetch로 변경 감지.
-                         없으면 파일 복사 fallback.
-                         v1.0.0: 구 파일(HARNESS_VERSION, .harness_adopted) 자동 마이그레이션.
+방법 1: remote 방식 (권장)
+  /harness-upgrade       harness-upstream remote에서 fetch → 변경 분석 → 3-way merge.
+                         한 명령으로 완료. 구 파일 자동 마이그레이션 포함.
 
-2. /harness-upgrade      remote 방식: git merge-file로 3-way merge.
-                         fallback: 스테이징 파일 대화형 병합.
-                         사용자 커스터마이징 보존.
+방법 2: 파일 복사 방식 (remote 없을 때)
+  h-setup.sh --upgrade   스타터에서 실행. 변경 파일을 .upgrade/에 스테이징.
+  /harness-upgrade       스테이징된 파일을 대화형 병합.
 ```
 
 **docs/WIP/가 비어있으면 할 일이 없다는 뜻이다.**
