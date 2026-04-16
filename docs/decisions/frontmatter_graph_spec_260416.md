@@ -2,8 +2,9 @@
 title: 프론트매터 그래프 스펙 설계
 domain: harness
 tags: [frontmatter, graph, docs-structure]
-status: in-progress
+status: completed
 created: 2026-04-16
+updated: 2026-04-16
 ---
 
 # 프론트매터 그래프 스펙 설계

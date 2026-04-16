@@ -89,20 +89,19 @@ if [ -n "$ADD_SKILL" ]; then
 fi
 
 # --upgrade 모드: 기존 하네스를 최신으로 업그레이드
+# remote(harness-upstream) 우선, 없으면 파일 복사 fallback
 if [ -n "$UPGRADE_MODE" ]; then
   META="$TARGET/.claude/harness.json"
   if [ ! -f "$META" ]; then
     # harness.json 없지만 .claude/ 디렉토리가 있으면 fork 프로젝트로 판단
     if [ -d "$TARGET/.claude" ]; then
       echo -e "${YELLOW}⚠ harness.json 없음 — fork 프로젝트로 판단. harness.json을 자동 생성합니다.${NC}"
-      # 설치된 스킬 목록으로 프로파일 추정
       DETECTED_PROFILE="minimal"
       if [ -f "$TARGET/.claude/skills/eval/SKILL.md" ] || [ -f "$TARGET/.claude/skills/advisor/SKILL.md" ]; then
         DETECTED_PROFILE="full"
       elif [ -f "$TARGET/.claude/skills/check-existing/SKILL.md" ] || [ -f "$TARGET/.claude/skills/naming-convention/SKILL.md" ]; then
         DETECTED_PROFILE="standard"
       fi
-      # 설치된 스킬 실제 목록 수집
       DETECTED_SKILLS=""
       for d in "$TARGET/.claude/skills/"*/; do
         [ -d "$d" ] || continue
@@ -114,6 +113,7 @@ if [ -n "$UPGRADE_MODE" ]; then
   "profile": "$DETECTED_PROFILE",
   "skills": "$DETECTED_SKILLS",
   "version": "unknown",
+  "installed_from_ref": "unknown",
   "installed_at": "unknown",
   "upgraded_at": null
 }
@@ -126,30 +126,11 @@ EOF
     fi
   fi
 
-  # 버전 비교
-  SRC_VERSION=$(cat "$SCRIPT_DIR/.claude/HARNESS_VERSION" 2>/dev/null | tr -d '[:space:]')
-  CUR_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "$META" 2>/dev/null | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
-
-  # 소스 VERSION이 비어있으면 스타터 리포가 아닌 곳에서 실행한 것
-  if [ -z "$SRC_VERSION" ]; then
-    echo -e "${RED}❌ .claude/HARNESS_VERSION이 없거나 비어있음. harness-starter 리포에서 실행하고 있는지 확인하라.${NC}"
-    echo "    사용법: cd /path/to/harness-starter && bash h-setup.sh --upgrade /path/to/project"
-    exit 1
-  fi
-
-  echo "═══ 하네스 업그레이드 ═══"
-  echo "타겟:    $TARGET"
-  echo "현재:    ${CUR_VERSION:-unknown}"
-  echo "최신:    ${SRC_VERSION}"
-  echo ""
-
-  if [ "$CUR_VERSION" = "$SRC_VERSION" ]; then
-    echo -e "${GREEN}✅ 이미 최신 버전 ($SRC_VERSION). 업그레이드 불필요.${NC}"
-    exit 0
-  fi
-
   # 프로파일에서 스킬 목록 읽기
   CUR_PROFILE=$(grep -o '"profile"[[:space:]]*:[[:space:]]*"[^"]*"' "$META" 2>/dev/null | sed 's/.*"profile"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+  CUR_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "$META" 2>/dev/null | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+  BASE_REF=$(grep -o '"installed_from_ref"[[:space:]]*:[[:space:]]*"[^"]*"' "$META" 2>/dev/null | sed 's/.*"installed_from_ref"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+
   case "${CUR_PROFILE:-minimal}" in
     minimal)  SKILLS="harness-init commit implementation harness-upgrade" ;;
     standard) SKILLS="harness-init commit implementation harness-upgrade check-existing naming-convention" ;;
@@ -157,15 +138,338 @@ EOF
     *)        SKILLS="harness-init commit implementation harness-upgrade" ;;
   esac
 
+  # ─── remote 방식 vs 파일 복사 방식 분기 ───
+  USE_REMOTE=""
+  UPSTREAM_REF=""
+  if git -C "$TARGET" remote get-url harness-upstream > /dev/null 2>&1; then
+    echo "🔄 harness-upstream remote 감지 — remote 방식으로 업그레이드"
+    if git -C "$TARGET" fetch harness-upstream 2>/dev/null; then
+      USE_REMOTE="1"
+      UPSTREAM_REF=$(git -C "$TARGET" rev-parse harness-upstream/main 2>/dev/null)
+      SRC_VERSION=$(git -C "$TARGET" show harness-upstream/main:.claude/HARNESS_VERSION 2>/dev/null | tr -d '[:space:]')
+    else
+      echo -e "${YELLOW}⚠ fetch 실패 (네트워크?) — 파일 복사 방식으로 전환${NC}"
+    fi
+  fi
+
+  # 파일 복사 방식일 때 소스 버전은 스크립트 디렉토리에서 읽기
+  if [ -z "$USE_REMOTE" ]; then
+    SRC_VERSION=$(cat "$SCRIPT_DIR/.claude/HARNESS_VERSION" 2>/dev/null | tr -d '[:space:]')
+  fi
+
+  if [ -z "$SRC_VERSION" ]; then
+    echo -e "${RED}❌ 업스트림 버전을 확인할 수 없음.${NC}"
+    if [ -z "$USE_REMOTE" ]; then
+      echo "    harness-starter 리포에서 실행하고 있는지 확인하라."
+      echo "    사용법: cd /path/to/harness-starter && bash h-setup.sh --upgrade /path/to/project"
+    else
+      echo "    harness-upstream remote의 .claude/HARNESS_VERSION을 확인하라."
+    fi
+    exit 1
+  fi
+
+  echo "═══ 하네스 업그레이드 ═══"
+  echo "타겟:    $TARGET"
+  echo "현재:    ${CUR_VERSION:-unknown}"
+  echo "최신:    ${SRC_VERSION}"
+  if [ -n "$USE_REMOTE" ]; then
+    echo "방식:    remote (harness-upstream)"
+    echo "base:    ${BASE_REF:-없음}"
+  else
+    echo "방식:    파일 복사 (fallback)"
+  fi
+  echo ""
+
+  if [ "$CUR_VERSION" = "$SRC_VERSION" ]; then
+    echo -e "${GREEN}✅ 이미 최신 버전 ($SRC_VERSION). 업그레이드 불필요.${NC}"
+    exit 0
+  fi
+
   UPGRADE_DIR="$TARGET/.claude/.upgrade"
   rm -rf "$UPGRADE_DIR"
   mkdir -p "$UPGRADE_DIR"
+
+  # ─── remote 방식 ───
+  if [ -n "$USE_REMOTE" ]; then
+    NEW_COUNT=0
+    CHANGED_COUNT=0
+    DELETED_COUNT=0
+    UNCHANGED_COUNT=0
+
+    # 하네스 파일 범위 정의 (업그레이드 대상)
+    HARNESS_PATHS=".claude/skills .claude/scripts .claude/rules .claude/agents .claude/settings.json .claude/HARNESS_VERSION CLAUDE.md h-setup.sh docs/harness docs/guides/project_kickoff_sample.md"
+
+    # base가 없거나 unknown이면 upstream의 태그로 추정 시도
+    if [ -z "$BASE_REF" ] || [ "$BASE_REF" = "unknown" ]; then
+      echo -e "${YELLOW}⚠ installed_from_ref 없음 — 2-way diff로 진행${NC}"
+      DIFF_MODE="two-way"
+    else
+      # base가 유효한 커밋인지 확인
+      if git -C "$TARGET" cat-file -e "$BASE_REF" 2>/dev/null; then
+        DIFF_MODE="three-way"
+      else
+        echo -e "${YELLOW}⚠ base ref ($BASE_REF) 접근 불가 — 2-way diff로 진행${NC}"
+        DIFF_MODE="two-way"
+      fi
+    fi
+
+    echo "📋 변경 파일 분석 중..."
+    echo ""
+
+    # upstream에서 변경된 파일 목록 수집
+    if [ "$DIFF_MODE" = "three-way" ]; then
+      CHANGED_FILES=$(git -C "$TARGET" diff --name-only "$BASE_REF" "$UPSTREAM_REF" -- $HARNESS_PATHS 2>/dev/null)
+    else
+      # 2-way: 현재 작업 디렉토리와 upstream 비교 (파일별)
+      # 임시 파일에 직접 append하여 서브셸 스코프 문제를 회피
+      CHANGED_LIST="$UPGRADE_DIR/.changed_files"
+      : > "$CHANGED_LIST"
+      for hpath in $HARNESS_PATHS; do
+        upstream_files=$(git -C "$TARGET" ls-tree -r --name-only "$UPSTREAM_REF" -- "$hpath" 2>/dev/null)
+        for fpath in $upstream_files; do
+          [ -z "$fpath" ] && continue
+          if [ ! -f "$TARGET/$fpath" ]; then
+            echo "$fpath" >> "$CHANGED_LIST"
+          else
+            upstream_hash=$(git -C "$TARGET" show "$UPSTREAM_REF:$fpath" 2>/dev/null | git hash-object --stdin)
+            local_hash=$(git hash-object "$TARGET/$fpath" 2>/dev/null)
+            if [ "$upstream_hash" != "$local_hash" ]; then
+              echo "$fpath" >> "$CHANGED_LIST"
+            fi
+          fi
+        done
+      done
+      CHANGED_FILES=$(sort -u "$CHANGED_LIST" 2>/dev/null)
+      rm -f "$CHANGED_LIST"
+    fi
+
+    # 파일 분류 (자동 덮어쓰기 / 3-way merge / 사용자 전용 / 신규 / 삭제)
+    # 사용자 전용 파일: 건드리지 않음
+    USER_OWNED="harness.json .claude/rules/coding.md .claude/rules/naming.md"
+
+    # 카테고리별 파일 목록
+    AUTO_OVERWRITE=""
+    MERGE_FILES=""
+    NEW_FILES=""
+    SKIP_FILES=""
+
+    for fpath in $CHANGED_FILES; do
+      [ -z "$fpath" ] && continue
+
+      # 사용자 전용 파일 체크
+      is_user_owned=""
+      for uf in $USER_OWNED; do
+        case "$fpath" in
+          *"$uf"*) is_user_owned="1"; break ;;
+        esac
+      done
+      if [ -n "$is_user_owned" ]; then
+        SKIP_FILES="${SKIP_FILES}${fpath}\n"
+        continue
+      fi
+
+      if [ ! -f "$TARGET/$fpath" ]; then
+        # 타겟에 없는 파일 = 신규
+        NEW_FILES="${NEW_FILES}${fpath}\n"
+        NEW_COUNT=$((NEW_COUNT + 1))
+      else
+        # 파일 유형에 따라 분류
+        case "$fpath" in
+          .claude/scripts/*|h-setup.sh|.claude/HARNESS_VERSION)
+            # 스크립트/인프라: 자동 덮어쓰기
+            AUTO_OVERWRITE="${AUTO_OVERWRITE}${fpath}\n"
+            CHANGED_COUNT=$((CHANGED_COUNT + 1))
+            ;;
+          CLAUDE.md|.claude/rules/*|.claude/skills/*)
+            # 규칙/스킬/CLAUDE.md: 3-way merge 대상
+            MERGE_FILES="${MERGE_FILES}${fpath}\n"
+            CHANGED_COUNT=$((CHANGED_COUNT + 1))
+            ;;
+          *)
+            # 기타: 3-way merge
+            MERGE_FILES="${MERGE_FILES}${fpath}\n"
+            CHANGED_COUNT=$((CHANGED_COUNT + 1))
+            ;;
+        esac
+      fi
+    done
+
+    # 삭제 감지: base에는 있지만 upstream에서 제거된 파일
+    DELETED_FILES=""
+    if [ "$DIFF_MODE" = "three-way" ]; then
+      DELETED_FILES=$(git -C "$TARGET" diff --name-only --diff-filter=D "$BASE_REF" "$UPSTREAM_REF" -- $HARNESS_PATHS 2>/dev/null)
+      for fpath in $DELETED_FILES; do
+        [ -z "$fpath" ] && continue
+        DELETED_COUNT=$((DELETED_COUNT + 1))
+      done
+    fi
+
+    # UPGRADE_REPORT 생성 (파일 복사 없이, git show로 접근 가능)
+    REPORT="$UPGRADE_DIR/UPGRADE_REPORT.md"
+    cat > "$REPORT" <<EOF
+# 하네스 업그레이드 리포트
+
+- 현재 버전: ${CUR_VERSION:-unknown}
+- 업스트림 버전: ${SRC_VERSION}
+- 프로파일: ${CUR_PROFILE:-minimal}
+- 방식: remote (harness-upstream)
+- diff 모드: ${DIFF_MODE}
+- base ref: ${BASE_REF:-없음}
+- upstream ref: ${UPSTREAM_REF}
+- 생성일: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+## 요약
+
+| 카테고리 | 파일 수 |
+|----------|---------|
+| 자동 덮어쓰기 (스크립트/인프라) | $(echo -e "$AUTO_OVERWRITE" | grep -c '[^ ]') |
+| 3-way merge (규칙/스킬) | $(echo -e "$MERGE_FILES" | grep -c '[^ ]') |
+| 신규 파일 | ${NEW_COUNT} |
+| 삭제된 파일 | ${DELETED_COUNT} |
+| 사용자 전용 (건너뜀) | $(echo -e "$SKIP_FILES" | grep -c '[^ ]') |
+
+## 자동 덮어쓰기 대상
+
+upstream 그대로 적용. 사용자 수정이 없는 인프라 파일.
+
+EOF
+    echo -e "$AUTO_OVERWRITE" | while read -r fpath; do
+      [ -z "$fpath" ] && continue
+      echo "- \`$fpath\`" >> "$REPORT"
+    done
+
+    cat >> "$REPORT" <<'EOF'
+
+## 3-way merge 대상
+
+사용자 커스터마이징이 있을 수 있는 파일. `git merge-file`로 병합.
+
+EOF
+    echo -e "$MERGE_FILES" | while read -r fpath; do
+      [ -z "$fpath" ] && continue
+      echo "- \`$fpath\`" >> "$REPORT"
+    done
+
+    if [ "$NEW_COUNT" -gt 0 ]; then
+      cat >> "$REPORT" <<'EOF'
+
+## 신규 파일
+
+upstream에만 있는 파일. 사용자 확인 후 추가.
+
+EOF
+      echo -e "$NEW_FILES" | while read -r fpath; do
+        [ -z "$fpath" ] && continue
+        echo "- \`$fpath\`" >> "$REPORT"
+      done
+    fi
+
+    if [ "$DELETED_COUNT" -gt 0 ]; then
+      cat >> "$REPORT" <<'EOF'
+
+## 삭제된 파일
+
+upstream에서 제거된 파일. 타겟에서도 삭제할지 사용자에게 확인 필요.
+
+EOF
+      for fpath in $DELETED_FILES; do
+        [ -z "$fpath" ] && continue
+        echo "- \`$fpath\`" >> "$REPORT"
+      done
+    fi
+
+    cat >> "$REPORT" <<'EOF'
+
+## 사용자 전용 (건너뜀)
+
+사용자가 직접 관리하는 파일. 업그레이드 대상에서 제외.
+
+EOF
+    echo -e "$SKIP_FILES" | while read -r fpath; do
+      [ -z "$fpath" ] && continue
+      echo "- \`$fpath\`" >> "$REPORT"
+    done
+
+    cat >> "$REPORT" <<'EOF'
+
+## 다음 단계
+
+Claude Code에서 아래를 실행하세요:
+
+> harness-upgrade 스킬을 실행해줘
+
+harness-upgrade 스킬이 `git show`와 `git merge-file`을 사용해 병합합니다.
+파일 복사 없이 git에서 직접 읽으므로 `.upgrade/`에 파일이 없어도 정상입니다.
+EOF
+
+    # 결과 출력
+    echo "📁 자동 덮어쓰기:"
+    echo -e "$AUTO_OVERWRITE" | while read -r fpath; do
+      [ -z "$fpath" ] && continue
+      echo -e "  ${GREEN}✓${NC} $fpath"
+    done
+    echo ""
+    echo "📁 3-way merge 대상:"
+    echo -e "$MERGE_FILES" | while read -r fpath; do
+      [ -z "$fpath" ] && continue
+      echo -e "  ${YELLOW}⚡${NC} $fpath"
+    done
+    if [ "$NEW_COUNT" -gt 0 ]; then
+      echo ""
+      echo "📁 신규 파일:"
+      echo -e "$NEW_FILES" | while read -r fpath; do
+        [ -z "$fpath" ] && continue
+        echo -e "  ${GREEN}+${NC} $fpath"
+      done
+    fi
+    if [ "$DELETED_COUNT" -gt 0 ]; then
+      echo ""
+      echo "📁 삭제된 파일:"
+      for fpath in $DELETED_FILES; do
+        [ -z "$fpath" ] && continue
+        echo -e "  ${RED}-${NC} $fpath"
+      done
+    fi
+
+    TOTAL_CHANGES=$((CHANGED_COUNT + NEW_COUNT + DELETED_COUNT))
+    echo ""
+    echo "═══ 업그레이드 분석 완료 ═══"
+    echo -e "  ${GREEN}자동 덮어쓰기: $(echo -e "$AUTO_OVERWRITE" | grep -c '[^ ]')개${NC}"
+    echo -e "  ${YELLOW}3-way merge:   $(echo -e "$MERGE_FILES" | grep -c '[^ ]')개${NC}"
+    echo -e "  ${GREEN}신규:          ${NEW_COUNT}개${NC}"
+    if [ "$DELETED_COUNT" -gt 0 ]; then
+      echo -e "  ${RED}삭제:          ${DELETED_COUNT}개${NC}"
+    fi
+    echo ""
+
+    if [ "$TOTAL_CHANGES" -gt 0 ]; then
+      echo "다음: Claude Code에서 'harness-upgrade 스킬을 실행해줘'"
+      echo "      → git merge-file로 3-way merge, 자동 파일은 즉시 적용."
+    else
+      # 변경 없으면 버전만 갱신
+      if command -v jq > /dev/null 2>&1; then
+        jq --arg v "$SRC_VERSION" --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg r "$UPSTREAM_REF" \
+          '.version = $v | .upgraded_at = $t | .installed_from_ref = $r' "$META" > "$META.tmp" && mv "$META.tmp" "$META"
+      else
+        sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$SRC_VERSION\"/" "$META"
+        sed -i "s/\"upgraded_at\": [^,}]*/\"upgraded_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"/" "$META"
+        sed -i "s/\"installed_from_ref\": \"[^\"]*\"/\"installed_from_ref\": \"$UPSTREAM_REF\"/" "$META"
+      fi
+      echo -e "${GREEN}✅ 업그레이드 완료 (${CUR_VERSION} → ${SRC_VERSION})${NC}"
+      rm -rf "$UPGRADE_DIR"
+    fi
+
+    exit 0
+  fi
+
+  # ─── 파일 복사 방식 (fallback) ───
+  echo "📦 파일 복사 방식으로 업그레이드 (harness-upstream remote 없음)"
+  echo ""
 
   NEW_COUNT=0
   STAGED_COUNT=0
   UNCHANGED_COUNT=0
 
-  # 업그레이드용 파일 비교 함수
   stage_or_copy() {
     local src="$1"
     local dst="$2"
@@ -173,16 +477,13 @@ EOF
     local stage_path="$UPGRADE_DIR/$rel"
 
     if [ ! -f "$dst" ]; then
-      # 새 파일 — 바로 복사
       mkdir -p "$(dirname "$dst")"
       cp "$src" "$dst"
       echo -e "  ${GREEN}✓ 새 파일${NC}: $rel"
       NEW_COUNT=$((NEW_COUNT + 1))
     elif diff -q "$src" "$dst" > /dev/null 2>&1; then
-      # 변경 없음
       UNCHANGED_COUNT=$((UNCHANGED_COUNT + 1))
     else
-      # 변경 있음 — .upgrade/에 스테이징
       mkdir -p "$(dirname "$stage_path")"
       cp "$src" "$stage_path"
       echo -e "  ${YELLOW}⚡ 변경됨${NC}: $rel"
@@ -205,27 +506,22 @@ EOF
     [ -f "$src" ] || continue
     stage_or_copy "$src" "$TARGET/.claude/skills/$skill/SKILL.md"
   done
-  # 스타터에 있지만 프로파일에 없는 스킬도 타겟에 있으면 업그레이드 대상
   for src in "$SCRIPT_DIR/.claude/skills/"*/SKILL.md; do
     [ -f "$src" ] || continue
     skill=$(basename "$(dirname "$src")")
     dst="$TARGET/.claude/skills/$skill/SKILL.md"
     [ -f "$dst" ] || continue
-    # 이미 위에서 처리한 스킬은 건너뛰기
     echo "$SKILLS" | grep -qw "$skill" && continue
     stage_or_copy "$src" "$dst"
   done
 
-  # rules — 하네스 관리 rule은 비교, 사용자 템플릿 rule은 제외.
-  # coding.md, naming.md: 빈 템플릿 → 사용자가 채움 → 비교하면 항상 "변경됨"
-  # docs.md, self-verify.md, memory.md: 하네스 규칙 → 업그레이드 대상
+  # rules
   USER_TEMPLATE_RULES="coding.md naming.md"
   echo ""
   echo "📁 .claude/rules/"
   for f in "$SCRIPT_DIR/.claude/rules/"*; do
     [ -f "$f" ] || continue
     fname=$(basename "$f")
-    # 사용자 템플릿 rule은 새 파일만 복사, 기존 파일은 건드리지 않음
     if echo " $USER_TEMPLATE_RULES " | grep -qF " $fname "; then
       dst="$TARGET/.claude/rules/$fname"
       if [ ! -f "$dst" ]; then
@@ -241,11 +537,11 @@ EOF
     fi
   done
 
-  # CLAUDE.md — 사용자 커스터마이징 파일, 업그레이드 제외
+  # CLAUDE.md
   echo ""
   echo "⏭  CLAUDE.md — 사용자 커스터마이징 파일, 업그레이드 제외"
 
-  # settings.json — hook 누락 감지. 스타터의 matcher를 타겟에서 찾고, 없으면 스테이징.
+  # settings.json — hook 누락 감지
   MISSING_HOOKS=""
   MISSING_HOOK_COUNT=0
   SRC_SETTINGS="$SCRIPT_DIR/.claude/settings.json"
@@ -254,17 +550,11 @@ EOF
   echo ""
   echo "📁 .claude/settings.json (hook 누락 검사)"
   if [ -f "$SRC_SETTINGS" ] && [ -f "$TGT_SETTINGS" ]; then
-    # 스타터 settings.json에서 모든 matcher 값을 추출
     src_matchers=$(grep '"matcher"' "$SRC_SETTINGS" | sed 's/.*"matcher"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
     while IFS= read -r matcher; do
       [ -z "$matcher" ] && continue
-      # 타겟에서 이 matcher가 있는지 확인 (빈 문자열 matcher는 정확 매칭)
-      if [ "$matcher" = "" ]; then
-        # 빈 matcher는 특별 처리 — 양쪽 다 있을 수 있으므로 카테고리별로 비교 필요
-        continue
-      fi
+      if [ "$matcher" = "" ]; then continue; fi
       if ! grep -qF "\"$matcher\"" "$TGT_SETTINGS" 2>/dev/null; then
-        # 어떤 카테고리의 hook인지 찾기
         category=$(awk -v m="$matcher" '
           /"(PreToolUse|PostToolUse|Stop|SessionStart|PostCompact)"/ { cat=$0; gsub(/.*"/, "", cat); gsub(/".*/, "", cat) }
           index($0, "\"" m "\"") { print cat; exit }
@@ -274,9 +564,7 @@ EOF
       fi
     done <<< "$src_matchers"
 
-    # 빈 matcher 카테고리 비교 (SessionStart, Stop, PostCompact 등)
     for cat in SessionStart Stop PostCompact; do
-      # 스타터에 이 카테고리가 있는데 타겟에 없으면 누락
       if grep -q "\"$cat\"" "$SRC_SETTINGS" 2>/dev/null && ! grep -q "\"$cat\"" "$TGT_SETTINGS" 2>/dev/null; then
         MISSING_HOOKS="${MISSING_HOOKS}\n   - [${cat}] 카테고리 전체 누락"
         MISSING_HOOK_COUNT=$((MISSING_HOOK_COUNT + 1))
@@ -286,7 +574,6 @@ EOF
     if [ "$MISSING_HOOK_COUNT" -gt 0 ]; then
       echo -e "  ${YELLOW}⚠ 누락된 hook ${MISSING_HOOK_COUNT}개 감지${NC}"
       echo -e "$MISSING_HOOKS"
-      # 스타터 settings.json을 .upgrade/에 스테이징 (참조용)
       mkdir -p "$UPGRADE_DIR/.claude"
       cp "$SRC_SETTINGS" "$UPGRADE_DIR/.claude/settings.json"
       STAGED_COUNT=$((STAGED_COUNT + 1))
@@ -307,19 +594,17 @@ EOF
   if [ "$STAGED_COUNT" -gt 0 ]; then
     REPORT="$UPGRADE_DIR/UPGRADE_REPORT.md"
     cat > "$REPORT" <<EOF
-> status: pending
-
 # 하네스 업그레이드 리포트
 
+- 현재 버전: ${CUR_VERSION:-unknown}
 - 소스 버전: ${SRC_VERSION}
-- 현재 버전: ${CUR_VERSION}
-- 프로파일: ${CUR_PROFILE}
+- 프로파일: ${CUR_PROFILE:-minimal}
+- 방식: 파일 복사 (fallback)
 - 생성일: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 ## 변경 파일 목록
 
 EOF
-    # 스테이징된 파일들의 diff 요약 추가
     find "$UPGRADE_DIR" -type f ! -name "UPGRADE_REPORT.md" | sort | while read staged_file; do
       rel=$(echo "$staged_file" | sed "s|$UPGRADE_DIR/||")
       target_file="$TARGET/$rel"
@@ -330,19 +615,14 @@ EOF
       echo "" >> "$REPORT"
     done
 
-    # hook 누락 정보가 있으면 리포트에 추가
     if [ "$MISSING_HOOK_COUNT" -gt 0 ]; then
       cat >> "$REPORT" <<EOF
 
-## ⚠️ settings.json — 누락된 hook ${MISSING_HOOK_COUNT}개
-
-아래 hook이 타겟 프로젝트의 settings.json에 없습니다.
-이 hook이 없으면 하네스의 커밋 전 검사, 자동 포맷 등이 작동하지 않습니다.
+## settings.json — 누락된 hook ${MISSING_HOOK_COUNT}개
 
 $(echo -e "$MISSING_HOOKS")
 
-**조치**: harness-upgrade 스킬이 누락된 hook을 타겟 settings.json에 추가합니다.
-기존 permissions와 사용자 커스텀 hook은 보존됩니다.
+**조치**: harness-upgrade 스킬이 누락된 hook을 추가합니다.
 EOF
     fi
 
@@ -353,25 +633,17 @@ EOF
 Claude Code에서 아래를 실행하세요:
 
 > harness-upgrade 스킬을 실행해줘
-
-harness-upgrade 스킬이 각 파일의 diff를 분석하고, 사용자 커스터마이징을 보존하면서 병합을 수행합니다.
 EOF
   fi
 
-  # hook 누락 경고 — 스테이징 유무와 관계없이 표시
   if [ "$MISSING_HOOK_COUNT" -gt 0 ]; then
     echo ""
     echo -e "${RED}╔════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${RED}║  ⚠️  settings.json에 누락된 hook ${MISSING_HOOK_COUNT}개 감지              ║${NC}"
-    echo -e "${RED}║                                                            ║${NC}"
-    echo -e "${RED}║  누락된 hook이 있으면 커밋 전 검사, 자동 포맷 등          ║${NC}"
-    echo -e "${RED}║  하네스 핵심 기능이 작동하지 않습니다.                     ║${NC}"
-    echo -e "${RED}║                                                            ║${NC}"
     echo -e "${RED}║  반드시 harness-upgrade 스킬을 실행하세요.                ║${NC}"
     echo -e "${RED}╚════════════════════════════════════════════════════════════╝${NC}"
   fi
 
-  # 실행 권한
   chmod +x "$TARGET/.claude/scripts/"*.sh 2>/dev/null
 
   echo ""
@@ -379,16 +651,14 @@ EOF
   echo -e "  ${GREEN}새 파일:   ${NEW_COUNT}개${NC}"
   echo -e "  ${YELLOW}병합 필요: ${STAGED_COUNT}개${NC} (.claude/.upgrade/에 스테이징됨)"
   if [ "$MISSING_HOOK_COUNT" -gt 0 ]; then
-    echo -e "  ${RED}hook 누락: ${MISSING_HOOK_COUNT}개${NC} (settings.json에 추가 필요)"
+    echo -e "  ${RED}hook 누락: ${MISSING_HOOK_COUNT}개${NC}"
   fi
   echo -e "  변경 없음: ${UNCHANGED_COUNT}개"
   echo ""
 
   if [ "$STAGED_COUNT" -gt 0 ]; then
     echo "다음: Claude Code에서 'harness-upgrade 스킬을 실행해줘'"
-    echo "      → 각 파일의 diff를 보고 승인하면서 병합합니다."
   else
-    # 새 파일만 있고 충돌 없으면 바로 harness.json 업데이트
     if command -v jq > /dev/null 2>&1; then
       jq --arg v "$SRC_VERSION" --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
         '.version = $v | .upgraded_at = $t' "$META" > "$META.tmp" && mv "$META.tmp" "$META"
@@ -506,11 +776,13 @@ fi
 META="$TARGET/.claude/harness.json"
 if [ ! -f "$META" ]; then
   HARNESS_VERSION=$(cat "$SCRIPT_DIR/.claude/HARNESS_VERSION" 2>/dev/null | tr -d '[:space:]')
+  INSTALLED_REF=$(git -C "$SCRIPT_DIR" rev-parse HEAD 2>/dev/null || echo "unknown")
   cat > "$META" <<EOF
 {
   "profile": "$PROFILE",
   "skills": "$SKILLS",
   "version": "${HARNESS_VERSION:-unknown}",
+  "installed_from_ref": "${INSTALLED_REF}",
   "installed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "upgraded_at": null
 }

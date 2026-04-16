@@ -5,7 +5,7 @@
 
 ## 도메인별
 
-### harness (5)
+### harness (7)
 → [clusters/harness.md](clusters/harness.md)
 
 ### meta (1)
