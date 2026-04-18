@@ -1,22 +1,15 @@
 ---
-title: 하네스 구멍 정리 — 검색/완료 규칙 + 리뷰 hook 설계 실패 분석
+title: 하네스 구멍 정리 + 리뷰 구조 재확정
 domain: harness
-tags: [search, ide-context, incident-doc, completion-gate, hook-architecture, review-agent]
+tags: [search, ide-context, incident-doc, completion-gate, review-agent]
 status: in-progress
 created: 2026-04-18
-updated: 2026-04-19
+updated: 2026-04-18
 ---
 
-# 하네스 구멍 정리 + 리뷰 hook 재설계
-
-## 이 문서는
-
-2026-04-18 ~ 2026-04-19 세션의 **검증된 팩트**와 **다음 세션 진입점**.
-추측 없이 실제 테스트/문서로 확인된 것만 기록.
+# 하네스 구멍 정리 + 리뷰 구조 재확정
 
 ## Part A: 검색·문서 규칙 (반영 완료, 커밋 08bdfdc)
-
-### 반영된 rules/docs.md 변경
 
 | 구멍 | 내용 | 상태 |
 |------|------|------|
@@ -25,113 +18,74 @@ updated: 2026-04-19
 | 3. completed 미결 묻힘 | 본문 미결 패턴 시 WIP 분리 강제 | ✅ rules 반영 (스킬 수정 남음) |
 | 4. 검색 실패 escalation 부재 | 3단계 검색 + docs-lookup 위임 | ✅ rules 반영 |
 
-### 남은 후속 (스킬 수정)
+### 남은 후속 (별도 WIP)
 
 - write-doc 스킬: incident 생성 시 `symptom-keywords` 재질의
 - commit 스킬: completed 전환 시 본문 미결 패턴 차단
 
-## Part B: 리뷰 hook 설계 실패 분석 (이번 세션 핵심)
+## Part B: 리뷰 구조 — hook 포기, Agent tool 복원
 
-### 검증된 팩트 (Context7 공식 문서 + 직접 테스트)
+### 확정된 결론
+
+**리뷰는 hook이 아니라 commit 스킬 내부에서 Agent tool로 review 에이전트를 직접
+호출하는 구조로 간다.** 이 구조는 공식 Claude Agent SDK가 보장하는 경로이고,
+실제로 이 세션에서 호출 테스트로 정상 발화·응답 확인.
+
+이전 "hook 기반 리뷰" 설계(v0.9.2에서 도입)는 이틀간 hook 미로를 만든 원인.
+되돌린다.
+
+### 검증된 팩트
 
 | 항목 | 결과 | 근거 |
 |------|------|------|
-| prompt hook은 single-turn | ❌ 도구 불가 | Context7: "single-turn LLM evaluations" |
-| prompt hook `$ARGUMENTS` 내용 | tool_input.command만 | 직접 테스트 PATH-B (커밋 d439d77) |
-| command hook → prompt hook 데이터 전달 | ❌ 안 됨 | PATH-B 테스트에서 additionalContext 미전달 |
-| agent hook 발화 (VSCode) | ❌ 발화 안 됨 | 단독 테스트에서 ok:false 지시에도 통과 |
-| agent hook 도구 접근 (이론) | ✅ 가능 | Context7: "multi-turn tool access up to 50 turns" |
-| claude CLI (v2.1.112) | ✅ 설치됨 | `which claude` 확인 |
-| claude -p 헤드리스 호출 | ✅ 작동 | 직접 테스트 |
+| Agent tool로 review 에이전트 호출 | ✅ 정상 발화·응답 | 이 세션 실제 호출, JSON 응답 수신 |
+| review 에이전트가 Bash/Read/Glob/Grep 사용 | ✅ 작동 | review.md의 tools 필드에 정의, 호출 시 실행 확인 |
+| prompt type hook은 single-turn, 도구 불가 | ❌ 리뷰 부적합 | 공식 문서 |
+| prompt hook `$ARGUMENTS`에는 tool_input.command만 | diff 없음 | 직접 테스트 |
+| command hook → prompt hook 간 데이터 전달 경로 | ❌ 없음 | 직접 테스트 |
+| agent type hook은 PostToolUse 용으로 설계 | PreToolUse에서 부적합 | 공식 SDK 문서 |
 
-### 과거 진단 오류 정정
+### 설계 방향
 
-| 주장 | 사실 |
+```
+commit 스킬 실행 (strict 모드 또는 --strict)
+  ↓
+  작업 잔여물 정리, 계획 문서 완료 처리
+  ↓
+  Agent tool 호출 (subagent_type: "review", prompt: diff + 맥락)
+  ↓
+  review 에이전트가 스스로:
+    - Bash로 git diff --cached 확인
+    - 3관점(회귀/계약/스코프) 검증
+    - JSON 반환 {"ok": true/false, "block": bool, "warnings": [...]}
+  ↓
+  block: true면 차단, warnings만 있으면 커밋 메시지에 반영 후 진행
+  ↓
+  git commit + push
+```
+
+**PreToolUse hook은 기본 안전장치만 유지**: `pre-commit-check.sh` (린터, TODO/FIXME
+검사, --no-verify 차단). 리뷰 로직은 전부 스킬 내부로.
+
+### 반영 범위
+
+| 파일 | 변경 |
 |------|------|
-| "prompt hook $ARGUMENTS 주입 방식 재검토 필요" (4/18 WIP) | **허위**. $ARGUMENTS는 설계대로 hook input JSON 주입. 문제는 그 JSON에 diff가 없는 것 |
-| "v0.9에서 리뷰 hook 발화 봤음" (사용자 기억) | v0.9.2~v1.2.0은 matcher 문법 오류로 hook 전체 무력. 사용자가 본 것은 **commit 스킬 내부 Agent 호출**(20d2127 시점). v0.9.2에서 스킬→hook 이관 후 사실상 작동 안 했음 |
-| "VSCode 확장에서 agent hook 미동작" (v1.2.3 커밋 메시지) | **재확인됨**. 이번 세션 단독 테스트에서 agent hook의 ok:false 응답이 무시됨 |
+| `.claude/skills/commit/SKILL.md` | "리뷰는 hook이 처리한다" 섹션 → "strict 모드면 Agent tool로 review 호출" 섹션 교체 |
+| `.claude/settings.json` | 변경 없음 (이미 hook 제거됨, 커밋 1d165a3) |
+| `.claude/agents/review.md` | 변경 없음 (이미 존재) |
 
-### 남은 유일한 현실적 구조 = command hook + claude CLI
+## Part C: 다운스트림 전파 (별도 작업, 이 레포 범위 외)
 
-prompt/agent type hook 모두 이 환경(VSCode Claude Code Extension)에서 리뷰
-기능으로 못 씀이 확정. 남은 경로:
-
-```
-command hook (셸 스크립트)
-  ↓
-  git diff --cached 확보
-  위험도 판단 (pre-commit-check.sh 기존 로직 재활용)
-  필요 시 claude -p --allowedTools "Read,Grep" 로 리뷰 요청
-  ↓
-  exit 0 (허용) 또는 exit 2 (차단)
-```
-
-### 현재 settings.json 상태 (이 세션 커밋 후)
-
-- prompt/agent type hook **전부 제거**
-- command hook(pre-commit-check.sh)만 유지
-- **리뷰 없음 상태** — 다음 세션에서 claude -p 통합 구현 필요
-
-## 다음 세션 진입점
-
-### 즉시 시작할 일: command hook + claude -p 리뷰 통합
-
-**설계 원칙**: 책임 분리
-- **command hook 역할**: diff 확보, 위험도 판단, strict/light 분기, claude CLI 호출, exit code 결정
-- **claude CLI(LLM) 역할**: diff 텍스트만 받아 회귀/계약/스코프 관점 JSON 응답
-
-**구현 스케치 (다음 세션에서 검증)**:
-
-```bash
-# .claude/scripts/pre-commit-review.sh (신규)
-DIFF=$(git diff --cached)
-STAT=$(git diff --cached --numstat)
-HARNESS_LEVEL=$(grep -m1 '하네스 강도:' CLAUDE.md | sed 's/.*:\s*//')
-
-# 위험도 판단 (기존 pre-commit-check.sh 로직 재활용)
-NEEDS_REVIEW=0
-[ "$HARNESS_LEVEL" = "strict" ] && NEEDS_REVIEW=1
-# ... light 조건들 ...
-
-if [ "$NEEDS_REVIEW" = "1" ]; then
-  RESULT=$(echo "$DIFF" | claude -p "$(cat .claude/prompts/review.md)" \
-    --allowedTools "Read,Grep,Glob" \
-    --output-format json)
-  # JSON 파싱해서 ok:false면 exit 2
-fi
-
-exit 0
-```
-
-### 검증 필요 사항
-
-1. `claude -p` 안에서 Bash는 허용 가능한지 (`--allowedTools "Bash,Read,Grep,Glob"`)
-2. `--output-format json` 응답 포맷 (schema 확인 필요)
-3. 호출 지연 — 커밋마다 LLM 호출은 체감 느림. 위험도 게이트로 필터링 필수
-4. stagelink에도 동일 구조 배포 (harness-upgrade 경유)
-
-### 절대 하지 말 것 (이 세션의 교훈)
-
-- prompt hook이나 agent hook으로 리뷰 기능 부활시키려는 시도 금지. 둘 다 막혔음
-- "$ARGUMENTS 어떻게 주입할까" 고민 금지. 안 됨
-- 즉시 구현 점프 금지. 위 "검증 필요 사항"부터 하나씩 테스트
-
-## 커밋 이력 (이 세션)
-
-- `08bdfdc` (4/18) 검색/완료 규칙 + prompt hook matcher 보완 v1.3.0 [skip-review]
-- `7579867` (4/19) 리뷰 prompt에 도구 사용 지시 추가 — 실패 테스트
-- `d439d77` (4/19) command→prompt 데이터 전달 경로 PATH-B 확인
-- `cf36f57` (4/19) agent type 발화 검증 테스트 (덮여서 무효)
-- `eee83c4` (4/19) agent type 단독 — 미발화 확정
-- (이 커밋) 실험 흔적 정리 + 핸드오프 문서 갱신
+하네스 스타터의 변경이 다운스트림 프로젝트에 반영되려면 harness-upgrade
+경로로 전파 필요. 이 WIP는 harness-starter 범용 문서이므로 다운스트림 프로젝트
+고유 고유명사는 기록하지 않는다.
 
 ## 우선순위
 
 | 우선순위 | 항목 | 범위 |
 |---------|------|------|
-| P0 | command hook + claude -p 리뷰 통합 | 이 레포 pre-commit-review.sh 신규 |
-| P0 | stagelink에 동일 구조 전파 | harness-upgrade |
+| P0 | commit 스킬 SKILL.md에 Agent tool 호출 단계 추가 | 이 레포, 이 세션에서 |
 | P1 | write-doc 스킬 symptom-keywords 재질의 | 별도 WIP |
 | P1 | commit 스킬 completed 전환 시 본문 미결 패턴 차단 | 별도 WIP |
-| P2 | promotion-log/이 WIP의 허위 진단 기록 완전 정리 | 문서 작업 |
+| P2 | 이 WIP 승격 시 "이번 세션" 표현 날짜로 구체화 | 승격 시점 |

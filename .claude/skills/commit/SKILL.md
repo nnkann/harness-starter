@@ -29,29 +29,50 @@ description: 작업 잔여물 정리, 계획 문서 완료 처리, 변경 사항
 
 절대 "기본 light"로 떨어지지 말 것. 학습/프로토타입 성격이라도 **사용자가 선택한 결과**여야 한다.
 
-## 리뷰는 hook이 처리한다
+## 리뷰는 스킬이 Agent tool로 직접 호출한다
 
-코드 리뷰는 이 스킬이 아니라 **PreToolUse hook의 review agent**가 자동 실행한다.
-스킬은 리뷰를 직접 호출하지 않는다.
+코드 리뷰는 이 스킬이 `Agent` tool로 review 서브에이전트(`.claude/agents/review.md`)를
+직접 호출한다. hook은 쓰지 않는다.
 
-| 하네스 강도 | 리뷰 트리거 |
-|------------|------------|
-| strict | `git commit` 시 hook이 **항상** 리뷰 에이전트 실행 |
-| light | hook이 위험도를 판단하여 **위험할 때만** 리뷰 에이전트 실행 |
+| 하네스 강도 | 리뷰 트리거 | `--no-review` 동작 |
+|------------|------------|-------------------|
+| strict | **항상** Agent로 review 호출 | 사용자 명시 시에만 스킵, 커밋 메시지에 `[skip-review]` 태그 |
+| light | 위험도 감지 시 Agent로 review 호출 (기준은 아래 위험도 게이트) | 위험도 hit 시에도 스킵 |
 
-`--no-review` 사용 시 커밋 메시지 본문에 `[skip-review]`를 포함한다.
-hook matcher가 이를 감지하여 리뷰 에이전트를 스킵한다.
+### 위험도 게이트 (light 모드)
 
-### 리뷰 실행 가시성
+아래 중 하나라도 해당하면 review 호출:
+- 변경 파일 5개 이상
+- 삭제 50줄 이상
+- 핵심 설정 변경 (`CLAUDE.md`, `.claude/settings.json`, `.claude/rules/*`, `.claude/scripts/*`)
+- 보안 패턴 (auth/token/secret/key/credential/password 관련 파일명 또는 +라인)
+- 인프라 파일 (Dockerfile, docker-compose, `.github/workflows/`)
 
-agent 타입 hook은 출력이 user에게 자동 표시되지 않는다 (Claude context로만 들어감).
-사용자가 리뷰 실행 여부를 확인할 수 있도록:
+### 호출 방법
 
-- **statusMessage**: hook이 도는 동안 spinner로 "🔍 코드 리뷰 에이전트 실행 중..." 표시.
-- **커밋 직후 보고**: 스킬이 커밋 결과 요약 시 "리뷰 통과" 또는 "리뷰 경고: ..." 한 줄 포함.
-  hook 결과를 별도 호출하진 않지만, 리뷰가 차단(exit 2)했다면 git commit 자체가 실패하므로
-  성공 시 "리뷰 hook 통과 (자동)" 한 줄로 사용자에게 명시한다.
-- **`/hooks` 메뉴**: 사용자가 직접 hook 발화 이력을 확인할 수 있다.
+스테이징 완료 후 `git commit` 직전에:
+
+```
+Agent tool 호출
+  subagent_type: "review"
+  prompt: 아래 정보 포함
+    - 이번 커밋의 목적 (1~2줄)
+    - 연관 WIP 문서 경로 (있으면)
+    - "git diff --cached로 diff를 직접 확인하고, 3관점(회귀/계약/스코프)으로 검증. JSON 반환: {\"ok\": bool, \"block\": bool, \"warnings\": []}"
+```
+
+review 에이전트는 스스로 Bash/Read/Glob/Grep으로 필요한 맥락을 확보하고 JSON으로 응답한다.
+
+### 응답 처리
+
+- `block: true` → 커밋 차단. 사용자에게 사유 전달, 수정 후 재시도.
+- `block: false, warnings: [...]` → 경고 표시 후 진행. 커밋 메시지 본문에 경고 요약 포함 권장.
+- `ok: true, warnings 없음` → 그대로 진행.
+
+### 투명성
+
+- 스킬 메시지로 "🔍 review 에이전트 호출 중..." 한 줄 선행 알림
+- 응답 수신 후 "✅ 리뷰 통과" 또는 "⚠️ 리뷰 경고: ..." 또는 "🚫 리뷰 차단: ..." 요약
 
 ---
 
@@ -131,6 +152,16 @@ docs/WIP/에서 이번 작업과 연결된 문서를 처리한다.
 `git diff --cached`로 스테이징된 변경 내역을 읽고,
 어떤 파일에서 어떤 로직이 어떻게 수정되었는지 파악한다.
 
+### 6. 리뷰 (strict 또는 light 위험도 hit 시)
+
+위 "리뷰는 스킬이 Agent tool로 직접 호출한다" 섹션의 호출 방법·응답 처리를
+따른다. `--no-review`가 명시된 경우에만 스킵.
+
+- **호출 시점**: Step 5(변경 내역 분석) 후 커밋 메시지 작성 전.
+- **차단(`block: true`)**: 커밋 진행하지 말고 사용자에게 사유 전달. 수정 후 재시도.
+- **경고(`warnings`)**: 진행하되 커밋 메시지에 경고 요약 반영.
+- **통과**: 그대로 다음 단계로.
+
 ---
 
 ## 커밋 메시지 작성
@@ -165,13 +196,14 @@ git commit -m "feat: [제목]" -m "[간결한 본문]"
 요약에 다음을 포함:
 - 커밋 SHA + 메시지 1줄
 - 변경 stat (파일 수, +/- 라인)
-- **리뷰 hook 결과**: "리뷰 hook 통과 (자동)" / "리뷰 스킵 ([skip-review])" / 차단된 경우 사유
+- **리뷰 결과**: "✅ 리뷰 통과" / "⚠️ 리뷰 경고: ..." / "🚫 리뷰 차단: ..." / "리뷰 스킵 (`--no-review`)"
 - (선택) push 결과 (origin/main 업데이트 SHA)
 
 ---
 
 ## 주의
 
-- `--no-verify` 사용 금지 (hooks에서 차단됨).
+- `--no-verify` 사용 금지 (`pre-commit-check.sh` hook에서 차단됨).
 - docs/WIP/에 completed/abandoned 파일이 남아있으면 안 된다.
 - 커밋 메시지는 한국어.
+- 리뷰 차단 시 `--no-review`로 우회하지 마라. 지적 사항을 실제로 수정한 후 재시도.
