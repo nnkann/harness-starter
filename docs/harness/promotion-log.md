@@ -53,3 +53,5 @@ created: 2026-04-08
 | 2026-04-18 | 버전 | 1.2.0 → 1.2.1 | hook 발화 복구 (patch) |
 | 2026-04-18 | settings.json + commit 스킬 | agent hook 가시성 | agent hook 3개에 statusMessage 추가 (spinner UI로 실행 노출), commit 스킬에 리뷰 결과 보고 규정 추가 |
 | 2026-04-18 | 버전 | 1.2.1 → 1.2.2 | agent hook 가시성 개선 (patch) |
+| 2026-04-18 | settings.json | agent → prompt hook 교체 + if 파이프 문법 수정 | VSCode 확장에서 agent hook 미동작 확인. prompt 타입으로 교체, if 필드 파이프(\|) 미지원으로 핸들러 분리 |
+| 2026-04-18 | 버전 | 1.2.2 → 1.2.3 | hook 타입 교체 및 if 문법 수정 (patch) |
