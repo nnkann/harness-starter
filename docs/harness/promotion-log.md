@@ -51,3 +51,5 @@ created: 2026-04-08
 | 2026-04-18 | 버전 | 1.1.0 → 1.2.0 | 보안 인프라 신설 (minor) |
 | 2026-04-18 | settings.json matcher | 문법 오류 수정 | PreToolUse matcher를 tool name("Bash")으로 단일화, 명령어 인자 매칭은 if 필드로 이관. 2일간 hook 전체 무력 상태였음. |
 | 2026-04-18 | 버전 | 1.2.0 → 1.2.1 | hook 발화 복구 (patch) |
+| 2026-04-18 | settings.json + commit 스킬 | agent hook 가시성 | agent hook 3개에 statusMessage 추가 (spinner UI로 실행 노출), commit 스킬에 리뷰 결과 보고 규정 추가 |
+| 2026-04-18 | 버전 | 1.2.1 → 1.2.2 | agent hook 가시성 개선 (patch) |
