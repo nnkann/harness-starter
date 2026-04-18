@@ -62,3 +62,5 @@ created: 2026-04-08
 | 2026-04-18 | settings.json | 리뷰 hook 제거 | prompt/agent type hook이 이 환경(PreToolUse)에서 리뷰 목적으로 작동 불가 확인. 이전 모든 버전에서 hook 리뷰는 사실상 무력. 공식 문서상 agent type은 PostToolUse 용 |
 | 2026-04-18 | commit 스킬 | hook 리뷰 → Agent tool 직접 호출 | 스킬이 strict/위험도 hit 시 Agent tool로 review 서브에이전트를 직접 호출하도록 전환. v0.9.2 이전 구조 복원. Agent tool 호출 검증 완료 |
 | 2026-04-18 | 버전 | 1.3.0 → 1.3.1 | 리뷰 구조 복원 (patch — 스킬 로직 수정) |
+| 2026-04-18 | commit 스킬 | pre-check 조기 실행 단계 추가 | 스테이징 직후 pre-commit-check.sh를 명시 단계로 수동 실행. 정적 검사 실패 시 LLM 리뷰 호출 비용 절감. hook은 최후 안전망으로 유지 |
+| 2026-04-18 | 버전 | 1.3.1 → 1.3.2 | pre-check 조기 실행으로 비용 최적화 (patch) |
