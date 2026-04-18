@@ -49,3 +49,5 @@ created: 2026-04-08
 | 2026-04-18 | h-setup.sh | BSD sed 호환 | sed_inplace 헬퍼 추가 + awk 기반 JSON 치환, macOS 호환성 확보 |
 | 2026-04-18 | settings.json | matcher 확장 | --no-verify 차단을 모든 명령으로 확대, git commit 공백 2개 케이스 포함 |
 | 2026-04-18 | 버전 | 1.1.0 → 1.2.0 | 보안 인프라 신설 (minor) |
+| 2026-04-18 | settings.json matcher | 문법 오류 수정 | PreToolUse matcher를 tool name("Bash")으로 단일화, 명령어 인자 매칭은 if 필드로 이관. 2일간 hook 전체 무력 상태였음. |
+| 2026-04-18 | 버전 | 1.2.0 → 1.2.1 | hook 발화 복구 (patch) |
