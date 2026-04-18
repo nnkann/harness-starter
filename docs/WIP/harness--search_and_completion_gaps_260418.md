@@ -1,129 +1,137 @@
 ---
-title: 하네스 구멍 정리 — 검색 실패·IDE 컨텍스트 오신뢰·완료 선언 허점 + hook matcher 버그
+title: 하네스 구멍 정리 — 검색/완료 규칙 + 리뷰 hook 설계 실패 분석
 domain: harness
-tags: [search, ide-context, incident-doc, completion-gate, hook-matcher]
+tags: [search, ide-context, incident-doc, completion-gate, hook-architecture, review-agent]
 status: in-progress
 created: 2026-04-18
-updated: 2026-04-18
+updated: 2026-04-19
 ---
 
-# 하네스 구멍 정리 (세션 핸드오프)
+# 하네스 구멍 정리 + 리뷰 hook 재설계
 
 ## 이 문서는
 
-2026-04-18 세션에서 진단한 하네스 구멍 4개 + 실행 중 발견한 **settings.json
-hook matcher 버그**까지 정리. 다음 세션에서 이어서 진행할 수 있도록
-**현재 상태**와 **남은 일**을 명시.
+2026-04-18 ~ 2026-04-19 세션의 **검증된 팩트**와 **다음 세션 진입점**.
+추측 없이 실제 테스트/문서로 확인된 것만 기록.
 
-## 진단한 구멍 4개 (rules/docs.md 반영 완료)
+## Part A: 검색·문서 규칙 (반영 완료, 커밋 08bdfdc)
 
-### 1. IDE 컨텍스트 파일명을 "진실"로 오인 (P0) — 반영 완료
+### 반영된 rules/docs.md 변경
 
-`<ide_opened_file>`, `<ide_selection>`이 주는 경로는 존재 여부 무보장.
-Claude가 이 파일명 단어만 키워드로 쓰면 사용자 원문과 어긋난 검색이 된다.
+| 구멍 | 내용 | 상태 |
+|------|------|------|
+| 1. IDE 컨텍스트 오신뢰 | `<ide_opened_file>` 경로는 존재 확인 후 사용 | ✅ rules 반영 |
+| 2. incident symptom-keywords 누락 | incidents/ 전용 필드 추가 | ✅ rules 반영 (스킬 수정 남음) |
+| 3. completed 미결 묻힘 | 본문 미결 패턴 시 WIP 분리 강제 | ✅ rules 반영 (스킬 수정 남음) |
+| 4. 검색 실패 escalation 부재 | 3단계 검색 + docs-lookup 위임 | ✅ rules 반영 |
 
-→ `rules/docs.md`에 "IDE 경로는 Read/Glob 존재 확인 후 사용. 없으면 버리고
-사용자 원문 키워드로 재검색" 추가.
+### 남은 후속 (스킬 수정)
 
-### 2. incident 문서에 증상 키워드 누락 허용 (P1) — 규칙만 반영, 스킬은 남음
+- write-doc 스킬: incident 생성 시 `symptom-keywords` 재질의
+- commit 스킬: completed 전환 시 본문 미결 패턴 차단
 
-incidents/ tags가 기술 분류 중심이면 증상 유발 고유명사·식별자가 누락됨.
+## Part B: 리뷰 hook 설계 실패 분석 (이번 세션 핵심)
 
-→ `rules/docs.md` 프론트매터 스펙에 incidents/ 전용 필드 `symptom-keywords`
-추가. **write-doc 스킬이 비면 재질의하도록 수정 필요 (후속)**.
+### 검증된 팩트 (Context7 공식 문서 + 직접 테스트)
 
-### 3. completed로 닫을 때 미해결 후속을 본문에만 묻음 (P1) — 규칙만 반영, 스킬은 남음
+| 항목 | 결과 | 근거 |
+|------|------|------|
+| prompt hook은 single-turn | ❌ 도구 불가 | Context7: "single-turn LLM evaluations" |
+| prompt hook `$ARGUMENTS` 내용 | tool_input.command만 | 직접 테스트 PATH-B (커밋 d439d77) |
+| command hook → prompt hook 데이터 전달 | ❌ 안 됨 | PATH-B 테스트에서 additionalContext 미전달 |
+| agent hook 발화 (VSCode) | ❌ 발화 안 됨 | 단독 테스트에서 ok:false 지시에도 통과 |
+| agent hook 도구 접근 (이론) | ✅ 가능 | Context7: "multi-turn tool access up to 50 turns" |
+| claude CLI (v2.1.112) | ✅ 설치됨 | `which claude` 확인 |
+| claude -p 헤드리스 호출 | ✅ 작동 | 직접 테스트 |
 
-"증상 해결, 정책 미결"이 completed로 닫히면 본문 TODO/메모가 묻힌다.
+### 과거 진단 오류 정정
 
-→ `rules/docs.md` "문서 이동"에 차단 조건 명시: `TODO|FIXME|후속|미결|
-미결정|추후|나중에|별도로` 패턴 있으면 별도 WIP로 분리 강제. **commit
-스킬이 실제로 검사하도록 수정 필요 (후속)**.
+| 주장 | 사실 |
+|------|------|
+| "prompt hook $ARGUMENTS 주입 방식 재검토 필요" (4/18 WIP) | **허위**. $ARGUMENTS는 설계대로 hook input JSON 주입. 문제는 그 JSON에 diff가 없는 것 |
+| "v0.9에서 리뷰 hook 발화 봤음" (사용자 기억) | v0.9.2~v1.2.0은 matcher 문법 오류로 hook 전체 무력. 사용자가 본 것은 **commit 스킬 내부 Agent 호출**(20d2127 시점). v0.9.2에서 스킬→hook 이관 후 사실상 작동 안 했음 |
+| "VSCode 확장에서 agent hook 미동작" (v1.2.3 커밋 메시지) | **재확인됨**. 이번 세션 단독 테스트에서 agent hook의 ok:false 응답이 무시됨 |
 
-### 4. 검색 실패 자동 escalation 부재 (P0) — 반영 완료
+### 남은 유일한 현실적 구조 = command hook + claude CLI
 
-1차 검색 공백이 바로 "없다" 결론으로 이어짐.
-
-→ `rules/docs.md`에 3단계 검색(파일명 Glob → 제목/태그 grep → 본문 grep)
-강제 + docs-lookup 에이전트 위임 escalation 명시.
-
-## 추가로 발견한 버그 — settings.json hook matcher
-
-세션 중 사용자가 "stagelink에서 커밋 스킬 hook이 발화 안 된다"고 지적.
-git log로 추적한 결과:
-
-- v1.2.3에서 파이프 문법(`Bash(x)|Bash(y)`)이 공식 문서상 미지원이라
-  핸들러 분리했음.
-- 분리 과정에서 `prompt` type hook은 `Bash(git commit*)` 하나만 등록,
-  `Bash(* git commit*)` (체이닝 커밋) 변형 누락.
-- **stagelink는 더 큰 문제**: `matcher` 필드에 `Bash(git commit*)` 같은
-  세부 패턴을 넣어놨음. 공식 문서상 `matcher`는 **툴 이름만 허용**
-  (`Bash`, `Write|Edit`). 세부 패턴은 `if` 필드에서만 동작.
-- 즉 stagelink는 **모든 커밋 관련 hook이 조용히 발화 실패** 상태였음.
-  HARNESS.json 버전이 1.2.3이어도 내용은 잘못된 독자 수정본.
-
-### 반영 완료 (이번 세션)
-
-1. `harness-starter/.claude/settings.json` — prompt hook 2개에 `Bash(*
-   git commit*)` 변형 추가.
-2. `stagelink/.claude/settings.json` — matcher 구조를 `matcher: "Bash"` +
-   `if: "Bash(...)"`로 전면 정정. stagelink 고유 항목(permissions,
-   pre-edit-validator.mjs, write-guard.sh) 보존.
-
-## 현재 상태 (2026-04-18 세션 종료 시점)
-
-### harness-starter 변경사항 (미커밋)
+prompt/agent type hook 모두 이 환경(VSCode Claude Code Extension)에서 리뷰
+기능으로 못 씀이 확정. 남은 경로:
 
 ```
-M .claude/rules/docs.md          ← 4개 구멍 반영 (IDE 규칙 + 3단계 검색 + symptom-keywords + completed 차단)
-M .claude/settings.json          ← prompt hook에 * git commit* 변형 추가
-?? docs/WIP/harness--search_and_completion_gaps_260418.md  ← 이 문서
+command hook (셸 스크립트)
+  ↓
+  git diff --cached 확보
+  위험도 판단 (pre-commit-check.sh 기존 로직 재활용)
+  필요 시 claude -p --allowedTools "Read,Grep" 로 리뷰 요청
+  ↓
+  exit 0 (허용) 또는 exit 2 (차단)
 ```
 
-### stagelink 변경사항 (미커밋, 이 레포와 무관)
+### 현재 settings.json 상태 (이 세션 커밋 후)
 
+- prompt/agent type hook **전부 제거**
+- command hook(pre-commit-check.sh)만 유지
+- **리뷰 없음 상태** — 다음 세션에서 claude -p 통합 구현 필요
+
+## 다음 세션 진입점
+
+### 즉시 시작할 일: command hook + claude -p 리뷰 통합
+
+**설계 원칙**: 책임 분리
+- **command hook 역할**: diff 확보, 위험도 판단, strict/light 분기, claude CLI 호출, exit code 결정
+- **claude CLI(LLM) 역할**: diff 텍스트만 받아 회귀/계약/스코프 관점 JSON 응답
+
+**구현 스케치 (다음 세션에서 검증)**:
+
+```bash
+# .claude/scripts/pre-commit-review.sh (신규)
+DIFF=$(git diff --cached)
+STAT=$(git diff --cached --numstat)
+HARNESS_LEVEL=$(grep -m1 '하네스 강도:' CLAUDE.md | sed 's/.*:\s*//')
+
+# 위험도 판단 (기존 pre-commit-check.sh 로직 재활용)
+NEEDS_REVIEW=0
+[ "$HARNESS_LEVEL" = "strict" ] && NEEDS_REVIEW=1
+# ... light 조건들 ...
+
+if [ "$NEEDS_REVIEW" = "1" ]; then
+  RESULT=$(echo "$DIFF" | claude -p "$(cat .claude/prompts/review.md)" \
+    --allowedTools "Read,Grep,Glob" \
+    --output-format json)
+  # JSON 파싱해서 ok:false면 exit 2
+fi
+
+exit 0
 ```
-M d:/Work/StageLink/dev/.claude/settings.json  ← hook matcher 전면 정정
-```
 
-## 다음 세션에서 이어할 일
+### 검증 필요 사항
 
-### 즉시 (이어서 바로)
+1. `claude -p` 안에서 Bash는 허용 가능한지 (`--allowedTools "Bash,Read,Grep,Glob"`)
+2. `--output-format json` 응답 포맷 (schema 확인 필요)
+3. 호출 지연 — 커밋마다 LLM 호출은 체감 느림. 위험도 게이트로 필터링 필수
+4. stagelink에도 동일 구조 배포 (harness-upgrade 경유)
 
-1. **harness-starter 커밋** — 위 3개 변경사항.
-   - 이번 세션에서 "이 후 바로 이어할 수 있도록" 해달라 해서 커밋은 다음
-     세션으로 넘김. 사용자가 한 번 더 리뷰 후 커밋 의사 확인.
-   - 커밋 메시지 초안: "feat: 검색/완료 규칙 강화 + prompt hook matcher 보완"
-   - strict 모드라 commit 스킬 내부 리뷰 + hook 리뷰가 돌 예정.
+### 절대 하지 말 것 (이 세션의 교훈)
 
-2. **stagelink 커밋 여부 확인** — stagelink의 settings.json 수정은 별도
-   레포의 변경이라 사용자가 직접 확인 후 커밋해야 함.
+- prompt hook이나 agent hook으로 리뷰 기능 부활시키려는 시도 금지. 둘 다 막혔음
+- "$ARGUMENTS 어떻게 주입할까" 고민 금지. 안 됨
+- 즉시 구현 점프 금지. 위 "검증 필요 사항"부터 하나씩 테스트
 
-### 후속 작업 (별도 WIP 필요)
+## 커밋 이력 (이 세션)
 
-3. **write-doc 스킬 수정** — incidents/ 생성 시 `symptom-keywords` 재질의
-   로직 추가. 구멍 2 완결.
+- `08bdfdc` (4/18) 검색/완료 규칙 + prompt hook matcher 보완 v1.3.0 [skip-review]
+- `7579867` (4/19) 리뷰 prompt에 도구 사용 지시 추가 — 실패 테스트
+- `d439d77` (4/19) command→prompt 데이터 전달 경로 PATH-B 확인
+- `cf36f57` (4/19) agent type 발화 검증 테스트 (덮여서 무효)
+- `eee83c4` (4/19) agent type 단독 — 미발화 확정
+- (이 커밋) 실험 흔적 정리 + 핸드오프 문서 갱신
 
-4. **commit 스킬 수정** — completed 전환 시 본문 미결 패턴 차단 로직 추가.
-   구멍 3 완결.
+## 우선순위
 
-5. **다운스트림 하네스 버전 검증 메커니즘** — stagelink 사례에서 HARNESS.json
-   버전이 1.2.3이어도 settings.json 내용이 유효하지 않을 수 있음이 드러남.
-   harness-upgrade 또는 harness-sync가 **settings.json 유효성**(matcher
-   필드에 세부 패턴 들어있으면 경고)을 검사하도록 개선 필요.
-
-## 이 세션에서 배운 것 (메모리 후보)
-
-- **IDE 컨텍스트는 힌트일 뿐** — 이미 rules에 반영했으니 메모리는 불필요.
-- **"없다"는 3단계 후에만** — 이미 rules에 반영.
-- **프로젝트 성격(범용 vs 다운스트림) 구분 강화 필요** — harness-starter
-  레포에서 다운스트림 고유명사를 예시로 박는 실수를 했음. 세션 중 즉시
-  교정했으나, 재발 방지용 메모리 검토 여지 있음.
-- **hook matcher 공식 스펙** — matcher는 툴 이름만, 세부 패턴은 if 필드.
-  이건 rules에 명시해두면 후속 편집 시 도움. 별도 WIP/수정 고려.
-
-## 참고 커밋
-
-- `8f9d95a` — fix: agent hook → prompt 교체 + if 파이프 문법 수정 (v1.2.3)
-- `ed21cca` — fix: PreToolUse matcher 문법 오류 수정 — hook이 한 번도 발화 안 됨 (v1.2.1)
-- `4ec2a98` — refactor: commit 스킬의 Review를 PreToolUse hook으로 분리 (v0.9.2)
+| 우선순위 | 항목 | 범위 |
+|---------|------|------|
+| P0 | command hook + claude -p 리뷰 통합 | 이 레포 pre-commit-review.sh 신규 |
+| P0 | stagelink에 동일 구조 전파 | harness-upgrade |
+| P1 | write-doc 스킬 symptom-keywords 재질의 | 별도 WIP |
+| P1 | commit 스킬 completed 전환 시 본문 미결 패턴 차단 | 별도 WIP |
+| P2 | promotion-log/이 WIP의 허위 진단 기록 완전 정리 | 문서 작업 |
