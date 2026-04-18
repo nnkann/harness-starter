@@ -41,3 +41,11 @@ created: 2026-04-08
 | 2026-04-16 | 버전 | 1.0.2 → 1.0.3 | 설정 파일 구조 정리 (patch) |
 | 2026-04-16 | write-doc 스킬 | 신설 | 코드 작업 없이 문서만 단독 생성할 때 폴더 판단·프론트매터·파일명 규칙 강제 |
 | 2026-04-16 | 버전 | 1.0.3 → 1.1.0 | 신규 스킬 추가 (minor) |
+| 2026-04-18 | rules/security.md | 신설 | 시크릿 하드코딩 금지 + 4계층 방어(pre-commit / CI / eval --deep / rotation 플레이북) |
+| 2026-04-18 | eval --deep | Step 0 + Step 1 + 4관점 | 시크릿 스캔(working tree + history) + archive 폴더 강제 점검 + 외부 공격자 페르소나 추가 |
+| 2026-04-18 | agents/review.md | 스코프 경계 + 3관점 | diff 전용으로 재분배, 회귀/계약/스코프 관점 추가, 전체 코드 기반 판단 항목은 eval로 이관 |
+| 2026-04-18 | scripts/install-secret-scan-hook.sh | 신설 | pre-commit 시크릿 스캔 훅 설치기, gitleaks 우선 grep 폴백 |
+| 2026-04-18 | .claude/memory/ | 신설 | feedback 메모리 경로 활성화, 2026-04-18 dev-tools 사고 교훈 저장 |
+| 2026-04-18 | h-setup.sh | BSD sed 호환 | sed_inplace 헬퍼 추가 + awk 기반 JSON 치환, macOS 호환성 확보 |
+| 2026-04-18 | settings.json | matcher 확장 | --no-verify 차단을 모든 명령으로 확대, git commit 공백 2개 케이스 포함 |
+| 2026-04-18 | 버전 | 1.1.0 → 1.2.0 | 보안 인프라 신설 (minor) |

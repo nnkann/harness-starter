@@ -24,6 +24,17 @@ NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# GNU/BSD(macOS) sed 호환 in-place 편집 헬퍼.
+#   사용: sed_inplace 's/foo/bar/' file
+# BSD sed는 `-i` 뒤에 백업 확장자 인자(빈 문자열도)를 요구하고, GNU는 선택적이다.
+# tmp 파일 경유로 양쪽 모두 안전하게 처리.
+sed_inplace() {
+  local expr="$1"; local file="$2"
+  local tmp
+  tmp="$(mktemp)" || return 1
+  sed "$expr" "$file" > "$tmp" && mv "$tmp" "$file"
+}
+
 # 인자 파싱
 PROFILE="minimal"
 ADD_SKILL=""
@@ -132,7 +143,7 @@ EOF
     OLD_VER=$(cat "$TARGET/.claude/HARNESS_VERSION" 2>/dev/null | tr -d '[:space:]')
     CUR_JSON_VER=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "$META" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/')
     if [ "$CUR_JSON_VER" = "unknown" ] && [ -n "$OLD_VER" ]; then
-      sed -i "s/\"version\"[[:space:]]*:[[:space:]]*\"unknown\"/\"version\": \"$OLD_VER\"/" "$META"
+      sed_inplace "s/\"version\"[[:space:]]*:[[:space:]]*\"unknown\"/\"version\": \"$OLD_VER\"/" "$META"
     fi
     rm -f "$TARGET/.claude/HARNESS_VERSION"
     echo -e "${GREEN}✓ 마이그레이션: HARNESS_VERSION → HARNESS.json (삭제됨)${NC}"
@@ -143,7 +154,13 @@ EOF
     ADOPTED_TIME=$(grep -o 'adopted_at:.*' "$TARGET/.claude/.harness_adopted" 2>/dev/null | sed 's/adopted_at:[[:space:]]*//')
     [ -z "$ADOPTED_TIME" ] && ADOPTED_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     if ! grep -q '"adopted_at"' "$META" 2>/dev/null; then
-      sed -i "s/}$/,\n  \"adopted_at\": \"$ADOPTED_TIME\"\n}/" "$META"
+      # GNU sed의 '\n' 치환은 BSD sed(macOS)에서 리터럴로 삽입되어 JSON이 깨진다.
+      # awk로 마지막 '}' 라인 직전에 adopted_at 항목을 삽입. 양쪽 호환.
+      tmp="$(mktemp)"
+      awk -v t="$ADOPTED_TIME" '
+        /^\}$/ && !done { print ",";  print "  \"adopted_at\": \"" t "\""; print "}"; done=1; next }
+        { print }
+      ' "$META" > "$tmp" && mv "$tmp" "$META"
     fi
     rm -f "$TARGET/.claude/.harness_adopted"
     echo -e "${GREEN}✓ 마이그레이션: .harness_adopted → HARNESS.json (삭제됨)${NC}"
@@ -402,8 +419,8 @@ EOF
       jq --arg v "$SRC_VERSION" --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
         '.version = $v | .upgraded_at = $t' "$META" > "$META.tmp" && mv "$META.tmp" "$META"
     else
-      sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$SRC_VERSION\"/" "$META"
-      sed -i "s/\"upgraded_at\": [^,}]*/\"upgraded_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"/" "$META"
+      sed_inplace "s/\"version\": \"[^\"]*\"/\"version\": \"$SRC_VERSION\"/" "$META"
+      sed_inplace "s/\"upgraded_at\": [^,}]*/\"upgraded_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"/" "$META"
     fi
     echo -e "${GREEN}✅ 업그레이드 완료 (${CUR_VERSION} → ${SRC_VERSION})${NC}"
     rm -rf "$UPGRADE_DIR"

@@ -46,7 +46,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "Bash(git commit*--no-verify*)|Bash(git commit*-n *)",
+        "matcher": "Bash(git commit*--no-verify*)|Bash(git  *commit*--no-verify*)|Bash(git commit*-n *)|Bash(git  *commit*-n *)|Bash(*--no-verify*)",
         "hooks": [
           {
             "type": "command",

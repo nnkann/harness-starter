@@ -17,6 +17,13 @@ bash /path/to/harness-starter/h-setup.sh .
 h-setup.sh는 멱등성 보장. 이미 있는 파일은 건드리지 않는다.
 
 ```bash
+# (선택) pre-commit 시크릿 스캔 훅 설치
+bash scripts/install-secret-scan-hook.sh
+```
+
+gitleaks가 있으면 `gitleaks protect --staged` 사용, 없으면 grep 폴백. grep 폴백은 best-effort — 리터럴 분할이나 Base64 우회는 탐지하지 못하므로 실제 방어가 중요하면 gitleaks 설치 필수.
+
+```bash
 # 기존 프로젝트에 하네스 이식
 # → Claude Code에서 /harness-adopt → /harness-init 순서로 실행
 
@@ -32,12 +39,13 @@ CLAUDE.md                        에이전트 루트 인스트럭션 (≤30줄)
 .claude/
 ├── settings.json                hooks 정의
 ├── HARNESS.json                 하네스 메타 (버전, 프로파일, installed_from_ref)
-├── rules/                       자동 로드 규칙 (5개)
+├── rules/                       자동 로드 규칙 (6개)
 │   ├── self-verify.md           [상시] 작업 중 자기 검증
 │   ├── coding.md                [상시] 코딩 컨벤션 (플레이스홀더)
 │   ├── naming.md                [paths] 네이밍 규칙 (플레이스홀더)
 │   ├── docs.md                  [paths] 문서 구조 + 프론트매터 + 탐색 규칙
-│   └── memory.md                [상시] 메모리 활용 규칙
+│   ├── memory.md                [상시] 메모리 활용 규칙
+│   └── security.md              [상시] 시크릿 금지 + 4계층 방어
 ├── skills/                      온디맨드 스킬 (11개)
 │   ├── harness-init/            프로젝트 초기화 (CPS + 스택 결정)
 │   ├── harness-adopt/           기존 프로젝트에 하네스 이식
@@ -45,7 +53,7 @@ CLAUDE.md                        에이전트 루트 인스트럭션 (≤30줄)
 │   ├── harness-upgrade/         하네스 업그레이드 (remote 3-way merge)
 │   ├── implementation/          작업 문서 라이프사이클
 │   ├── commit/                  커밋 + Review (light/strict)
-│   ├── eval/                    건강 검진 (--quick/--harness/--surface/--deep)
+│   ├── eval/                    건강 검진 (--quick/--harness/--surface/--deep: 시크릿 스캔 + 4관점)
 │   ├── advisor/                 멀티 에이전트 3관점 검증
 │   ├── check-existing/          기존 코드 중복 확인
 │   ├── naming-convention/       네이밍 규칙 설정
@@ -55,6 +63,8 @@ CLAUDE.md                        에이전트 루트 인스트럭션 (≤30줄)
 │   ├── docs-manager.md          프론트매터 검증 + INDEX/clusters 갱신
 │   └── review.md                커밋 전 코드/문서 리뷰
 └── scripts/                     hook 스크립트 (6개)
+scripts/                         유틸 스크립트 (하네스 외부)
+└── install-secret-scan-hook.sh  pre-commit 시크릿 스캔 훅 설치 (gitleaks 우선, grep 폴백)
 docs/
 ├── INDEX.md                     도메인 목록 + 진입 포인터 (경량)
 ├── clusters/                    도메인별 상세 인덱스 (문서 목록 + 관계 맵)
