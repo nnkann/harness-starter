@@ -42,18 +42,16 @@ description: 작업 잔여물 정리, 계획 문서 완료 처리, 변경 사항
 `--no-review` 사용 시 커밋 메시지 본문에 `[skip-review]`를 포함한다.
 hook matcher가 이를 감지하여 리뷰 에이전트를 스킵한다.
 
-### 리뷰 실행 가시성 (중요)
+### 리뷰 실행 가시성
 
-agent 타입 hook은 stdout이 user에게 자동 표시되지 않는다 (Claude context로만 전달).
-사용자가 리뷰 실행 여부를 확인할 수 있도록 settings.json hook entry에
-`statusMessage`를 반드시 포함한다 — spinner로 "🔍 코드 리뷰 에이전트 실행 중..." 표시.
+agent 타입 hook은 출력이 user에게 자동 표시되지 않는다 (Claude context로만 들어감).
+사용자가 리뷰 실행 여부를 확인할 수 있도록:
 
-스킬은 커밋 직후 결과 요약 시 다음 중 하나를 포함한다:
-- 리뷰 hook이 차단(exit 2)했다면 → git commit 자체 실패 → 사용자에게 차단 사유 보고.
-- 리뷰 hook 통과 → "리뷰 hook 통과 (자동)" 한 줄을 보고에 명시.
-- `--no-review` → "리뷰 스킵 ([skip-review])" 명시.
-
-사용자가 직접 hook 발화 이력을 확인하려면 `/hooks` 메뉴 사용.
+- **statusMessage**: hook이 도는 동안 spinner로 "🔍 코드 리뷰 에이전트 실행 중..." 표시.
+- **커밋 직후 보고**: 스킬이 커밋 결과 요약 시 "리뷰 통과" 또는 "리뷰 경고: ..." 한 줄 포함.
+  hook 결과를 별도 호출하진 않지만, 리뷰가 차단(exit 2)했다면 git commit 자체가 실패하므로
+  성공 시 "리뷰 hook 통과 (자동)" 한 줄로 사용자에게 명시한다.
+- **`/hooks` 메뉴**: 사용자가 직접 hook 발화 이력을 확인할 수 있다.
 
 ---
 
