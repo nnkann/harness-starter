@@ -46,28 +46,27 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "Bash(git commit*--no-verify*)|Bash(git  *commit*--no-verify*)|Bash(git commit*-n *)|Bash(git  *commit*-n *)|Bash(*--no-verify*)",
+        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "echo '❌ --no-verify 금지.' && exit 2"
-          }
-        ]
-      },
-      {
-        "matcher": "Bash(git commit*)",
-        "hooks": [
+            "if": "Bash(* --no-verify*)|Bash(*--no-verify *)|Bash(* -n *)",
+            "command": "echo '❌ --no-verify / -n 금지.' && exit 2"
+          },
           {
             "type": "command",
+            "if": "Bash(git commit*)|Bash(*git commit*)",
             "command": "bash .claude/scripts/pre-commit-check.sh"
           },
           {
             "type": "agent",
+            "if": "Bash(git commit*)|Bash(*git commit*)",
             "prompt": "커밋 전 테스트 커버리지 확인. git diff --cached --name-only로 변경된 파일을 확인하고, 각 파일에 대응하는 테스트 파일이 tests/ 또는 __tests__/에 있는지 Glob으로 검사하라. 테스트가 없는 핵심 파일(유틸, 설정 등 제외)이 있으면 경고하되 커밋은 허용하라. JSON으로 결과를 반환: {\"ok\": true} 또는 {\"ok\": true, \"warning\": \"테스트 없는 파일: payments_api.ts\"}. 변경 파일 데이터: $ARGUMENTS"
           },
           {
             "type": "agent",
-            "prompt": "커밋 전 코드 리뷰 게이트.\n\n## 실행 조건 판단\n1. CLAUDE.md에서 `하네스 강도:` 값을 읽는다.\n2. strict이면 → 아래 리뷰를 반드시 실행한다.\n3. light이면 → 위험도를 판단한다:\n   - 변경 파일 5개 이상\n   - 삭제 50줄 이상\n   - 핵심 설정 파일(CLAUDE.md, .claude/settings.json, .claude/rules/*, .claude/scripts/*) 변경\n   - 보안 관련 패턴(auth, token, secret, key, credential, password)\n   - 인프라/배포 파일(Dockerfile, docker-compose, .github/workflows/, deploy)\n   - 단일 파일에서 추가+삭제 동시 30줄 이상\n   위 조건 중 하나라도 해당하면 → 리뷰 실행. 전부 해당 없으면 → {\"ok\": true} 반환하고 종료.\n4. 하네스 강도가 비어있으면 → {\"ok\": true} 반환 (리뷰 스킵).\n\n## 리뷰 실행 시 검증 항목\n\n동료 개발자의 코드 리뷰처럼 행동한다. \"이거 맞아?\"부터 시작한다.\n\n### 계획 vs 구현\n- docs/WIP/에 이 작업의 계획 문서가 있는가?\n- 계획 문서의 목표와 실제 변경 사항이 일치하는가?\n- 계획에 없던 변경이 포함되어 있으면 지적 (스코프 크리프).\n- 계획보다 덜 구현된 것이 있으면 지적 (미완료).\n\n### 하네스 규칙 준수\n- .claude/rules/naming.md 규칙을 따르는가?\n- 중복 확인 없이 새 함수를 만들지 않았는가?\n- 린터 에러가 0인가?\n\n### 코드 품질\n- 같은 로직이 3곳 이상 반복되면 추출 제안 (주의 레벨).\n- 과도한 추상화 (한 곳에서만 쓰이는 유틸 함수)도 지적.\n\n### 부작용 확인\n- 기존 기능에 영향을 줄 수 있는 변경이 있으면 명시.\n- 삭제된 코드가 다른 곳에서 참조되고 있지 않은지 확인.\n\n## 심각도\n- **차단**: 이대로 커밋하면 안 됨. {\"ok\": false, \"reason\": \"...\"} 반환.\n- **주의**: 커밋 가능, 인지 필요. {\"ok\": true, \"warning\": \"...\"} 반환.\n- **참고**: 나중에 개선. warning에 포함.\n\n## 행동 원칙\n- 근거로 말하라. diff의 특정 라인을 가리켜라.\n- 문제 없으면 {\"ok\": true} 반환. 장문 리뷰 금지.\n- 스타일 취향을 강요하지 마라. 하네스 규칙에 있는 것만 지적.\n- 사소한 것으로 커밋을 차단하지 마라. 차단은 진짜 문제일 때만.\n\n변경 파일 데이터: $ARGUMENTS"
+            "if": "Bash(git commit*)|Bash(*git commit*)",
+            "prompt": "커밋 전 코드 리뷰 게이트.\n\n## 실행 조건 판단\n1. CLAUDE.md에서 `하네스 강도:` 값을 읽는다.\n2. strict이면 → 아래 리뷰를 반드시 실행한다.\n3. light이면 → 위험도를 판단한다:\n   - 변경 파일 5개 이상\n   - 삭제 50줄 이상\n   - 핵심 설정 파일(CLAUDE.md, .claude/settings.json, .claude/rules/*, .claude/scripts/*) 변경\n   - 보안 관련 패턴(auth, token, secret, key, credential, password)\n   - 인프라/배포 파일(Dockerfile, docker-compose, .github/workflows/, deploy)\n   - 단일 파일에서 추가+삭제 동시 30줄 이상\n   위 조건 중 하나라도 해당하면 → 리뷰 실행. 전부 해당 없으면 → {\"ok\": true} 반환하고 종료.\n4. 하네스 강도가 비어있으면 → {\"ok\": true} 반환 (리뷰 스킵).\n\n## 리뷰 실행 시 검증 항목\n\n.claude/agents/review.md 의 검증 항목과 3관점(회귀 탐지자/계약 위반/스코프 이탈)을 그대로 사용하라. 이 프롬프트에 중복 서술하지 않는다.\n\n## 반환 형식\n- {\"ok\": false, \"reason\": \"...\"} — 차단\n- {\"ok\": true, \"warning\": \"...\"} — 주의 있음, 커밋 허용\n- {\"ok\": true} — 통과\n\n변경 파일 데이터: $ARGUMENTS"
           }
         ]
       },
