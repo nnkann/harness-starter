@@ -55,3 +55,7 @@ created: 2026-04-08
 | 2026-04-18 | 버전 | 1.2.1 → 1.2.2 | agent hook 가시성 개선 (patch) |
 | 2026-04-18 | settings.json | agent → prompt hook 교체 + if 파이프 문법 수정 | VSCode 확장에서 agent hook 미동작 확인. prompt 타입으로 교체, if 필드 파이프(\|) 미지원으로 핸들러 분리 |
 | 2026-04-18 | 버전 | 1.2.2 → 1.2.3 | hook 타입 교체 및 if 문법 수정 (patch) |
+| 2026-04-18 | rules/docs.md | 검색·완료 규칙 강화 | IDE 컨텍스트 신뢰도 규칙, 3단계 검색 강제, 검색 실패 escalation, incidents/ 전용 symptom-keywords 필드, completed 전환 시 본문 미결 패턴 차단 |
+| 2026-04-18 | settings.json | prompt hook matcher 보완 | git commit prompt hook 2개에 `Bash(* git commit*)` 체이닝 변형 추가 (command hook은 이미 있었으나 prompt 쪽 누락) |
+| 2026-04-18 | pre-commit-check.sh | 문서 제외 | TODO/FIXME/HACK 검사에서 docs/, *.md, README/CHANGELOG 제외. 규칙 문서가 차단 키워드를 예시로 언급하는 메타 케이스에서 오탐 발생 |
+| 2026-04-18 | 버전 | 1.2.3 → 1.3.0 | 문서 규칙 신설 (minor) |

@@ -3,7 +3,9 @@
 ERRORS=0
 
 # 1. TODO/FIXME/HACK 검사 (staged 파일만)
-todo_files=$(git diff --cached --name-only | xargs grep -l "TODO\|FIXME\|HACK" 2>/dev/null)
+# 제외: docs/, *.md, README/CHANGELOG (문서는 키워드 언급 정당)
+#       .claude/scripts/ (하네스 스크립트 자체가 키워드를 검사하므로 자기 자신 제외)
+todo_files=$(git diff --cached --name-only | grep -vE '^docs/|\.(md|mdx)$|README|CHANGELOG|^\.claude/scripts/' | xargs grep -l "TODO\|FIXME\|HACK" 2>/dev/null)
 if [ -n "$todo_files" ]; then
   echo "❌ TODO/FIXME/HACK 발견. 코드가 아니라 docs/WIP/에 기록하라." >&2
   echo "$todo_files" | while read f; do
