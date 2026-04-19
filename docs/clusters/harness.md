@@ -17,6 +17,7 @@
 - [하네스 범용성 오염 방지](../harness/generic_contamination_protection_260418.md) — tags: harness-starter, contamination, generic
 - [commit·review 단계화](../harness/commit_review_staging_260419.md) — tags: commit, review, performance, staging, cost
 - [범용성 오염 방지 후속 (단순화로 흡수)](../harness/contamination_followup_260419.md) — tags: contamination, review, write-doc
+- [commit Step 2 후속 — symptom-keywords + completed 차단](../harness/commit_step2_partial_completion_260419.md) — tags: commit, write-doc, completion-gate
 
 ## 관계 맵
 

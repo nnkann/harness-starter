@@ -5,11 +5,28 @@ tags: [commit, write-doc, completion-gate]
 relates-to:
   - path: ../harness/search_and_completion_gaps_260418.md
     rel: extends
-status: pending
+status: completed
 created: 2026-04-19
+updated: 2026-04-19
 ---
 
 # commit Step 2 후속
+
+## 처리 결과 (2026-04-19)
+
+두 항목 모두 처리:
+
+1. **write-doc 스킬 symptom-keywords 재질의** — `.claude/skills/write-doc/SKILL.md`
+   에 incidents/ 전용 추가 필드 + 필수 재질의 섹션 신설.
+2. **commit completed 전환 시 본문 미결 패턴 차단 자동화** —
+   `.claude/skills/docs-manager/SKILL.md` Step 2 차단 검사를 실행 절차
+   (awk + grep)로 명시. 매칭 시 잔여 분리 또는 키워드 제거만 허용.
+
+검증: 다음 실제 completed 이동 케이스에서 동작 확인.
+
+---
+
+## 원본
 
 원본 WIP `harness--search_and_completion_gaps_260418.md`의 Part A 후속 항목.
 
