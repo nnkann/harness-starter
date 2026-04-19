@@ -2,11 +2,50 @@
 title: hook 전체 흐름 효율성 검토 — PreToolUse/PostToolUse/Stop/SessionStart 통합 감사
 domain: harness
 tags: [hook, architecture, performance, ux]
-status: pending
+status: abandoned
 created: 2026-04-18
+updated: 2026-04-19
 ---
 
 # hook 전체 흐름 효율성 검토
+
+## abandoned 사유 (2026-04-19, 단순화 후속)
+
+본 WIP의 4개 산출물(감사 리포트·개선 제안·표준 가이드·`/eval --hooks`
+스킬) 중 큰 작업은 진행하지 않기로 결정. 사유:
+
+1. **단순화 정신과 충돌** — 새 감사 스크립트 추가 = "더 빼기"가 아니라
+   "더 추가". 1인 운영 환경에서 분기별 자동 감사는 과함.
+
+2. **이번 세션이 본 WIP 의도 80% 달성** — 단순화 작업과 시나리오 검증
+   중 자연스럽게 처리됨:
+   - PreToolUse `Bash(* -n *)` 광역 매처 오탐 발견·수정
+     (커밋 1a50efd, incident bash_n_flag_overblock_260419)
+   - 매처 substring 매칭 동작 문서화
+   - 신규 hook 추가 시 격리 시나리오 검증 절차 확립
+   - 매처 추가 4질문 도출 (광역 와일드카드 금지)
+
+3. **남은 위험은 운영적 — `git commit -m "hello -n"` 같은 quote 안 -n
+   매칭은 claude-code matcher가 잡지 못함. 발생 빈도 낮고 우회 쉬워
+   (메시지 표현 변경) 코드 강제 가치 < 추가 복잡도.
+
+## 회수된 부분
+
+- 광역 매처 1건 수정 ✅
+- 매처 동작 incident 기록 ✅
+- 신규 hook 추가 시 검증 절차 (incident "재발 방지" 섹션) ✅
+
+## 재검토 트리거
+
+다음 발생 시 재평가:
+- 분기 1회 이상 hook 오탐·우회·삽질 incident 누적
+- 새 hook 이벤트(공식 문서 추가) 등장으로 통합 재설계 필요
+- hook 수가 10개 초과 (현재 PreToolUse 6 + PostToolUse 1 + Stop·SessionStart·
+  PostCompact 각 1 = 10)
+
+---
+
+## 원본 (참고용)
 
 ## 배경
 

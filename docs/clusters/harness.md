@@ -23,6 +23,7 @@
 - [PreToolUse Bash -n 오탐 차단](../incidents/bash_n_flag_overblock_260419.md) — tags: hook, pre-tool-use, false-positive, bash
 - [하네스 단순화 P0 — 마찰 회수 6단계](../harness/harness_simplification_260419.md) — tags: simplification, friction, rollback, hook-strength
 - [(abandoned) advisor 통합](../archived/advisor_integration_260419.md) — staging 신호와 70% 겹쳐 자체 규칙 위반
+- [(abandoned) hook 흐름 감사](../archived/hook_flow_efficiency_260418.md) — 이번 세션 중 의도 80% 자연 달성, 남은 자동화는 단순화와 충돌
 
 ## 관계 맵
 
