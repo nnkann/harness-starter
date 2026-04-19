@@ -159,12 +159,33 @@ RECENT_FILES=$(git log -${REPEAT_RANGE} --name-only --format= 2>/dev/null | grep
 REPEAT_WARN_HIT=""
 REPEAT_BLOCK_HIT=""
 
+# 핵심 설정 파일 — 연속 수정 시 차단 복원 (단순화 작업으로 일반 차단은
+# 제거됐지만, settings.json·rules/·scripts/ 같은 핵심 파일은 반복 수정
+# 시 추측 수정 패턴 가능성 높아 차단)
+CORE_CONFIG_REGEX='^(\.claude/settings\.json|\.claude/rules/.*\.md|\.claude/scripts/.*\.sh|CLAUDE\.md)$'
+
 while IFS= read -r f; do
   [ -z "$f" ] && continue
   if echo "$f" | grep -qE "$REPEAT_EXEMPT_REGEX"; then
     continue
   fi
   COUNT=$(echo "$RECENT_FILES" | grep -cFx "$f")
+  # 핵심 설정 파일이 3회 이상 연속 수정되면 차단 (no-speculation·
+  # internal-first 위반 방지 — 같은 파일 반복 수정은 추측 수정 신호)
+  if [ "$COUNT" -ge 3 ] && echo "$f" | grep -qE "$CORE_CONFIG_REGEX"; then
+    echo "" >&2
+    echo "❌ 핵심 설정 파일 ${COUNT}회 연속 수정: $f" >&2
+    echo "   추측 수정 가능성. 다음을 먼저 확인:" >&2
+    echo "   1. git log -5 -- $f (이전 수정 사유)" >&2
+    echo "   2. docs/incidents/ (관련 사례)" >&2
+    echo "   3. 공식 문서 (rules/internal-first.md)" >&2
+    echo "   정당한 점진 확장이면 [expand] 태그로 우회: 커밋 메시지에 포함" >&2
+    if [ -f ".git/COMMIT_EDITMSG" ] && grep -q '\[expand\]' .git/COMMIT_EDITMSG 2>/dev/null; then
+      echo "   ([expand] 태그 감지 — 통과)" >&2
+    else
+      ERRORS=$((ERRORS + 1))
+    fi
+  fi
   if [ "$COUNT" -ge 3 ]; then
     REPEAT_BLOCK_HIT="${REPEAT_BLOCK_HIT}\n   - $f (최근 ${REPEAT_RANGE}커밋 중 ${COUNT}회)"
   elif [ "$COUNT" -ge 2 ]; then

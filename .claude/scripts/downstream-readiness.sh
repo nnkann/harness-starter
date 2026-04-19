@@ -93,16 +93,35 @@ if [ ! -f ".claude/settings.json" ]; then
   add_warning "settings.json 없음"
 else
   # 핵심 hook 존재 확인
-  for matcher in 'no-verify' 'pre-commit-check.sh' 'session-start.sh'; do
+  # v1.9.0+: no-verify·pre-commit-check 호출은 bash-guard.sh 안으로 통합됨
+  for matcher in 'session-start.sh' 'bash-guard.sh'; do
     if ! grep -q "$matcher" .claude/settings.json; then
       add_warning "settings.json: '$matcher' 관련 hook 누락 가능"
     fi
   done
+  # no-verify·pre-commit 검증은 bash-guard.sh 내부에 있어야 함
+  if [ -f ".claude/scripts/bash-guard.sh" ]; then
+    if ! grep -q 'no-verify' .claude/scripts/bash-guard.sh; then
+      add_warning "bash-guard.sh: --no-verify 차단 로직 누락"
+    fi
+    if ! grep -q 'pre-commit-check.sh' .claude/scripts/bash-guard.sh; then
+      add_warning "bash-guard.sh: pre-commit-check.sh 호출 누락"
+    fi
+  fi
 
   # 광역 매처 회귀 (-n 단독)
   if grep -q '"if": *"Bash(\* -n \*)"' .claude/settings.json; then
-    add_issue "settings.json: 광역 -n 매처 발견 (Bash(* -n *)) — incident bash_n_flag_overblock 참조, git commit/push로 한정 필요"
+    add_issue "settings.json: 광역 -n 매처 발견 (Bash(* -n *)) — incident bash_n_flag_overblock 참조, bash-guard.sh 단일 hook으로 통합 필요"
   fi
+  # bash-guard.sh 통합 매처 확인 (v1.9.0 이후 권장 패턴)
+  if ! grep -q 'bash-guard\.sh' .claude/settings.json; then
+    add_warning "settings.json: bash-guard.sh hook 없음 — 광역 매처 패턴 fragility (공식 문서 경고) 회피 권장"
+  fi
+fi
+
+# bash-guard.sh 자체 존재
+if [ ! -f ".claude/scripts/bash-guard.sh" ]; then
+  add_warning "bash-guard.sh 없음 — 구버전 settings.json 매처 패턴 사용 중일 가능성"
 fi
 
 # ─────────────────────────────────────────────
@@ -134,7 +153,7 @@ fi
 # ─────────────────────────────────────────────
 # 6. 회귀 테스트 스크립트 존재
 # ─────────────────────────────────────────────
-for s in test-pre-commit.sh test-hooks.sh; do
+for s in test-pre-commit.sh test-bash-guard.sh; do
   if [ ! -f ".claude/scripts/$s" ]; then
     add_warning "$s 없음 — 회귀 검증 불가"
   fi

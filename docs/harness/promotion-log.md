@@ -103,3 +103,8 @@ created: 2026-04-08
 | 2026-04-19 | commit 스킬 푸시 섹션 강화 | is_starter: true 분기 + HARNESS_DEV=1 git push 명시. silent push 누락 차단 (incident starter_push_skipped) |
 | 2026-04-19 | test-hooks.sh S1 추가 | starter pre-push 보호 회귀 케이스 |
 | 2026-04-19 | 버전 | 1.8.0 → 1.8.1 | lint 오염 + push 보강 (patch — 회귀 수정) |
+| 2026-04-19 | settings.json Bash matcher 광역 패턴 폐기 | 공식 문서 https://code.claude.com/docs/en/permissions 확인 결과 단일 *가 공백 포함 모든 문자 매칭 + "argument constraint fragile" 경고. 매처 7개 → 1개 (bash-guard.sh 단일 hook으로 통합) |
+| 2026-04-19 | bash-guard.sh 신설 | jq 파싱 + 토큰 단위 검증 (공식 권장 패턴). git commit -n 정확 차단, 메시지 안 -n 통과. test-bash-guard.sh 13/13 |
+| 2026-04-19 | test-hooks.sh 폐기 | bash glob 모사가 공식 matcher와 다름 → 거짓 안전감. test-bash-guard.sh가 실제 hook 입력 형식으로 검증 |
+| 2026-04-19 | pre-check 핵심 설정 연속 3회 차단 복원 | 단순화 작업으로 사라진 차단을 settings.json·rules/·scripts/·CLAUDE.md에 한정 복원. [expand] 태그로 정당 확장 우회 |
+| 2026-04-19 | 버전 | 1.8.1 → 1.9.0 | matcher 광역 패턴 폐기 (minor — 검증 모델 자체 교체) |

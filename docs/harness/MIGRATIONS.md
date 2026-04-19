@@ -38,6 +38,60 @@ fail을 막는다.
 
 ---
 
+## v1.9.0 — Bash matcher 광역 패턴 폐기 + 단일 hook 통합
+
+### 자동 적용 (스킬이 처리)
+
+- `.claude/settings.json` 단순화 — 모든 `Bash(... -X ...)` 광역 매처 제거.
+  Bash matcher 1개 (단일 `bash-guard.sh` 호출).
+- `.claude/scripts/bash-guard.sh` 신규 — jq로 명령 파싱 후 토큰 단위 검증.
+  공식 권장 패턴 (https://code.claude.com/docs/en/permissions 인용).
+- `.claude/scripts/test-bash-guard.sh` 신규 — 13건 회귀 테스트.
+- `.claude/scripts/test-hooks.sh` **삭제** — bash glob로 매처 모사가 공식
+  matcher와 달라 거짓 안전감 제공. test-bash-guard.sh가 실제 hook
+  입력 형식(JSON via stdin)으로 검증.
+- `.claude/scripts/pre-commit-check.sh` 핵심 설정 연속 수정 차단 복원 —
+  `settings.json`·`rules/*`·`scripts/*`·`CLAUDE.md`가 5커밋 중 3회 이상
+  변경되면 차단. `[expand]` 태그로 우회. 일반 코드는 차단 없이 카운트만.
+- `.claude/scripts/downstream-readiness.sh` v1.9.0 신호 갱신.
+
+### 수동 액션 (사용자 필수)
+
+없음. 자동 패치만.
+
+### 검증
+
+```bash
+bash .claude/scripts/test-pre-commit.sh   # 21/21
+bash .claude/scripts/test-bash-guard.sh   # 13/13
+bash .claude/scripts/downstream-readiness.sh  # 0/0
+```
+
+이전(v1.7~v1.8) 광역 매처가 잘못 차단했던 정당 명령 7가지(`bash -n`,
+`head -n`, `git push origin main` 등) 모두 통과 검증됨.
+
+### 회귀 위험
+
+- **차단 메시지 변경** — 이전 "❌ git commit -n 금지" → "❌ git commit -n
+  금지 (verify 우회). bash -n 같은 다른 -n은 영향 없음." (대안 명시 추가)
+- **메시지 안 -n 통과** — `git commit -m "fix -n bug"` 같이 quote 안의
+  -n은 토큰 분리 후 인자가 아니라고 판단해 통과. 이전엔 잘못 차단.
+- **핵심 설정 3회 차단 복원** — settings.json·rules/·scripts/를 같은 영역
+  3회 연속 수정하면 차단. 정당한 점진 확장이면 커밋 메시지에 `[expand]`
+  태그 포함.
+
+### 배경
+
+이번 세션 중 사용자 지적: "이전에 수정한 내역이 있는데 어느 것도 참조
+하지 않고 또 추측해서 수정". 1·2차 수정(1a50efd, 88f1ff2, 3468fb5)이
+모두 공식 문서 미확인 + 추측 기반. 공식 문서 확인 결과 매처 `*`가
+공백 포함 모든 문자에 매칭되며 "argument constraint는 fragile" 명시
+경고 + jq 기반 hook 권장 발견. 이에 따라 매처 자체를 폐기.
+
+incident: `docs/incidents/bash_n_flag_overblock_260419.md` 3차 섹션.
+
+---
+
 ## v1.8.1 — pre-check lint stdout 오염 수정 + commit push 보강
 
 ### 자동 적용 (스킬이 처리)
