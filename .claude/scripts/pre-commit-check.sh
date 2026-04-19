@@ -134,6 +134,53 @@ if [ "$HARNESS_LEVEL" = "light" ]; then
   fi
 fi
 
+# 6. 같은 영역 연속 수정 감지 (근본 원인 미해결 의심)
+# 임계값: 2회 경고, 3회 차단. 최근 5커밋 범위.
+# 이스케이프: 커밋 메시지에 [expand] 또는 환경변수 FORCE_REPEAT=1
+REPEAT_WARN=2
+REPEAT_BLOCK=3
+REPEAT_RANGE=5
+
+# 정당한 확장 패턴 면제: COMMIT_EDITMSG에 [expand] 태그 또는 FORCE_REPEAT=1
+SKIP_REPEAT=0
+if [ "$FORCE_REPEAT" = "1" ]; then
+  SKIP_REPEAT=1
+elif [ -f ".git/COMMIT_EDITMSG" ] && grep -q '\[expand\]' .git/COMMIT_EDITMSG 2>/dev/null; then
+  SKIP_REPEAT=1
+fi
+
+if [ "$SKIP_REPEAT" = "0" ]; then
+  RECENT_FILES=$(git log -${REPEAT_RANGE} --name-only --format= 2>/dev/null | grep -v '^$' | sort)
+  REPEAT_WARN_HIT=""
+  REPEAT_BLOCK_HIT=""
+
+  while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    COUNT=$(echo "$RECENT_FILES" | grep -cFx "$f")
+    if [ "$COUNT" -ge "$REPEAT_BLOCK" ]; then
+      REPEAT_BLOCK_HIT="${REPEAT_BLOCK_HIT}\n   - $f (최근 ${REPEAT_RANGE}커밋 중 ${COUNT}회)"
+    elif [ "$COUNT" -ge "$REPEAT_WARN" ]; then
+      REPEAT_WARN_HIT="${REPEAT_WARN_HIT}\n   - $f (최근 ${REPEAT_RANGE}커밋 중 ${COUNT}회)"
+    fi
+  done <<< "$(git diff --cached --name-only)"
+
+  if [ -n "$REPEAT_BLOCK_HIT" ]; then
+    echo "" >&2
+    echo "❌ 같은 파일 ${REPEAT_BLOCK}회 이상 반복 수정. 근본 원인 재점검 필요:" >&2
+    echo -e "$REPEAT_BLOCK_HIT" >&2
+    echo "" >&2
+    echo "   증상 완화 반복일 수 있다. 다음 중 하나로 진행:" >&2
+    echo "   1. 근본 원인을 찾고 수정 (권장)" >&2
+    echo "   2. 정당한 확장이면 커밋 메시지에 [expand] 태그 포함" >&2
+    echo "   3. 일시 우회: FORCE_REPEAT=1 git commit ..." >&2
+    ERRORS=$((ERRORS + 1))
+  elif [ -n "$REPEAT_WARN_HIT" ]; then
+    echo "" >&2
+    echo "⚠️  같은 파일 ${REPEAT_WARN}회 반복 수정 감지. 근본 원인 미해결 의심:" >&2
+    echo -e "$REPEAT_WARN_HIT" >&2
+  fi
+fi
+
 # 결과
 if [ $ERRORS -gt 0 ]; then
   echo "" >&2
