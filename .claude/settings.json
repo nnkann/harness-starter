@@ -60,12 +60,17 @@
           },
           {
             "type": "command",
-            "if": "Bash(git commit -n*)",
+            "if": "Bash(git commit -n *)",
             "command": "echo '❌ git commit -n 금지 (verify 우회).' && exit 2"
           },
           {
             "type": "command",
-            "if": "Bash(git commit* -n*)",
+            "if": "Bash(git commit -n)",
+            "command": "echo '❌ git commit -n 금지.' && exit 2"
+          },
+          {
+            "type": "command",
+            "if": "Bash(git commit -m * -n*)",
             "command": "echo '❌ git commit -n 금지.' && exit 2"
           },
           {

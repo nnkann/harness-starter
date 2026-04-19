@@ -94,3 +94,8 @@ created: 2026-04-08
 | 2026-04-19 | 버전 | 1.6.1 → 1.6.2 | Step 2 재설계 + WIP 정리 (patch) |
 | 2026-04-19 | 하네스 단순화 P0 | 마찰 회수 6단계 일괄 적용 | (1) pre-check 연속수정 차단·경고 제거 — 카운트만 stdout으로 유지 (2) contamination 셸 검출 제거 + rules/contamination.md 삭제, review.md "오염 검토" 카테고리로 이전 (3) commit Step 2 4지선다 폐기 → 자동 본문 갱신 보수 모드 (4) review prompt에 "전제 컨텍스트" 블록 + is_starter 자동 주입 (5) test-strategist 자동 호출 신호(needs_test_strategist/test_targets) 추가. 사용자 발언 "이러면 하네스 만드는 이유가 없잖아" 트리거 |
 | 2026-04-19 | 버전 | 1.6.2 → 1.7.0 | 하네스 단순화 (minor — 차단 시스템 회수 + 신호 인터페이스 변경) |
+| 2026-04-19 | MIGRATIONS.md 신설 | 다운스트림 마이그레이션 가이드 도입 — 버전별 자동/수동 액션·검증·회귀 위험 명세 |
+| 2026-04-19 | harness-upgrade Step 9.5 추가 | upstream MIGRATIONS.md 읽고 수동 액션 표시. 대화형 처리 또는 WIP 자동 생성 |
+| 2026-04-19 | downstream-readiness.sh 신설 | 다운스트림 자가 진단 — HARNESS·도메인 등급·매처·스킬 카테고리 silent fail 6개 항목 점검 |
+| 2026-04-19 | settings.json 매처 추가 정밀화 | git commit -n* substring 매칭이 path에 commit 포함 시 오탐 → 'git commit -n ' 정확 매칭으로 한정 |
+| 2026-04-19 | 버전 | 1.7.0 → 1.8.0 | 다운스트림 마이그레이션 자동화 인프라 (minor — 신규 스킬 단계·문서 포맷·진단 도구) |

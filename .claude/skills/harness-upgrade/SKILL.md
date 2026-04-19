@@ -300,6 +300,51 @@ settings.json은 통째로 교체하지 않는다. **누락된 hook만 추가한
 문제가 발견되면 사용자에게 보고하고 수정을 제안한다.
 문제가 없으면 "docs/ 정합성 확인 완료"로 넘어간다.
 
+### Step 9.5. 마이그레이션 액션 표시
+
+업스트림의 `docs/harness/MIGRATIONS.md`에서 `CUR_VERSION`보다 **새로
+적용되는 모든 버전 섹션**의 "수동 액션" 항목을 사용자에게 보여준다.
+
+자동 병합으로 채워지지 않는 사용자 직접 입력 항목 (도메인 등급·경로
+매핑·is_starter 같은 silent fail 위험 항목)이 여기에 모인다.
+
+```bash
+# upstream의 MIGRATIONS.md를 읽음 (현재 워킹트리는 이미 새 버전이지만
+# 명확성 위해 upstream에서 fetch)
+git show $UPSTREAM_REMOTE/main:docs/harness/MIGRATIONS.md > /tmp/MIGRATIONS.md
+
+# CUR_VERSION 다음 버전부터 SRC_VERSION까지의 섹션 추출
+# (## vX.Y.Z 헤더로 분리)
+```
+
+표시 형식:
+```
+═══ 수동 액션 필요 (MIGRATIONS.md) ═══
+
+다음 버전 업그레이드가 적용됩니다: 1.6.2 → 1.7.0
+
+──── v1.7.0 ────
+[ ] .claude/rules/naming.md "도메인 등급" 채우기
+    이유: 도메인 등급 미분류면 staging S9 무시 → 전부 normal 폴백
+    위치: ## 도메인 등급 (review staging) 섹션
+    검증: grep -A2 "도메인 등급" .claude/rules/naming.md
+
+[ ] .claude/rules/naming.md "경로 → 도메인 매핑" 채우기
+    ...
+
+이 항목들은 자동으로 채워지지 않습니다. 지금 처리하시겠어요?
+[1] 지금 한 항목씩 안내받기 (대화형)
+[2] 나중에 직접 처리 (목록만 출력하고 넘어감)
+[3] MIGRATIONS.md를 열어서 보기
+```
+
+선택 1이면 항목별로 사용자와 대화하며 채운다. 검증 명령까지 같이 실행.
+선택 2면 docs/WIP/에 `harness--migration_v{X}_{YYMMDD}.md` 자동 생성하여
+TODO로 추적 (다음 세션 SessionStart에서 노출됨).
+
+`installed_from_ref`가 없거나 (CUR_VERSION이 unknown) MIGRATIONS.md를
+못 읽으면 전체 마이그레이션 가이드 위치만 안내하고 넘어간다.
+
 ### Step 10. 완료 처리
 
 1. `HARNESS.json` 갱신:
