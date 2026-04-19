@@ -19,6 +19,7 @@
 - [범용성 오염 방지 후속 (단순화로 흡수)](../harness/contamination_followup_260419.md) — tags: contamination, review, write-doc
 - [commit Step 2 후속 — symptom-keywords + completed 차단](../harness/commit_step2_partial_completion_260419.md) — tags: commit, write-doc, completion-gate
 - [review staging 후속 — S1 오탐 보정 + S6 완화](../harness/staging_followup_260419.md) — tags: staging, review, performance, measurement
+- [LLM 가드레일 후속 — 허위 후속 감지](../harness/guardrails_followup_260419.md) — tags: guardrails, advisor, review, commit
 
 ## 관계 맵
 
