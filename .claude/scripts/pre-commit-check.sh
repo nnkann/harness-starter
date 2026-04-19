@@ -144,70 +144,28 @@ if [ "$HARNESS_LEVEL" = "light" ]; then
   fi
 fi
 
-# 6. 같은 영역 연속 수정 감지 (근본 원인 미해결 의심)
-# 임계값: 2회 경고, 3회 차단. 최근 5커밋 범위.
-# 이스케이프: 커밋 메시지에 [expand] 또는 환경변수 FORCE_REPEAT=1
+# 6. 같은 파일 연속 수정 카운트 (정보용 — 차단·경고 없음)
+# staging.md S10 신호와 review가 참고. 사용자 가시 메시지는 출력하지 않음.
 # 면제 파일: 버전 범프·이력 갱신처럼 매 커밋마다 같이 변경되는 정상 패턴
-REPEAT_WARN=2
-REPEAT_BLOCK=3
 REPEAT_RANGE=5
-
-# 항상 면제되는 파일 (정상 패턴 — 연속 수정 감지의 의도와 무관)
-# - HARNESS.json: 모든 minor/patch 버전 범프마다 갱신
-# - promotion-log.md: 모든 하네스 변경 이력 추가
-# - INDEX.md, clusters/: 문서 추가·이동마다 갱신
 REPEAT_EXEMPT_REGEX='^(\.claude/HARNESS\.json|docs/harness/promotion-log\.md|docs/INDEX\.md|docs/clusters/.*\.md)$'
 
-# 정당한 확장 패턴 면제: COMMIT_EDITMSG에 [expand] 태그 또는 FORCE_REPEAT=1
-SKIP_REPEAT=0
-if [ "$FORCE_REPEAT" = "1" ]; then
-  SKIP_REPEAT=1
-elif [ -f ".git/COMMIT_EDITMSG" ] && grep -q '\[expand\]' .git/COMMIT_EDITMSG 2>/dev/null; then
-  SKIP_REPEAT=1
-fi
+RECENT_FILES=$(git log -${REPEAT_RANGE} --name-only --format= 2>/dev/null | grep -v '^$' | sort)
+REPEAT_WARN_HIT=""
+REPEAT_BLOCK_HIT=""
 
-if [ "$SKIP_REPEAT" = "0" ]; then
-  RECENT_FILES=$(git log -${REPEAT_RANGE} --name-only --format= 2>/dev/null | grep -v '^$' | sort)
-  REPEAT_WARN_HIT=""
-  REPEAT_BLOCK_HIT=""
-
-  while IFS= read -r f; do
-    [ -z "$f" ] && continue
-    # 면제 파일은 카운트 안 함 (정상 패턴)
-    if echo "$f" | grep -qE "$REPEAT_EXEMPT_REGEX"; then
-      continue
-    fi
-    COUNT=$(echo "$RECENT_FILES" | grep -cFx "$f")
-    if [ "$COUNT" -ge "$REPEAT_BLOCK" ]; then
-      REPEAT_BLOCK_HIT="${REPEAT_BLOCK_HIT}\n   - $f (최근 ${REPEAT_RANGE}커밋 중 ${COUNT}회)"
-    elif [ "$COUNT" -ge "$REPEAT_WARN" ]; then
-      REPEAT_WARN_HIT="${REPEAT_WARN_HIT}\n   - $f (최근 ${REPEAT_RANGE}커밋 중 ${COUNT}회)"
-    fi
-  done <<< "$(git diff --cached --name-only)"
-
-  if [ -n "$REPEAT_BLOCK_HIT" ]; then
-    echo "" >&2
-    echo "❌ 같은 파일 ${REPEAT_BLOCK}회 이상 반복 수정. 근본 원인 재점검 필요:" >&2
-    echo -e "$REPEAT_BLOCK_HIT" >&2
-    echo "" >&2
-    echo "   증상 완화 반복일 수 있다. 다음 중 하나로 진행:" >&2
-    echo "   1. 근본 원인을 찾고 수정 (권장)" >&2
-    echo "   2. 정당한 확장이면 커밋 메시지에 [expand] 태그 포함" >&2
-    echo "   3. 일시 우회: FORCE_REPEAT=1 git commit ..." >&2
-    ERRORS=$((ERRORS + 1))
-  elif [ -n "$REPEAT_WARN_HIT" ]; then
-    echo "" >&2
-    echo "⚠️  같은 파일 ${REPEAT_WARN}회 반복 수정 감지. 근본 원인 미해결 의심:" >&2
-    echo -e "$REPEAT_WARN_HIT" >&2
-    # review 전달: 연속 수정 경고도 risk factor로 합침
-    REPEAT_SUMMARY=$(echo -e "$REPEAT_WARN_HIT" | sed 's/^[[:space:]]*-[[:space:]]*//' | grep -v '^$' | paste -sd',' -)
-    if [ -n "$RISK_FACTORS_SUMMARY" ]; then
-      RISK_FACTORS_SUMMARY="${RISK_FACTORS_SUMMARY};연속 수정: ${REPEAT_SUMMARY}"
-    else
-      RISK_FACTORS_SUMMARY="연속 수정: ${REPEAT_SUMMARY}"
-    fi
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  if echo "$f" | grep -qE "$REPEAT_EXEMPT_REGEX"; then
+    continue
   fi
-fi
+  COUNT=$(echo "$RECENT_FILES" | grep -cFx "$f")
+  if [ "$COUNT" -ge 3 ]; then
+    REPEAT_BLOCK_HIT="${REPEAT_BLOCK_HIT}\n   - $f (최근 ${REPEAT_RANGE}커밋 중 ${COUNT}회)"
+  elif [ "$COUNT" -ge 2 ]; then
+    REPEAT_WARN_HIT="${REPEAT_WARN_HIT}\n   - $f (최근 ${REPEAT_RANGE}커밋 중 ${COUNT}회)"
+  fi
+done <<< "$(git diff --cached --name-only)"
 
 # diff 통계 (review 전달용)
 DIFF_STATS=$(git diff --cached --numstat 2>/dev/null | awk '
@@ -371,248 +329,34 @@ if [ "$TOTAL_FILES" -gt 0 ] && [ -z "$HAS_META_OR_DOC" ]; then
   add_signal "S7"
 fi
 
-# 8. 범용성 오염 검출 (harness-starter 전용 — rules/contamination.md)
-# is_starter 리포에서만 활성. 다운스트림 고유명사 의심 단어 추출 + 허용어 필터.
-CONTAMINATION_HIT=""
-if [ -f ".claude/HARNESS.json" ] && grep -q '"is_starter":[[:space:]]*true' .claude/HARNESS.json 2>/dev/null; then
-  # 허용어 리스트 (rules/contamination.md의 영문 + 한글 허용어 합집합)
-  # 정규식 회피 위해 단순 단어 리스트 (^단어$ 매칭용)
-  ALLOWLIST=$(cat <<'EOF'
-Claude
-Anthropic
-CLAUDE
-HARNESS
-README
-CHANGELOG
-Bash
-Read
-Glob
-Grep
-Edit
-Write
-Agent
-Task
-TodoWrite
-PreToolUse
-PostToolUse
-SessionStart
-SessionEnd
-Stop
-PostCompact
-UserPromptSubmit
-PreCompact
-Notification
-SubagentStop
-Context7
-WebSearch
-WebFetch
-MCP
-SDK
-Opus
-Sonnet
-Haiku
-TODO
-FIXME
-HACK
-NOTE
-XXX
-BUG
-WIP
-JSON
-YAML
-XML
-HTML
-CSS
-URL
-URI
-API
-CLI
-GUI
-IDE
-HTTP
-HTTPS
-TCP
-UDP
-TLS
-SSL
-DNS
-REST
-GraphQL
-RPC
-SQL
-NoSQL
-OAuth
-JWT
-CSRF
-XSS
-CORS
-CSP
-CVE
-OWASP
-Git
-GitHub
-GitLab
-Docker
-Kubernetes
-Linux
-Windows
-Ubuntu
-Node
-Python
-Java
-Rust
-Ruby
-PHP
-TypeScript
-JavaScript
-React
-Vue
-Angular
-Svelte
-Next
-Nuxt
-Express
-Django
-Flask
-Rails
-PostgreSQL
-MySQL
-MongoDB
-Redis
-SQLite
-Stage
-Signal
-Skill
-Hook
-Matcher
-Tool
-Subagent
-Permission
-Workflow
-Pipeline
-Manifest
-Lock
-Migration
-Frontmatter
-Step
-Part
-SKILL
-INDEX
-LLM
-ALLOWLIST
-YYMMDD
-일반
-사용자
-하네스
-스킬
-에이전트
-훅
-락
-매처
-도구
-서브에이전트
-권한
-워크플로
-파이프라인
-매니페스트
-마이그레이션
-프론트매터
-도메인
-메타
-코드
-문서
-파일
-폴더
-경로
-변수
-함수
-클래스
-모듈
-프로젝트
-레포
-리포
-세션
-메시지
-명령
-옵션
-플래그
-버전
-검토
-통합
-적용
-사용
-설정
-실행
-처리
-관리
-수정
-변경
-추가
-제거
-생성
-삭제
-확인
-검증
-필요
-가능
-불가능
-상태
-결과
-입력
-출력
-호출
-응답
-요청
-단계
-방법
-기준
-구조
-설계
-구현
-테스트
-배포
-EOF
-)
+# 8. 범용성 오염 검출은 review 에이전트로 이전 (rules/contamination.md 삭제됨).
+# 셸 정규식은 한글 형태소·문맥 판단 불가 → LLM이 staged diff로 직접 판단.
+# is_starter 정보는 commit 스킬이 review prompt의 "전제 컨텍스트"에 주입한다.
 
-  # 면제 파일은 git pathspec exclude로 단일 관리 (rules/contamination.md
-  # "면제 파일" 섹션과 동기화 의무).
-  # 사유:
-  # - docs/incidents/: 사고 기록은 실명이 검색 키
-  # - docs/harness/promotion-log.md: 이력 본문에 메타 단어 자주 등장
-  # - .claude/HARNESS.json: 스키마 단어가 잡힘
-  # - .claude/scripts/, .claude/hooks/: 셸 변수명·heredoc 마커 오탐
-  # - .claude/rules/contamination.md: 허용어 리스트 자체가 잡힘
-  SUSPECT=$(git diff --cached -- \
-    ':(exclude)docs/incidents/**' \
-    ':(exclude)docs/harness/promotion-log.md' \
-    ':(exclude).claude/HARNESS.json' \
-    ':(exclude).claude/scripts/**' \
-    ':(exclude).claude/hooks/**' \
-    ':(exclude).claude/rules/contamination.md' \
-    2>/dev/null | \
-    grep -E '^\+[^+]' | \
-    grep -oE '[A-Z][a-zA-Z0-9]{2,}|[가-힣]{2,}' | \
-    sort -u)
+# 9. test-strategist 자동 호출 신호 (self-verify.md 트리거)
+# 새 함수·새 모듈·시그니처 변경이 staged에 포함되면 commit 스킬이 review와
+# 병렬로 test-strategist를 호출한다.
+NEEDS_TEST_STRATEGIST="false"
+TEST_TARGETS=""
 
-  if [ -n "$SUSPECT" ]; then
-    # 허용어 제외
-    CONTAMINATION_HIT=$(echo "$SUSPECT" | grep -vFx -f <(echo "$ALLOWLIST") | head -10)
-    if [ -n "$CONTAMINATION_HIT" ]; then
-      echo "" >&2
-      echo "⚠️  harness-starter에 고유명사 의심 단어 감지 (rules/contamination.md):" >&2
-      echo "$CONTAMINATION_HIT" | sed 's/^/   - /' >&2
-      echo "" >&2
-      echo "   다운스트림 프로젝트 특유 이름이면 <제품명> 같은 placeholder로 교체." >&2
-      echo "   하네스 도메인 정당 용어면 rules/contamination.md 허용어에 추가." >&2
-      # risk_factors에 합침 (review가 보도록)
-      CONTAM_SUMMARY=$(echo "$CONTAMINATION_HIT" | paste -sd',' -)
-      if [ -n "$RISK_FACTORS_SUMMARY" ]; then
-        RISK_FACTORS_SUMMARY="${RISK_FACTORS_SUMMARY};오염 의심: ${CONTAM_SUMMARY}"
-      else
-        RISK_FACTORS_SUMMARY="오염 의심: ${CONTAM_SUMMARY}"
-      fi
-    fi
-  fi
+# 9a. 신규 코드 파일 (테스트 파일 자체는 제외)
+NEW_CODE_FILES=$(echo "$STAGED_NAME_STATUS" | awk '$1=="A" {print $2}' | \
+  grep -E '\.(ts|tsx|js|jsx|py|go|rs|java|rb)$' | \
+  grep -vE '\.(test|spec)\.|/tests?/|/__tests__/' | head -5)
+
+# 9b. 새 함수·메소드·클래스 라인 추가 (휴리스틱)
+NEW_FUNC_LINES=$(git diff --cached -U0 2>/dev/null | \
+  grep -E '^\+[[:space:]]*(export[[:space:]]+)?(async[[:space:]]+)?(function|def|class|func)[[:space:]]+[a-zA-Z_]' | head -1)
+NEW_FUNC_FILES=""
+if [ -n "$NEW_FUNC_LINES" ]; then
+  NEW_FUNC_FILES=$(git diff --cached --name-only 2>/dev/null | \
+    grep -E '\.(ts|tsx|js|jsx|py|go|rs|java|rb)$' | \
+    grep -vE '\.(test|spec)\.|/tests?/|/__tests__/' | head -5)
+fi
+
+if [ -n "$NEW_CODE_FILES" ] || [ -n "$NEW_FUNC_FILES" ]; then
+  NEEDS_TEST_STRATEGIST="true"
+  TEST_TARGETS=$(printf "%s\n%s\n" "$NEW_CODE_FILES" "$NEW_FUNC_FILES" | grep -v '^$' | sort -u | paste -sd',' -)
 fi
 
 # Stage 결정 (1단계: 기본 stage)
@@ -691,6 +435,8 @@ if [ $ERRORS -gt 0 ]; then
   echo "multi_domain: ${MULTI_DOMAIN}"
   echo "repeat_count: max=${REPEAT_MAX}"
   echo "recommended_stage: ${RECOMMENDED_STAGE}"
+  echo "needs_test_strategist: ${NEEDS_TEST_STRATEGIST}"
+  echo "test_targets: ${TEST_TARGETS}"
   exit 2
 fi
 
@@ -705,3 +451,5 @@ echo "domain_grades: ${DOMAIN_GRADES}"
 echo "multi_domain: ${MULTI_DOMAIN}"
 echo "repeat_count: max=${REPEAT_MAX}"
 echo "recommended_stage: ${RECOMMENDED_STAGE}"
+echo "needs_test_strategist: ${NEEDS_TEST_STRATEGIST}"
+echo "test_targets: ${TEST_TARGETS}"

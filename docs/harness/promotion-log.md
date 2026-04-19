@@ -92,3 +92,5 @@ created: 2026-04-08
 | 2026-04-19 | commit 스킬 Step 2 재설계 | WIP 부분 완료 자동 인식 흐름 | 사용자 명시 질문 4지선다(c/p/u/s) + 잔여 작업 별도 WIP 분리 + 차단 조건. 6개 WIP 정체 사고 재발 방지 |
 | 2026-04-19 | WIP 6개 정리 | 5 completed 이동 + 4 후속 신설 + 1 pending 유지 | search_and_completion_gaps·commit_perf·llm_mistake_guardrails·generic_contamination·commit_review_staging → docs/harness/ 이동. 잔여는 commit_step2_partial·guardrails_followup·contamination_followup·staging_followup 4개 후속으로 분리 |
 | 2026-04-19 | 버전 | 1.6.1 → 1.6.2 | Step 2 재설계 + WIP 정리 (patch) |
+| 2026-04-19 | 하네스 단순화 P0 | 마찰 회수 6단계 일괄 적용 | (1) pre-check 연속수정 차단·경고 제거 — 카운트만 stdout으로 유지 (2) contamination 셸 검출 제거 + rules/contamination.md 삭제, review.md "오염 검토" 카테고리로 이전 (3) commit Step 2 4지선다 폐기 → 자동 본문 갱신 보수 모드 (4) review prompt에 "전제 컨텍스트" 블록 + is_starter 자동 주입 (5) test-strategist 자동 호출 신호(needs_test_strategist/test_targets) 추가. 사용자 발언 "이러면 하네스 만드는 이유가 없잖아" 트리거 |
+| 2026-04-19 | 버전 | 1.6.2 → 1.7.0 | 하네스 단순화 (minor — 차단 시스템 회수 + 신호 인터페이스 변경) |

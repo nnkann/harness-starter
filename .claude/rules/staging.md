@@ -183,6 +183,8 @@ domain_grades: critical,meta    # NEW — domains와 같은 순서의 등급
 multi_domain: true|false        # NEW — 2개 이상 도메인 변경 여부
 repeat_count: max=N             # NEW — 연속 수정 최대 카운트
 recommended_stage: skip|micro|standard|deep   # NEW — 1+2단계 결합 결과
+needs_test_strategist: true|false  # 새 함수·신규 코드 파일 감지 시 true
+test_targets: <콤마 구분 파일>     # test-strategist에 넘길 분석 대상
 ```
 
 ## git log 추적성 (모든 stage 공통)
