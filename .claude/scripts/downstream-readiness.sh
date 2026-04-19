@@ -109,6 +109,13 @@ else
     fi
   fi
 
+  # settings.json schema 유효성 (Claude Code 재로드 시 ~20k 토큰 에러 덤프 방지)
+  if [ -f ".claude/scripts/validate-settings.sh" ]; then
+    if ! bash .claude/scripts/validate-settings.sh .claude/settings.json >/dev/null 2>&1; then
+      add_issue "settings.json schema 검증 실패 — Claude Code 재로드 시 20k 토큰 에러 덤프"
+    fi
+  fi
+
   # argument-constraint 광역 매처 감지 (rules/hooks.md 금지)
   # 패턴: "if": "Bash(... -X ...)" 또는 "Bash(* ... *)" — 공백+- 또는 --
   BAD_MATCHERS=$(grep -nE '"if":[[:space:]]*"Bash\([^)]*[[:space:]]--?[a-zA-Z][^)]*\)"' .claude/settings.json 2>/dev/null)

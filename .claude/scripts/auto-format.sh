@@ -27,4 +27,18 @@ case "$EXT" in
     ;;
 esac
 
+# settings.json 수정 직후 사전 검증 — Claude Code 재로드 시 schema 에러로
+# 20k 토큰 덤프 방지. 실측 사례: 본 세션에 에러 2회 발생해 40k 허비.
+case "$FILE" in
+  */\.claude/settings.json|.claude/settings.json)
+    if [ -f ".claude/scripts/validate-settings.sh" ]; then
+      if ! bash .claude/scripts/validate-settings.sh "$FILE" >/dev/null 2>&1; then
+        # 에러 상세는 stderr로 (사용자에게 노출)
+        echo "⚠️ settings.json 검증 실패 — Claude Code 재로드 전 수정 필요:" >&2
+        bash .claude/scripts/validate-settings.sh "$FILE" 2>&1 | sed 's/^/   /' >&2
+      fi
+    fi
+    ;;
+esac
+
 exit 0

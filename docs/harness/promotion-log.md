@@ -118,4 +118,7 @@ created: 2026-04-08
 | 2026-04-19 | review.md Read 상한 축소 | Stage 2: 3~5 → 0~3, Stage 3: 10+ → 상한 5. "과도한 Read 경계" 원칙 추가 |
 | 2026-04-19 | MIGRATIONS MCP 다운스트림 최소화 가이드 | 전역 `~/.claude/settings.json`의 MCP 상속이 spawn 토큰 증가 요인. 프로젝트별 `.mcp.json`으로 분산 권장 |
 | 2026-04-19 | 버전 | 0.7.0 → 0.7.1 | review 토큰 과소비 수정 + MCP 가이드 (patch) |
+| 2026-04-20 | validate-settings.sh 신설 | Claude Code가 settings.json schema 에러 시 전체 schema를 응답으로 덤프(~20k tokens). 사용자 실측: 한 세션 2회 발생해 40k 허비. 사전 검증으로 재발 차단 |
+| 2026-04-20 | auto-format.sh + readiness에 통합 | settings.json Write/Edit 후 자동 검증, readiness 자가 진단에도 추가 |
+| 2026-04-20 | 버전 | 0.7.1 → 0.7.2 | settings.json schema 검증 자동화 (patch) |
 | 2026-04-19 | 버전 | 1.9.0 → 0.7.0 | **다운그레이드.** 사용자 지적: "수정한거와 실제 내용 꼬라지에 비해 버전이 너무 높다, 오류 투성이가 무슨 1.8.0이 넘냐". 정당함 — 이번 세션만 추측 수정 3회·매처 갈아엎기·12커밋 push 누락. semver 0.x = "공개 API 불안정·실험 단계"가 현재 상태와 정확히 일치. 다운스트림 실측 누적·매처 동작 충분 검증·README 격차 안정화 등이 누적된 후에 1.0.0 검토. |

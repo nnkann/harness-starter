@@ -49,6 +49,32 @@ fail을 막는다.
 
 ---
 
+## v0.7.2 — settings.json schema 검증 자동화
+
+### 자동 적용 (스킬이 처리)
+
+- `.claude/scripts/validate-settings.sh` 신설 — Claude Code 재로드 전
+  schema 사전 검증. 실패 시 구체 에러 stderr.
+- `.claude/scripts/auto-format.sh`에 settings.json 변경 시 자동 호출 추가.
+- `.claude/scripts/downstream-readiness.sh`에 검증 항목 추가.
+
+### 배경
+
+사용자 실측: 한 세션에 settings.json validation 에러 2회 발생 → 40k 토큰
+허비 (에러 응답에 전체 schema 덤프). 다음 실수 방지 위해 **Claude Code
+재로드 전** 사전 검증.
+
+### 수동 액션
+
+없음. 자동 패치만.
+
+### 회귀 위험
+
+- validate-settings.sh가 모르는 새 공식 필드는 "알 수 없는 이벤트" 경고
+  낼 수 있음 (에러 아닌 경고). 공식 스키마 변경 시 스크립트 갱신.
+
+---
+
 ## v0.7.1 — review 토큰 과소비 수정 + MCP 다운스트림 최소화 권장
 
 ### 자동 적용 (스킬이 처리)
