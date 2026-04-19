@@ -70,6 +70,38 @@ Step 0에서 결정된 upstream remote를 사용한다:
 git fetch $UPSTREAM_REMOTE
 ```
 
+#### Windows Git Bash path 변환 가드 (필수)
+
+**모든 `git show <ref>:<path>` 형태 명령에 `MSYS_NO_PATHCONV=1` prefix
+필수.** 빠뜨리면 Git Bash가 `:`를 path separator로 보고 `<ref>:<path>`를
+Windows path로 변환하여 다음 에러:
+
+```
+fatal: ambiguous argument 'harness-upstream\main;.claude\HARNESS.json':
+unknown revision or path not in the working tree.
+```
+
+incident: `docs/incidents/msys_path_conversion_*` 참조.
+
+권장 형태:
+```bash
+MSYS_NO_PATHCONV=1 git show $UPSTREAM_REMOTE/main:.claude/HARNESS.json
+```
+
+또는 `--` 사용 + path 뒤에 명시:
+```bash
+git show $UPSTREAM_REMOTE/main -- .claude/HARNESS.json   # 다른 동작 — diff 아님 주의
+```
+
+가장 안전: `cat-file blob`:
+```bash
+git cat-file blob $UPSTREAM_REMOTE/main:.claude/HARNESS.json
+```
+
+본 SKILL의 모든 후속 `git show <ref>:<path>` 호출은 위 가드 적용을
+가정한다. 호출자는 매 명령마다 `MSYS_NO_PATHCONV=1` prefix 또는
+`cat-file blob` 형태로 변환할 것.
+
 fetch 실패 시 네트워크 문제로 보고하고 중단.
 
 버전 비교:
@@ -77,8 +109,8 @@ fetch 실패 시 네트워크 문제로 보고하고 중단.
 # 현재 버전
 CUR_VERSION=$(현재 HARNESS.json의 version 필드)
 
-# 업스트림 버전
-SRC_VERSION=$(git show $UPSTREAM_REMOTE/main:.claude/HARNESS.json에서 version 필드)
+# 업스트림 버전 (MSYS path 변환 가드 필수)
+SRC_VERSION=$(MSYS_NO_PATHCONV=1 git show $UPSTREAM_REMOTE/main:.claude/HARNESS.json | jq -r '.version')
 ```
 
 - 이미 최신이면: `✅ 이미 최신 버전 (X.Y.Z). 업그레이드 불필요.` → 종료.
@@ -129,9 +161,28 @@ CLAUDE.md h-setup.sh docs/harness docs/guides/project_kickoff_sample.md
 |----------|------|------|
 | 자동 덮어쓰기 | `.claude/scripts/*`, `h-setup.sh` | upstream 그대로 적용 |
 | 3-way merge | `CLAUDE.md`, `.claude/rules/*`, `.claude/skills/*`, 기타 | 대화형 병합 |
-| 사용자 전용 | `HARNESS.json`, `coding.md`, `naming.md` | 건너뜀 |
-| 신규 | 타겟에 없는 파일 | 추가 제안 |
-| 삭제 | upstream에서 제거된 파일 (three-way만) | 삭제 제안 |
+| **사용자 전용 (절대 건드리지 마라)** | `HARNESS.json`, `coding.md`, `naming.md`, **`README.md`**, **`CHANGELOG.md`**, **`.gitignore`**, **`docs/decisions/*`**, **`docs/incidents/*`**, **`docs/WIP/*`**, **`docs/guides/*`** (단 `project_kickoff_sample.md` 제외) | **무조건 건너뜀.** starter 버전이 다운스트림에 없어도 추가 안 함. diff가 있어도 표시만 하고 병합 시도 X. |
+| 신규 | 타겟에 없는 파일 | 추가 제안 (위 사용자 전용 리스트는 제외) |
+| 삭제 | upstream에서 제거된 파일 (three-way만) | 삭제 제안 (위 사용자 전용 리스트는 제외) |
+
+### 사용자 전용 파일 처리 규칙 (강행)
+
+위 "사용자 전용" 카테고리의 파일은 **starter에 어떤 변경이 있든 무조건
+건너뛴다**. 사유:
+
+- README/CHANGELOG/.gitignore: 다운스트림 프로젝트 자체 문서. starter
+  버전을 덮으면 사용자 콘텐츠 손실.
+- decisions/incidents/WIP/guides: 다운스트림이 작성한 docs. starter는
+  `docs/harness/` + `docs/guides/project_kickoff_sample.md`만 관리.
+
+**금지 행동:**
+- "다운스트림에 README 없으니 starter 버전 추가" — 절대 X
+- "diff 있으니 3-way merge 제안" — 절대 X
+- "사용자 confirm 받고 덮어쓰기" — 사용자 전용은 confirm 자체 안 띄움
+
+starter의 README가 변경됐다는 사실은 사용자에게 **정보로만 보고**
+("upstream README 변경됨, 본인 README 갱신 검토는 사용자 판단"), 어떤
+수정도 시도하지 않는다.
 
 분석 결과를 사용자에게 보여준다:
 ```
@@ -148,7 +199,7 @@ CLAUDE.md h-setup.sh docs/harness docs/guides/project_kickoff_sample.md
 스크립트/인프라 파일은 사용자 수정 없이 upstream 그대로 적용:
 
 ```bash
-git show <upstream_ref>:<파일경로> > <파일경로>
+MSYS_NO_PATHCONV=1 git show <upstream_ref>:<파일경로> > <파일경로>
 ```
 
 적용 전 목록을 사용자에게 보여주고 한번에 승인받는다:
@@ -172,10 +223,10 @@ git show <upstream_ref>:<파일경로> > <파일경로>
 TMPDIR=$(mktemp -d)
 
 # base: 설치 시점의 파일
-git show <base_ref>:<파일경로> > "$TMPDIR/base"
+MSYS_NO_PATHCONV=1 git show <base_ref>:<파일경로> > "$TMPDIR/base"
 
 # theirs: upstream 최신
-git show <upstream_ref>:<파일경로> > "$TMPDIR/theirs"
+MSYS_NO_PATHCONV=1 git show <upstream_ref>:<파일경로> > "$TMPDIR/theirs"
 
 # ours: 현재 작업 디렉토리
 cp <파일경로> "$TMPDIR/ours"
@@ -246,7 +297,7 @@ rm -rf "$TMPDIR"
 upstream에만 있는 파일을 처리한다:
 
 ```bash
-git show <upstream_ref>:<파일경로> > <파일경로>
+MSYS_NO_PATHCONV=1 git show <upstream_ref>:<파일경로> > <파일경로>
 ```
 
 파일 목록을 보여주고 한번에 승인:
@@ -311,7 +362,7 @@ settings.json은 통째로 교체하지 않는다. **누락된 hook만 추가한
 ```bash
 # upstream의 MIGRATIONS.md를 읽음 (현재 워킹트리는 이미 새 버전이지만
 # 명확성 위해 upstream에서 fetch)
-git show $UPSTREAM_REMOTE/main:docs/harness/MIGRATIONS.md > /tmp/MIGRATIONS.md
+MSYS_NO_PATHCONV=1 git show $UPSTREAM_REMOTE/main:docs/harness/MIGRATIONS.md > /tmp/MIGRATIONS.md
 
 # CUR_VERSION 다음 버전부터 SRC_VERSION까지의 섹션 추출
 # (## vX.Y.Z 헤더로 분리)
@@ -400,7 +451,7 @@ TODO로 추적 (다음 세션 SessionStart에서 노출됨).
 
 ### Windows 호환성
 
-- **파일 추출은 반드시 `git show <ref>:<path>`를 사용한다.** `git archive | tar -x`는 Windows에서 조용히 실패하므로 절대 사용 금지.
+- **파일 추출은 반드시 `MSYS_NO_PATHCONV=1 git show <ref>:<path>`를 사용한다.** `git archive | tar -x`는 Windows에서 조용히 실패하므로 절대 사용 금지. `MSYS_NO_PATHCONV=1` 없으면 `<ref>:<path>` 인자가 Windows path(`<ref>\main;<path>`)로 자동 변환되어 fatal 에러.
 - `mktemp -d`는 Git Bash에서 동작하지만, 경로에 백슬래시가 섞이지 않도록 주의한다.
 - 경로 구분자는 항상 `/`(포워드 슬래시)를 사용한다.
 

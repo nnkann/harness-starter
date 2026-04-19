@@ -108,4 +108,7 @@ created: 2026-04-08
 | 2026-04-19 | test-hooks.sh 폐기 | bash glob 모사가 공식 matcher와 다름 → 거짓 안전감. test-bash-guard.sh가 실제 hook 입력 형식으로 검증 |
 | 2026-04-19 | pre-check 핵심 설정 연속 3회 차단 복원 | 단순화 작업으로 사라진 차단을 settings.json·rules/·scripts/·CLAUDE.md에 한정 복원. [expand] 태그로 정당 확장 우회 |
 | 2026-04-19 | 버전 | 1.8.1 → 1.9.0 | matcher 광역 패턴 폐기 (minor — 검증 모델 자체 교체) |
+| 2026-04-19 | harness-upgrade README 보호 강화 | 사용자 전용 리스트에 README·CHANGELOG·.gitignore·docs/{decisions,incidents,WIP,guides}(sample 제외) 추가. "사용자 전용 파일 처리 규칙 (강행)" 섹션 신설 — confirm 없이 무조건 건너뜀. 다운스트림 README 덮어쓰기 방지 |
+| 2026-04-19 | harness-upgrade MSYS path 변환 가드 | Git Bash가 `<ref>:<path>` 인자를 Windows path로 자동 변환 (`<ref>\main;<path>`) → fatal 에러. 모든 `git show <ref>:<path>` 호출에 `MSYS_NO_PATHCONV=1` prefix 추가 |
+| 2026-04-19 | incident matcher_false_block_and_readme_overwrite 기록 | 다운스트림 StageLink v0.7.0 업그레이드 중 3-way merge 명령이 구버전 매처에 오탐 차단. 증상 2건(매처 오탐 + README 덮어쓰기 위험) 근본 원인 공통(광역 매처 fragility) 분석 |
 | 2026-04-19 | 버전 | 1.9.0 → 0.7.0 | **다운그레이드.** 사용자 지적: "수정한거와 실제 내용 꼬라지에 비해 버전이 너무 높다, 오류 투성이가 무슨 1.8.0이 넘냐". 정당함 — 이번 세션만 추측 수정 3회·매처 갈아엎기·12커밋 push 누락. semver 0.x = "공개 API 불안정·실험 단계"가 현재 상태와 정확히 일치. 다운스트림 실측 누적·매처 동작 충분 검증·README 격차 안정화 등이 누적된 후에 1.0.0 검토. |
