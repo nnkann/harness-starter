@@ -20,6 +20,7 @@
 - [commit Step 2 후속 — symptom-keywords + completed 차단](../harness/commit_step2_partial_completion_260419.md) — tags: commit, write-doc, completion-gate
 - [review staging 후속 — S1 오탐 보정 + S6 완화](../harness/staging_followup_260419.md) — tags: staging, review, performance, measurement
 - [LLM 가드레일 후속 — 허위 후속 감지](../harness/guardrails_followup_260419.md) — tags: guardrails, advisor, review, commit
+- [PreToolUse Bash -n 오탐 차단](../incidents/bash_n_flag_overblock_260419.md) — tags: hook, pre-tool-use, false-positive, bash
 
 ## 관계 맵
 

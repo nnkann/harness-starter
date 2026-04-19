@@ -51,17 +51,22 @@
           {
             "type": "command",
             "if": "Bash(* --no-verify*)",
-            "command": "echo '❌ --no-verify / -n 금지.' && exit 2"
+            "command": "echo '❌ --no-verify 금지 (commit/push hook 우회).' && exit 2"
           },
           {
             "type": "command",
             "if": "Bash(*--no-verify *)",
-            "command": "echo '❌ --no-verify / -n 금지.' && exit 2"
+            "command": "echo '❌ --no-verify 금지.' && exit 2"
           },
           {
             "type": "command",
-            "if": "Bash(* -n *)",
-            "command": "echo '❌ --no-verify / -n 금지.' && exit 2"
+            "if": "Bash(git commit* -n *)",
+            "command": "echo '❌ git commit -n 금지 (verify 우회). bash -n 같은 구문 체크는 bash -o noexec 사용.' && exit 2"
+          },
+          {
+            "type": "command",
+            "if": "Bash(git push* -n *)",
+            "command": "echo '❌ git push -n (dry-run)은 git push --dry-run 사용 권장.' && exit 2"
           },
           {
             "type": "command",
