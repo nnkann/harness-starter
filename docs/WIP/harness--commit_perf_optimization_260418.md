@@ -85,12 +85,36 @@ already_verified 항목은 재검사 마라.
 - review.md: "prompt에 pre-check 결과 블록이 있으면 already_verified 재검사 금지"
   명시
 
+### 4. 전체 소요 시간 리포팅
+
+커밋 완료 후 스킬이 전체/단계별 소요 시간을 간결히 표시:
+
+```
+⏱  전체 1m 2s (pre-check 0.3s / review 58s / commit 3.7s)
+```
+
+**구현**:
+- commit 스킬의 각 Step 진입 시 `date +%s` 또는 SECONDS 변수로 타임스탬프
+- Step 종료 시 차이 계산 누적
+- 최종 요약에 포맷 `Nm Ns` (분이 0이면 `Ns`만)
+
+**측정 대상 단계**:
+- pre-check (Step 5)
+- review (Step 7 병렬, advisor 포함 시 advisor도 분리 표기)
+- git commit (Step 8, hook 재실행 포함)
+- 기타 긴 단계가 생기면 추가
+
+**효과**:
+- 사용자가 어디서 시간 많이 쓰는지 바로 파악
+- 최적화 효과를 수치로 확인 가능
+- 숨은 병목 드러남
+
 ## 검증 방법
 
 1. 문서만 수정하는 커밋 1건 → Step 2/3 스킵되는지 + haiku로 리뷰되는지
 2. 일반 코드 수정 1건 → 정상 경로
 3. 핵심 설정 변경 1건 → risk_factors 감지 → sonnet 리뷰
-4. 각 경로에서 소요 시간 측정
+4. 각 경로에서 소요 시간 측정 (§4 시간 리포팅으로 자동 확보)
 
 ## 우선순위
 

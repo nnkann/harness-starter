@@ -89,3 +89,9 @@ commit 스킬 실행 (strict 모드 또는 --strict)
 | P1 | write-doc 스킬 symptom-keywords 재질의 | 별도 WIP |
 | P1 | commit 스킬 completed 전환 시 본문 미결 패턴 차단 | 별도 WIP |
 | P2 | 이 WIP 승격 시 "이번 세션" 표현 날짜로 구체화 | 승격 시점 |
+
+## 파생 WIP
+
+- `harness--hook_flow_efficiency_260418.md` — hook 전체 흐름 효율성 검토
+  (PreToolUse/PostToolUse 등 전체 감사). 원칙: 하네스가 걸리적거리면 실패
+  프로젝트, 항상 도움을 주는 느낌이어야 함.
