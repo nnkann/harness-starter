@@ -49,6 +49,50 @@ fail을 막는다.
 
 ---
 
+## v0.7.1 — review 토큰 과소비 수정 + MCP 다운스트림 최소화 권장
+
+### 자동 적용 (스킬이 처리)
+
+- `.claude/rules/staging.md` 룰 1번 정밀화 — S9(critical) + 메타·문서
+  단독(S5/S6만)일 때 deep 강제 안 함
+- `.claude/scripts/pre-commit-check.sh` 동일 수정 (HAS_CODE_OR_CORE 가드)
+- `.claude/agents/review.md` Stage 2/3 Read 상한 축소 — "10+" 폐기,
+  Stage 3 최대 5회. 과도한 Read 경계 규정 추가
+
+### 수동 액션 (사용자 필수·권장)
+
+- [ ] **MCP 서버 설정 점검** (spawn 시 토큰 과소비 방지)
+
+  `~/.claude/settings.json`에 MCP 서버가 전역 등록돼 있으면 **모든 프로젝트**
+  에 상속. 프로젝트별로 필요한 것만 `.mcp.json`(프로젝트 루트)에 정의 권장.
+
+  현재 상태 확인:
+  ```bash
+  # 전역 (영향 큼)
+  grep -A10 mcpServers ~/.claude/settings.json 2>/dev/null
+
+  # 프로젝트별 (권장)
+  cat .mcp.json 2>/dev/null
+  ```
+
+  조치:
+  - **전역에 있는 MCP 중 프로젝트 무관한 것은 제거** (예: 일부 프로젝트만
+    Supabase 사용하면 전역에서 빼고 해당 프로젝트 `.mcp.json`에만)
+  - 서브에이전트는 `tools` allowlist로 이미 MCP 차단하지만, 메인 세션에는
+    MCP 스키마가 계속 로드됨 → review 호출 시 상속되는지는 claude-code
+    내부 구현 따라 다름. 실측으로 확인 필요.
+
+  **주의:** `.mcp.json`은 프로젝트별 MCP 정의. 팀 공유 대상이라 민감한
+  서버(개인 Gmail·Slack 등)는 팀 리포에 체크인 금지. 팀용은 `.mcp.json`,
+  개인용은 `~/.claude/settings.json`.
+
+### 회귀 위험
+
+- **review 품질 저하 가능성** — Read 횟수 줄였으므로 복잡한 케이스에서
+  검증 놓칠 수 있음. incident 발생 시 Stage 3 Read 상한 재검토.
+
+---
+
 ## v0.7.0 — Bash matcher 광역 패턴 폐기 + 단일 hook 통합
 
 ### 자동 적용 (스킬이 처리)

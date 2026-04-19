@@ -114,4 +114,8 @@ created: 2026-04-08
 | 2026-04-19 | rules/hooks.md 신설 | argument-constraint 광역 매처 금지 규칙 (36줄). 공식 문서 인용 + bash-guard.sh 대안. 재발 방지 |
 | 2026-04-19 | harness-upgrade Step 8.2 추가 | 구버전 starter 소유 hook(광역 매처) 다운스트림에서 감지·제거 제안. 사용자 커스텀은 보여주기만·수정 제안 X |
 | 2026-04-19 | readiness argument-constraint 감지 | `Bash(... -X ...)` / `Bash(* --X...)` 패턴을 settings.json에서 전수 감지. 구버전 찌꺼기 자가 진단 |
+| 2026-04-19 | staging 룰 1번 정밀화 | S9(critical) + 메타·문서 단독은 deep 강제 제외. docs-only 48k 토큰 과소비 사용자 실측 보고 기반 수정 |
+| 2026-04-19 | review.md Read 상한 축소 | Stage 2: 3~5 → 0~3, Stage 3: 10+ → 상한 5. "과도한 Read 경계" 원칙 추가 |
+| 2026-04-19 | MIGRATIONS MCP 다운스트림 최소화 가이드 | 전역 `~/.claude/settings.json`의 MCP 상속이 spawn 토큰 증가 요인. 프로젝트별 `.mcp.json`으로 분산 권장 |
+| 2026-04-19 | 버전 | 0.7.0 → 0.7.1 | review 토큰 과소비 수정 + MCP 가이드 (patch) |
 | 2026-04-19 | 버전 | 1.9.0 → 0.7.0 | **다운그레이드.** 사용자 지적: "수정한거와 실제 내용 꼬라지에 비해 버전이 너무 높다, 오류 투성이가 무슨 1.8.0이 넘냐". 정당함 — 이번 세션만 추측 수정 3회·매처 갈아엎기·12커밋 push 누락. semver 0.x = "공개 API 불안정·실험 단계"가 현재 상태와 정확히 일치. 다운스트림 실측 누적·매처 동작 충분 검증·README 격차 안정화 등이 누적된 후에 1.0.0 검토. |
