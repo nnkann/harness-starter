@@ -74,3 +74,7 @@ created: 2026-04-08
 | 2026-04-19 | 버전 | 1.4.0 → 1.4.1 | commit 성능 최적화 데이터 경로 (patch — 기존 로직 수정) |
 | 2026-04-19 | commit 스킬 + review 에이전트 | staged diff prompt 직접 주입 | review가 직전 커밋을 보던 사고(11fe9f2) 재발 방지. 스킬이 git diff --cached를 직접 캡처해 prompt에 박고, review는 git diff/log/show 자가 호출 금지 |
 | 2026-04-19 | 버전 | 1.4.1 → 1.4.2 | review 신뢰성 회복 (patch) |
+| 2026-04-19 | agents/ 재편 | 신규 6개 + 삭제 2개 + 1개 승격 | doc-finder(haiku), codebase-analyst, researcher, risk-analyst, performance-analyst, test-strategist, advisor 신설. docs-lookup 폐지(→doc-finder), docs-manager 에이전트→스킬 승격 |
+| 2026-04-19 | advisor 스킬 | PM orchestrator 패턴으로 재설계 | 본문 3관점 상세는 에이전트로 흡수, 스킬은 얇은 래퍼. specialist 풀 (5종) 병렬 호출 + 종합. Anthropic Opus(lead)+Sonnet(sub) 패턴 (+90.2% 성능 사례) |
+| 2026-04-19 | rules/self-verify.md | test-strategist 자동 트리거 연계 | 새 함수·버그 수정·리팩토링 전·flaky 테스트 시 자동 호출. self-verify가 위반 감지하면 호출자가 실제 호출 |
+| 2026-04-19 | 버전 | 1.4.2 → 1.5.0 | 멀티 에이전트 풀 + advisor PM 패턴 (minor) |
