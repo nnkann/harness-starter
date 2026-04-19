@@ -2,10 +2,20 @@
 title: 하네스 구멍 정리 + 리뷰 구조 재확정
 domain: harness
 tags: [search, ide-context, incident-doc, completion-gate, review-agent]
-status: in-progress
+status: completed
 created: 2026-04-18
-updated: 2026-04-18
+updated: 2026-04-19
 ---
+
+## ✅ 완료 (2026-04-19)
+
+- Part A: 검색·문서 규칙 4종 모두 rules에 반영 (커밋 08bdfdc)
+- Part B: 리뷰 구조 hook → Agent tool 직접 호출로 복원 (v1.3.1, 11fe9f2,
+  fd66269)
+- Part B 후속: review가 staged diff 우회 호출하던 사고 재발 방지 (fd66269)
+- 남은 Part A 후속(write-doc symptom-keywords·commit completed 미결 차단)은
+  별도 WIP로 분리 → `harness--commit_step2_partial_completion_260419.md`
+- Part C(다운스트림 전파)는 본 레포 범위 외, harness-upgrade 흐름이 처리
 
 # 하네스 구멍 정리 + 리뷰 구조 재확정
 

@@ -2,9 +2,20 @@
 title: 커밋 속도 최적화 — 단계 조건부 실행 + pre-check→리뷰 데이터 전달 + 모델 스위치
 domain: harness
 tags: [commit, performance, review-agent]
-status: pending
+status: completed
 created: 2026-04-18
+updated: 2026-04-19
 ---
+
+## ✅ 완료 (2026-04-19)
+
+- §2 pre-check → 리뷰 데이터 전달 (커밋 11fe9f2, v1.4.1)
+- §1 단계 조건부 실행 + §3 모델 스위치는 **review staging 시스템(v1.6.0,
+  84ad413)이 흡수**:
+  - Stage 0~3 분기로 단계 조건부 실행 일반화
+  - Stage 1~3별 시간·tool 한도가 모델 선택과 같은 효과
+- §4 시간 리포팅은 **별도 후속 WIP로 분리** →
+  `harness--staging_followup_260419.md` 7단계(5커밋 측정)로 통합
 
 # 커밋 속도 최적화
 

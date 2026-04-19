@@ -11,6 +11,11 @@
 - [Remote 기반 하네스 업그레이드 전략](../decisions/remote_upgrade_strategy_260416.md) — tags: upgrade, git-remote, merge
 - [eval 보안 강화 패치 이식 가이드](../guides/eval-security-patch-port_260418.md) — tags: eval, security, secret-scan, port
 - [review 에이전트가 staged diff 대신 직전 커밋을 분석한 사고](../incidents/review-agent-wrong-diff_260419.md) — tags: review-agent, agent-context, false-warning
+- [하네스 구멍 정리 + 리뷰 구조 재확정](../harness/search_and_completion_gaps_260418.md) — tags: search, ide-context, incident-doc, completion-gate, review-agent
+- [커밋 속도 최적화](../harness/commit_perf_optimization_260418.md) — tags: commit, performance, review-agent
+- [LLM 실수 방지 가드레일](../harness/llm_mistake_guardrails_260418.md) — tags: guardrails, self-correction, reliability, advisor-flow
+- [하네스 범용성 오염 방지](../harness/generic_contamination_protection_260418.md) — tags: harness-starter, contamination, generic
+- [commit·review 단계화](../harness/commit_review_staging_260419.md) — tags: commit, review, performance, staging, cost
 
 ## 관계 맵
 
@@ -19,3 +24,5 @@
 - harness_upgrade_propagation_260410 --implements--> harness_upgrade_260410
 - harness_gap_analysis_260414 --references--> harness_upgrade_260410
 - remote_upgrade_strategy_260416 --references--> promotion-log
+- commit_perf_optimization_260418 --references--> commit_review_staging_260419
+- llm_mistake_guardrails_260418 --references--> commit_review_staging_260419

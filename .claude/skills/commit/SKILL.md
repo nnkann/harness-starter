@@ -150,18 +150,44 @@ review 에이전트는 prompt 안의 diff를 진실로 삼고, Read/Glob/Grep으
 - 테스트/디버그 스크립트로 인한 좀비 프로세스가 남아있는지 확인한다.
 - 사용자가 남겨두길 명시한 파일은 제외한다.
 
-### 2. 계획 문서 완료 처리
+### 2. 계획 문서 진척도 갱신·완료 처리
 
 docs/WIP/에서 이번 작업과 연결된 문서를 처리한다.
+**부분 완료를 자동 인식해서 status·잔여 작업을 갱신**한다 (이게 빠지면
+WIP가 영원히 pending으로 남아 쌓인다).
 
-- git diff로 이번 세션의 작업 범위를 파악한다.
-- 완료된 작업과 연결된 계획 문서를 찾는다.
+#### 2.1. 연결 후보 파악
 
-| 문서 상태 | 처리 |
-|----------|------|
-| pending / in-progress | docs/WIP/에 유지 |
-| completed | 파일명 접두사로 이동 대상 결정 |
-| abandoned | docs/archived/로 이동 |
+`git diff --cached --name-only`와 commit 메시지 초안을 보고
+docs/WIP/의 각 문서를 검토:
+- WIP 본문에 언급된 파일·기능과 이번 변경의 매칭
+- 매칭이 명확한 WIP만 후보 (모호하면 사용자에게 묻기)
+
+#### 2.2. 진척도 판정 (사용자에게 명시 질문)
+
+후보 WIP가 1개 이상이면 다음 형식으로 묻는다:
+
+> 이번 커밋이 다음 WIP를 어떻게 진척시켰나?
+>
+> 1. `harness--commit_perf_optimization_260418.md` (pending)
+>    - §2 데이터 전달 구현 감지됨
+>
+> 선택 ([번호] 또는 [skip]):
+> - **[c]** completed로 이동 (전부 완료)
+> - **[p]** 부분 완료 — 잔여 작업 분리해서 별도 WIP로 이전
+> - **[u]** 본문만 갱신 (status는 유지)
+> - **[s]** 이번 커밋과 무관 (스킵)
+
+#### 2.3. 처리 분기
+
+| 선택 | 동작 |
+|------|------|
+| **[c] completed** | (a) 본문에 진척 항목 ✅ 표시 (b) status → completed (c) 파일명 접두사로 이동 (d) docs-manager 스킬에 위임해 INDEX/clusters 갱신 |
+| **[p] 부분 완료** | (a) 본문에 완료 항목 ✅ 표시 (b) **잔여 작업을 별도 WIP로 분리** — `harness--<원래이름>_followup_<YYMMDD>.md` 신설, `relates-to: rel: extends` 로 원본 연결 (c) 원본은 completed로 이동 (d) INDEX/clusters 갱신 |
+| **[u] 본문 갱신** | (a) 본문에 진척 항목 ✅ 표시 (b) updated 갱신 (c) status·위치 변경 없음 |
+| **[s] 스킵** | 변경 없음 |
+
+#### 2.4. 이동 시 파일명 규칙
 
 파일명 형식: `{대상폴더}--{작업내용}_{YYMMDD}.md`
 
@@ -177,14 +203,19 @@ docs/WIP/에서 이번 작업과 연결된 문서를 처리한다.
 
 예시: `docs/WIP/decisions--api_design_260416.md` → `docs/decisions/api_design_260416.md`
 
-- 계획 문서가 없는 작업이면 넘어간다.
-- 이동 대상은 docs/ 규칙에 정의된 폴더만 허용한다 (decisions, guides, incidents, harness, archived). 새 폴더를 만들지 않는다.
-- 이동 처리는 docs-manager 스킬에 위임할 수 있다.
+#### 2.5. 차단 조건 (docs.md 규칙)
 
-**문서 이동 시 추가 작업:**
-- 프론트매터의 `status` → completed (또는 abandoned)으로 갱신
-- 프론트매터의 `updated` → 오늘 날짜로 갱신
-- `docs/INDEX.md`에 이동된 문서 항목 추가 (해당 domain 섹션 하위에 배치, 관계 맵에 relates-to 반영)
+status를 completed로 전환할 때 본문에 다음 키워드가 남아있으면 [c] 차단:
+`TODO`, `FIXME`, `후속`, `미결`, `미결정`, `추후`, `나중에`, `별도로`
+
+→ 사용자에게 [p] 분리 권장 (잔여를 별도 WIP로 옮기면 차단 해제).
+
+#### 2.6. 제약
+
+- 계획 문서가 없는 작업이면 이 단계 전체 스킵
+- 이동 대상은 docs/ 규칙에 정의된 폴더만 허용 (decisions, guides, incidents, harness, archived). 새 폴더 금지
+- 이동·갱신 처리는 docs-manager 스킬에 위임
+- **자동 [c]/[p] 추정 금지** — 항상 사용자에게 묻는다 (잘못된 자동 판단으로 정보 손실 위험)
 
 ### 3. 하네스 버전 체크 (harness-starter 전용)
 

@@ -2,9 +2,20 @@
 title: 하네스 범용성 오염 방지 — 다운스트림 고유명사 유입 차단
 domain: harness
 tags: [harness-starter, contamination, generic]
-status: pending
+status: completed
 created: 2026-04-18
+updated: 2026-04-19
 ---
+
+## ✅ 완료 (2026-04-19)
+
+- P1 pre-check + 허용 리스트 (커밋 f879396, v1.6.1)
+- rules/contamination.md 신설 (영문 90+ / 한글 80+ 허용어, 면제 6종)
+
+## 잔여 → 후속 WIP로 분리
+
+- P2 review 검증 항목 + P3 스킬 질의 + 정밀화
+  → `harness--contamination_followup_260419.md`
 
 # 하네스 범용성 오염 방지
 

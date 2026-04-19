@@ -2,9 +2,24 @@
 title: commit·review 단계화 — Stage 0~3 + 신규 파일 패스 + 메타 자동 병합
 domain: harness
 tags: [commit, review, performance, staging, cost]
-status: pending
+status: completed
 created: 2026-04-19
+updated: 2026-04-19
 ---
+
+## ✅ 완료 (2026-04-19)
+
+- 1~5단계 구현 (커밋 84ad413, v1.6.0):
+  - rules/staging.md 신설 (단일 진실)
+  - naming.md 도메인 등급 섹션
+  - commit Step 4 자동 병합
+  - pre-commit-check.sh 13 신호 + stdout 6 keys
+  - commit Step 7 stage 분기 + review.md 신호별 매핑
+
+## 잔여 → 후속 WIP로 분리
+
+- 6단계(신호 정밀화)·7단계(5커밋 측정)·S1 오탐 보정·폭증 게이트 코드화
+  → `harness--staging_followup_260419.md`
 
 # commit·review 단계화
 

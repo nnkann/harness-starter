@@ -2,10 +2,23 @@
 title: LLM 실수 방지 가드레일 — 내부 자료 우선 + 추측 차단 + advisor 연동
 domain: harness
 tags: [guardrails, self-correction, reliability, advisor-flow]
-status: pending
+status: completed
 created: 2026-04-18
-updated: 2026-04-18
+updated: 2026-04-19
 ---
+
+## ✅ 완료 (2026-04-19)
+
+- P0 internal-first.md 신설 (커밋 26b72c6)
+- P0 no-speculation.md 신설 (26b72c6)
+- P0 advisor 에이전트 신설 + specialist 풀 6개 (e52234f, v1.5.0)
+- P1 pre-commit-check.sh 연속수정 임계값 2/3 (26b72c6)
+- P1 self-verify.md에 test-strategist 자동 트리거 (e52234f)
+
+## 잔여 → 후속 WIP로 분리
+
+- review needs_advisor 기준 + 허위 후속 감지 + commit Step 7 advisor 통합
+  → `harness--guardrails_followup_260419.md`
 
 # LLM 실수 방지 가드레일
 

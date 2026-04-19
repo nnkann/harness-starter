@@ -89,3 +89,6 @@ created: 2026-04-08
 | 2026-04-19 | rules/contamination.md 신설 | 범용성 오염 방지 P1 | harness-starter 전용 — 다운스트림 고유명사 검출 + 허용어 리스트(영문 90+ / 한글 80+). is_starter 리포에서만 활성. incidents/·scripts/·hooks/·자기 자신 면제. 사용자 판단용 경고 수준 (차단 안 함) |
 | 2026-04-19 | pre-commit-check.sh | contamination 검출 블록 추가 | git diff에서 대문자 시작 3자+/한글 2자+ 추출 후 허용어 필터. risk_factors에 "오염 의심" 합쳐 review가 보도록 |
 | 2026-04-19 | 버전 | 1.6.0 → 1.6.1 | contamination 검출 (patch — 기존 스크립트 확장) |
+| 2026-04-19 | commit 스킬 Step 2 재설계 | WIP 부분 완료 자동 인식 흐름 | 사용자 명시 질문 4지선다(c/p/u/s) + 잔여 작업 별도 WIP 분리 + 차단 조건. 6개 WIP 정체 사고 재발 방지 |
+| 2026-04-19 | WIP 6개 정리 | 5 completed 이동 + 4 후속 신설 + 1 pending 유지 | search_and_completion_gaps·commit_perf·llm_mistake_guardrails·generic_contamination·commit_review_staging → docs/harness/ 이동. 잔여는 commit_step2_partial·guardrails_followup·contamination_followup·staging_followup 4개 후속으로 분리 |
+| 2026-04-19 | 버전 | 1.6.1 → 1.6.2 | Step 2 재설계 + WIP 정리 (patch) |
