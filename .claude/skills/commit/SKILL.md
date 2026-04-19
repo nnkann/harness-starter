@@ -373,14 +373,41 @@ test-strategist 에이전트를 호출한다 (self-verify.md 트리거 자동화
 - 트리거: 신규 코드 파일 또는 새 함수·메소드·클래스 추가 (pre-check이 감지)
 - 분담: review = 이 diff가 안전한가, test-strategist = 이 diff에 어떤
   테스트가 필요한가
-- prompt에 포함:
-  - `## 분석 대상`: pre-check stdout `test_targets` 값 (콤마 구분 파일 목록)
-  - `## staged diff`: review와 같은 diff 텍스트
-  - `## 지시`: "테스트 누락 식별 + 우선순위 권고"
 
-응답 처리:
-- 권장 테스트가 있으면 사용자에게 요약 보고 (커밋 차단 아님)
-- 사용자가 "테스트 추가하고 다시 커밋" 선택하면 implementation 흐름으로 복귀
+**병렬 실행 방법 (강제):**
+
+두 에이전트를 **한 번의 응답 메시지에 두 개의 Agent tool use를 동시에**
+포함해야 병렬 실행. 순차 대기하면 각 에이전트 시간이 합산됨.
+
+```
+(한 응답 안에 다음 두 tool use 동시 배치 — 분리 메시지 금지)
+
+Agent tool call #1:
+  subagent_type: "review"
+  prompt: <기존 review prompt 6블록>
+
+Agent tool call #2:
+  subagent_type: "test-strategist"
+  prompt:
+    ## 분석 대상
+    <pre-check stdout test_targets 콤마 분리 파일 목록>
+
+    ## staged diff
+    <review와 같은 diff 텍스트>
+
+    ## 지시
+    테스트 누락 식별 + 우선순위 권고. 파일·함수별 제안.
+```
+
+**금지 (순차 실행 유발 패턴):**
+- review 먼저 호출 → 결과 받고 → test-strategist 호출 (두 메시지로 분리)
+- 하나 끝난 뒤 다음 박기
+- "review 결과 보고 test-strategist 필요한지 판단" (이미 pre-check에서 결정됨)
+
+**응답 처리 (두 결과 종합):**
+- review 차단 → 커밋 진행 X. test-strategist 권고는 수정 후 재검토.
+- review 통과 + test-strategist 권고 있음 → 커밋 진행 + 사용자에게 권고 요약 보고.
+- 둘 다 통과 → 그대로 진행.
 
 플래그로 제어:
 - `--no-test-strategy`: 자동 호출 스킵 (커밋 메시지에 `[skip-test-strategy]`)
