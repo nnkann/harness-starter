@@ -109,9 +109,12 @@ else
     fi
   fi
 
-  # 광역 매처 회귀 (-n 단독)
-  if grep -q '"if": *"Bash(\* -n \*)"' .claude/settings.json; then
-    add_issue "settings.json: 광역 -n 매처 발견 (Bash(* -n *)) — incident bash_n_flag_overblock 참조, bash-guard.sh 단일 hook으로 통합 필요"
+  # argument-constraint 광역 매처 감지 (rules/hooks.md 금지)
+  # 패턴: "if": "Bash(... -X ...)" 또는 "Bash(* ... *)" — 공백+- 또는 --
+  BAD_MATCHERS=$(grep -nE '"if":[[:space:]]*"Bash\([^)]*[[:space:]]--?[a-zA-Z][^)]*\)"' .claude/settings.json 2>/dev/null)
+  if [ -n "$BAD_MATCHERS" ]; then
+    add_issue "settings.json: argument-constraint 광역 매처 발견 (rules/hooks.md 금지). bash-guard.sh 단일 hook으로 통합 필요:"
+    echo "$BAD_MATCHERS" | sed 's/^/         /' >&2
   fi
   # bash-guard.sh 통합 매처 확인 (v1.9.0 이후 권장 패턴)
   if ! grep -q 'bash-guard\.sh' .claude/settings.json; then

@@ -48,8 +48,12 @@ fail을 막는다.
 
 ### 자동 적용 (스킬이 처리)
 
+- `.claude/rules/hooks.md` 신설 — argument-constraint 매처 금지 규칙.
 - `.claude/settings.json` 단순화 — 모든 `Bash(... -X ...)` 광역 매처 제거.
   Bash matcher 1개 (단일 `bash-guard.sh` 호출).
+- `harness-upgrade` Step 8.2 신규 — 구버전 starter 소유 hook(광역 매처)을
+  다운스트림에서 감지·제거 제안. 사용자 커스텀 hook은 보존.
+- `downstream-readiness.sh` argument-constraint 매처 전수 감지 추가.
 - `.claude/scripts/bash-guard.sh` 신규 — jq로 명령 파싱 후 토큰 단위 검증.
   공식 권장 패턴 (https://code.claude.com/docs/en/permissions 인용).
 - `.claude/scripts/test-bash-guard.sh` 신규 — 13건 회귀 테스트.

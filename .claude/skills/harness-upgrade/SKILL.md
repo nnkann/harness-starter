@@ -325,20 +325,46 @@ upstream에서 제거된 파일이 있으면 (three-way 모드만):
 
 ### Step 8. settings.json hook 동기화
 
-settings.json은 통째로 교체하지 않는다. **누락된 hook만 추가한다.**
+settings.json은 통째로 교체하지 않는다. **starter 소유 hook만 동기화**
+하고 **사용자 커스텀은 건드리지 않는다**.
 
-1. upstream의 settings.json과 현재 settings.json을 비교한다.
-2. upstream에 있지만 현재에 없는 matcher를 찾는다.
-3. 누락된 hook을 보여주고 승인:
-   ```
-   📦 누락된 hook 2개 감지
+#### 8.1. 누락 hook 추가 (기존 동작)
 
-     [PreToolUse] matcher: "Bash(git commit*[skip-review]*)"
-     [SessionStart] 카테고리 전체 누락
+1. upstream에 있지만 현재에 없는 matcher를 찾아 승인 후 추가.
 
-   추가할까요? [Y/n]
-   ```
-4. 기존 permissions와 사용자 커스텀 hook 보존.
+#### 8.2. 구 hook 제거 (v0.7.0 신규)
+
+starter 소유 hook이 upstream에서 사라졌으면 다운스트림에서도 제거한다.
+예: v0.6.x의 광역 매처(`Bash(* --no-verify*)`·`Bash(git commit -n)` 등)가
+v0.7.0에서 단일 `bash-guard.sh`로 통합됨 → 구 매처는 찌꺼기.
+
+**starter 소유 hook 판정:**
+- `matcher` 필드가 starter 기본값 (예: `"Bash"`, `"Write|Edit|MultiEdit"`,
+  빈 문자열 `""`)
+- `hooks[].command`가 `bash .claude/scripts/<starter-script>.sh` 형태
+  (session-start·stop-guard·post-compact-guard·auto-format·bash-guard·
+  write-guard·pre-commit-check 등 starter 제공 스크립트)
+- 또는 `if` 필드에 argument-constraint 패턴 (`Bash(... -X ...)` 같은
+  rules/hooks.md 금지 패턴)
+
+**사용자 커스텀 판정:**
+- 위 어디에도 해당 안 하는 matcher·command
+- 또는 `command`가 starter에 없는 외부 스크립트·도구 호출
+
+표시 + 승인:
+```
+📦 구 starter hook 감지 (upstream에서 제거됨)
+
+  [PreToolUse] "Bash(git commit -n)" → bash-guard.sh로 통합
+  [PreToolUse] "Bash(* --no-verify*)" → bash-guard.sh로 통합
+
+제거할까요? [Y/n/각각 확인]
+
+(사용자 커스텀 hook은 변경 없음: <사용자 영역 요약>)
+```
+
+사용자 커스텀은 **보여주기만** 하고 수정 제안 안 함. 사용자가 직접
+판단하도록 남긴다.
 
 ### Step 9. docs/ 정합성 검증
 
