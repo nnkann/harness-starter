@@ -129,4 +129,9 @@ created: 2026-04-08
 | 2026-04-20 | Context7 MCP 폐기 권고 | 공식 HTTP API(https://context7.com/api/v2/libs/search, /context) 직접 curl 호출이 MCP보다 가벼움. 사용자 claude.ai 통합에서 Context7 해제 권장. MCP 없이도 public 라이브러리 조회 가능 (API key optional) |
 | 2026-04-20 | docs/guides/external-research-patterns 신설 | Context7 HTTP·WebFetch·WebSearch 도구 선택 가이드. Context7 MCP 사용 금지 명시. internal-first.md에 포인터 추가 |
 | 2026-04-20 | 버전 | 0.8.0 → 0.9.0 | 외부 조사 패턴 재정립 (minor — MCP 폐기 권고·가이드 추가는 새 인터페이스) |
+| 2026-04-20 | rules/ 파일 다이어트 | 7개 파일 대폭 압축 (staging.md 49%↓, docs.md 55%↓, security.md 43%↓, self-verify.md 40%↓, no-speculation.md 42%↓, internal-first.md 25%↓, memory.md 소폭). 매 세션 시스템 프롬프트 용량 약 15KB 절감. 배경·자동 감지 상세·rotation 플레이북·탐색 절차는 docs/decisions·docs/guides로 분리 (LLM이 매 세션 읽을 필요 없는 메타·거버넌스) |
+| 2026-04-20 | docs/decisions/staging_governance_260420 신설 | 폭증 차단 게이트·신호 추가 4질문·알려진 한계·pre-check stdout 스키마 분리 보관 |
+| 2026-04-20 | docs/decisions/rules_metadata_260420 신설 | no-speculation·internal-first·security의 배경·자동 감지 패턴·2026-04-18 사고 참고 통합 보관 |
+| 2026-04-20 | docs/guides/doc-search-protocol_260420 신설 | IDE 컨텍스트 힌트·"없다" 3단계·escalation 절차. doc-finder 에이전트와 메인 Claude가 탐색 시 참조 |
+| 2026-04-20 | 버전 | 0.9.0 → 0.9.1 | rules 재구조화 + docs/ 3개 문서 신설 (patch — 행동 변경 없음, SSOT 이동과 압축) |
 | 2026-04-19 | 버전 | 1.9.0 → 0.7.0 | **다운그레이드.** 사용자 지적: "수정한거와 실제 내용 꼬라지에 비해 버전이 너무 높다, 오류 투성이가 무슨 1.8.0이 넘냐". 정당함 — 이번 세션만 추측 수정 3회·매처 갈아엎기·12커밋 push 누락. semver 0.x = "공개 API 불안정·실험 단계"가 현재 상태와 정확히 일치. 다운스트림 실측 누적·매처 동작 충분 검증·README 격차 안정화 등이 누적된 후에 1.0.0 검토. |

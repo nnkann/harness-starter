@@ -31,6 +31,9 @@
 - [harness-starter CPS](../guides/project_kickoff_harness_starter_260420.md) — tags: cps, meta, starter
 - [review v0.8.0 starter 격리 벤치마크](../incidents/review-v080-benchmark_260420.md) — tags: review, benchmark, staging, tool-usage
 - [외부 자료 조사 패턴 — Context7·공식 문서](../guides/external-research-patterns_260420.md) — tags: research, context7, external-docs, mcp
+- [Review Staging 거버넌스 — 신호 추가 게이트와 알려진 한계](../decisions/staging_governance_260420.md) — tags: staging, review, governance
+- [Rules 파일 다이어트 — 분리한 메타·배경·자동 감지 상세](../decisions/rules_metadata_260420.md) — tags: rules, governance, refactor
+- [문서 탐색 프로토콜](../guides/doc-search-protocol_260420.md) — tags: docs, search, doc-finder
 
 ## 관계 맵
 
@@ -41,3 +44,6 @@
 - remote_upgrade_strategy_260416 --references--> promotion-log
 - commit_perf_optimization_260418 --references--> commit_review_staging_260419
 - llm_mistake_guardrails_260418 --references--> commit_review_staging_260419
+- staging_governance_260420 --references--> promotion-log
+- rules_metadata_260420 --references--> promotion-log
+- doc-search-protocol_260420 --extends--> (rules/docs.md)
