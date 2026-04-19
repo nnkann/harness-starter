@@ -50,17 +50,41 @@ description: 작업 잔여물 정리, 계획 문서 완료 처리, 변경 사항
 
 ### 호출 방법
 
-스테이징 + Step 5 pre-check 통과 후 `git commit` 직전에:
+스테이징 + Step 5 pre-check 통과 후 `git commit` 직전에 호출한다.
+
+**핵심 원칙: prompt에 `git diff --cached` 결과 텍스트를 직접 박는다.**
+review 에이전트가 스스로 git 명령을 실행해서 diff를 가져오게 두면 잘못된
+커밋(HEAD, HEAD~1 등)을 보고 엉뚱한 분석을 할 수 있다 (실측 사례:
+v1.4.1 커밋에서 review가 직전 커밋 diff를 잘못 분석).
+
+스킬이 Bash로 직접 실행해서 결과를 prompt에 삽입한다:
+
+```bash
+# 1. diff 캡처 (스킬이 직접 실행)
+DIFF=$(git diff --cached)
+
+# 2. 크기 가드: 너무 크면 stat + head로 축약
+DIFF_SIZE=$(echo "$DIFF" | wc -l)
+if [ "$DIFF_SIZE" -gt 2000 ]; then
+  DIFF_BLOCK="diff 너무 큼 ($DIFF_SIZE 라인). stat과 처음 2000라인만 포함:
+$(git diff --cached --stat)
+---
+$(echo "$DIFF" | head -2000)
+... (truncated)"
+else
+  DIFF_BLOCK="$DIFF"
+fi
+```
 
 ```
 Agent tool 호출
   subagent_type: "review"
-  prompt: 아래 정보 포함
-    - 이번 커밋의 목적 (1~2줄)
-    - 연관 WIP 문서 경로 (있으면)
-    - "## pre-check 결과" 블록 (Step 5에서 캡처한 stdout 4줄 그대로 붙여넣기)
-    - "## 지시: 위 risk_factors에 우선순위를 두고 3관점(회귀/계약/스코프) 검증.
-       already_verified 항목은 재검사 금지. JSON 반환: {\"ok\": bool, \"block\": bool, \"warnings\": []}"
+  prompt: 아래 블록 5개를 그대로 포함
+    1. ## 이번 커밋의 목적 (1~2줄)
+    2. ## 연관 WIP 문서 (경로 또는 "없음")
+    3. ## pre-check 결과 (Step 5에서 캡처한 stdout 4줄)
+    4. ## staged diff (git diff --cached 결과 텍스트 — 위 DIFF_BLOCK 그대로)
+    5. ## 지시
 ```
 
 prompt 예시:
@@ -77,13 +101,27 @@ already_verified: lint todo_fixme test_location wip_cleanup
 risk_factors: 핵심 설정 파일 변경;연속 수정: SKILL.md (3회)
 diff_stats: files=4,+82,-15
 
+## staged diff
+diff --git a/.claude/scripts/pre-commit-check.sh b/.claude/scripts/pre-commit-check.sh
+index abc..def 100644
+--- a/.claude/scripts/pre-commit-check.sh
++++ b/.claude/scripts/pre-commit-check.sh
+@@ -1,3 +1,5 @@
+... (실제 diff 내용 그대로)
+
 ## 지시
+위 staged diff만이 검증 대상이다. 추가로 git 명령(git diff, git log, git show)을
+실행해서 다른 커밋의 변경을 보지 마라 — prompt 안의 staged diff가 진실이다.
+파일 본문 맥락이 필요하면 Read만 사용해도 좋다.
+
 위 risk_factors에 우선순위를 두고 3관점(회귀/계약/스코프) 검증하라.
 already_verified 항목은 재검사 마라.
 JSON 반환: {"ok": bool, "block": bool, "warnings": []}
 ```
 
-review 에이전트는 스스로 Bash/Read/Glob/Grep으로 필요한 맥락을 확보하고 JSON으로 응답한다.
+review 에이전트는 prompt 안의 diff를 진실로 삼고, Read/Glob/Grep으로 파일
+본문 맥락만 확인한 뒤 JSON으로 응답한다. **`git diff`/`git log`/`git show`
+같은 staged-diff 우회 명령은 실행하지 않는다.**
 
 ### 응답 처리
 

@@ -10,6 +10,7 @@
 - [프론트매터 그래프 스펙 설계](../decisions/frontmatter_graph_spec_260416.md) — tags: frontmatter, graph, docs-structure
 - [Remote 기반 하네스 업그레이드 전략](../decisions/remote_upgrade_strategy_260416.md) — tags: upgrade, git-remote, merge
 - [eval 보안 강화 패치 이식 가이드](../guides/eval-security-patch-port_260418.md) — tags: eval, security, secret-scan, port
+- [review 에이전트가 staged diff 대신 직전 커밋을 분석한 사고](../incidents/review-agent-wrong-diff_260419.md) — tags: review-agent, agent-context, false-warning
 
 ## 관계 맵
 

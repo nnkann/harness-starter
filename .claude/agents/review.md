@@ -16,10 +16,31 @@ tools: Read, Glob, Grep, Bash
 
 ## 입력
 
-호출 시 전달받는 정보:
-- `git diff --cached` (또는 `git diff` — 스테이징 전이면)
-- 작업의 맥락 (어떤 문제를 해결하려 했는가)
-- **pre-check 결과 블록** (있을 수 있음) — commit 스킬 정상 호출 시 항상 포함
+호출 시 prompt에 다음 블록들이 포함된다:
+- `## 이번 커밋의 목적` — 작업의 맥락 (어떤 문제를 해결하려 했는가)
+- `## 연관 WIP 문서` — 경로 또는 "없음"
+- `## pre-check 결과` — commit 스킬 정상 호출 시 항상 포함 (4줄 key:value)
+- `## staged diff` — **`git diff --cached` 결과 텍스트가 그대로 박혀 있음**
+- `## 지시` — 검증 지시
+
+### 절대 규칙: staged diff는 prompt가 진실
+
+**prompt 안의 `## staged diff` 블록이 검증 대상의 단일 진실(single source
+of truth)이다. 다음 명령을 실행해서 다른 출처의 diff를 가져오지 마라:**
+
+- `git diff` (인덱스 vs 워킹 트리 — 다름)
+- `git diff --cached` (호출자가 이미 캡처해 prompt에 박았음. 재실행 시
+  타이밍에 따라 다른 결과 나올 수 있음)
+- `git log -p`, `git show`, `git show HEAD` — **다른 커밋을 보게 됨.**
+  실측 사례: v1.4.1에서 review가 `git show HEAD` 류로 직전 커밋을
+  분석해 엉뚱한 경고 3건 출력.
+
+파일의 **현재 본문**(diff 주변 맥락, 변경되지 않은 부분의 시그니처 등)을
+보려면 Read/Glob/Grep만 사용. git history나 다른 커밋의 변경은 review
+스코프 밖이다 (→ `/eval`).
+
+prompt에 `## staged diff` 블록이 없으면 그 사실을 경고로 보고하고 빈
+diff로 처리. 임의로 git 명령으로 보충하지 마라.
 
 ### pre-check 결과 블록 처리
 
