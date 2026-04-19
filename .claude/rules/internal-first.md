@@ -37,6 +37,11 @@ implementation 스킬 Step 0, commit 스킬 Step 6(리뷰 직전):
 
 이 경우에도 "내부에 유사 사례가 없는지 먼저 확인했다"는 근거를 남길 것.
 
+**도구 선택** → `docs/guides/external-research-patterns_260420.md`
+- Context7 MCP 금지, HTTP API(curl) 사용
+- WebFetch는 URL 알 때만
+- WebSearch는 최후 수단
+
 ## 위반 시
 
 - review 에이전트가 "내부 자료 확인 누락" 경고

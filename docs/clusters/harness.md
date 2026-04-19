@@ -30,6 +30,7 @@
 - [다운스트림 마이그레이션 가이드](../harness/MIGRATIONS.md) — tags: migration, upgrade, downstream
 - [harness-starter CPS](../guides/project_kickoff_harness_starter_260420.md) — tags: cps, meta, starter
 - [review v0.8.0 starter 격리 벤치마크](../incidents/review-v080-benchmark_260420.md) — tags: review, benchmark, staging, tool-usage
+- [외부 자료 조사 패턴 — Context7·공식 문서](../guides/external-research-patterns_260420.md) — tags: research, context7, external-docs, mcp
 
 ## 관계 맵
 
