@@ -72,3 +72,5 @@ created: 2026-04-08
 | 2026-04-19 | commit 스킬 SKILL.md | Step 5 stdout 캡처 + 호출 방법 prompt 예시 갱신 | review가 already_verified 재검사 안 하도록 데이터 경로 명시 |
 | 2026-04-19 | review 에이전트 | "pre-check 결과 블록 처리" 섹션 신설 | already_verified 재검사 금지, risk_factors 우선순위 검증 명시 |
 | 2026-04-19 | 버전 | 1.4.0 → 1.4.1 | commit 성능 최적화 데이터 경로 (patch — 기존 로직 수정) |
+| 2026-04-19 | commit 스킬 + review 에이전트 | staged diff prompt 직접 주입 | review가 직전 커밋을 보던 사고(11fe9f2) 재발 방지. 스킬이 git diff --cached를 직접 캡처해 prompt에 박고, review는 git diff/log/show 자가 호출 금지 |
+| 2026-04-19 | 버전 | 1.4.1 → 1.4.2 | review 신뢰성 회복 (patch) |
