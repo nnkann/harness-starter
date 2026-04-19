@@ -437,9 +437,26 @@ git commit -m "feat: [제목]" -m "[간결한 본문]"
 
 ## 푸시
 
-기본 브랜치로 `git push`. 완료 후 요약 제공.
+기본 브랜치로 `git push`. **완료 후 요약 제공 + push 결과 반드시 포함.**
 
-요약에 다음을 포함:
+### starter 분기 (필수 — 누락 시 다운스트림이 변경 못 봄)
+
+`.claude/HARNESS.json`의 `is_starter: true`면 git pre-push hook이 일반
+push를 차단한다. **반드시 `HARNESS_DEV=1 git push` 사용:**
+
+```bash
+IS_STARTER=$(grep -oE '"is_starter"[[:space:]]*:[[:space:]]*(true|false)' .claude/HARNESS.json | grep -oE '(true|false)')
+if [ "$IS_STARTER" = "true" ]; then
+  HARNESS_DEV=1 git push origin main
+else
+  git push origin main
+fi
+```
+
+이 단계를 빼면 starter 변경이 GitHub에 반영 안 됨 → 다운스트림이 fetch
+해도 못 봄 (incident `starter_push_skipped_260419` 참조).
+
+### 요약에 다음을 포함:
 - 커밋 SHA + 메시지 1줄
 - 변경 stat (파일 수, +/- 라인)
 - **리뷰 결과**: "✅ 리뷰 통과" / "⚠️ 리뷰 경고: ..." / "🚫 리뷰 차단: ..." / "리뷰 스킵 (`--no-review`)"

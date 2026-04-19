@@ -57,9 +57,14 @@ case "$PKG_MGR" in
 esac
 
 if [ -n "$LINT_CMD" ]; then
-  $LINT_CMD 2>/dev/null
-  if [ $? -ne 0 ]; then
+  # stdout/stderr 모두 버림 — pre-check stdout은 commit 스킬·review가
+  # key:value로 파싱하므로 lint 출력이 섞이면 신호 누락 발생
+  # (실측: 다운스트림 monorepo lint stdout이 test-pre-commit.sh 결과 12/21로 떨어짐)
+  LINT_OUTPUT=$($LINT_CMD 2>&1)
+  LINT_EXIT=$?
+  if [ "$LINT_EXIT" -ne 0 ]; then
     echo "❌ 린터 에러. 에러 0에서만 커밋 가능. (실행: $LINT_CMD)" >&2
+    echo "$LINT_OUTPUT" | tail -20 >&2
     ERRORS=$((ERRORS + 1))
   fi
 fi

@@ -38,6 +38,37 @@ fail을 막는다.
 
 ---
 
+## v1.8.1 — pre-check lint stdout 오염 수정 + commit push 보강
+
+### 자동 적용 (스킬이 처리)
+
+- `.claude/scripts/pre-commit-check.sh` 패치 — lint 명령의 stdout/stderr
+  모두 캡처 후 종료 코드만 평가. 이전엔 stdout만 흘려 신호 줄과 섞임.
+- `.claude/skills/commit/SKILL.md` 푸시 섹션 강화 — `is_starter: true`
+  분기 + `HARNESS_DEV=1 git push` 명시.
+- `.claude/scripts/test-hooks.sh` push 회귀 케이스 추가 (S1).
+
+### 수동 액션 (사용자 필수)
+
+없음. 자동 패치만으로 완료.
+
+### 검증
+
+```bash
+# 다운스트림(lint 있는 프로젝트)에서 21/21 통과 확인
+bash .claude/scripts/test-pre-commit.sh
+```
+
+이전(v1.7.0~v1.8.0)에서 다운스트림이 12/21 같은 부분 통과로 떨어졌다면
+본 패치 후 21/21로 복원됨.
+
+### 회귀 위험
+
+- lint 실패 시 출력 형식 변경 — 이전엔 명령만 stderr, 이제는 명령 + 마지막
+  20줄 stderr. 더 자세해짐 (개선).
+
+---
+
 ## v1.7.0 — 하네스 단순화 (마찰 회수)
 
 ### 자동 적용 (스킬이 처리)

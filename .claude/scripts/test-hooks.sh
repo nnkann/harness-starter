@@ -88,6 +88,29 @@ echo "[알려진 한계 — 회귀 추적용, 통과는 기대하지 않음]"
 echo "  - git commit -m 'fix -n bug' 같은 메시지 안 -n은 잘못 차단됨."
 echo "    incidents/bash_n_flag_overblock 참고. 운영적으로 우회 (메시지 표현 변경)."
 
+# ─────────────────────────────────────────────
+# starter pre-push hook 회귀 (incident starter_push_skipped)
+# ─────────────────────────────────────────────
+echo ""
+echo "[starter push 보호 — .git/hooks/pre-push]"
+if [ -f ".git/hooks/pre-push" ]; then
+  IS_STARTER=$(grep -oE '"is_starter"[[:space:]]*:[[:space:]]*(true|false)' .claude/HARNESS.json 2>/dev/null | grep -oE '(true|false)')
+  HOOK_BLOCKS=$(grep -c 'HARNESS_DEV' .git/hooks/pre-push 2>/dev/null)
+
+  if [ "$IS_STARTER" = "true" ] && [ "$HOOK_BLOCKS" -gt 0 ]; then
+    echo "  [PASS] S1 starter + pre-push가 HARNESS_DEV 검사함"
+    PASS=$((PASS + 1))
+  elif [ "$IS_STARTER" != "true" ]; then
+    echo "  [SKIP] S1 다운스트림 (is_starter=false) — pre-push 보호 불필요"
+  else
+    echo "  [FAIL] S1 starter인데 pre-push가 HARNESS_DEV 안 검사 — silent push 위험"
+    FAIL=$((FAIL + 1))
+    FAILED_CASES="${FAILED_CASES}\n  - S1 starter pre-push 보호 누락"
+  fi
+else
+  echo "  [SKIP] S1 .git/hooks/pre-push 없음 (clone 직후·hook 미설치 케이스)"
+fi
+
 echo ""
 echo "=== 결과 ==="
 echo "통과: $PASS"

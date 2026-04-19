@@ -99,3 +99,7 @@ created: 2026-04-08
 | 2026-04-19 | downstream-readiness.sh 신설 | 다운스트림 자가 진단 — HARNESS·도메인 등급·매처·스킬 카테고리 silent fail 6개 항목 점검 |
 | 2026-04-19 | settings.json 매처 추가 정밀화 | git commit -n* substring 매칭이 path에 commit 포함 시 오탐 → 'git commit -n ' 정확 매칭으로 한정 |
 | 2026-04-19 | 버전 | 1.7.0 → 1.8.0 | 다운스트림 마이그레이션 자동화 인프라 (minor — 신규 스킬 단계·문서 포맷·진단 도구) |
+| 2026-04-19 | pre-check.sh lint stdout 오염 수정 | $LINT_CMD 2>/dev/null → 2>&1 변수 캡처. 다운스트림 lint stdout이 신호 줄과 섞이는 silent 버그 해결. 사용자 발견 (test-pre-commit 12/21 보고) |
+| 2026-04-19 | commit 스킬 푸시 섹션 강화 | is_starter: true 분기 + HARNESS_DEV=1 git push 명시. silent push 누락 차단 (incident starter_push_skipped) |
+| 2026-04-19 | test-hooks.sh S1 추가 | starter pre-push 보호 회귀 케이스 |
+| 2026-04-19 | 버전 | 1.8.0 → 1.8.1 | lint 오염 + push 보강 (patch — 회귀 수정) |
