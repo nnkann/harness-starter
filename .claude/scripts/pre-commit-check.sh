@@ -215,6 +215,223 @@ DIFF_STATS=$(git diff --cached --numstat 2>/dev/null | awk '
   END { printf "files=%d,+%d,-%d", files+0, added+0, deleted+0 }
 ')
 
+# 7. Staging 신호 감지 (rules/staging.md 참조)
+# 변경 성격에 맞는 review 강도(stage)를 자동 결정하기 위한 신호 감지.
+# 출력: signals=S1,S2,...; domains=...; domain_grades=...;
+#       multi_domain=true|false; repeat_count=max=N; recommended_stage=...
+SIGNALS=""
+STAGED_FILES=$(git diff --cached --name-only 2>/dev/null)
+STAGED_NAME_STATUS=$(git diff --cached --name-status 2>/dev/null)
+TOTAL_FILES=$(echo "$STAGED_FILES" | grep -cv '^$')
+ADDED_LINES=$(git diff --cached --numstat 2>/dev/null | awk '{a+=$1} END{print a+0}')
+DELETED_LINES_TOTAL=$(git diff --cached --numstat 2>/dev/null | awk '{d+=$2} END{print d+0}')
+TOTAL_LINES=$((ADDED_LINES + DELETED_LINES_TOTAL))
+
+# helper: 신호 추가
+add_signal() {
+  if [ -z "$SIGNALS" ]; then SIGNALS="$1"; else SIGNALS="${SIGNALS},$1"; fi
+}
+
+# S1. 보안·시크릿 (이미 위 step 5d에서 SEC_MATCH로 부분 감지 — 재활용)
+S1_FILES=$(echo "$STAGED_FILES" | grep -iE 'auth|token|secret|key|credential|password|\.env' 2>/dev/null)
+S1_LINES=$(git diff --cached -U0 2>/dev/null | grep -iE '^\+.*(sb_secret_|service_role|sk_live_|sk_test_|ghp_|AKIA[0-9A-Z]{16}|password\s*=)' 2>/dev/null | head -1)
+if [ -n "$S1_FILES" ] || [ -n "$S1_LINES" ]; then
+  add_signal "S1"
+fi
+
+# S2. 핵심 설정 (CLAUDE.md, .claude/settings.json, rules/, scripts/, hooks/, infra)
+S2_HIT=$(echo "$STAGED_FILES" | grep -E '^(CLAUDE\.md|\.claude/settings\.json|\.claude/rules/|\.claude/scripts/|\.claude/hooks/|Dockerfile|docker-compose|\.github/workflows/)' 2>/dev/null)
+if [ -n "$S2_HIT" ]; then
+  add_signal "S2"
+fi
+
+# S3. 신규 파일만 (모든 staged가 ^A)
+if [ "$TOTAL_FILES" -gt 0 ]; then
+  NON_ADDED=$(echo "$STAGED_NAME_STATUS" | grep -cvE '^A')
+  if [ "$NON_ADDED" = "0" ] || [ -z "$NON_ADDED" ]; then
+    # 모두 추가 파일
+    add_signal "S3"
+  fi
+fi
+
+# S4. lock 파일만
+LOCK_REGEX='^(package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb|uv\.lock|Cargo\.lock|go\.sum|composer\.lock|Gemfile\.lock)$'
+NON_LOCK=$(echo "$STAGED_FILES" | grep -vE "$LOCK_REGEX" | grep -cv '^$')
+LOCK_COUNT=$(echo "$STAGED_FILES" | grep -cE "$LOCK_REGEX")
+if [ "$LOCK_COUNT" -gt 0 ] && [ "$NON_LOCK" = "0" ]; then
+  add_signal "S4"
+fi
+
+# S5. 면제 메타만 (REPEAT_EXEMPT_REGEX와 같은 정의 + memory + CHANGELOG)
+META_REGEX='^(\.claude/HARNESS\.json|docs/harness/promotion-log\.md|docs/INDEX\.md|docs/clusters/.*\.md|\.claude/memory/.*\.md|CHANGELOG\.md)$'
+NON_META=$(echo "$STAGED_FILES" | grep -vE "$META_REGEX" | grep -cv '^$')
+META_COUNT=$(echo "$STAGED_FILES" | grep -cE "$META_REGEX")
+if [ "$META_COUNT" -gt 0 ] && [ "$NON_META" = "0" ]; then
+  add_signal "S5"
+fi
+
+# S6. 문서만 (docs/**, *.md — 단 README/CHANGELOG 제외, 메타 제외)
+NON_DOC=$(echo "$STAGED_FILES" | grep -vE '^(docs/|.*\.md$)' | grep -cv '^$')
+DOC_COUNT=$(echo "$STAGED_FILES" | grep -cE '^(docs/|.*\.md$)')
+if [ "$DOC_COUNT" -gt 0 ] && [ "$NON_DOC" = "0" ] && [ -z "$(echo ",$SIGNALS," | grep ',S5,')" ]; then
+  add_signal "S6"
+fi
+
+# S7. 일반 코드 (S1~S6·S11·S14·S15 어디에도 안 속함)
+# 일단 다른 신호 다 본 뒤 마지막에 결정 (아래)
+
+# S8. 공유 모듈 변경 (export·시그니처 라인 변경 — 셸 한계, 휴리스틱)
+S8_HIT=$(git diff --cached -U0 2>/dev/null | grep -E '^[+-][[:space:]]*(export|public[[:space:]]+(class|function|interface|type|const|let|var)|def[[:space:]]|func[[:space:]])' 2>/dev/null | head -1)
+if [ -n "$S8_HIT" ]; then
+  add_signal "S8"
+fi
+
+# S9. 도메인 추출 + 등급 매핑
+DOMAINS=""
+DOMAIN_GRADES=""
+# 9.1. 변경된 docs 파일의 프론트매터 domain 필드
+DOC_DOMAINS=$(echo "$STAGED_FILES" | grep -E '^docs/.*\.md$' | while read f; do
+  if [ -f "$f" ]; then
+    grep -m1 '^domain:' "$f" 2>/dev/null | sed 's/^domain:[[:space:]]*//' | tr -d ' '
+  fi
+done | grep -v '^$' | sort -u)
+
+# 9.2. WIP 파일명 접두사
+WIP_DOMAINS=$(echo "$STAGED_FILES" | grep -E '^docs/WIP/[^-]+--' | sed 's|.*/||; s|--.*||' | sort -u)
+
+ALL_DOMAINS=$(printf "%s\n%s\n" "$DOC_DOMAINS" "$WIP_DOMAINS" | grep -v '^$' | sort -u | paste -sd',' -)
+DOMAINS="$ALL_DOMAINS"
+
+# 9.3. 등급 매핑 (naming.md의 "도메인 등급" 섹션에서 추출)
+# 섹션 헤더부터 다음 ## 헤더 전까지 본문을 읽고, "**critical**...:" / "**meta**...:" 라인에서 도메인 추출
+if [ -n "$ALL_DOMAINS" ] && [ -f ".claude/rules/naming.md" ]; then
+  GRADE_SECTION=$(awk '/^## 도메인 등급/{flag=1; next} /^## /{flag=0} flag' .claude/rules/naming.md)
+  CRITICAL_DOMAINS=$(echo "$GRADE_SECTION" | grep -E '^\s*-\s*\*\*critical\*\*' | sed 's/.*://' | tr -d '*()' | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v '^$')
+  META_DOMAINS=$(echo "$GRADE_SECTION" | grep -E '^\s*-\s*\*\*meta\*\*' | sed 's/.*://' | tr -d '*()' | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v '^$')
+
+  GRADES=""
+  for d in $(echo "$ALL_DOMAINS" | tr ',' ' '); do
+    [ -z "$d" ] && continue
+    if echo "$CRITICAL_DOMAINS" | grep -qFx "$d"; then
+      g="critical"
+    elif echo "$META_DOMAINS" | grep -qFx "$d"; then
+      g="meta"
+    else
+      g="normal"
+    fi
+    if [ -z "$GRADES" ]; then GRADES="$g"; else GRADES="${GRADES},${g}"; fi
+  done
+  DOMAIN_GRADES="$GRADES"
+
+  if [ -n "$DOMAIN_GRADES" ]; then
+    add_signal "S9"
+  fi
+fi
+
+# 다중 도메인
+DOMAIN_COUNT=$(echo "$ALL_DOMAINS" | tr ',' '\n' | grep -cv '^$')
+MULTI_DOMAIN="false"
+if [ "$DOMAIN_COUNT" -ge 2 ]; then
+  MULTI_DOMAIN="true"
+fi
+
+# S10. 연속 수정 (이미 step 6에서 감지 — REPEAT_WARN_HIT/REPEAT_BLOCK_HIT 재활용)
+REPEAT_MAX=0
+if [ -n "$REPEAT_BLOCK_HIT" ]; then
+  REPEAT_MAX=$(echo -e "$REPEAT_BLOCK_HIT" | grep -oE '[0-9]+회' | grep -oE '[0-9]+' | sort -nr | head -1)
+elif [ -n "$REPEAT_WARN_HIT" ]; then
+  REPEAT_MAX=$(echo -e "$REPEAT_WARN_HIT" | grep -oE '[0-9]+회' | grep -oE '[0-9]+' | sort -nr | head -1)
+fi
+[ -z "$REPEAT_MAX" ] && REPEAT_MAX=0
+if [ "$REPEAT_MAX" -ge 2 ]; then
+  add_signal "S10"
+fi
+
+# S11. 빌드/CI 스크립트 (프로젝트 scripts/, .husky/, Makefile — .claude/scripts는 S2)
+S11_HIT=$(echo "$STAGED_FILES" | grep -E '^(scripts/.*\.sh$|\.husky/|Makefile$)' 2>/dev/null)
+if [ -n "$S11_HIT" ]; then
+  add_signal "S11"
+fi
+
+# S14. DB 마이그레이션
+S14_HIT=$(echo "$STAGED_FILES" | grep -E '(^|/)migrations/|^alembic/versions/|^prisma/migrations/' 2>/dev/null)
+if [ -n "$S14_HIT" ]; then
+  add_signal "S14"
+fi
+
+# S15. 패키지 manifest
+S15_HIT=$(echo "$STAGED_FILES" | grep -E '^(package\.json|pyproject\.toml|Cargo\.toml|go\.mod|requirements.*\.txt|Gemfile|composer\.json)$' 2>/dev/null)
+if [ -n "$S15_HIT" ]; then
+  add_signal "S15"
+fi
+
+# S7. 일반 코드 (위 신호들 중 S5/S6/S4/S3 어디에도 안 속하면)
+HAS_META_OR_DOC=$(echo ",$SIGNALS," | grep -E ',(S3|S4|S5|S6),' | head -1)
+if [ "$TOTAL_FILES" -gt 0 ] && [ -z "$HAS_META_OR_DOC" ]; then
+  add_signal "S7"
+fi
+
+# Stage 결정 (1단계: 기본 stage)
+RECOMMENDED_STAGE="standard"  # 안전한 기본값
+
+# 도메인에 critical이 있으면
+HAS_CRITICAL=$(echo ",$DOMAIN_GRADES," | grep -E ',critical,')
+HAS_META=$(echo ",$DOMAIN_GRADES," | grep -E ',meta,')
+
+# 우선순위 순 평가
+if [ -n "$HAS_CRITICAL" ]; then
+  RECOMMENDED_STAGE="deep"
+elif echo ",$SIGNALS," | grep -qE ',(S1|S2|S8),'; then
+  RECOMMENDED_STAGE="deep"
+elif echo ",$SIGNALS," | grep -qE ',S14,'; then
+  RECOMMENDED_STAGE="deep"
+elif echo ",$SIGNALS," | grep -qE ',S5,' && [ -n "$HAS_META" ]; then
+  RECOMMENDED_STAGE="skip"
+elif echo ",$SIGNALS," | grep -qE ',S5,'; then
+  RECOMMENDED_STAGE="skip"
+elif echo ",$SIGNALS," | grep -qE ',S4,' && ! echo ",$SIGNALS," | grep -qE ',S7,'; then
+  RECOMMENDED_STAGE="skip"
+elif echo ",$SIGNALS," | grep -qE ',S6,' && [ -n "$HAS_META" ]; then
+  RECOMMENDED_STAGE="skip"
+elif echo ",$SIGNALS," | grep -qE ',S4,' && echo ",$SIGNALS," | grep -qE ',S7,'; then
+  RECOMMENDED_STAGE="standard"
+elif echo ",$SIGNALS," | grep -qE ',S15,' && echo ",$SIGNALS," | grep -qE ',S7,'; then
+  RECOMMENDED_STAGE="standard"
+elif echo ",$SIGNALS," | grep -qE ',S11,'; then
+  RECOMMENDED_STAGE="standard"
+elif echo ",$SIGNALS," | grep -qE ',S3,' && ! echo ",$SIGNALS," | grep -qE ',S7,'; then
+  RECOMMENDED_STAGE="micro"
+elif echo ",$SIGNALS," | grep -qE ',S6,' && [ "$HARNESS_LEVEL" = "light" ]; then
+  RECOMMENDED_STAGE="skip"
+elif echo ",$SIGNALS," | grep -qE ',S6,'; then
+  RECOMMENDED_STAGE="micro"
+elif echo ",$SIGNALS," | grep -qE ',S7,'; then
+  if [ "$TOTAL_LINES" -le 50 ] && [ "$TOTAL_FILES" -le 3 ]; then
+    RECOMMENDED_STAGE="micro"
+  elif [ "$TOTAL_LINES" -le 300 ] && [ "$TOTAL_FILES" -le 10 ]; then
+    RECOMMENDED_STAGE="standard"
+  else
+    RECOMMENDED_STAGE="deep"
+  fi
+fi
+
+# Stage 결정 (2단계: 격상)
+# B/C: S10 연속 수정 격상
+if [ "$REPEAT_MAX" -ge 3 ]; then
+  RECOMMENDED_STAGE="deep"
+elif [ "$REPEAT_MAX" = "2" ]; then
+  case "$RECOMMENDED_STAGE" in
+    skip) RECOMMENDED_STAGE="micro" ;;
+    micro) RECOMMENDED_STAGE="standard" ;;
+    standard) RECOMMENDED_STAGE="deep" ;;
+  esac
+fi
+
+# A: 다중 도메인 hit + critical 동반이면 이미 deep, 아니면 격상
+if [ "$MULTI_DOMAIN" = "true" ] && [ -n "$HAS_CRITICAL" ]; then
+  RECOMMENDED_STAGE="deep"
+fi
+
 # 결과
 if [ $ERRORS -gt 0 ]; then
   echo "" >&2
@@ -224,6 +441,12 @@ if [ $ERRORS -gt 0 ]; then
   echo "already_verified: ${ALREADY_VERIFIED}"
   echo "risk_factors: ${RISK_FACTORS_SUMMARY}"
   echo "diff_stats: ${DIFF_STATS}"
+  echo "signals: ${SIGNALS}"
+  echo "domains: ${DOMAINS}"
+  echo "domain_grades: ${DOMAIN_GRADES}"
+  echo "multi_domain: ${MULTI_DOMAIN}"
+  echo "repeat_count: max=${REPEAT_MAX}"
+  echo "recommended_stage: ${RECOMMENDED_STAGE}"
   exit 2
 fi
 
@@ -232,3 +455,9 @@ echo "pre_check_passed: true"
 echo "already_verified: ${ALREADY_VERIFIED}"
 echo "risk_factors: ${RISK_FACTORS_SUMMARY}"
 echo "diff_stats: ${DIFF_STATS}"
+echo "signals: ${SIGNALS}"
+echo "domains: ${DOMAINS}"
+echo "domain_grades: ${DOMAIN_GRADES}"
+echo "multi_domain: ${MULTI_DOMAIN}"
+echo "repeat_count: max=${REPEAT_MAX}"
+echo "recommended_stage: ${RECOMMENDED_STAGE}"

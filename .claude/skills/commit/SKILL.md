@@ -14,6 +14,8 @@ description: 작업 잔여물 정리, 계획 문서 완료 처리, 변경 사항
 | `/commit --light` | light 모드 강제. |
 | `/commit --strict` | strict 모드 강제. |
 | `/commit --no-review` | 리뷰 에이전트 스킵 (커밋 메시지에 `[skip-review]` 태그 포함). |
+| `/commit --quick` | review stage 1(micro) 강제. 자동 분류 무시. |
+| `/commit --deep` | review stage 3(deep) 강제. 자동 분류 무시. |
 
 ## 모드 결정 규칙
 
@@ -207,6 +209,21 @@ docs/WIP/에서 이번 작업과 연결된 문서를 처리한다.
 
 `git status`로 변경 파일 확인 후, 특별한 제외 요청 없으면 `git add .`
 
+**메타 파일 자동 병합 (분리 커밋 차단)**:
+
+Step 3에서 버전 범프가 있었거나, 본 커밋의 변경으로 인해 다음 메타 파일
+이 함께 갱신되어야 한다면 **본 커밋에 자동 포함**한다 (분리 커밋 만들지
+마라):
+
+- `.claude/HARNESS.json` (버전 범프 시)
+- `docs/harness/promotion-log.md` (버전 범프 시)
+- `docs/INDEX.md` (문서 추가·이동 시)
+- `docs/clusters/*.md` (문서 추가·이동 시)
+
+이유: 이 메타 파일을 별도 커밋으로 분리하면 review가 두 번 돌고, 두
+번째 커밋은 의미 있는 검증이 불가능 (버전 1자리 변경에 6카테고리 검증).
+0d047a5 이후 면제 리스트가 도입되어 분리할 이유가 사라졌다.
+
 ### 5. pre-check (정적 검사, 빠름)
 
 **목적**: 비싼 LLM 리뷰 전에 값싼 정적 검사를 먼저 돌려 실패 시 조기 차단.
@@ -214,8 +231,8 @@ docs/WIP/에서 이번 작업과 연결된 문서를 처리한다.
 없이 걸러낸다.
 
 **stdout 캡처 필수**: pre-check은 stderr에 사용자용 메시지를, **stdout에
-review 전달용 요약 4줄**을 출력한다. Bash tool로 실행 시 stdout을 스킬
-컨텍스트에 보관해 Step 7 review prompt에 그대로 주입한다.
+review 전달용 요약 (현재 10 keys)**를 출력한다. Bash tool로 실행 시 stdout
+전체를 스킬 컨텍스트에 보관해 Step 7 review prompt에 그대로 주입한다.
 
 ```bash
 bash .claude/scripts/pre-commit-check.sh
@@ -227,11 +244,21 @@ pre_check_passed: true|false
 already_verified: lint todo_fixme test_location wip_cleanup
 risk_factors: <세미콜론 구분 위험 요인 목록 또는 빈 값>
 diff_stats: files=N,+A,-D
+signals: S1,S2,S5,...                              # staging 신호 (rules/staging.md)
+domains: harness,docs                              # 변경된 도메인
+domain_grades: critical,meta                       # 등급 매핑
+multi_domain: true|false                           # 2개 이상 도메인 여부
+repeat_count: max=N                                # 연속 수정 최대 카운트
+recommended_stage: skip|micro|standard|deep        # Step 7 stage 분기 결정
 ```
+
+`signals`·`recommended_stage`는 Step 7에서 review 호출 분기와 prompt
+주입에 모두 사용된다. **전체 stdout을 그대로 보관**해야 한다 (4 keys만
+잘라내면 안 됨).
 
 - **exit 2 (차단)**: stderr 메시지를 사용자에게 전달. 문제 수정 후
   스테이징(Step 4)부터 재시도. 리뷰 단계로 진행하지 마라.
-- **exit 0 (통과)**: stdout 4줄을 보관하고 6단계로 진행.
+- **exit 0 (통과)**: stdout 전체를 보관하고 6단계로 진행.
 
 > 이 검사는 7단계 `git commit` 시에도 PreToolUse hook으로 자동 재실행된다
 > (최후 안전망). 5단계에서 미리 수동 실행하는 이유는 **리뷰 Agent 호출 비용을
@@ -242,17 +269,67 @@ diff_stats: files=N,+A,-D
 `git diff --cached`로 스테이징된 변경 내역을 읽고,
 어떤 파일에서 어떤 로직이 어떻게 수정되었는지 파악한다.
 
-### 7. 리뷰 (strict 또는 light 위험도 hit 시)
+### 7. 리뷰 (Stage 분기 — `.claude/rules/staging.md` 참조)
 
-위 "리뷰는 스킬이 Agent tool로 직접 호출한다" 섹션의 호출 방법·응답 처리를
-따른다. `--no-review`가 명시된 경우에만 스킵.
+pre-check stdout의 `recommended_stage` 값에 따라 분기. `--no-review`/
+`--quick`/`--deep` 플래그가 있으면 자동 분류 오버라이드.
+
+#### Stage 결정 우선순위
+
+```
+1. --no-review → Stage 0 (skip), 메시지에 [skip-review] 태그
+2. --quick     → Stage 1 (micro) 강제
+3. --deep      → Stage 3 (deep) 강제
+4. recommended_stage (pre-check 결과)
+```
+
+#### Stage별 행동
+
+**Stage 0 (skip)**:
+- review 호출 안 함
+- 커밋 메시지에 `🔍 review: skip | signals: <...> | domains: <...>` 한 줄 자동 포함
+- light 모드의 위험도 게이트와 호환 (light + Stage 0 → 그냥 통과)
+
+**Stage 1 (micro)** — 1~2 tool calls, 시크릿/스코프 위주:
+- review 호출, prompt에 `recommended_stage: micro` 명시
+- 신규 파일만(S3)인 경우 신규 패스 모드 (프론트매터·구조만)
+- 한도 내 종료, 응답 처리는 아래
+
+**Stage 2 (standard)** — 3~5 tool calls, 현재 기본 동작:
+- review 호출, prompt에 `recommended_stage: standard` 명시
+
+**Stage 3 (deep)** — 10+ tool calls, 전체 검증:
+- review 호출, prompt에 `recommended_stage: deep` 명시
+- S1·S2·S8·S9(critical)·S14 hit 또는 사용자 `--deep`
+
+#### 호출 시점·선행 조건
 
 - **호출 시점**: Step 6(변경 내역 분석) 후 커밋 메시지 작성 전.
 - **선행 조건**: Step 5 pre-check이 통과해야 호출한다. pre-check이 실패하면
   리뷰는 건너뛴다 (어차피 커밋 못 함).
+
+#### 응답 처리
+
 - **차단(`block: true`)**: 커밋 진행하지 말고 사용자에게 사유 전달. 수정 후 재시도.
 - **경고(`warnings`)**: 진행하되 커밋 메시지에 경고 요약 반영.
 - **통과**: 그대로 다음 단계로.
+
+#### git log 추적성 (모든 stage 공통)
+
+커밋 메시지 본문에 자동 포함 (위치: 본문 끝, 푸터 직전):
+```
+🔍 review: <stage> | signals: <S1,S5,...> | domains: <harness,docs>
+```
+
+Stage 0(skip)도 반드시 한 줄 남긴다. 사후 회고 가능해야 함
+(`git log --grep "review: skip"`).
+
+#### 사용자 노출
+
+stage 결정 직후 한 줄로 알림:
+> 🔍 review stage: standard (signals: S7, 5 files, 142 lines)
+
+사용자가 부적절하다 판단하면 다음 커밋에 `--quick`/`--deep` 플래그.
 
 ---
 

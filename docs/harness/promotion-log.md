@@ -80,3 +80,9 @@ created: 2026-04-08
 | 2026-04-19 | 버전 | 1.4.2 → 1.5.0 | 멀티 에이전트 풀 + advisor PM 패턴 (minor) |
 | 2026-04-19 | pre-commit-check.sh | 연속 수정 면제 리스트 추가 | HARNESS.json·promotion-log·INDEX·clusters는 매 커밋마다 같이 갱신되는 정상 패턴이라 카운트에서 제외. 매번 [expand]로 우회하던 진짜 문제 해결 |
 | 2026-04-19 | 버전 | 1.5.0 → 1.5.1 | 면제 리스트 추가 (patch — 기존 로직 수정) |
+| 2026-04-19 | rules/staging.md 신설 | review staging 단일 진실 | 13개 신호 + 4단계 stage + 2단계 결정 + 3종 연결규칙 + 신호↔검증 매핑 + 폭증 차단 게이트 + git log 추적성. 외부 리서치(Anthropic·MAST 함정) 기반 |
+| 2026-04-19 | naming.md 도메인 등급 섹션 | S9 신호 인프라 | "도메인 등급 (review staging)" + "경로 → 도메인 매핑" 섹션 추가. critical/normal/meta 3등급 |
+| 2026-04-19 | pre-commit-check.sh | 신호 감지 + stdout 확장 | 13개 신호(S1~S15) 감지 로직 + 6개 신규 stdout key (signals/domains/domain_grades/multi_domain/repeat_count/recommended_stage). 1단계+2단계 결합 평가로 stage 자동 결정 |
+| 2026-04-19 | commit 스킬 SKILL.md | Step 4 자동 병합 + Step 7 stage 분기 | 메타 파일 분리 커밋 차단(자동 병합), --quick/--deep 플래그, stage별 행동 명세, git log 추적성 한 줄 자동 포함 |
+| 2026-04-19 | review.md | 신호별 검증 매핑 + Stage 모드 | recommended_stage·signals 처리, 신호↔카테고리 매핑 표 (13개), Stage 1 신규 패스 모드 |
+| 2026-04-19 | 버전 | 1.5.1 → 1.6.0 | review staging 시스템 (minor — 신규 규칙 + 신규 스킬 인터페이스) |

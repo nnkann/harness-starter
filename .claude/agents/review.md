@@ -52,17 +52,68 @@ pre_check_passed: true
 already_verified: lint todo_fixme test_location wip_cleanup
 risk_factors: <세미콜론 구분 위험 요인>
 diff_stats: files=N,+A,-D
+signals: S1,S2,...                      # NEW
+domains: harness,docs                   # NEW
+domain_grades: critical,meta            # NEW
+multi_domain: true|false                # NEW
+repeat_count: max=N                     # NEW
+recommended_stage: skip|micro|standard|deep   # NEW
 ```
 
 행동 규칙:
 - **already_verified 항목은 재검사 금지** (린터·TODO/FIXME·테스트 위치·WIP
-  잔여물). pre-check이 이미 검증한 영역.
-- **risk_factors가 비어있지 않으면 그 항목에 우선순위**를 두고 3관점 검증.
-  핵심 설정 변경·보안 패턴·연속 수정·인프라 파일 등이 hit 시 그 영역부터.
-- **risk_factors가 비어있으면** 일반 3관점 검증.
-- diff_stats로 작업 규모 인지. 대규모(>200줄)면 호출자 영향 확인 강화.
+  잔여물).
+- **`recommended_stage`가 강도 한도** — micro면 1~2 tool calls, standard면
+  3~5, deep면 10+. 한도 안에서 끝내라.
+- **`signals`가 검증 영역 결정** — 아래 "신호 ↔ 검증 카테고리 매핑" 표를
+  보고 hit한 신호의 카테고리만 수행. 다른 영역 검증하지 마라 (토큰 낭비).
+- **risk_factors는 추가 우선순위** — 같은 카테고리 안에서 risk_factors가
+  가리키는 항목 먼저.
+- multi_domain이 true면 "스코프 이탈 의심" 경고 검토.
 
-블록이 없으면 (사용자가 직접 호출) 위 항목들을 직접 검증.
+블록이 없으면 (사용자가 직접 호출) 6카테고리 + 3관점 전체 수행.
+
+### 신호 ↔ 검증 카테고리 매핑 (rules/staging.md 참조)
+
+`signals`에 들어 있는 신호별로 다음 카테고리만 수행:
+
+| 신호 | 수행 카테고리 |
+|------|-------------|
+| S1 (시크릿) | 시크릿 패턴 검증만 |
+| S2 (핵심설정) | "기존 결정과의 정합성" + "부작용 확인 (호출자)" |
+| S3 (신규파일만) | 프론트매터·구조·description 일관성 (신규 패스) |
+| S4 (lock) | 단독이면 검증 안 함, S7 동반이면 의존성 보안 |
+| S5 (메타면제) | 검증 안 함 (commit이 호출 자체를 안 함) |
+| S6 (문서) | "문서 정합성 (이번에 이동/생성된 문서만)" + 프론트매터 |
+| S7 (일반코드) | "계획 vs 구현" + "부작용 확인" + 3관점 |
+| S8 (공유모듈) | "부작용 확인" + 호출자 grep + 시그니처 호환성 |
+| S9 (도메인) | "기존 결정과의 정합성" — 해당 도메인 incidents/decisions |
+| S10 (연속수정) | 변경 이력 패턴 분석 (`git log -5 <file>` — 같은 영역 반복인지) |
+| S11 (빌드/CI) | 스크립트 안전성 + 권한 영향 |
+| S14 (마이그레이션) | 롤백 시나리오 + 데이터 영향 |
+| S15 (manifest) | 의존성 보안 + 버전 호환성 |
+
+**여러 신호 hit 시 카테고리 합집합** 수행. 카테고리 간 중복 없음.
+
+### Stage 모드별 행동
+
+**Stage 1 (micro)** — 시간·tool 한도가 매우 좁음:
+- diff 통째 prompt 박혀 있음. Read 호출 최소화 (0~2회).
+- hit 신호 카테고리만 수행, 3관점 생략 가능 (S7만 hit이면 스코프만).
+
+**Stage 1 신규 패스 모드 (S3만 hit)**:
+- 각 신규 파일 1회 Read (병렬 가능)
+- 프론트매터·tools·model·description 형식만 확인
+- 6카테고리 적용 안 함
+- **검증한 사실은 결과에 명시** (git log 추적성 — staging.md 참조)
+
+**Stage 2 (standard)** — 현재 기본:
+- hit 신호 카테고리 + 3관점
+- Read 3~5회 한도
+
+**Stage 3 (deep)**:
+- hit 신호 카테고리 전체 + 3관점 + 호출자 영향 grep
+- Read 10+ 가능
 
 ## 검증 항목 (diff 단위)
 
