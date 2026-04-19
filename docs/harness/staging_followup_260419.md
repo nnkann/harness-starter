@@ -5,11 +5,30 @@ tags: [staging, review, performance, measurement]
 relates-to:
   - path: ../harness/commit_review_staging_260419.md
     rel: extends
-status: pending
+status: completed
 created: 2026-04-19
+updated: 2026-04-19
 ---
 
 # review staging 후속
+
+## 처리 결과 (2026-04-19)
+
+P1(S1 오탐 보정) + S6 완화 자동화 처리:
+
+1. **S1 2단계 분리** — `s1_level=line-confirmed`(실제 시크릿) vs
+   `file-only`(파일명만)로 분리. file-only는 standard로 완화.
+   테스트·docs·example·`-helper.`/`-utils.` 파일은 면제.
+2. **S6 ≤5줄 → Stage 0** — pre-check이 자동으로 skip 결정.
+3. **stdout 13 keys** — `s1_level` 추가.
+4. **staging.md** Stage 결정 우선순위·신호 정의 표 동기화.
+
+잔여(S8 정밀화·5커밋 측정·폭증 게이트)는 별도 WIP 분리:
+`docs/WIP/harness--staging_remaining_260419.md`.
+
+---
+
+## 원본
 
 원본 WIP `harness--commit_review_staging_260419.md`의 잔여 6·7단계.
 

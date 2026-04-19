@@ -190,11 +190,22 @@ add_signal() {
   if [ -z "$SIGNALS" ]; then SIGNALS="$1"; else SIGNALS="${SIGNALS},$1"; fi
 }
 
-# S1. 보안·시크릿 (이미 위 step 5d에서 SEC_MATCH로 부분 감지 — 재활용)
-S1_FILES=$(echo "$STAGED_FILES" | grep -iE 'auth|token|secret|key|credential|password|\.env' 2>/dev/null)
+# S1. 보안·시크릿 — 파일명 hit과 라인 hit을 분리해서 강도 차등 적용
+# - S1_LINES (실제 시크릿 패턴): 항상 deep
+# - S1_FILES (파일명만): standard로 완화 (auth-helper.ts 같은 일반 보조 파일 면제)
+# 면제: 테스트·docs·예제 파일은 파일명만 hit이어도 무시 (시크릿 가능성 낮음)
+S1_FILES=$(echo "$STAGED_FILES" | \
+  grep -iE 'auth|token|secret|key|credential|password|\.env' 2>/dev/null | \
+  grep -vE '\.(test|spec)\.|/tests?/|/__tests__/|^docs/|\.md$|/example|-helper\.|-utils?\.' \
+  2>/dev/null)
 S1_LINES=$(git diff --cached -U0 2>/dev/null | grep -iE '^\+.*(sb_secret_|service_role|sk_live_|sk_test_|ghp_|AKIA[0-9A-Z]{16}|password\s*=)' 2>/dev/null | head -1)
-if [ -n "$S1_FILES" ] || [ -n "$S1_LINES" ]; then
+S1_LEVEL=""  # "" | "file-only" | "line-confirmed"
+if [ -n "$S1_LINES" ]; then
   add_signal "S1"
+  S1_LEVEL="line-confirmed"
+elif [ -n "$S1_FILES" ]; then
+  add_signal "S1"
+  S1_LEVEL="file-only"
 fi
 
 # S2. 핵심 설정 (CLAUDE.md, .claude/settings.json, rules/, scripts/, hooks/, infra)
@@ -369,10 +380,14 @@ HAS_META=$(echo ",$DOMAIN_GRADES," | grep -E ',meta,')
 # 우선순위 순 평가
 if [ -n "$HAS_CRITICAL" ]; then
   RECOMMENDED_STAGE="deep"
-elif echo ",$SIGNALS," | grep -qE ',(S1|S2|S8),'; then
+elif [ "$S1_LEVEL" = "line-confirmed" ]; then
+  RECOMMENDED_STAGE="deep"
+elif echo ",$SIGNALS," | grep -qE ',(S2|S8),'; then
   RECOMMENDED_STAGE="deep"
 elif echo ",$SIGNALS," | grep -qE ',S14,'; then
   RECOMMENDED_STAGE="deep"
+elif [ "$S1_LEVEL" = "file-only" ]; then
+  RECOMMENDED_STAGE="standard"
 elif echo ",$SIGNALS," | grep -qE ',S5,' && [ -n "$HAS_META" ]; then
   RECOMMENDED_STAGE="skip"
 elif echo ",$SIGNALS," | grep -qE ',S5,'; then
@@ -390,6 +405,8 @@ elif echo ",$SIGNALS," | grep -qE ',S11,'; then
 elif echo ",$SIGNALS," | grep -qE ',S3,' && ! echo ",$SIGNALS," | grep -qE ',S7,'; then
   RECOMMENDED_STAGE="micro"
 elif echo ",$SIGNALS," | grep -qE ',S6,' && [ "$HARNESS_LEVEL" = "light" ]; then
+  RECOMMENDED_STAGE="skip"
+elif echo ",$SIGNALS," | grep -qE ',S6,' && [ "$TOTAL_LINES" -le 5 ]; then
   RECOMMENDED_STAGE="skip"
 elif echo ",$SIGNALS," | grep -qE ',S6,'; then
   RECOMMENDED_STAGE="micro"
@@ -437,6 +454,7 @@ if [ $ERRORS -gt 0 ]; then
   echo "recommended_stage: ${RECOMMENDED_STAGE}"
   echo "needs_test_strategist: ${NEEDS_TEST_STRATEGIST}"
   echo "test_targets: ${TEST_TARGETS}"
+  echo "s1_level: ${S1_LEVEL}"
   exit 2
 fi
 
@@ -453,3 +471,4 @@ echo "repeat_count: max=${REPEAT_MAX}"
 echo "recommended_stage: ${RECOMMENDED_STAGE}"
 echo "needs_test_strategist: ${NEEDS_TEST_STRATEGIST}"
 echo "test_targets: ${TEST_TARGETS}"
+echo "s1_level: ${S1_LEVEL}"
