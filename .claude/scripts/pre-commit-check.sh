@@ -147,9 +147,16 @@ fi
 # 6. 같은 영역 연속 수정 감지 (근본 원인 미해결 의심)
 # 임계값: 2회 경고, 3회 차단. 최근 5커밋 범위.
 # 이스케이프: 커밋 메시지에 [expand] 또는 환경변수 FORCE_REPEAT=1
+# 면제 파일: 버전 범프·이력 갱신처럼 매 커밋마다 같이 변경되는 정상 패턴
 REPEAT_WARN=2
 REPEAT_BLOCK=3
 REPEAT_RANGE=5
+
+# 항상 면제되는 파일 (정상 패턴 — 연속 수정 감지의 의도와 무관)
+# - HARNESS.json: 모든 minor/patch 버전 범프마다 갱신
+# - promotion-log.md: 모든 하네스 변경 이력 추가
+# - INDEX.md, clusters/: 문서 추가·이동마다 갱신
+REPEAT_EXEMPT_REGEX='^(\.claude/HARNESS\.json|docs/harness/promotion-log\.md|docs/INDEX\.md|docs/clusters/.*\.md)$'
 
 # 정당한 확장 패턴 면제: COMMIT_EDITMSG에 [expand] 태그 또는 FORCE_REPEAT=1
 SKIP_REPEAT=0
@@ -166,6 +173,10 @@ if [ "$SKIP_REPEAT" = "0" ]; then
 
   while IFS= read -r f; do
     [ -z "$f" ] && continue
+    # 면제 파일은 카운트 안 함 (정상 패턴)
+    if echo "$f" | grep -qE "$REPEAT_EXEMPT_REGEX"; then
+      continue
+    fi
     COUNT=$(echo "$RECENT_FILES" | grep -cFx "$f")
     if [ "$COUNT" -ge "$REPEAT_BLOCK" ]; then
       REPEAT_BLOCK_HIT="${REPEAT_BLOCK_HIT}\n   - $f (최근 ${REPEAT_RANGE}커밋 중 ${COUNT}회)"

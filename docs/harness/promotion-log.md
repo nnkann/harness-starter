@@ -78,3 +78,5 @@ created: 2026-04-08
 | 2026-04-19 | advisor 스킬 | PM orchestrator 패턴으로 재설계 | 본문 3관점 상세는 에이전트로 흡수, 스킬은 얇은 래퍼. specialist 풀 (5종) 병렬 호출 + 종합. Anthropic Opus(lead)+Sonnet(sub) 패턴 (+90.2% 성능 사례) |
 | 2026-04-19 | rules/self-verify.md | test-strategist 자동 트리거 연계 | 새 함수·버그 수정·리팩토링 전·flaky 테스트 시 자동 호출. self-verify가 위반 감지하면 호출자가 실제 호출 |
 | 2026-04-19 | 버전 | 1.4.2 → 1.5.0 | 멀티 에이전트 풀 + advisor PM 패턴 (minor) |
+| 2026-04-19 | pre-commit-check.sh | 연속 수정 면제 리스트 추가 | HARNESS.json·promotion-log·INDEX·clusters는 매 커밋마다 같이 갱신되는 정상 패턴이라 카운트에서 제외. 매번 [expand]로 우회하던 진짜 문제 해결 |
+| 2026-04-19 | 버전 | 1.5.0 → 1.5.1 | 면제 리스트 추가 (patch — 기존 로직 수정) |
