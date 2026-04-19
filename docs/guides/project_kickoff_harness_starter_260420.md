@@ -108,13 +108,17 @@ Step 8.2(구 hook 감지) + 9.5(수동 액션 표시).
 
 ### S2 (for P2): 패턴 → 행동 매핑 + hard 상한
 
-- **행동 가이드**: review.md "검증 루프" 섹션, diff에서 감지할 8가지 패턴
+- **행동 가이드**: review.md "검증 루프" 섹션, diff에서 감지할 9가지 패턴
   각각에 tool 선택·호출 횟수 명시
 - **hard 상한**: `maxTurns: 6` frontmatter
 - **Stage 차등**: staging.md 룰 조정으로 doc-only critical을 micro로
 
-**제약**: LLM이 가이드를 따르지 않으면 무의미. 실측이 유일한 검증 수단.
-다운스트림에서 다음 review 호출 토큰 재측정 필요.
+**검증됨 (2026-04-20)**: starter 격리 벤치마크 3시나리오 실측 — tool_uses
+0~1회, duration 8~17초, tokens ~30k. 이전 48~68k/5~15회 대비 38~98% 감소.
+상세: `docs/incidents/review-v080-benchmark_260420.md`.
+
+**제약**: 다운스트림은 환경 요인(플러그인·MCP) 추가로 기준선이 다름.
+다운스트림 실측은 별도 측정 필요.
 
 ### S3 (for P3): 3중 방어
 

@@ -29,6 +29,7 @@
 - [staging 잔여 — S8·5커밋 측정·폭증 게이트](../harness/staging_remaining_260419.md) — tags: staging, review, measurement
 - [다운스트림 마이그레이션 가이드](../harness/MIGRATIONS.md) — tags: migration, upgrade, downstream
 - [harness-starter CPS](../guides/project_kickoff_harness_starter_260420.md) — tags: cps, meta, starter
+- [review v0.8.0 starter 격리 벤치마크](../incidents/review-v080-benchmark_260420.md) — tags: review, benchmark, staging, tool-usage
 
 ## 관계 맵
 
