@@ -35,7 +35,7 @@ updated: 2026-04-19
 원래 의도는 `git commit -n` (verify hook 우회) 차단인데, 모든 `-n`
 플래그를 잡음.
 
-## 해결
+## 해결 (1차)
 
 매처를 `git commit`·`git push`로 한정:
 ```json
@@ -43,13 +43,30 @@ updated: 2026-04-19
 { "if": "Bash(git push* -n *)", ... }
 ```
 
-`bash -n` 같은 구문 체크는 `bash -o noexec`로 우회 가능 (메시지에 명시).
+## 재발 (2차) — 단순화 검증 시나리오 C 중
+
+위 매처도 여전히 광역. claude-code 매처가 명령 인자 전체에서 substring
+매칭하는 듯. 스크립트 본문에 `commit`·`push`·`-n` 단어가 우연히 같이
+등장하면 hit.
+
+예: 다음 bash 스크립트 실행 차단됨
+```bash
+STAGED=$(git diff --cached --name-only)  # "commit"·"push" 무관, 그러나 ...
+# 이후 awk에서 "-n" 옵션 사용
+```
+
+## 해결 (2차)
+
+- `git commit -n*` (인자 직후) + `git commit* -n*` (옵션 사이) 두 패턴
+- `git push -n` 차단 제거 (dry-run 정당함, `--dry-run`과 동일)
+- 메시지를 짧게 (긴 설명은 발음에 묻힘)
 
 ## 재발 방지
 
-- 새 PreToolUse 차단 패턴 추가 시: 광범위 와일드카드(`* -X *`) 대신
-  대상 명령을 명시 (`git commit* -X *`)
-- 차단 메시지에 정당한 사용 시 대안 제공 (위 `bash -o noexec` 예시)
+- 새 PreToolUse 차단 패턴 추가 시: 광범위 와일드카드(`* -X *`) 절대 금지
+- 매처 추가 후 **반드시** 격리 시나리오로 검증 (정당 명령이 막히는지)
+- claude-code 매처 동작이 prefix·substring·regex 어느 쪽인지 공식 문서
+  확인 후 사용 (현재는 substring 추정 — 추가 검증 필요)
 
 ## 메모
 
