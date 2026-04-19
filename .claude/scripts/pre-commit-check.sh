@@ -494,6 +494,13 @@ Manifest
 Lock
 Migration
 Frontmatter
+Step
+Part
+SKILL
+INDEX
+LLM
+ALLOWLIST
+YYMMDD
 일반
 사용자
 하네스

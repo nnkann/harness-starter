@@ -40,6 +40,7 @@ PostgreSQL  MySQL  MongoDB  Redis  SQLite
 ```
 Stage  Signal  Skill  Hook  Matcher  Tool  Subagent  Permission
 Workflow  Pipeline  Manifest  Lock  Migration  Frontmatter
+Step  Part  SKILL  INDEX  LLM  ALLOWLIST  YYMMDD
 ```
 
 ### 한글 허용어
