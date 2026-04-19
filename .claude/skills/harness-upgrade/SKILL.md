@@ -253,7 +253,7 @@ git show <upstream_ref>:<파일경로> > <파일경로>
 ```
 📦 신규 파일 추가
 
-  .claude/agents/docs-lookup.md (신규 에이전트)
+  .claude/agents/doc-finder.md (신규 에이전트)
   .claude/skills/advisor/SKILL.md (신규 스킬)
 
 추가할까요? [Y/n]
@@ -292,7 +292,7 @@ settings.json은 통째로 교체하지 않는다. **누락된 hook만 추가한
 ### Step 9. docs/ 정합성 검증
 
 업그레이드로 docs/ 관련 규칙(docs.md, 폴더 구조, 프론트매터 스펙)이 변경되었을 수 있다.
-**docs-manager 에이전트를 호출**하여:
+**docs-manager 스킬을 호출**하여:
 - 프론트매터 검증 (새 필수 필드 추가 등)
 - INDEX.md + clusters/ 정합성 확인
 - relates-to 경로 유효성 확인

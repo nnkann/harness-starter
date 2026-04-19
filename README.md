@@ -58,10 +58,15 @@ CLAUDE.md                        에이전트 루트 인스트럭션 (≤30줄)
 │   ├── check-existing/          기존 코드 중복 확인
 │   ├── naming-convention/       네이밍 규칙 설정
 │   └── coding-convention/       코딩 컨벤션 설정
-├── agents/                      서브에이전트 (3개)
-│   ├── docs-lookup.md           문서 탐색 (INDEX → clusters → 본문)
-│   ├── docs-manager.md          프론트매터 검증 + INDEX/clusters 갱신
-│   └── review.md                커밋 전 코드/문서 리뷰
+├── agents/                      서브에이전트 (8개)
+│   ├── advisor.md               PM/orchestrator — specialist 종합 (opus)
+│   ├── doc-finder.md            문서 검색·요약 (사서, haiku)
+│   ├── codebase-analyst.md      내부 코드·문서 분석 (컨설턴트, sonnet)
+│   ├── researcher.md            외부 자료 조사 (sonnet)
+│   ├── risk-analyst.md          비판자·devil's advocate (sonnet)
+│   ├── performance-analyst.md   성능·N+1·동시성 (sonnet)
+│   ├── test-strategist.md       테스트 전략·누락 분석 (sonnet)
+│   └── review.md                커밋 전 diff 단위 검증 (sonnet)
 └── scripts/                     hook 스크립트 (6개)
 scripts/                         유틸 스크립트 (하네스 외부)
 └── install-secret-scan-hook.sh  pre-commit 시크릿 스캔 훅 설치 (gitleaks 우선, grep 폴백)

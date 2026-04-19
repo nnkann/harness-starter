@@ -244,7 +244,7 @@ created: {YYYY-MM-DD}
 (프로젝트 진행 중 주요 결정 변화를 간단히 기록)
 ```
 
-이 문서 생성 직후 **docs-manager 에이전트를 호출**하여:
+이 문서 생성 직후 **docs-manager 스킬을 호출**하여:
 - `docs/INDEX.md` 초기 생성 (도메인 목록 + clusters/ 포인터)
 - `docs/clusters/{domain}.md` 초기 생성 (도메인별 문서 목록)
 - 첫 번째 엔트리 = project_kickoff 문서

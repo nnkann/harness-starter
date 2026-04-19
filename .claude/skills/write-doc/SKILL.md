@@ -20,7 +20,7 @@ description: >-
 | 코드 작업의 부산물로 문서 생성 | implementation (Step 1) |
 | 문서 자체가 목적 | **write-doc** |
 | 문서 이동 (WIP → 최종 폴더) | commit |
-| 문서 탐색/검색 | docs-lookup 에이전트 |
+| 문서 탐색/검색 | doc-finder 에이전트 |
 
 ## 흐름
 

@@ -371,7 +371,7 @@ updated: 2026-04-10     ← git log에서 추출한 최근 수정 날짜
 
 #### 5g. INDEX.md + clusters/ 생성
 
-재분류가 끝나면 docs-manager 에이전트에게 위임한다:
+재분류가 끝나면 docs-manager 스킬에 위임한다:
 - docs/INDEX.md 생성 (도메인별 문서 수 + clusters/ 포인터)
 - docs/clusters/{domain}.md 생성 (문서 목록 + 관계 맵)
 

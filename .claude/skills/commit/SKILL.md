@@ -177,7 +177,7 @@ docs/WIP/에서 이번 작업과 연결된 문서를 처리한다.
 
 - 계획 문서가 없는 작업이면 넘어간다.
 - 이동 대상은 docs/ 규칙에 정의된 폴더만 허용한다 (decisions, guides, incidents, harness, archived). 새 폴더를 만들지 않는다.
-- 이동 처리는 docs-manager 에이전트에 위임할 수 있다.
+- 이동 처리는 docs-manager 스킬에 위임할 수 있다.
 
 **문서 이동 시 추가 작업:**
 - 프론트매터의 `status` → completed (또는 abandoned)으로 갱신

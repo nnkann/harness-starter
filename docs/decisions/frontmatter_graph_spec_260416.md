@@ -332,7 +332,7 @@ domain은 자유 태그가 아니라 **통제된 어휘**다. 누가, 언제 추
 ### Phase 2: 규칙 반영 + 탐색 인프라
 - docs.md에 프론트매터 필수 규칙 추가
 - docs.md에 문서 탐색 트리거 규칙 추가 (언제/어떻게 탐색하는가)
-- `.claude/agents/docs-lookup.md` 에이전트 생성 (클러스터 기반 빠른 검색)
+- `.claude/agents/doc-finder.md` 에이전트 생성 (클러스터 기반 빠른 검색. v1.5.0에서 docs-lookup → doc-finder로 rename)
 - `.claude/agents/` 폴더를 하네스 기본 구성에 포함 (h-setup.sh 대상)
 - implementation 스킬의 Step 1 템플릿에 프론트매터 포함
 - harness-init 스킬의 Step 7 템플릿에 프론트매터 포함
