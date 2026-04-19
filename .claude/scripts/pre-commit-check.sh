@@ -179,9 +179,13 @@ while IFS= read -r f; do
     echo "   1. git log -5 -- $f (이전 수정 사유)" >&2
     echo "   2. docs/incidents/ (관련 사례)" >&2
     echo "   3. 공식 문서 (rules/internal-first.md)" >&2
-    echo "   정당한 점진 확장이면 [expand] 태그로 우회: 커밋 메시지에 포함" >&2
-    if [ -f ".git/COMMIT_EDITMSG" ] && grep -q '\[expand\]' .git/COMMIT_EDITMSG 2>/dev/null; then
-      echo "   ([expand] 태그 감지 — 통과)" >&2
+    echo "   정당한 점진 확장이면 HARNESS_EXPAND=1 prefix로 우회:" >&2
+    echo "     HARNESS_EXPAND=1 git commit -m \"...\"" >&2
+    # HARNESS_EXPAND=1은 bash-guard.sh가 command prefix에서 파싱해 env로 전달.
+    # COMMIT_EDITMSG 방식은 PreToolUse 시점에 직전 커밋 메시지라 쓸 수 없음
+    # (incident matcher_false_block_and_readme_overwrite 인근 — review 지적).
+    if [ "$HARNESS_EXPAND" = "1" ]; then
+      echo "   (HARNESS_EXPAND=1 감지 — 통과)" >&2
     else
       ERRORS=$((ERRORS + 1))
     fi

@@ -17,10 +17,15 @@ created: 2026-04-19
 fail을 막는다.
 
 > **버전 다운그레이드 노트 (2026-04-19):** 1.6.x~1.9.0으로 표기됐던
-> 버전을 0.7.0으로 리셋. semver 0.x가 "공개 API 불안정·실험 단계"이며
-> 현재 상태와 정확히 일치. 아래 v1.7.0~v1.9.0 섹션은 변경 내용 자체는
-> 유효하므로 그대로 유지. **다운스트림이 받은 v1.x 버전 표기는
-> upgrade 시 0.7.0으로 갱신됨.**
+> 버전을 0.x로 리셋. semver 0.x가 "공개 API 불안정·실험 단계"이며
+> 현재 상태와 정확히 일치. 섹션 헤더를 실제 적용 버전으로 갱신:
+>
+> | 구 표기 | 현 표기 | 내용 |
+> |---|---|---|
+> | v1.7.0 | v0.6.0 | 하네스 단순화 P0 |
+> | v1.8.0 | v0.6.1 | 다운스트림 마이그레이션 인프라 |
+> | v1.8.1 | v0.6.2 | pre-check lint stdout 오염 수정 |
+> | v1.9.0 | v0.7.0 | Bash matcher 광역 패턴 폐기 |
 
 ## 포맷
 
@@ -44,7 +49,7 @@ fail을 막는다.
 
 ---
 
-## v1.9.0 — Bash matcher 광역 패턴 폐기 + 단일 hook 통합
+## v0.7.0 — Bash matcher 광역 패턴 폐기 + 단일 hook 통합
 
 ### 자동 적용 (스킬이 처리)
 
@@ -102,7 +107,7 @@ incident: `docs/incidents/bash_n_flag_overblock_260419.md` 3차 섹션.
 
 ---
 
-## v1.8.1 — pre-check lint stdout 오염 수정 + commit push 보강
+## v0.6.2 — pre-check lint stdout 오염 수정 + commit push 보강
 
 ### 자동 적용 (스킬이 처리)
 
@@ -111,6 +116,7 @@ incident: `docs/incidents/bash_n_flag_overblock_260419.md` 3차 섹션.
 - `.claude/skills/commit/SKILL.md` 푸시 섹션 강화 — `is_starter: true`
   분기 + `HARNESS_DEV=1 git push` 명시.
 - `.claude/scripts/test-hooks.sh` push 회귀 케이스 추가 (S1).
+  **※ v0.7.0에서 test-hooks.sh 자체 폐기. 본 케이스는 test-bash-guard.sh로 이전됨.**
 
 ### 수동 액션 (사용자 필수)
 
@@ -133,7 +139,14 @@ bash .claude/scripts/test-pre-commit.sh
 
 ---
 
-## v1.7.0 — 하네스 단순화 (마찰 회수)
+## v0.6.1 — 다운스트림 마이그레이션 인프라 (본 문서 도입)
+
+MIGRATIONS.md 자체 도입 + `harness-upgrade` Step 9.5(사용자 액션 표시)
++ `downstream-readiness.sh`(자가 진단). 수동 액션 없음 (자동 패치만).
+
+---
+
+## v0.6.0 — 하네스 단순화 (마찰 회수)
 
 ### 자동 적용 (스킬이 처리)
 
@@ -156,6 +169,8 @@ bash .claude/scripts/test-pre-commit.sh
   `Bash(git commit -n*)` + `Bash(git commit* -n*)`로 한정
 - `.claude/scripts/test-pre-commit.sh` 신규 — 21건 회귀 테스트
 - `.claude/scripts/test-hooks.sh` 신규 — 11건 매처 회귀 테스트
+  **※ v0.7.0에서 폐기(bash glob 모사가 공식 matcher와 달라 거짓 안전감).
+     test-bash-guard.sh가 실제 hook JSON 입력으로 검증.**
 
 ### 수동 액션 (사용자 필수)
 
@@ -197,7 +212,8 @@ bash .claude/scripts/test-pre-commit.sh
 ```bash
 # 회귀 테스트 (다운스트림에서도 실행 가능)
 bash .claude/scripts/test-pre-commit.sh    # 21/21 통과 기대
-bash .claude/scripts/test-hooks.sh         # 11/11 통과 기대
+# v0.7.0+ 에서는 test-hooks.sh 대신 test-bash-guard.sh 사용:
+bash .claude/scripts/test-bash-guard.sh    # 13/13 통과 기대
 
 # 도메인 등급 확정 도메인 전체 분류 검증
 DOMAINS=$(grep -E '^확정:' .claude/rules/naming.md | sed 's/확정://' | tr ',' '\n' | sed 's/^ *//;s/ *$//')
@@ -221,7 +237,7 @@ done
 
 ---
 
-## v1.6.x 이전
+## v0.6.0 이전
 
-기록 없음. v1.7.0이 본 마이그레이션 가이드 도입 시점. 이전 버전은
+기록 없음. v0.6.0이 본 마이그레이션 가이드 도입 시점. 이전 버전은
 `docs/harness/promotion-log.md`의 변경 항목을 참조.
