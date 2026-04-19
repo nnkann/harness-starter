@@ -121,4 +121,8 @@ created: 2026-04-08
 | 2026-04-20 | validate-settings.sh 신설 | Claude Code가 settings.json schema 에러 시 전체 schema를 응답으로 덤프(~20k tokens). 사용자 실측: 한 세션 2회 발생해 40k 허비. 사전 검증으로 재발 차단 |
 | 2026-04-20 | auto-format.sh + readiness에 통합 | settings.json Write/Edit 후 자동 검증, readiness 자가 진단에도 추가 |
 | 2026-04-20 | 버전 | 0.7.1 → 0.7.2 | settings.json schema 검증 자동화 (patch) |
+| 2026-04-20 | review.md 전면 재작성 | "카테고리 설명"을 "diff 패턴 → 검증 행동" 매핑 9개로 전환. 각 패턴별 tool 선택·호출 횟수 명시. maxTurns: 6 frontmatter 상한 |
+| 2026-04-20 | starter 자체 CPS 작성 | `docs/guides/project_kickoff_harness_starter_260420.md`. 이번 세션 내내 CPS 없이 작업 진행(하네스 자체 무너짐)이라 사용자 지적. P1~P5 정리, 기존 Solution 상태 기록. 다음 세션부터 implementation Step 0이 본 CPS와 대조 가능 |
+| 2026-04-20 | review.md 9번 CPS 감지 패턴 | 새 도메인·규칙·스킬·에이전트 신설 시 CPS 갱신 누락 감지 [주의]. sample 외 실제 CPS 있을 때만 작동 |
+| 2026-04-20 | 버전 | 0.7.2 → 0.8.0 | review·CPS 구조 변경 (minor — 검증 모델 자체 업그레이드) |
 | 2026-04-19 | 버전 | 1.9.0 → 0.7.0 | **다운그레이드.** 사용자 지적: "수정한거와 실제 내용 꼬라지에 비해 버전이 너무 높다, 오류 투성이가 무슨 1.8.0이 넘냐". 정당함 — 이번 세션만 추측 수정 3회·매처 갈아엎기·12커밋 push 누락. semver 0.x = "공개 API 불안정·실험 단계"가 현재 상태와 정확히 일치. 다운스트림 실측 누적·매처 동작 충분 검증·README 격차 안정화 등이 누적된 후에 1.0.0 검토. |

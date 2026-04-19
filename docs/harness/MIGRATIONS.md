@@ -49,6 +49,41 @@ fail을 막는다.
 
 ---
 
+## v0.8.0 — review 패턴 매핑 + CPS 복원
+
+### 자동 적용 (스킬이 처리)
+
+- `.claude/agents/review.md` 전면 재작성 — "카테고리 설명" → "diff 패턴 →
+  검증 행동" 9개 매핑. 각 패턴별 tool 선택·호출 횟수 명시.
+  frontmatter `maxTurns: 6` 추가 (agentic turn hard 상한).
+- `.claude/agents/review.md`에 CPS 감지 패턴 9번 추가 — 새 도메인·규칙·
+  스킬·에이전트 신설 시 CPS 문서 갱신 누락 감지.
+
+### 수동 액션 (권장)
+
+- [ ] **프로젝트 CPS 문서 확인·작성**
+
+  `harness-init` 실행한 프로젝트면 `docs/guides/project_kickoff_*.md`가
+  이미 있음. **없으면** (또는 `status: sample`만 있으면) CPS 무너진 상태 —
+  review의 9번 패턴·implementation Step 0 모두 제대로 작동 안 함.
+
+  조치:
+  ```bash
+  # CPS 확인
+  ls docs/guides/project_kickoff_*.md
+  # 없거나 sample만 있으면 /harness-init 다시 실행
+  ```
+
+  CPS는 Context(배경·제약)·Problems(해결할 핵심 문제)·Solutions(접근법)
+  3섹션. 한 번 만들면 새 Problem 발견 시마다 갱신 (review 9번이 검증).
+
+### 회귀 위험
+
+- review가 이전엔 카테고리 전체 돌았는데 이제 패턴 hit한 것만 돔 → 특정
+  회귀 누락 가능성. 발견 시 review.md에 패턴 추가.
+
+---
+
 ## v0.7.2 — settings.json schema 검증 자동화
 
 ### 자동 적용 (스킬이 처리)

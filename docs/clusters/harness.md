@@ -28,6 +28,7 @@
 - [(abandoned) hook 흐름 감사](../archived/hook_flow_efficiency_260418.md) — 이번 세션 중 의도 80% 자연 달성, 남은 자동화는 단순화와 충돌
 - [staging 잔여 — S8·5커밋 측정·폭증 게이트](../harness/staging_remaining_260419.md) — tags: staging, review, measurement
 - [다운스트림 마이그레이션 가이드](../harness/MIGRATIONS.md) — tags: migration, upgrade, downstream
+- [harness-starter CPS](../guides/project_kickoff_harness_starter_260420.md) — tags: cps, meta, starter
 
 ## 관계 맵
 
