@@ -50,7 +50,7 @@ description: 작업 잔여물 정리, 계획 문서 완료 처리, 변경 사항
 
 ### 호출 방법
 
-스테이징 완료 후 `git commit` 직전에:
+스테이징 + Step 5 pre-check 통과 후 `git commit` 직전에:
 
 ```
 Agent tool 호출
@@ -58,7 +58,29 @@ Agent tool 호출
   prompt: 아래 정보 포함
     - 이번 커밋의 목적 (1~2줄)
     - 연관 WIP 문서 경로 (있으면)
-    - "git diff --cached로 diff를 직접 확인하고, 3관점(회귀/계약/스코프)으로 검증. JSON 반환: {\"ok\": bool, \"block\": bool, \"warnings\": []}"
+    - "## pre-check 결과" 블록 (Step 5에서 캡처한 stdout 4줄 그대로 붙여넣기)
+    - "## 지시: 위 risk_factors에 우선순위를 두고 3관점(회귀/계약/스코프) 검증.
+       already_verified 항목은 재검사 금지. JSON 반환: {\"ok\": bool, \"block\": bool, \"warnings\": []}"
+```
+
+prompt 예시:
+```
+## 이번 커밋의 목적
+<1~2줄>
+
+## 연관 WIP 문서
+<경로 또는 "없음">
+
+## pre-check 결과
+pre_check_passed: true
+already_verified: lint todo_fixme test_location wip_cleanup
+risk_factors: 핵심 설정 파일 변경;연속 수정: SKILL.md (3회)
+diff_stats: files=4,+82,-15
+
+## 지시
+위 risk_factors에 우선순위를 두고 3관점(회귀/계약/스코프) 검증하라.
+already_verified 항목은 재검사 마라.
+JSON 반환: {"ok": bool, "block": bool, "warnings": []}
 ```
 
 review 에이전트는 스스로 Bash/Read/Glob/Grep으로 필요한 맥락을 확보하고 JSON으로 응답한다.
@@ -153,13 +175,25 @@ docs/WIP/에서 이번 작업과 연결된 문서를 처리한다.
 린터 에러·TODO/FIXME·WIP 잔여물·`--no-verify` 같은 명백한 문제는 Agent 호출
 없이 걸러낸다.
 
+**stdout 캡처 필수**: pre-check은 stderr에 사용자용 메시지를, **stdout에
+review 전달용 요약 4줄**을 출력한다. Bash tool로 실행 시 stdout을 스킬
+컨텍스트에 보관해 Step 7 review prompt에 그대로 주입한다.
+
 ```bash
 bash .claude/scripts/pre-commit-check.sh
 ```
 
+stdout 출력 형식 (key: value):
+```
+pre_check_passed: true|false
+already_verified: lint todo_fixme test_location wip_cleanup
+risk_factors: <세미콜론 구분 위험 요인 목록 또는 빈 값>
+diff_stats: files=N,+A,-D
+```
+
 - **exit 2 (차단)**: stderr 메시지를 사용자에게 전달. 문제 수정 후
   스테이징(Step 4)부터 재시도. 리뷰 단계로 진행하지 마라.
-- **exit 0 (통과)**: 6단계로 진행.
+- **exit 0 (통과)**: stdout 4줄을 보관하고 6단계로 진행.
 
 > 이 검사는 7단계 `git commit` 시에도 PreToolUse hook으로 자동 재실행된다
 > (최후 안전망). 5단계에서 미리 수동 실행하는 이유는 **리뷰 Agent 호출 비용을

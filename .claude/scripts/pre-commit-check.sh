@@ -1,6 +1,14 @@
 #!/bin/bash
 # 커밋 전 검사. 실패하면 exit 2로 커밋 차단.
+#
+# 출력 채널 분리:
+# - stderr: 사용자 노출용 에러/경고 메시지
+# - stdout: commit 스킬이 review 에이전트에 전달할 요약 (key: value 라인)
 ERRORS=0
+
+# review 전달용 요약 누적 변수 (stdout으로 마지막에 출력)
+ALREADY_VERIFIED="lint todo_fixme test_location wip_cleanup"
+RISK_FACTORS_SUMMARY=""
 
 # 1. TODO/FIXME/HACK 검사 (staged 파일만)
 # 제외: docs/, *.md, README/CHANGELOG (문서는 키워드 언급 정당)
@@ -131,6 +139,8 @@ if [ "$HARNESS_LEVEL" = "light" ]; then
     echo "⚡ 위험도 감지 — 리뷰 에이전트가 자동 실행됩니다:" >&2
     echo -e "$RISK_REASONS" >&2
     echo "" >&2
+    # review 전달용: 한 줄로 압축 (개행 → '; ')
+    RISK_FACTORS_SUMMARY=$(echo -e "$RISK_REASONS" | sed 's/^[[:space:]]*-[[:space:]]*//' | grep -v '^$' | paste -sd';' -)
   fi
 fi
 
@@ -178,12 +188,36 @@ if [ "$SKIP_REPEAT" = "0" ]; then
     echo "" >&2
     echo "⚠️  같은 파일 ${REPEAT_WARN}회 반복 수정 감지. 근본 원인 미해결 의심:" >&2
     echo -e "$REPEAT_WARN_HIT" >&2
+    # review 전달: 연속 수정 경고도 risk factor로 합침
+    REPEAT_SUMMARY=$(echo -e "$REPEAT_WARN_HIT" | sed 's/^[[:space:]]*-[[:space:]]*//' | grep -v '^$' | paste -sd',' -)
+    if [ -n "$RISK_FACTORS_SUMMARY" ]; then
+      RISK_FACTORS_SUMMARY="${RISK_FACTORS_SUMMARY};연속 수정: ${REPEAT_SUMMARY}"
+    else
+      RISK_FACTORS_SUMMARY="연속 수정: ${REPEAT_SUMMARY}"
+    fi
   fi
 fi
+
+# diff 통계 (review 전달용)
+DIFF_STATS=$(git diff --cached --numstat 2>/dev/null | awk '
+  { files++; added+=$1; deleted+=$2 }
+  END { printf "files=%d,+%d,-%d", files+0, added+0, deleted+0 }
+')
 
 # 결과
 if [ $ERRORS -gt 0 ]; then
   echo "" >&2
   echo "🚫 커밋 차단. 위 문제를 해결하라." >&2
+  # 차단 시에도 stdout 요약 출력 (디버깅·로그용). exit 2 후 commit 스킬은 무시.
+  echo "pre_check_passed: false"
+  echo "already_verified: ${ALREADY_VERIFIED}"
+  echo "risk_factors: ${RISK_FACTORS_SUMMARY}"
+  echo "diff_stats: ${DIFF_STATS}"
   exit 2
 fi
+
+# 통과 시 stdout 요약 (commit 스킬이 캡처해서 review prompt에 주입)
+echo "pre_check_passed: true"
+echo "already_verified: ${ALREADY_VERIFIED}"
+echo "risk_factors: ${RISK_FACTORS_SUMMARY}"
+echo "diff_stats: ${DIFF_STATS}"

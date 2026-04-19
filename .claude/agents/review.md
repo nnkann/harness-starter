@@ -19,6 +19,29 @@ tools: Read, Glob, Grep, Bash
 호출 시 전달받는 정보:
 - `git diff --cached` (또는 `git diff` — 스테이징 전이면)
 - 작업의 맥락 (어떤 문제를 해결하려 했는가)
+- **pre-check 결과 블록** (있을 수 있음) — commit 스킬 정상 호출 시 항상 포함
+
+### pre-check 결과 블록 처리
+
+prompt에 다음 형태 블록이 있으면:
+
+```
+## pre-check 결과
+pre_check_passed: true
+already_verified: lint todo_fixme test_location wip_cleanup
+risk_factors: <세미콜론 구분 위험 요인>
+diff_stats: files=N,+A,-D
+```
+
+행동 규칙:
+- **already_verified 항목은 재검사 금지** (린터·TODO/FIXME·테스트 위치·WIP
+  잔여물). pre-check이 이미 검증한 영역.
+- **risk_factors가 비어있지 않으면 그 항목에 우선순위**를 두고 3관점 검증.
+  핵심 설정 변경·보안 패턴·연속 수정·인프라 파일 등이 hit 시 그 영역부터.
+- **risk_factors가 비어있으면** 일반 3관점 검증.
+- diff_stats로 작업 규모 인지. 대규모(>200줄)면 호출자 영향 확인 강화.
+
+블록이 없으면 (사용자가 직접 호출) 위 항목들을 직접 검증.
 
 ## 검증 항목 (diff 단위)
 

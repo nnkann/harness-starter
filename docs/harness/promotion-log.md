@@ -68,3 +68,7 @@ created: 2026-04-08
 | 2026-04-19 | rules/no-speculation.md | 신설 | 추측으로 수정 시작 금지. 첫 행동 3원칙(관찰·재현·선행 사례) + review 에이전트가 감지할 패턴 정의. CLAUDE.md 텍스트 규칙으로는 sonnet 추측 방지 불충분 |
 | 2026-04-19 | pre-commit-check.sh | 연속 수정 감지 추가 | 같은 파일 최근 5커밋 중 2회 경고/3회 차단. 증상 완화 반복 차단. [expand] 태그 또는 FORCE_REPEAT=1로 면제 |
 | 2026-04-19 | 버전 | 1.3.2 → 1.4.0 | 새 규칙 2개 신설 (minor) |
+| 2026-04-19 | pre-commit-check.sh | stdout 요약 4줄 출력 | stderr는 사용자용, stdout은 commit 스킬이 캡처해 review prompt에 주입. pre_check_passed/already_verified/risk_factors/diff_stats 4 key |
+| 2026-04-19 | commit 스킬 SKILL.md | Step 5 stdout 캡처 + 호출 방법 prompt 예시 갱신 | review가 already_verified 재검사 안 하도록 데이터 경로 명시 |
+| 2026-04-19 | review 에이전트 | "pre-check 결과 블록 처리" 섹션 신설 | already_verified 재검사 금지, risk_factors 우선순위 검증 명시 |
+| 2026-04-19 | 버전 | 1.4.0 → 1.4.1 | commit 성능 최적화 데이터 경로 (patch — 기존 로직 수정) |
