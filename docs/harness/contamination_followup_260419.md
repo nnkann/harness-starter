@@ -5,11 +5,31 @@ tags: [contamination, review, write-doc]
 relates-to:
   - path: ../harness/generic_contamination_protection_260418.md
     rel: extends
-status: pending
+status: completed
 created: 2026-04-19
+updated: 2026-04-19
 ---
 
 # 범용성 오염 방지 후속
+
+## 처리 결과 (2026-04-19, 커밋 b71d295)
+
+하네스 단순화 P0 작업으로 흡수됨:
+- **P2 review 카테고리 추가**: review.md "오염 검토 (harness-starter 한정)"
+  카테고리 신설. 셸 검출(rules/contamination.md)은 한글 형태소·문맥
+  판단 한계로 폐기, LLM이 staged diff로 직접 판단.
+- **신호 신설(S16)**: 폭증 차단 게이트 4질문 미통과 — review 카테고리만으로
+  충분, 별도 신호 불필요. abandoned.
+- **P3 write-doc 확장**: 단순화 원칙 "더 빼기"와 충돌. 사용자 UX 영향 큼
+  + pre-check 검출 자체가 폐기됐으므로 진행 의미 없음. abandoned.
+- **정밀화 후속(소문자 검출 등)**: 셸 검출 자체를 폐기했으므로 무효.
+
+잔여: review "오염 검토" 실제 동작 데이터는 단순화 작업 후속 검증의
+일부로 자연 누적.
+
+---
+
+## 원본 (참고)
 
 원본 WIP `harness--generic_contamination_protection_260418.md`의 잔여
 P2/P3 항목.

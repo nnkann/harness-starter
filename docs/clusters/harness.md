@@ -16,6 +16,7 @@
 - [LLM 실수 방지 가드레일](../harness/llm_mistake_guardrails_260418.md) — tags: guardrails, self-correction, reliability, advisor-flow
 - [하네스 범용성 오염 방지](../harness/generic_contamination_protection_260418.md) — tags: harness-starter, contamination, generic
 - [commit·review 단계화](../harness/commit_review_staging_260419.md) — tags: commit, review, performance, staging, cost
+- [범용성 오염 방지 후속 (단순화로 흡수)](../harness/contamination_followup_260419.md) — tags: contamination, review, write-doc
 
 ## 관계 맵
 
