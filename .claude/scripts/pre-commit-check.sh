@@ -427,7 +427,12 @@ HAS_CRITICAL=$(echo ",$DOMAIN_GRADES," | grep -E ',critical,')
 HAS_META=$(echo ",$DOMAIN_GRADES," | grep -E ',meta,')
 
 # 우선순위 순 평가
-if [ -n "$HAS_CRITICAL" ]; then
+# critical 도메인이라도 메타·문서 단독(S5/S6만)이면 deep 강제 안 함.
+# 실제 코드·핵심설정 변경(S7/S2/S8) 또는 마이그레이션(S14) 동반 시에만 deep.
+# (incident: doc-only commit이 deep 호출되어 48k tokens 소모)
+HAS_CODE_OR_CORE=$(echo ",$SIGNALS," | grep -qE ',(S7|S2|S8|S14),' && echo "yes")
+
+if [ -n "$HAS_CRITICAL" ] && [ -n "$HAS_CODE_OR_CORE" ]; then
   RECOMMENDED_STAGE="deep"
 elif [ "$S1_LEVEL" = "line-confirmed" ]; then
   RECOMMENDED_STAGE="deep"
