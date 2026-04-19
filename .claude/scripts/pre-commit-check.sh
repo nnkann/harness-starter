@@ -249,10 +249,29 @@ fi
 # S7. 일반 코드 (S1~S6·S11·S14·S15 어디에도 안 속함)
 # 일단 다른 신호 다 본 뒤 마지막에 결정 (아래)
 
-# S8. 공유 모듈 변경 (export·시그니처 라인 변경 — 셸 한계, 휴리스틱)
-S8_HIT=$(git diff --cached -U0 2>/dev/null | grep -E '^[+-][[:space:]]*(export|public[[:space:]]+(class|function|interface|type|const|let|var)|def[[:space:]]|func[[:space:]])' 2>/dev/null | head -1)
-if [ -n "$S8_HIT" ]; then
-  add_signal "S8"
+# S8. 공유 모듈 변경 — 언어별 시그니처 패턴
+# 라인 시작 부분의 진짜 선언만 잡음 (문자열·주석 안 잡힘)
+# 면제: 테스트 파일 (export 흔하지만 공유 모듈 아님)
+S8_HIT=""
+S8_FILES=$(echo "$STAGED_FILES" | grep -vE '\.(test|spec)\.|/tests?/|/__tests__/' 2>/dev/null)
+if [ -n "$S8_FILES" ]; then
+  # TypeScript/JavaScript: export 선언 (default·named 모두)
+  S8_TS=$(git diff --cached -U0 -- '*.ts' '*.tsx' '*.js' '*.jsx' 2>/dev/null | \
+    grep -E '^[+-]export[[:space:]]+(default[[:space:]]+)?(async[[:space:]]+)?(class|function|interface|type|enum|const|let|var)[[:space:]]+' | head -1)
+  # Python: 모듈 레벨 def·class (들여쓰기 0)
+  S8_PY=$(git diff --cached -U0 -- '*.py' 2>/dev/null | \
+    grep -E '^[+-](async[[:space:]]+)?(def|class)[[:space:]]+[a-zA-Z_]' | head -1)
+  # Go: export 함수·타입 (대문자 시작)
+  S8_GO=$(git diff --cached -U0 -- '*.go' 2>/dev/null | \
+    grep -E '^[+-](func|type|var|const)[[:space:]]+[A-Z][a-zA-Z0-9_]*' | head -1)
+  # Java/C#: public 선언
+  S8_JAVA=$(git diff --cached -U0 -- '*.java' '*.cs' 2>/dev/null | \
+    grep -E '^[+-][[:space:]]*public[[:space:]]+(static[[:space:]]+)?(class|interface|enum|[a-zA-Z<>]+[[:space:]]+[a-zA-Z_])' | head -1)
+
+  if [ -n "$S8_TS" ] || [ -n "$S8_PY" ] || [ -n "$S8_GO" ] || [ -n "$S8_JAVA" ]; then
+    S8_HIT="yes"
+    add_signal "S8"
+  fi
 fi
 
 # S9. 도메인 추출 + 등급 매핑

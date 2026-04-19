@@ -22,6 +22,7 @@
 - [LLM 가드레일 후속 — 허위 후속 감지](../harness/guardrails_followup_260419.md) — tags: guardrails, advisor, review, commit
 - [PreToolUse Bash -n 오탐 차단](../incidents/bash_n_flag_overblock_260419.md) — tags: hook, pre-tool-use, false-positive, bash
 - [하네스 단순화 P0 — 마찰 회수 6단계](../harness/harness_simplification_260419.md) — tags: simplification, friction, rollback, hook-strength
+- [(abandoned) advisor 통합](../archived/advisor_integration_260419.md) — staging 신호와 70% 겹쳐 자체 규칙 위반
 
 ## 관계 맵
 
