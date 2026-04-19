@@ -24,6 +24,7 @@
 - [하네스 단순화 P0 — 마찰 회수 6단계](../harness/harness_simplification_260419.md) — tags: simplification, friction, rollback, hook-strength
 - [(abandoned) advisor 통합](../archived/advisor_integration_260419.md) — staging 신호와 70% 겹쳐 자체 규칙 위반
 - [(abandoned) hook 흐름 감사](../archived/hook_flow_efficiency_260418.md) — 이번 세션 중 의도 80% 자연 달성, 남은 자동화는 단순화와 충돌
+- [staging 잔여 — S8·5커밋 측정·폭증 게이트](../harness/staging_remaining_260419.md) — tags: staging, review, measurement
 
 ## 관계 맵
 
