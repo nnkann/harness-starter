@@ -371,6 +371,243 @@ if [ "$TOTAL_FILES" -gt 0 ] && [ -z "$HAS_META_OR_DOC" ]; then
   add_signal "S7"
 fi
 
+# 8. 범용성 오염 검출 (harness-starter 전용 — rules/contamination.md)
+# is_starter 리포에서만 활성. 다운스트림 고유명사 의심 단어 추출 + 허용어 필터.
+CONTAMINATION_HIT=""
+if [ -f ".claude/HARNESS.json" ] && grep -q '"is_starter":[[:space:]]*true' .claude/HARNESS.json 2>/dev/null; then
+  # 허용어 리스트 (rules/contamination.md의 영문 + 한글 허용어 합집합)
+  # 정규식 회피 위해 단순 단어 리스트 (^단어$ 매칭용)
+  ALLOWLIST=$(cat <<'EOF'
+Claude
+Anthropic
+CLAUDE
+HARNESS
+README
+CHANGELOG
+Bash
+Read
+Glob
+Grep
+Edit
+Write
+Agent
+Task
+TodoWrite
+PreToolUse
+PostToolUse
+SessionStart
+SessionEnd
+Stop
+PostCompact
+UserPromptSubmit
+PreCompact
+Notification
+SubagentStop
+Context7
+WebSearch
+WebFetch
+MCP
+SDK
+Opus
+Sonnet
+Haiku
+TODO
+FIXME
+HACK
+NOTE
+XXX
+BUG
+WIP
+JSON
+YAML
+XML
+HTML
+CSS
+URL
+URI
+API
+CLI
+GUI
+IDE
+HTTP
+HTTPS
+TCP
+UDP
+TLS
+SSL
+DNS
+REST
+GraphQL
+RPC
+SQL
+NoSQL
+OAuth
+JWT
+CSRF
+XSS
+CORS
+CSP
+CVE
+OWASP
+Git
+GitHub
+GitLab
+Docker
+Kubernetes
+Linux
+Windows
+Ubuntu
+Node
+Python
+Java
+Rust
+Ruby
+PHP
+TypeScript
+JavaScript
+React
+Vue
+Angular
+Svelte
+Next
+Nuxt
+Express
+Django
+Flask
+Rails
+PostgreSQL
+MySQL
+MongoDB
+Redis
+SQLite
+Stage
+Signal
+Skill
+Hook
+Matcher
+Tool
+Subagent
+Permission
+Workflow
+Pipeline
+Manifest
+Lock
+Migration
+Frontmatter
+일반
+사용자
+하네스
+스킬
+에이전트
+훅
+락
+매처
+도구
+서브에이전트
+권한
+워크플로
+파이프라인
+매니페스트
+마이그레이션
+프론트매터
+도메인
+메타
+코드
+문서
+파일
+폴더
+경로
+변수
+함수
+클래스
+모듈
+프로젝트
+레포
+리포
+세션
+메시지
+명령
+옵션
+플래그
+버전
+검토
+통합
+적용
+사용
+설정
+실행
+처리
+관리
+수정
+변경
+추가
+제거
+생성
+삭제
+확인
+검증
+필요
+가능
+불가능
+상태
+결과
+입력
+출력
+호출
+응답
+요청
+단계
+방법
+기준
+구조
+설계
+구현
+테스트
+배포
+EOF
+)
+
+  # 면제 파일은 git pathspec exclude로 단일 관리 (rules/contamination.md
+  # "면제 파일" 섹션과 동기화 의무).
+  # 사유:
+  # - docs/incidents/: 사고 기록은 실명이 검색 키
+  # - docs/harness/promotion-log.md: 이력 본문에 메타 단어 자주 등장
+  # - .claude/HARNESS.json: 스키마 단어가 잡힘
+  # - .claude/scripts/, .claude/hooks/: 셸 변수명·heredoc 마커 오탐
+  # - .claude/rules/contamination.md: 허용어 리스트 자체가 잡힘
+  SUSPECT=$(git diff --cached -- \
+    ':(exclude)docs/incidents/**' \
+    ':(exclude)docs/harness/promotion-log.md' \
+    ':(exclude).claude/HARNESS.json' \
+    ':(exclude).claude/scripts/**' \
+    ':(exclude).claude/hooks/**' \
+    ':(exclude).claude/rules/contamination.md' \
+    2>/dev/null | \
+    grep -E '^\+[^+]' | \
+    grep -oE '[A-Z][a-zA-Z0-9]{2,}|[가-힣]{2,}' | \
+    sort -u)
+
+  if [ -n "$SUSPECT" ]; then
+    # 허용어 제외
+    CONTAMINATION_HIT=$(echo "$SUSPECT" | grep -vFx -f <(echo "$ALLOWLIST") | head -10)
+    if [ -n "$CONTAMINATION_HIT" ]; then
+      echo "" >&2
+      echo "⚠️  harness-starter에 고유명사 의심 단어 감지 (rules/contamination.md):" >&2
+      echo "$CONTAMINATION_HIT" | sed 's/^/   - /' >&2
+      echo "" >&2
+      echo "   다운스트림 프로젝트 특유 이름이면 <제품명> 같은 placeholder로 교체." >&2
+      echo "   하네스 도메인 정당 용어면 rules/contamination.md 허용어에 추가." >&2
+      # risk_factors에 합침 (review가 보도록)
+      CONTAM_SUMMARY=$(echo "$CONTAMINATION_HIT" | paste -sd',' -)
+      if [ -n "$RISK_FACTORS_SUMMARY" ]; then
+        RISK_FACTORS_SUMMARY="${RISK_FACTORS_SUMMARY};오염 의심: ${CONTAM_SUMMARY}"
+      else
+        RISK_FACTORS_SUMMARY="오염 의심: ${CONTAM_SUMMARY}"
+      fi
+    fi
+  fi
+fi
+
 # Stage 결정 (1단계: 기본 stage)
 RECOMMENDED_STAGE="standard"  # 안전한 기본값
 

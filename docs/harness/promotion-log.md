@@ -86,3 +86,6 @@ created: 2026-04-08
 | 2026-04-19 | commit 스킬 SKILL.md | Step 4 자동 병합 + Step 7 stage 분기 | 메타 파일 분리 커밋 차단(자동 병합), --quick/--deep 플래그, stage별 행동 명세, git log 추적성 한 줄 자동 포함 |
 | 2026-04-19 | review.md | 신호별 검증 매핑 + Stage 모드 | recommended_stage·signals 처리, 신호↔카테고리 매핑 표 (13개), Stage 1 신규 패스 모드 |
 | 2026-04-19 | 버전 | 1.5.1 → 1.6.0 | review staging 시스템 (minor — 신규 규칙 + 신규 스킬 인터페이스) |
+| 2026-04-19 | rules/contamination.md 신설 | 범용성 오염 방지 P1 | harness-starter 전용 — 다운스트림 고유명사 검출 + 허용어 리스트(영문 90+ / 한글 80+). is_starter 리포에서만 활성. incidents/·scripts/·hooks/·자기 자신 면제. 사용자 판단용 경고 수준 (차단 안 함) |
+| 2026-04-19 | pre-commit-check.sh | contamination 검출 블록 추가 | git diff에서 대문자 시작 3자+/한글 2자+ 추출 후 허용어 필터. risk_factors에 "오염 의심" 합쳐 review가 보도록 |
+| 2026-04-19 | 버전 | 1.6.0 → 1.6.1 | contamination 검출 (patch — 기존 스크립트 확장) |
