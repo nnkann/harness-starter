@@ -49,6 +49,65 @@ fail을 막는다.
 
 ---
 
+## v0.9.1 — rules 다이어트 + harness-upgrade 화이트리스트
+
+### 자동 적용 (스킬이 처리)
+
+- `.claude/rules/*.md` 7개 파일 재구조화 (본문 압축, 포인터 추가). 매 세션
+  시스템 프롬프트 용량 약 15KB 절감.
+- `.claude/skills/harness-upgrade/SKILL.md` — "하네스 파일 범위"에
+  rules가 참조하는 docs/ 화이트리스트 추가. 이후 업그레이드는 이 목록을
+  자동 이식.
+
+### 수동 액션 (다운스트림 필수)
+
+v0.9.1로 처음 업그레이드하는 다운스트림은 **rules가 docs/를 참조하는데 그
+docs/가 존재하지 않는 dead link**가 발생한다. 이전 버전의 harness-upgrade
+가 `docs/guides/*`·`docs/decisions/*`를 "사용자 전용"으로 분류해 전혀
+이식하지 않았기 때문이다.
+
+- [ ] **rules 참조 문서 4개를 다운스트림에 수동 복사**
+
+  ```bash
+  cd <다운스트림 프로젝트>
+
+  # starter 리포에서 직접 복사 (harness-upstream remote 활용)
+  for f in \
+    docs/guides/doc-search-protocol_260420.md \
+    docs/guides/external-research-patterns_260420.md \
+    docs/decisions/staging_governance_260420.md \
+    docs/decisions/rules_metadata_260420.md; do
+    mkdir -p "$(dirname "$f")"
+    MSYS_NO_PATHCONV=1 git show harness-upstream/main:"$f" > "$f"
+  done
+
+  # INDEX.md·clusters/harness.md 수동 갱신 (docs-manager 위임 권장)
+  ```
+
+  복사 후 해당 도메인이 `harness`인지 확인. 다운스트림이 starter 관리
+  문서로 인식하면 업그레이드 때 건드리지 않도록 화이트리스트 자동 보호.
+
+### 검증
+
+```bash
+# rules의 dead link 재확인
+grep -nE "docs/(guides|decisions)/[a-z_-]+_260420\.md" .claude/rules/*.md
+
+# 위 출력의 각 경로가 실제 존재하는지
+ls docs/guides/doc-search-protocol_260420.md \
+   docs/guides/external-research-patterns_260420.md \
+   docs/decisions/staging_governance_260420.md \
+   docs/decisions/rules_metadata_260420.md
+```
+
+### 회귀 위험
+
+- 없음. 본문 축약·포인터 추가만. 행동 로직 변경 없음.
+- 단, 후속 업그레이드에서 rules가 새 docs/ 파일을 참조하면 SKILL.md 화이트
+  리스트에도 등록해야 dead link 재발 안 함. (review 자동 감지는 후속 과제)
+
+---
+
 ## v0.8.0 — review 패턴 매핑 + CPS 복원
 
 ### 자동 적용 (스킬이 처리)

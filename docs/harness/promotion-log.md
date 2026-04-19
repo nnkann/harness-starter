@@ -134,4 +134,7 @@ created: 2026-04-08
 | 2026-04-20 | docs/decisions/rules_metadata_260420 신설 | no-speculation·internal-first·security의 배경·자동 감지 패턴·2026-04-18 사고 참고 통합 보관 |
 | 2026-04-20 | docs/guides/doc-search-protocol_260420 신설 | IDE 컨텍스트 힌트·"없다" 3단계·escalation 절차. doc-finder 에이전트와 메인 Claude가 탐색 시 참조 |
 | 2026-04-20 | 버전 | 0.9.0 → 0.9.1 | rules 재구조화 + docs/ 3개 문서 신설 (patch — 행동 변경 없음, SSOT 이동과 압축) |
+| 2026-04-20 | harness-upgrade 화이트리스트 | rules가 참조하는 `docs/guides/*`·`docs/decisions/*` 파일을 "하네스 파일 범위"에 명시 추가. v0.9.1 다운스트림에서 dead link 발생(rules/docs.md → doc-search-protocol_260420.md)한 실측 증상에 대응. 원칙(guides/decisions는 사용자 전용) 유지 + 화이트리스트 예외 도입 |
+| 2026-04-20 | MIGRATIONS v0.9.1 섹션 추가 | 다운스트림이 rules 참조 문서 4개를 수동 복사하는 절차. 이전 버전 upgrade가 `docs/guides/*`를 이식 안 했기 때문에 v0.9.1에서 dead link가 필연적 발생 |
+| 2026-04-20 | 버전 | 0.9.1 → 0.9.2 | harness-upgrade SKILL 수정 + MIGRATIONS 보강 (patch — dead link 회귀 수정) |
 | 2026-04-19 | 버전 | 1.9.0 → 0.7.0 | **다운그레이드.** 사용자 지적: "수정한거와 실제 내용 꼬라지에 비해 버전이 너무 높다, 오류 투성이가 무슨 1.8.0이 넘냐". 정당함 — 이번 세션만 추측 수정 3회·매처 갈아엎기·12커밋 push 누락. semver 0.x = "공개 API 불안정·실험 단계"가 현재 상태와 정확히 일치. 다운스트림 실측 누적·매처 동작 충분 검증·README 격차 안정화 등이 누적된 후에 1.0.0 검토. |

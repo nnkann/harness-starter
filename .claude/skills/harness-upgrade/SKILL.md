@@ -152,8 +152,20 @@ HARNESS.json에서 `installed_from_ref`를 읽어 diff 모드를 결정한다:
 ```
 .claude/skills .claude/scripts .claude/rules .claude/agents
 .claude/settings.json .claude/HARNESS.json
-CLAUDE.md h-setup.sh docs/harness docs/guides/project_kickoff_sample.md
+CLAUDE.md h-setup.sh docs/harness
+docs/guides/project_kickoff_sample.md
+docs/guides/doc-search-protocol_260420.md       # rules/docs.md가 참조
+docs/guides/external-research-patterns_260420.md # rules/internal-first.md가 참조
+docs/decisions/staging_governance_260420.md     # rules/staging.md가 참조
+docs/decisions/rules_metadata_260420.md         # rules/security·no-speculation·internal-first가 참조
 ```
+
+**rules 참조 목록 (harness 관리 화이트리스트)**: rules/*.md가 `docs/decisions/*` 또는
+`docs/guides/*`를 본문에서 참조하면, 그 대상 파일은 **원칙(사용자 전용)의 예외**로
+starter 관리 대상이 된다. 다운스트림이 파일을 받지 못하면 rules가 dead link가 됨.
+
+규칙 수정 시 새 docs 참조를 추가하면 **반드시 위 범위에 파일명을 추가해야 한다.**
+review 에이전트가 이 정합성을 감지하는 것은 후속 과제.
 
 변경된 파일을 분류한다:
 
@@ -161,7 +173,7 @@ CLAUDE.md h-setup.sh docs/harness docs/guides/project_kickoff_sample.md
 |----------|------|------|
 | 자동 덮어쓰기 | `.claude/scripts/*`, `h-setup.sh` | upstream 그대로 적용 |
 | 3-way merge | `CLAUDE.md`, `.claude/rules/*`, `.claude/skills/*`, 기타 | 대화형 병합 |
-| **사용자 전용 (절대 건드리지 마라)** | `HARNESS.json`, `coding.md`, `naming.md`, **`README.md`**, **`CHANGELOG.md`**, **`.gitignore`**, **`docs/decisions/*`**, **`docs/incidents/*`**, **`docs/WIP/*`**, **`docs/guides/*`** (단 `project_kickoff_sample.md` 제외) | **무조건 건너뜀.** starter 버전이 다운스트림에 없어도 추가 안 함. diff가 있어도 표시만 하고 병합 시도 X. |
+| **사용자 전용 (절대 건드리지 마라)** | `HARNESS.json`, `coding.md`, `naming.md`, **`README.md`**, **`CHANGELOG.md`**, **`.gitignore`**, **`docs/decisions/*`**, **`docs/incidents/*`**, **`docs/WIP/*`**, **`docs/guides/*`** (단 위 "하네스 파일 범위"에 명시된 harness 관리 화이트리스트 제외) | **무조건 건너뜀.** starter 버전이 다운스트림에 없어도 추가 안 함. diff가 있어도 표시만 하고 병합 시도 X. |
 | 신규 | 타겟에 없는 파일 | 추가 제안 (위 사용자 전용 리스트는 제외) |
 | 삭제 | upstream에서 제거된 파일 (three-way만) | 삭제 제안 (위 사용자 전용 리스트는 제외) |
 
