@@ -41,12 +41,21 @@ tools: Read, Glob, Grep, Bash
 
 처리 못 할 영역이면 마지막 줄에 "**escalate to advisor: <이유>**" 명시.
 
-## 호출 전제
+## 입력 계약
 
-호출자가 prompt에 다음을 포함:
-- **분석 대상**: 파일 경로 / 모듈 / 변경 영역
-- **목적**: "테스트 누락 식별" / "회귀 방지 케이스 추천" / "전략 재검토"
-- **맥락**: 어떤 변경·버그·기능인지, 1~3줄
+핸드오프 계약 SSOT는 `.claude/skills/implementation/SKILL.md` "## 핸드오프
+계약" 섹션 상속. 호출자가 prompt에 다음을 포함:
+
+| 축 | 내용 |
+|----|------|
+| Pass (호출자→나) | 분석 대상(파일·모듈·변경 영역) · 목적(누락 식별/회귀 방지/전략 재검토) · 맥락(변경·버그·기능 1~3줄) · pre-check 신호(있으면: `new_func_lines_b64`·`needs_test_strategist`·파일 리스트) |
+| Preserve | 호출자가 넘긴 pre-check 신호 원본. 요약·재가공 금지 |
+| Signal risk | ⛔ 차단급 누락은 출력 "핵심 누락"에 심각도 "차단" · ⚠️ 주의 · 🔍 참고 |
+| Record | 결과는 호출자가 자기 WIP·log에 기록. 나는 문서 생성 안 함 |
+
+commit 스킬이 호출할 때는 `.claude/skills/commit/SKILL.md`의 test-strategist
+호출 블록이 위 계약을 충족. 호출자가 직접 prompt를 조립하는 self-containment
+원칙 준수 (Anthropic Agent Skills 권장).
 
 ## 분석 차원
 

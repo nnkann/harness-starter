@@ -35,6 +35,9 @@
 - [Rules 파일 다이어트 — 분리한 메타·배경·자동 감지 상세](../decisions/rules_metadata_260420.md) — tags: rules, governance, refactor
 - [문서 탐색 프로토콜](../guides/doc-search-protocol_260420.md) — tags: docs, search, doc-finder
 - [하네스 단계간 정보 흐름 누수 전수 조사](../harness/info_flow_leak_audit_260420.md) — tags: audit, information-flow, efficiency, agent-orchestration
+- [implementation 스킬 재정의 — 라우터·추적자로 역할 좁히기](../harness/implementation_router_redesign_260420.md) — tags: implementation, skill, routing, orchestration
+- [스킬·에이전트 역할 분담 감사 — 라우터 패턴 전방위 적용](../decisions/skill_agent_role_audit_260420.md) — tags: skill, agent, routing, orchestration, audit
+- [commit + review 핸드오프 계약 이식 + 중복 제거](../harness/commit_review_handoff_refactor_260420.md) — tags: skill, agent, commit, review, handoff, refactor
 
 ## 관계 맵
 
@@ -49,3 +52,7 @@
 - rules_metadata_260420 --references--> promotion-log
 - doc-search-protocol_260420 --extends--> (rules/docs.md)
 - info_flow_leak_audit_260420 --references--> promotion-log
+- implementation_router_redesign_260420 --references--> info_flow_leak_audit_260420
+- skill_agent_role_audit_260420 --extends--> implementation_router_redesign_260420
+- commit_review_handoff_refactor_260420 --implements--> skill_agent_role_audit_260420
+- commit_review_handoff_refactor_260420 --extends--> implementation_router_redesign_260420

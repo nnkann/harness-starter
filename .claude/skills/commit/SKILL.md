@@ -8,6 +8,45 @@ description: 작업 잔여물 정리, 계획 문서 완료 처리, 변경 사항
 커밋 과정에서 작업 잔여물을 정리하고, 계획 문서를 완료 처리하며,
 작업 중 얻은 컨텍스트를 Git 히스토리에 보존한다.
 
+## 고유 책임 (이 스킬만 하는 것)
+
+1. 모드·플래그 결정 (light/strict/--quick/--deep/--no-review)
+2. 작업 잔여물 정리 (WIP completed 이동·INDEX/clusters 갱신 트리거)
+3. pre-check 호출 + 결과 해석 (차단·재시도 판정)
+4. review·test-strategist 호출 조립 (호출자 self-containment 유지)
+5. 커밋 메시지 작성 + git log 추적성 라인 기록
+6. push 실행
+
+## 위임 대상 (여기서 하지 않는 것)
+
+| 영역 | 위임 |
+|------|------|
+| diff 단위 회귀·계약·스코프 검증 | review |
+| 테스트 누락·전략 | test-strategist |
+| 문서 이동·INDEX/clusters 정합성 실행 | docs-manager |
+| 누적 드리프트·전체 코드베이스 분석 | eval |
+| 시크릿 1차 차단 | `.claude/scripts/pre-commit-check.sh` + gitleaks |
+
+## 핸드오프 계약 (상속)
+
+핸드오프 계약 SSOT는 `.claude/skills/implementation/SKILL.md` "## 핸드오프
+계약" 섹션 상속. commit 축 구체화:
+
+| 축 | 내용 |
+|----|------|
+| Pass (implementation→나) | WIP 파일 경로 · status · CPS 갱신 여부 |
+| Pass (pre-check→나) | `signals` · `recommended_stage` · `s1_level` · `needs_test_strategist` · `new_func_lines_b64` (스키마 SSOT는 `pre-commit-check.sh`) |
+| Pass (나→review) | 아래 "review 호출" 섹션이 이 Pass 블록을 조립한다 (self-containment) |
+| Pass (나→test-strategist) | 아래 "test-strategist 호출" 섹션이 조립. 입력 계약은 `.claude/agents/test-strategist.md` "## 입력 계약" 참조 |
+| Preserve | pre-check signals·stage·domains 원본 (재계산·재가공 금지) · 사용자 플래그(--light/--strict/--no-review/--quick/--deep) |
+| Signal risk | ⛔ pre-check 3회 연속 차단·시크릿 line-confirmed · ⚠️ stage 격상 사유·위험도 게이트 hit · 🔍 검증 흔적 |
+| Record | commit log `🔍 review: <stage> \| signals: <...> \| domains: <...>` 한 줄 (Stage 0 포함, `staging.md` 규정) |
+
+**self-containment 원칙**: commit은 호출자로서 스스로 prompt를 조립한다.
+review.md·test-strategist.md는 입력 계약(무엇을 받는가)만 보유하며, commit이
+그 계약을 내재화된 템플릿으로 충족한다. 호출자가 피호출자 파일을 Read해야
+prompt를 조립할 수 있다면 설계 오류 (Anthropic Agent Skills 권장).
+
 | 사용법 | 설명 |
 |--------|------|
 | `/commit` | CLAUDE.md `## 환경`의 `하네스 강도`에 따라 자동 선택. |
@@ -61,13 +100,28 @@ v1.4.1 커밋에서 review가 직전 커밋 diff를 잘못 분석).
 
 스킬이 Bash로 직접 실행해서 결과를 prompt에 삽입한다:
 
+**입력 크기 분기 기준 (단계별 — 이 규칙을 따른다):**
+
+| diff 크기 | 전달 방식 | 근거 |
+|-----------|-----------|------|
+| 0~2000줄 | 전체 인라인 | review가 패턴 감지에 전체 컨텍스트 필요 |
+| 2001~5000줄 | stat 요약 + 첫 2000줄 + `... (truncated)` | 패턴 검증은 앞부분 + stat으로 충분 |
+| 5001줄+ | stat만 + "파일별 Read 지시" | 전체는 토큰 과소비. review가 필요 시 개별 Read |
+
 ```bash
 # 1. diff 캡처 (스킬이 직접 실행)
 DIFF=$(git diff --cached)
 
-# 2. 크기 가드: 너무 크면 stat + head로 축약
+# 2. 크기 가드: 단계별 축약
 DIFF_SIZE=$(echo "$DIFF" | wc -l)
-if [ "$DIFF_SIZE" -gt 2000 ]; then
+if [ "$DIFF_SIZE" -gt 5000 ]; then
+  # 과대 입력 — stat만, 개별 Read 지시
+  DIFF_BLOCK="diff 매우 큼 ($DIFF_SIZE 라인). stat만 포함:
+$(git diff --cached --stat)
+---
+(본문 생략. 파일별 Read로 맥락 확인 필요 — git diff --cached -- <파일>)"
+elif [ "$DIFF_SIZE" -gt 2000 ]; then
+  # 큰 입력 — stat + 앞부분
   DIFF_BLOCK="diff 너무 큼 ($DIFF_SIZE 라인). stat과 처음 2000라인만 포함:
 $(git diff --cached --stat)
 ---
@@ -194,18 +248,23 @@ index abc..def 100644
 
 위 risk_factors에 우선순위를 두고 3관점(회귀/계약/스코프) 검증하라.
 already_verified 항목은 재검사 마라.
-JSON 반환: {"ok": bool, "block": bool, "warnings": []}
+반환 형식은 review.md "## 출력 형식" SSOT를 따른다 (markdown + verdict 헤더).
 ```
 
 review 에이전트는 prompt 안의 diff를 진실로 삼고, Read/Glob/Grep으로 파일
-본문 맥락만 확인한 뒤 JSON으로 응답한다. **`git diff`/`git log`/`git show`
+본문 맥락만 확인한 뒤 markdown으로 응답한다. **`git diff`/`git log`/`git show`
 같은 staged-diff 우회 명령은 실행하지 않는다.**
 
-### 응답 처리
+### 응답 처리 (review.md SSOT 출력 파싱)
 
-- `block: true` → 커밋 차단. 사용자에게 사유 전달, 수정 후 재시도.
-- `block: false, warnings: [...]` → 경고 표시 후 진행. 커밋 메시지 본문에 경고 요약 포함 권장.
-- `ok: true, warnings 없음` → 그대로 진행.
+review의 첫 줄 `verdict:` 값으로 분기:
+
+- `verdict: block` → 커밋 차단. [차단] 섹션을 사용자에게 전달, 수정 후 재시도.
+- `verdict: warn` → 경고 표시 후 진행. [주의] 섹션을 커밋 메시지 본문에 요약 포함.
+- `verdict: pass` → 그대로 진행.
+
+**verdict 누락 시**: review가 규격 미준수. 재호출 또는 사용자 확인 요청.
+임의 해석 금지.
 
 ### 투명성
 
@@ -441,20 +500,13 @@ Agent tool call #1:
 Agent tool call #2:
   subagent_type: "test-strategist"
   prompt:
-    ## 분석 대상
-    <pre-check stdout test_targets 콤마 분리 파일 목록>
-
-    ## 감지된 새 함수/클래스/메소드 라인
-    <pre-check stdout new_func_lines_b64를 base64 -d 디코드한 결과>
-    (비어 있으면 "없음 — 신규 파일 기반 분석")
-
-    ## staged diff
-    <review와 같은 diff 텍스트>
-
-    ## 지시
-    테스트 누락 식별 + 우선순위 권고. 파일·함수별 제안.
-    위 "감지된 새 함수 라인"이 있으면 그 함수 시그니처를 직접 평가 —
-    파일 재Read 불필요.
+    # test-strategist.md "## 입력 계약" 충족. pre-check 필드 매핑:
+    #   분석 대상     ← test_targets (콤마 분리 파일)
+    #   pre-check 신호 ← new_func_lines_b64 (base64 -d 디코드) + needs_test_strategist
+    #   맥락          ← staged diff (review와 같은 텍스트)
+    #   목적          ← "테스트 누락 식별 + 우선순위 권고"
+    # new_func_lines가 비어 있으면 "신규 파일 기반 분석"으로 명시.
+    # 시그니처 평가 가능하므로 파일 재Read 불필요.
 ```
 
 **정보 흐름 누수 #2 해소** (docs/WIP/harness--info_flow_leak_audit_260420):
@@ -481,9 +533,12 @@ NEW_FUNC_LINES=$(echo "$NEW_FUNC_LINES_B64" | base64 -d 2>/dev/null)
 
 #### 응답 처리
 
-- **차단(`block: true`)**: 커밋 진행하지 말고 사용자에게 사유 전달. 수정 후 재시도.
-- **경고(`warnings`)**: 진행하되 커밋 메시지에 경고 요약 반영.
-- **통과**: 그대로 다음 단계로.
+review의 첫 줄 `verdict:` 값으로 분기 (review.md "## 출력 형식" SSOT):
+
+- **`verdict: block`**: 커밋 진행하지 말고 [차단] 섹션을 사용자에게 전달. 수정 후 재시도.
+- **`verdict: warn`**: 진행하되 [주의] 섹션을 커밋 메시지에 요약 반영.
+- **`verdict: pass`**: 그대로 다음 단계로.
+- **verdict 누락**: review 규격 미준수. 재호출 또는 사용자 확인. 임의 해석 금지.
 
 #### git log 추적성 (모든 stage 공통)
 

@@ -1,2 +1,5 @@
 # Local settings (머신별, 커밋하지 않음)
 .claude/settings.local.json
+
+# review/test-strategist 임시 입력 파일 (commit 스킬이 씀)
+.claude/tmp/

@@ -145,4 +145,11 @@ created: 2026-04-08
 | 2026-04-20 | Phase 2 — docs-manager 호출자 전달 규약 | docs-manager SKILL 상단에 trigger·intent·scope·files·context 5종 필드 규약 신설. commit·harness-upgrade·harness-init·harness-adopt 4개 호출자가 규약 따르도록 수정. 누수 #3·#5·#11 일괄 해소 |
 | 2026-04-20 | WIP 후속 과제 2건 | (a) review 화이트리스트 자동 감지 (rules → docs 참조 시 harness-upgrade SKILL 화이트리스트 등록 여부) (b) implementation 스킬 재정의 (라우터·추적자로 역할 좁히기) |
 | 2026-04-20 | 버전 | 0.9.3 → 0.10.0 | 정보 흐름 규약 도입 (minor — 다운스트림 호출자가 새 규약 따라야 함) |
+| 2026-04-20 | implementation 스킬 라우터 재정의 | TRIGGER/SKIP 재작성(승인 표현 6종 + 연속 작업 재발화), "고유 책임 / 위임 대상" 표 신설, 규모·위험도 분기(Step 0.7), Step 2.5 실행 흐름(라우팅만), 실패·escalate 흐름. 159→245줄 |
+| 2026-04-20 | 핸드오프 계약 SSOT 도입 | implementation/SKILL.md "## 핸드오프 계약 (SSOT)" 섹션이 4축(Pass/Preserve/Signal risk/Record) + 3기호(⛔/⚠️/🔍) 정의. 하류 스킬·에이전트는 상속 |
+| 2026-04-20 | commit·review·test-strategist 계약 상속 | commit/SKILL.md 서두에 "고유 책임/위임 대상" 표 + 핸드오프 계약(상속) 표. review.md "## 경계" 표 신설(eval 위임 SSOT) + 핸드오프 계약 표. test-strategist.md "호출 전제"→"입력 계약" 승격. review 반복 "→ /eval" 위임 화살표 10건 제거 |
+| 2026-04-20 | commit L419-476 부분 압축 | test-strategist prompt 본문 17줄→9줄, test-strategist.md "## 입력 계약" 참조로 대체. self-containment 원칙 유지(L56-162 호출 규약은 commit 고유 실행 로직이라 포인터화 취소 — advisor 판정) |
+| 2026-04-20 | 버전 | 0.10.0 → 0.11.0 | 스킬·에이전트 구조 변경(minor — 다운스트림이 자기 커스텀 스킬에 핸드오프 계약 표를 박아야 함) |
+| 2026-04-20 | review 출력 포맷 SSOT 통일 | commit→review 형식 충돌 해소. review.md "## 출력 형식"은 markdown + `verdict: pass\|warn\|block` 첫 줄 필수. commit/SKILL.md는 verdict 값으로 분기(기존 `block: true/false` JSON 파싱 코드 제거). 실측 배경: review 에이전트가 JSON vs markdown 이중 지시로 중간 보고 후 종료(tool_uses 7·11). 10쌍 중 이 1쌍만 충돌 — codebase-analyst 전수 조사 |
+| 2026-04-20 | review 입력 크기 3단계 분기 | 0~2000줄 전체 / 2001~5000줄 stat+head 2000 / 5001줄+ stat만+파일별 Read 지시. 기존 2000줄 단일 가드만 있던 구간을 명문화 |
 | 2026-04-19 | 버전 | 1.9.0 → 0.7.0 | **다운그레이드.** 사용자 지적: "수정한거와 실제 내용 꼬라지에 비해 버전이 너무 높다, 오류 투성이가 무슨 1.8.0이 넘냐". 정당함 — 이번 세션만 추측 수정 3회·매처 갈아엎기·12커밋 push 누락. semver 0.x = "공개 API 불안정·실험 단계"가 현재 상태와 정확히 일치. 다운스트림 실측 누적·매처 동작 충분 검증·README 격차 안정화 등이 누적된 후에 1.0.0 검토. |
