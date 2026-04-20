@@ -38,6 +38,8 @@
 - [implementation 스킬 재정의 — 라우터·추적자로 역할 좁히기](../harness/implementation_router_redesign_260420.md) — tags: implementation, skill, routing, orchestration
 - [스킬·에이전트 역할 분담 감사 — 라우터 패턴 전방위 적용](../decisions/skill_agent_role_audit_260420.md) — tags: skill, agent, routing, orchestration, audit
 - [commit + review 핸드오프 계약 이식 + 중복 제거](../harness/commit_review_handoff_refactor_260420.md) — tags: skill, agent, commit, review, handoff, refactor
+- [eval 4관점 advisor 이관 + specialist 품질 보강](../harness/eval_advisor_migration_with_quality_uplift_260420.md) — tags: eval, advisor, specialist, threat-analyst, quality, scoring
+- [advisor 전면 재설계 — 의사결정 프레임 라이브러리 + 판단 경로 명시](../harness/advisor_decision_framework_redesign_260420.md) — tags: advisor, decision-framework, orchestration, judgment
 
 ## 관계 맵
 
@@ -56,3 +58,7 @@
 - skill_agent_role_audit_260420 --extends--> implementation_router_redesign_260420
 - commit_review_handoff_refactor_260420 --implements--> skill_agent_role_audit_260420
 - commit_review_handoff_refactor_260420 --extends--> implementation_router_redesign_260420
+- eval_advisor_migration_with_quality_uplift_260420 --implements--> skill_agent_role_audit_260420
+- eval_advisor_migration_with_quality_uplift_260420 --extends--> implementation_router_redesign_260420
+- advisor_decision_framework_redesign_260420 --extends--> eval_advisor_migration_with_quality_uplift_260420
+- advisor_decision_framework_redesign_260420 --extends--> implementation_router_redesign_260420
