@@ -49,6 +49,37 @@ fail을 막는다.
 
 ---
 
+## v0.9.3 — stage 격상 면제 버그 수정
+
+### 자동 적용 (스킬이 처리)
+
+- `.claude/scripts/pre-commit-check.sh` — 2단계 격상(MULTI_DOMAIN + critical → deep)에
+  IS_DOC_ONLY 면제 추가. S5/S6 단독(코드/핵심설정/마이그레이션/빌드 미동반)은
+  multi-domain critical이어도 deep 격상 안 함.
+- `.claude/rules/staging.md` — 룰 A에 면제 ※ 명시.
+
+### 수동 액션
+
+없음.
+
+### 검증
+
+다운스트림에서 doc-only commit이 multi-domain critical 환경에서도 적절히 분류되는지:
+
+```bash
+# 더미: docs/만 변경된 staged 상태에서
+bash .claude/scripts/pre-commit-check.sh | grep recommended_stage
+# 기대: skip 또는 micro (이전엔 deep으로 격상되곤 함)
+```
+
+### 회귀 위험
+
+- 정상 deep 격상(S7+S9 critical, S6+S7+S9 critical 혼합 등)은 그대로 작동.
+  코드/핵심설정 동반 시 IS_DOC_ONLY="" 이라 면제 미발동.
+- 시뮬레이션 검증: starter 측에서 두 케이스 통과 확인.
+
+---
+
 ## v0.9.1 — rules 다이어트 + harness-upgrade 화이트리스트
 
 ### 자동 적용 (스킬이 처리)

@@ -486,8 +486,17 @@ elif [ "$REPEAT_MAX" = "2" ]; then
   esac
 fi
 
-# A: 다중 도메인 hit + critical 동반이면 이미 deep, 아니면 격상
-if [ "$MULTI_DOMAIN" = "true" ] && [ -n "$HAS_CRITICAL" ]; then
+# A: 다중 도메인 hit + critical 동반이면 격상
+# 단, 메타·문서 단독(S5/S6만, 코드/핵심설정/마이그레이션/빌드 동반 X)은 격상 면제.
+# 룰 0a 정신: 1단계에서 "S6 단독이면 critical 무시"한 결정을 2단계가 짓밟지 못하도록.
+# (incident: c976255 — S6 + S9 critical에서 1단계 micro 결정 → 2단계가 deep 격상)
+IS_DOC_ONLY=""
+if echo ",$SIGNALS," | grep -qE ',(S5|S6),' && \
+   ! echo ",$SIGNALS," | grep -qE ',(S7|S2|S8|S14|S11),'; then
+  IS_DOC_ONLY="yes"
+fi
+
+if [ "$MULTI_DOMAIN" = "true" ] && [ -n "$HAS_CRITICAL" ] && [ -z "$IS_DOC_ONLY" ]; then
   RECOMMENDED_STAGE="deep"
 fi
 

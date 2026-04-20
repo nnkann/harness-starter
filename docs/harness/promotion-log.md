@@ -137,4 +137,7 @@ created: 2026-04-08
 | 2026-04-20 | harness-upgrade 화이트리스트 | rules가 참조하는 `docs/guides/*`·`docs/decisions/*` 파일을 "하네스 파일 범위"에 명시 추가. v0.9.1 다운스트림에서 dead link 발생(rules/docs.md → doc-search-protocol_260420.md)한 실측 증상에 대응. 원칙(guides/decisions는 사용자 전용) 유지 + 화이트리스트 예외 도입 |
 | 2026-04-20 | MIGRATIONS v0.9.1 섹션 추가 | 다운스트림이 rules 참조 문서 4개를 수동 복사하는 절차. 이전 버전 upgrade가 `docs/guides/*`를 이식 안 했기 때문에 v0.9.1에서 dead link가 필연적 발생 |
 | 2026-04-20 | 버전 | 0.9.1 → 0.9.2 | harness-upgrade SKILL 수정 + MIGRATIONS 보강 (patch — dead link 회귀 수정) |
+| 2026-04-20 | pre-commit-check.sh 격상 면제 | 룰 0a("메타·문서 단독은 도메인 등급 무시")가 1단계 stage 결정에서만 적용되고 2단계 격상(MULTI_DOMAIN + critical → deep)이 짓밟던 버그. IS_DOC_ONLY 변수 도입 — S5/S6 단독(코드/핵심설정/마이그레이션/빌드 미동반)이면 격상 면제. 다운스트림 c976255 측정에서 발견 (S6+S9 critical, 자동분류 deep → --quick 오버라이드 필요했음) |
+| 2026-04-20 | staging.md 룰 A에 면제 명시 | "다중 도메인 hit + critical → deep 격상" 룰에 ※ S5/S6 단독은 면제 추가. 룰 0a 의도가 격상 단계까지 일관 |
+| 2026-04-20 | 버전 | 0.9.2 → 0.9.3 | stage 격상 면제 버그 수정 (patch) |
 | 2026-04-19 | 버전 | 1.9.0 → 0.7.0 | **다운그레이드.** 사용자 지적: "수정한거와 실제 내용 꼬라지에 비해 버전이 너무 높다, 오류 투성이가 무슨 1.8.0이 넘냐". 정당함 — 이번 세션만 추측 수정 3회·매처 갈아엎기·12커밋 push 누락. semver 0.x = "공개 API 불안정·실험 단계"가 현재 상태와 정확히 일치. 다운스트림 실측 누적·매처 동작 충분 검증·README 격차 안정화 등이 누적된 후에 1.0.0 검토. |
