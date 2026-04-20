@@ -34,6 +34,7 @@
 - [Review Staging 거버넌스 — 신호 추가 게이트와 알려진 한계](../decisions/staging_governance_260420.md) — tags: staging, review, governance
 - [Rules 파일 다이어트 — 분리한 메타·배경·자동 감지 상세](../decisions/rules_metadata_260420.md) — tags: rules, governance, refactor
 - [문서 탐색 프로토콜](../guides/doc-search-protocol_260420.md) — tags: docs, search, doc-finder
+- [하네스 단계간 정보 흐름 누수 전수 조사](../harness/info_flow_leak_audit_260420.md) — tags: audit, information-flow, efficiency, agent-orchestration
 
 ## 관계 맵
 
@@ -47,3 +48,4 @@
 - staging_governance_260420 --references--> promotion-log
 - rules_metadata_260420 --references--> promotion-log
 - doc-search-protocol_260420 --extends--> (rules/docs.md)
+- info_flow_leak_audit_260420 --references--> promotion-log

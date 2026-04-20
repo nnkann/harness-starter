@@ -5,7 +5,7 @@ tags: [audit, information-flow, efficiency, agent-orchestration]
 relates-to:
   - path: harness/promotion-log.md
     rel: references
-status: in-progress
+status: completed
 created: 2026-04-20
 updated: 2026-04-20
 ---
@@ -14,7 +14,7 @@ updated: 2026-04-20
 
 ## CPS 연결
 
-**Problem**: P2 (review 과잉 비용) 후속 — staging.md 정밀화로 1차
+**Problem**: P2 (review 과잉 비용) 연장선 — staging.md 정밀화로 1차
 대응했으나 누수로 인한 비용 절감 한계 존재. 누수 해소가 구조적 해결책.
 
 **Solution 영향**: 단계간 정보 전달 규약 도입. `## Solutions` 섹션의
@@ -22,7 +22,7 @@ updated: 2026-04-20
 
 **관련 incident**: `docs/incidents/review-agent-wrong-diff_260419.md`
 — review가 prompt 안 staged diff를 신뢰하지 않고 git 명령 부른 사고.
-이번 작업은 그 후속: review가 메타 파일 본문도 prompt에서 받게 만들어
+이번 작업은 그 연장선: review가 메타 파일 본문도 prompt에서 받게 만들어
 외부 Read 동기 자체 제거.
 
 ## 배경
@@ -134,7 +134,7 @@ write-doc·session-start가 직접 알고 있는 WIP 파일 경로를 다음 단
 - CLAUDE.md `## 환경` 파싱 결과가 이후 스킬에 재활용되는지 추적 안 됨.
 - 에이전트 독립성 (패턴 B)과 비용 절감이 충돌. 어느 선이 최적인지는 실측 필요.
 
-## 구현 계획 (후속 작업)
+## 구현 계획
 
 ### Phase 1: P0 두 건 (우선)
 
@@ -159,9 +159,10 @@ write-doc·session-start가 직접 알고 있는 WIP 파일 경로를 다음 단
 5. **harness-upgrade·harness-init·harness-adopt·implementation의 docs-manager
    호출 지점** — 각각 전달 규약 준수하도록 수정
 
-### Phase 3: P2 장기 (선택)
+### Phase 3: 실측 검증
 
-6. 실측 기반 우선순위 재평가. Phase 1~2 후 측정 데이터로 P2 판정.
+6. Phase 1·2 적용 효과를 실측 데이터로 검증.
+   → 별도 WIP `harness--info_flow_leak_phase3_measurement_260420.md`로 분리.
 
 ## Phase 1 구현 결과 (2026-04-20) ✅
 
@@ -196,8 +197,8 @@ write-doc·session-start가 직접 알고 있는 WIP 파일 경로를 다음 단
 - stdout 새 key 출력 OK (현재 staged 없어 빈 값이지만 key는 정상 출력)
 
 ### 다음 (Phase 2·3)
-Phase 2(docs-manager 전달 규약) / Phase 3(실측 검증)은 별도 작업.
-이번 커밋 후 Phase 1 실측 데이터 누적 → 효과 재평가.
+Phase 2(docs-manager 전달 규약) — 본 문서 Phase 2 섹션 참조 (완료).
+Phase 3(실측 검증) — 별도 WIP `harness--info_flow_leak_phase3_measurement_260420.md`로 분리.
 
 ## Phase 2 구현 결과 (2026-04-20) ✅
 
@@ -242,8 +243,8 @@ docs-manager 호출자 전달 규약 도입. 누수 #3·#5·#11 일괄 해소.
 `docs/guides/project_kickoff_harness_starter_260420.md` P2 섹션:
 - **Solution 갱신**: "staging.md 정밀화" 외에 "단계간 정보 흐름 규약 (Phase 1)"
   추가. review·test-strategist·eval 4관점이 prompt 인라인 컨텍스트로 작동.
-- 이번 커밋에서 CPS 문서 직접 갱신은 보류 — P2 승격 상태 업데이트는
-  실측 데이터 확보 후(Phase 3) 수행. CPS 프레임 유지.
+- 이번 커밋에서 CPS 문서 직접 갱신 안 함 — P2 승격 상태 업데이트는
+  Phase 3 실측 데이터 확보 시 별도 처리. CPS 프레임 유지.
 
 ## 성공 지표
 
