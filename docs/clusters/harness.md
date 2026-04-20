@@ -42,6 +42,7 @@
 - [eval 4관점 advisor 이관 + specialist 품질 보강](../harness/eval_advisor_migration_with_quality_uplift_260420.md) — tags: eval, advisor, specialist, threat-analyst, quality, scoring
 - [advisor 전면 재설계 — 의사결정 프레임 라이브러리 + 판단 경로 명시](../harness/advisor_decision_framework_redesign_260420.md) — tags: advisor, decision-framework, orchestration, judgment
 - [코드 SSOT 서더링 감사](../decisions/code_ssot_audit_260420.md) — tags: ssot, audit, code, refactor
+- [archived/promotion-log에 다운스트림 제품명 유출](../incidents/downstream_name_leak_in_archive_260420.md) — tags: contamination, review, archive, downstream-name
 
 ## 관계 맵
 
@@ -66,3 +67,5 @@
 - advisor_decision_framework_redesign_260420 --extends--> implementation_router_redesign_260420
 - code_ssot_audit_260420 --extends--> skill_agent_role_audit_260420
 - code_ssot_audit_260420 --references--> commit_review_handoff_refactor_260420
+- downstream_name_leak_in_archive_260420 --references--> matcher_false_block_and_readme_overwrite_260419
+- downstream_name_leak_in_archive_260420 --extends--> generic_contamination_protection_260418

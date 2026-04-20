@@ -27,7 +27,7 @@
 - `components/` 하위 (client component)
 - 브라우저에서 import되는 공유 모듈
 
-권장: 공용 DB 클라이언트 모듈(`@stagelink/database` 등)의 싱글톤만 사용.
+권장: 공용 DB 클라이언트 모듈(`@<org>/database` 등)의 싱글톤만 사용.
 직접 `createClient(URL, SERVICE_ROLE)` 호출 금지.
 
 ### 3. admin/debug 엔드포인트 production 노출

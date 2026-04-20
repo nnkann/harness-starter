@@ -52,6 +52,16 @@ tags는 기술 분류, **재발 시 사용자가 입에 올릴 단어**는 sympt
 미래의 Claude가 "전에 이런 적 있었나?"의 grep 첫 타겟. write-doc 스킬이
 incident 생성 시 빈 필드면 재질의.
 
+**오염 면제 범위 (좁게 해석)**:
+- `symptom-keywords` **필드 자체만** 다운스트림 고유명사 허용 (검색 키
+  목적).
+- **본문에는 placeholder 사용**: `<제품명>`·`<업체명>`·`<엔티티-ID>` 등.
+  사고 인용이 불가피하면 주석으로 근거 명시.
+- incident 외 폴더(`archived/`·`harness/`·`guides/`·`decisions/`)는 **면제
+  없음**. 다운스트림 실명 노출 시 review가 [주의] 이상으로 지적.
+- 본 리포가 public이면 history 재작성 불가하므로 처음부터 placeholder
+  필수. 관련 incident: `docs/incidents/downstream_name_leak_in_archive_260420.md`.
+
 ## INDEX.md + clusters/
 
 ```

@@ -21,7 +21,7 @@ updated: 2026-04-19
 
 ## 증상 1 — 3-way merge 명령이 `git commit -n` 매처에 오탐 차단
 
-다운스트림(StageLink) v0.7.0 업그레이드 중 다음 명령이 차단됨:
+다운스트림 프로젝트 v0.7.0 업그레이드 중 다음 명령이 차단됨:
 
 ```bash
 TMPDIR=$(mktemp -d)
@@ -130,6 +130,6 @@ PreToolUse:Bash hook error: [echo '❌ git commit -n 금지.' && exit 2]: No std
 
 ## 다운스트림 조치
 
-v0.7.0으로 업그레이드하면 자동 해결. 현재 다운스트림(StageLink)에서
+v0.7.0으로 업그레이드하면 자동 해결. 현재 다운스트림 프로젝트에서
 이미 settings.json + bash-guard.sh 병합 완료. 다음 Bash 명령부터는
 본 오탐 재발 없음 (사용자 보고).
