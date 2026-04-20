@@ -44,6 +44,7 @@
 - [코드 SSOT 서더링 감사](../decisions/code_ssot_audit_260420.md) — tags: ssot, audit, code, refactor
 - [archived/promotion-log에 다운스트림 제품명 유출](../incidents/downstream_name_leak_in_archive_260420.md) — tags: contamination, review, archive, downstream-name
 - [정보 흐름 누수 해소 Phase 3 — 정성 평가 종결](../harness/info_flow_leak_phase3_measurement_260420.md) — tags: audit, information-flow, measurement, phase3
+- [rules → docs 참조 화이트리스트 — 동적 탐색으로 대체](../harness/review_whitelist_autodetect_260420.md) — tags: review, harness-upgrade, whitelist, dead-link, dynamic-resolution
 
 ## 관계 맵
 
@@ -71,3 +72,4 @@
 - downstream_name_leak_in_archive_260420 --references--> matcher_false_block_and_readme_overwrite_260419
 - downstream_name_leak_in_archive_260420 --extends--> generic_contamination_protection_260418
 - info_flow_leak_phase3_measurement_260420 --caused-by--> info_flow_leak_audit_260420
+- review_whitelist_autodetect_260420 --references--> promotion-log
