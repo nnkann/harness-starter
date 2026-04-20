@@ -1,7 +1,7 @@
 # Memory 활용 규칙
 
 "실수를 코드화"의 세션 간 확장 + 세션 내 동적 snapshot 저장소.
-배경: `docs/decisions/memory_redesign_260420.md` (또는 WIP).
+배경: `docs/decisions/memory_redesign_260420.md`.
 
 ## 두 종류의 memory — 경계 엄수
 

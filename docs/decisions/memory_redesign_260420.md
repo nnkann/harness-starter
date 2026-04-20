@@ -7,7 +7,7 @@ relates-to:
     rel: extends
   - path: harness/index_md_removal_260420.md
     rel: extends
-status: in-progress
+status: completed
 created: 2026-04-20
 updated: 2026-04-21
 ---
@@ -163,16 +163,16 @@ fi
 - [x] `.gitignore`에서 `.claude/tmp/` 제거, `.claude/memory/session-*` 추가 ✅
 - [x] `bash-guard.sh`에 `.claude/tmp/` 명령 사용 차단 hook 추가 ✅
 
-### 2. rules/memory.md 재작성
-제약:
-- "실제 Claude 메모리 vs 프로젝트 memory" 경계 명시
-- "git log·promotion-log·CLAUDE.md·rules에 있으면 memory에 저장 금지" 중복 금지 규칙
-- 3트리거만 (세션 시작 읽기 / 사용자 "기억해" / 세션 종료 환기)
-- "현재 세션에서만 유효한 임시 정보 → 저장 금지" 규칙 **삭제** (session-* 파일 여지 확보)
-- 동적 snapshot 3파일 용도·수명 명시
+### 2. rules/memory.md 재작성 ✅ (커밋 1)
+제약 전부 충족:
+- "실제 Claude 메모리 vs 프로젝트 memory" 경계 명시 ✅
+- 중복 금지 규칙 (git log·promotion-log·CLAUDE.md·rules에 있으면 저장 X) ✅
+- 3트리거 (세션 시작 읽기 / "기억해" / 세션 종료 환기) ✅
+- "세션 임시 정보 저장 금지" 규칙 삭제 ✅
+- 동적 snapshot 3파일 용도·수명 명시 ✅
 
-### 3. commit 스킬 Step 5 수정
-제약: **추가 로직 12줄 이하**. 기존 로직 건드리지 않음.
+### 3. commit 스킬 Step 5 수정 ✅ (커밋 2)
+12줄 블록 삽입 완료. 기존 로직 불변.
 
 ```bash
 # Step 5 진입 직후 삽입 (12줄)
@@ -191,11 +191,11 @@ fi
 
 Step 6·7의 `git diff --cached` 호출은 `Read .claude/memory/session-staged-diff.txt`로 교체.
 
-### 4. post-commit 정리
-- git post-commit hook **신설 금지** (사용자 제약: commit 스킬 경유 안 하는 flow 추가 X)
-- **대안**: commit 스킬 "push 이후" 단계에 `rm -f .claude/memory/session-*.txt` 추가 (1줄)
+### 4. post-commit 정리 ✅ (커밋 2)
+commit 스킬 "푸시" 섹션 뒤 "세션 snapshot 정리" 소섹션 신설. `rm -f
+.claude/memory/session-*.txt` 1줄.
 
-### 5. stop-guard.sh 환기 1줄
+### 5. stop-guard.sh 환기 1줄 ✅ (커밋 1)
 ```bash
 # Stop hook 끝에 추가
 if [ -d ".claude/memory" ]; then
@@ -203,12 +203,12 @@ if [ -d ".claude/memory" ]; then
 fi
 ```
 
-### 6. external-experts.md 갱신
-Charles Packer (Letta/MemGPT 창안자) 항목 추가 — researcher 수확. "LLM 에이전트 메모리 아키텍처" 카테고리 신설.
+### 6. external-experts.md 갱신 ✅ (커밋 1)
+"LLM 에이전트 메모리 아키텍처" 카테고리 신설 + Charles Packer 등록.
 
-### 7. 회귀 테스트
-- `test-pre-commit.sh` T20 추가: tree-hash 재사용 시나리오 (같은 staged 2회 실행 → 2번째는 캐시 hit)
-- 성능 측정: session-* 재사용 시 `git diff --cached` 호출이 0회인지 확인
+### 7. 회귀 테스트 ✅ (커밋 2)
+`test-pre-commit.sh` T20 추가 (3 케이스: tree-hash 동일성·민감성·snapshot
+생성). 전체 33/33 PASS. 성능 T19 1321ms (≤2500ms 방어선).
 
 ## 하지 않을 것 (범위 고정)
 

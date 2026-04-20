@@ -437,6 +437,60 @@ else
 fi
 
 # ─────────────────────────────────────────────────
+# T20. tree-hash 캐시 재사용 (memory 재설계 2차, v0.15.0)
+# commit 스킬 Step 5 블록의 동작 검증: 같은 staged 상태에서 두 번째
+# 호출은 저장된 snapshot을 재사용해야 함 (git diff --cached 재호출 0회).
+# ─────────────────────────────────────────────────
+echo "[T20] tree-hash 캐시 재사용"
+reset
+mkdir -p .claude/memory src
+echo "export const foo = 1" > src/foo.ts
+git add src/foo.ts
+
+# 1차: 캐시 miss → 생성
+TREE1=$(git write-tree)
+git diff --cached > .claude/memory/session-staged-diff.txt
+bash .claude/scripts/pre-commit-check.sh > .claude/memory/session-pre-check.txt 2>&1
+echo "$TREE1" > .claude/memory/session-tree-hash.txt
+
+SIZE1=$(wc -c < .claude/memory/session-staged-diff.txt)
+HASH1=$(cat .claude/memory/session-tree-hash.txt)
+
+# 2차: 같은 staged → tree 일치 → 재사용 가능
+TREE2=$(git write-tree)
+if [ "$TREE1" = "$TREE2" ]; then
+  echo "  [PASS] T20.1 동일 staged → tree-hash 일치"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] T20.1 동일 staged인데 tree-hash 불일치 ($TREE1 vs $TREE2)"
+  FAIL=$((FAIL + 1))
+  FAILED_CASES="${FAILED_CASES}\n  - T20.1 tree-hash 동일성"
+fi
+
+# staged 변경 → tree 변경 확인
+echo "export const bar = 2" > src/bar.ts
+git add src/bar.ts
+TREE3=$(git write-tree)
+if [ "$TREE1" != "$TREE3" ]; then
+  echo "  [PASS] T20.2 staged 변경 → tree-hash 변경"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] T20.2 staged 변경됐는데 tree-hash 불변"
+  FAIL=$((FAIL + 1))
+  FAILED_CASES="${FAILED_CASES}\n  - T20.2 tree-hash 민감성"
+fi
+
+# 저장된 snapshot 파일이 모두 비어있지 않음 (write 확인)
+if [ "$SIZE1" -gt 0 ] && [ -s .claude/memory/session-pre-check.txt ] && [ -n "$HASH1" ]; then
+  echo "  [PASS] T20.3 snapshot 3파일 모두 생성"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] T20.3 snapshot 일부 누락 (diff=$SIZE1, hash=$HASH1)"
+  FAIL=$((FAIL + 1))
+  FAILED_CASES="${FAILED_CASES}\n  - T20.3 snapshot 생성"
+fi
+
+# ─────────────────────────────────────────────────
 # 결과
 # ─────────────────────────────────────────────────
 echo ""

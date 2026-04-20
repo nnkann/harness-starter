@@ -46,6 +46,7 @@
 - [정보 흐름 누수 해소 Phase 3 — 정성 평가 종결](../harness/info_flow_leak_phase3_measurement_260420.md) — tags: audit, information-flow, measurement, phase3
 - [rules → docs 참조 화이트리스트 — 동적 탐색으로 대체](../harness/review_whitelist_autodetect_260420.md) — tags: review, harness-upgrade, whitelist, dead-link, dynamic-resolution
 - [docs/INDEX.md 폐기 — 관리 드리프트 SSOT 제거](../harness/index_md_removal_260420.md) — tags: docs, ssot, simplification, index-removal
+- [memory 재설계 — tmp 폐기 + 동적 snapshot + 트리거 3개](../decisions/memory_redesign_260420.md) — tags: memory, snapshot, ssot, simplification, trigger
 
 ## 관계 맵
 
