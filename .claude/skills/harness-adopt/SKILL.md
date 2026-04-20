@@ -375,6 +375,15 @@ updated: 2026-04-10     ← git log에서 추출한 최근 수정 날짜
 - docs/INDEX.md 생성 (도메인별 문서 수 + clusters/ 포인터)
 - docs/clusters/{domain}.md 생성 (문서 목록 + 관계 맵)
 
+호출 시 전달 규약 (누수 #11 해소):
+- `trigger`: "harness-adopt Step 5g — 기존 docs/ 재분류 + 프론트매터 추가 직후"
+- `intent`: `full-refresh` (INDEX·clusters 자체가 없거나 불완전)
+- `scope: full` (기존 프로젝트 docs/ 전수 — 처음 보는 파일 다수)
+- `files`: Step 5e/5f에서 이동·프론트매터 추가한 파일 전체 목록
+  (각 파일에 action·domain·status·moved_from 명시)
+- `context.prior_steps`: "Step 5a~5f에서 docs/ 재분류·프론트매터 일괄 추가
+  완료. docs-manager는 frontmatter 재파싱 없이 바로 INDEX/clusters 신규 생성"
+
 ---
 
 ### Step 6. harness-upstream remote 설정

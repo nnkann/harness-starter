@@ -405,8 +405,12 @@ NEW_CODE_FILES=$(echo "$STAGED_NAME_STATUS" | awk '$1=="A" {print $2}' | \
   grep -vE '\.(test|spec)\.|/tests?/|/__tests__/' | head -5)
 
 # 9b. 새 함수·메소드·클래스 라인 추가 (휴리스틱)
-NEW_FUNC_LINES=$(git diff --cached -U0 2>/dev/null | \
-  grep -E '^\+[[:space:]]*(export[[:space:]]+)?(async[[:space:]]+)?(function|def|class|func)[[:space:]]+[a-zA-Z_]' | head -1)
+# NEW_FUNC_LINES_FULL: 정보 흐름 누수 #2 해소용 — test-strategist prompt에
+# 인라인 박을 함수 추가 줄 전체 (최대 20줄, 길어지면 truncated 표시).
+# 보고서: docs/WIP/harness--info_flow_leak_audit_260420.md
+NEW_FUNC_LINES_FULL=$(git diff --cached -U0 2>/dev/null | \
+  grep -E '^\+[[:space:]]*(export[[:space:]]+)?(async[[:space:]]+)?(function|def|class|func)[[:space:]]+[a-zA-Z_]' | head -20)
+NEW_FUNC_LINES=$(echo "$NEW_FUNC_LINES_FULL" | head -1)  # 호환성: 기존 감지용 (1줄)
 NEW_FUNC_FILES=""
 if [ -n "$NEW_FUNC_LINES" ]; then
   NEW_FUNC_FILES=$(git diff --cached --name-only 2>/dev/null | \
@@ -518,6 +522,9 @@ if [ $ERRORS -gt 0 ]; then
   echo "needs_test_strategist: ${NEEDS_TEST_STRATEGIST}"
   echo "test_targets: ${TEST_TARGETS}"
   echo "s1_level: ${S1_LEVEL}"
+  # new_func_lines_b64: 멀티라인이라 base64 인코딩. commit 스킬이 base64 -d로
+  # 복원해 test-strategist prompt에 인라인 박음 (정보 흐름 누수 #2 해소).
+  echo "new_func_lines_b64: $(printf '%s' "$NEW_FUNC_LINES_FULL" | base64 -w0 2>/dev/null || printf '%s' "$NEW_FUNC_LINES_FULL" | base64 | tr -d '\n')"
   exit 2
 fi
 
@@ -535,3 +542,5 @@ echo "recommended_stage: ${RECOMMENDED_STAGE}"
 echo "needs_test_strategist: ${NEEDS_TEST_STRATEGIST}"
 echo "test_targets: ${TEST_TARGETS}"
 echo "s1_level: ${S1_LEVEL}"
+# 누수 #2 해소 (위 차단 블록과 동일)
+echo "new_func_lines_b64: $(printf '%s' "$NEW_FUNC_LINES_FULL" | base64 -w0 2>/dev/null || printf '%s' "$NEW_FUNC_LINES_FULL" | base64 | tr -d '\n')"

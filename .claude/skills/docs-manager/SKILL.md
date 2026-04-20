@@ -32,9 +32,80 @@ docs/ 폴더의 정합성·구조·관계 맵을 관리한다. Edit/Write 권한
 호출자 스킬(commit, write-doc, harness-init 등)이 내부적으로 호출하는
 경우가 다수다.
 
+## 호출자 전달 규약 (정보 흐름 누수 #3·#5·#11 해소)
+
+호출자는 docs-manager 호출 시 **무엇을·왜·어디서**를 prompt에 명시하라.
+명시하지 않으면 docs-manager가 docs/ 전수 스캔으로 폴백 (느림).
+
+```
+## docs-manager 호출 입력
+trigger: <어떤 시점에·왜 호출했는가>
+   예: "commit 스킬 Step 2.2 — 사용자가 'completed로 이동' 요청"
+       "harness-upgrade Step 9 — Step 4·5에서 docs/ 파일 변경됨"
+       "write-doc Step 6 — 새 문서 생성 직후 INDEX 갱신"
+       "사용자가 '/docs-manager' 직접 실행 — 전체 헬스체크"
+
+intent: validate | update-index | move-document | full-refresh
+   - validate: 프론트매터·관계 맵 정합성만 (수정 없음)
+   - update-index: INDEX/clusters 갱신 (신규·이동된 파일 반영)
+   - move-document: WIP → 대상 폴더 이동 + 후속 갱신
+   - full-refresh: INDEX/clusters 재생성 (최초 또는 대규모 정리)
+
+scope: focused | full
+   - focused: files에 명시된 파일만 처리 (호출자가 무엇을 건드렸는지 안다)
+   - full: docs/ 전수 스캔 (정합성 헬스체크. 호출자가 모르는 변경까지 검사)
+
+files:
+  - <경로>:
+      action: created | updated | moved | deleted
+      domain: <name>     (호출자가 알면 — docs-manager가 frontmatter 재파싱 절약)
+      status: <state>    (호출자가 알면)
+      moved_from: <경로> (action=moved일 때)
+
+context:
+  prior_steps: <이번 호출까지의 호출자 처리 내역>
+     예: "Step 4에서 .claude/rules/* 7개 덮어쓰기 완료, Step 5에서
+          docs/guides/ 3개 신규 이식, INDEX.md는 아직 미갱신"
+  reason_for_scope: <왜 focused 또는 full인지>
+     예: "focused — 변경 파일이 명확. 다른 docs/는 이전 commit에서 이미 검증됨"
+       또는 "full — adopt 후 docs/ 전수 검증 필요. 처음 보는 파일 다수"
+```
+
+### 왜 trigger·intent·context까지 박는가
+
+`scope`/`files`만 있으면 docs-manager가 "무엇을 할지"는 알지만 "왜 지금
+이게 호출됐는지"를 모름. 결과:
+- 검증 우선순위 결정 못 함 (정합성 위반 발견 시 자동 수정할지·보고만 할지)
+- 호출자의 다음 단계 모름 (이번 갱신이 다른 변경의 일부인지·독립인지)
+- 같은 정보를 docs-manager가 frontmatter Read로 재확보 → 누수 재발
+
+`trigger`+`intent`+`context.prior_steps`가 있으면:
+- docs-manager가 호출 맥락을 이해해 적절한 강도로 처리
+- 이미 호출자가 한 일을 재실행 안 함 (예: 호출자가 frontmatter 추가 완료 → docs-manager는 재검증만)
+- 발견한 문제를 호출자의 후속 단계와 연결해 보고
+
+### 호출자별 전형 패턴
+
+| 호출자 | trigger | intent | scope | 비고 |
+|--------|---------|--------|-------|------|
+| commit Step 2 | "WIP 이동 (사용자 명시 요청)" | move-document | focused | WIP 파일 1개 |
+| write-doc Step 6 | "새 문서 생성 직후" | update-index | focused | 방금 만든 파일 1개 |
+| harness-upgrade Step 9 | "Step 4·5에서 docs 규칙 변경" | validate | focused | 변경 파일 N개 |
+| harness-init/adopt 초기 | "최초 INDEX 생성" | full-refresh | full | INDEX·clusters 자체 없음 |
+| 사용자 직접 `/docs-manager` | "사용자 헬스체크 요청" | validate | full | 전수 검사 |
+
+### 폴백
+
+규약을 안 따르면 docs-manager는 자동으로 `scope: full` + `intent: validate`
+폴백하고 호출자에게 경고 1회 출력 (강제 X — 호환성 유지).
+
 ## Step 1. 프론트매터 검증
 
-docs/ 하위 모든 .md 파일(WIP/ 포함)의 프론트매터를 검증한다:
+**처리 범위**: 위 "호출자 전달 규약"의 `scope`로 결정.
+- `scope: focused`: `files`에 나열된 파일만 검증
+- `scope: full`: docs/ 하위 모든 .md 파일(WIP/ 포함) 전수 검증
+
+다음 검증 규칙은 두 모드 공통:
 
 | 필드 | 규칙 |
 |------|------|

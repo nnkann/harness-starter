@@ -140,4 +140,9 @@ created: 2026-04-08
 | 2026-04-20 | pre-commit-check.sh 격상 면제 | 룰 0a("메타·문서 단독은 도메인 등급 무시")가 1단계 stage 결정에서만 적용되고 2단계 격상(MULTI_DOMAIN + critical → deep)이 짓밟던 버그. IS_DOC_ONLY 변수 도입 — S5/S6 단독(코드/핵심설정/마이그레이션/빌드 미동반)이면 격상 면제. 다운스트림 c976255 측정에서 발견 (S6+S9 critical, 자동분류 deep → --quick 오버라이드 필요했음) |
 | 2026-04-20 | staging.md 룰 A에 면제 명시 | "다중 도메인 hit + critical → deep 격상" 룰에 ※ S5/S6 단독은 면제 추가. 룰 0a 의도가 격상 단계까지 일관 |
 | 2026-04-20 | 버전 | 0.9.2 → 0.9.3 | stage 격상 면제 버그 수정 (patch) |
+| 2026-04-20 | 정보 흐름 누수 전수 조사 | 13 스킬·8 에이전트·11 스크립트 감사. 10건 누수 식별 (강 1·중 5·약 4). codebase-analyst 위임 결과를 docs/WIP/harness--info_flow_leak_audit_260420.md에 정리 |
+| 2026-04-20 | Phase 1 — pre-check + commit + eval 누수 해소 | (1) pre-check stdout에 new_func_lines_b64 key 추가 (test-strategist 파일 재Read 방지) (2) commit Step 7에 메타 파일 본문 박기 규정 신설 (HARNESS.json·promotion-log·MIGRATIONS·INDEX 본문 인라인) (3) eval 4관점 에이전트 prompt에 Step 0/1 결과 인라인 주입 명시 |
+| 2026-04-20 | Phase 2 — docs-manager 호출자 전달 규약 | docs-manager SKILL 상단에 trigger·intent·scope·files·context 5종 필드 규약 신설. commit·harness-upgrade·harness-init·harness-adopt 4개 호출자가 규약 따르도록 수정. 누수 #3·#5·#11 일괄 해소 |
+| 2026-04-20 | WIP 후속 과제 2건 | (a) review 화이트리스트 자동 감지 (rules → docs 참조 시 harness-upgrade SKILL 화이트리스트 등록 여부) (b) implementation 스킬 재정의 (라우터·추적자로 역할 좁히기) |
+| 2026-04-20 | 버전 | 0.9.3 → 0.10.0 | 정보 흐름 규약 도입 (minor — 다운스트림 호출자가 새 규약 따라야 함) |
 | 2026-04-19 | 버전 | 1.9.0 → 0.7.0 | **다운그레이드.** 사용자 지적: "수정한거와 실제 내용 꼬라지에 비해 버전이 너무 높다, 오류 투성이가 무슨 1.8.0이 넘냐". 정당함 — 이번 세션만 추측 수정 3회·매처 갈아엎기·12커밋 push 누락. semver 0.x = "공개 API 불안정·실험 단계"가 현재 상태와 정확히 일치. 다운스트림 실측 누적·매처 동작 충분 검증·README 격차 안정화 등이 누적된 후에 1.0.0 검토. |

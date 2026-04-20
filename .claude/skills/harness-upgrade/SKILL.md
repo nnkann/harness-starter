@@ -386,6 +386,16 @@ v0.7.0에서 단일 `bash-guard.sh`로 통합됨 → 구 매처는 찌꺼기.
 - INDEX.md + clusters/ 정합성 확인
 - relates-to 경로 유효성 확인
 
+호출 시 전달 규약 (누수 #3 해소):
+- `trigger`: "harness-upgrade Step 9 — Step 4·5·6에서 docs/ 파일 변경됨"
+- `intent`: `validate` (기본) 또는 `update-index` (Step 5/6에서 신규 파일 이식 시)
+- `scope: focused`, `files`: Step 4·5·6에서 변경/신규/이동된 docs 파일 목록
+  (각 파일에 action·domain·status 명시)
+- `context.prior_steps`: "Step 4 자동 덮어쓰기 N개, Step 5 3-way merge M개,
+  Step 6 신규 이식 K개 완료. 본 Step 9는 정합성 검증·INDEX 갱신만"
+- 업그레이드가 docs/ 규칙 자체를 바꿔 전수 검증이 필요하다고 판단되면
+  `scope: full` + `intent: full-refresh`로 명시 (드문 경우)
+
 문제가 발견되면 사용자에게 보고하고 수정을 제안한다.
 문제가 없으면 "docs/ 정합성 확인 완료"로 넘어간다.
 

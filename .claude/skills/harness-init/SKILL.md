@@ -249,6 +249,14 @@ created: {YYYY-MM-DD}
 - `docs/clusters/{domain}.md` 초기 생성 (도메인별 문서 목록)
 - 첫 번째 엔트리 = project_kickoff 문서
 
+호출 시 전달 규약 (누수 #5 해소):
+- `trigger`: "harness-init Step 7 — CPS 문서 신규 생성 직후 첫 INDEX 구축"
+- `intent`: `full-refresh` (INDEX·clusters 자체가 없으므로 신규 생성)
+- `scope: full` (최초 1회 — 빈 docs/ 구조 생성)
+- `files`: 방금 생성한 project_kickoff 경로 (action: created, domain·status 명시)
+- `context.prior_steps`: "Step 1~6에서 스택·도메인 결정 완료, 본 Step 7에서
+  CPS 문서 생성. 본 호출은 docs/ 초기 골격 구축이 목적"
+
 docs-manager가 docs.md 규칙에 따라 구조를 생성하므로, init 스킬이 INDEX 형식을 직접 알 필요 없다.
 
 이 문서는 프로젝트가 존재하는 한 유지된다. commit 스킬이 이동시키지 않는다. 커밋 시점에는 `status`를 `completed`가 아닌 `in-progress`(또는 장기 유지 시 `living`)로 유지하고, 해당 문서는 **수동으로 `docs/guides/`로 이동**시켜 프로젝트 루트 기록지로 보존한다.
