@@ -6,8 +6,13 @@
 ## 절대 규칙
 - 린터 에러 0인 상태에서만 커밋하라.
 - 새 파일 생성 전 .claude/rules/naming.md를 읽어라.
-- grep 대신 LSP를 우선 사용하라.
 - **worktree를 생성하지 마라.** main에서 직접 작업한다. Agent 호출 시 `isolation: "worktree"` 사용 금지.
+- **Bash tool은 최후 수단이다.** 전용 도구 매핑 — `ls`·`find`→Glob,
+  `cat`·`head`→Read, `grep`→Grep tool. (LSP 가능하면 LSP 우선). Bash는
+  `git`·실제 스크립트 실행·시간 측정·여러 명령 연결(`|`·`&&`·서브쉘)
+  같은 **복합 파이프라인**이 필요할 때만. 단일 명령은 전용 도구. 성능
+  측정·회귀 실행은 1회로 판단 가능하면 1회만 — 3회 루프는 결론이 흔들리는
+  경계 케이스에서만.
 
 ## 환경
 <!-- harness-init 스킬 실행 후 채워진다 -->
