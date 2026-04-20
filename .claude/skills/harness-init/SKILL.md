@@ -245,8 +245,7 @@ created: {YYYY-MM-DD}
 ```
 
 이 문서 생성 직후 **docs-manager 스킬을 호출**하여:
-- `docs/INDEX.md` 초기 생성 (도메인 목록 + clusters/ 포인터)
-- `docs/clusters/{domain}.md` 초기 생성 (도메인별 문서 목록)
+- `docs/clusters/{domain}.md` 초기 생성 (도메인별 문서 목록 — 진입점 SSOT)
 - 첫 번째 엔트리 = project_kickoff 문서
 
 호출 시 전달 규약 (누수 #5 해소):

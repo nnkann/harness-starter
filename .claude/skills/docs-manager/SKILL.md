@@ -1,10 +1,10 @@
 ---
 name: docs-manager
 description: >-
-  docs/ 구조 정합성을 유지하는 스킬. 프론트매터 검증, INDEX.md/clusters
+  docs/ 구조 정합성을 유지하는 스킬. 프론트매터 검증, clusters
   갱신, 관계 맵 정합성 확인, 문서 이동 실행, CPS 문서 갱신을 수행한다.
   TRIGGER when: (1) commit 스킬의 문서 이동 단계,
-  (2) write-doc 스킬이 새 문서 생성 후 INDEX/clusters 갱신,
+  (2) write-doc 스킬이 새 문서 생성 후 clusters 갱신,
   (3) harness-init/adopt가 docs/ 초기 구조 생성,
   (4) harness-upgrade 후 문서 규칙 변경 정합성 검증,
   (5) implementation Step 4(Context 업데이트)에서 CPS 문서 갱신,
@@ -28,7 +28,7 @@ docs/ 폴더의 정합성·구조·관계 맵을 관리한다. Edit/Write 권한
 | `/docs-manager --move <WIP 파일>` | 단일 문서 이동 + 갱신 (WIP → 최종) |
 | `/docs-manager --reopen <최종 파일>` | completed 문서를 WIP로 되돌려 재개 |
 | `/docs-manager --validate` | 프론트매터·관계 맵만 검증 (수정 없음) |
-| `/docs-manager --refresh-index` | INDEX.md/clusters 재생성 |
+| `/docs-manager --refresh-index` | clusters 재생성 |
 
 호출자 스킬(commit, write-doc, harness-init 등)이 내부적으로 호출하는
 경우가 다수다.
@@ -43,14 +43,14 @@ docs/ 폴더의 정합성·구조·관계 맵을 관리한다. Edit/Write 권한
 trigger: <어떤 시점에·왜 호출했는가>
    예: "commit 스킬 Step 2.2 — 사용자가 'completed로 이동' 요청"
        "harness-upgrade Step 9 — Step 4·5에서 docs/ 파일 변경됨"
-       "write-doc Step 6 — 새 문서 생성 직후 INDEX 갱신"
+       "write-doc Step 6 — 새 문서 생성 직후 clusters 갱신"
        "사용자가 '/docs-manager' 직접 실행 — 전체 헬스체크"
 
 intent: validate | update-index | move-document | full-refresh
    - validate: 프론트매터·관계 맵 정합성만 (수정 없음)
-   - update-index: INDEX/clusters 갱신 (신규·이동된 파일 반영)
+   - update-index: clusters 갱신 (신규·이동된 파일 반영)
    - move-document: WIP → 대상 폴더 이동 + 후속 갱신
-   - full-refresh: INDEX/clusters 재생성 (최초 또는 대규모 정리)
+   - full-refresh: clusters 재생성 (최초 또는 대규모 정리)
 
 scope: focused | full
    - focused: files에 명시된 파일만 처리 (호출자가 무엇을 건드렸는지 안다)
@@ -66,7 +66,7 @@ files:
 context:
   prior_steps: <이번 호출까지의 호출자 처리 내역>
      예: "Step 4에서 .claude/rules/* 7개 덮어쓰기 완료, Step 5에서
-          docs/guides/ 3개 신규 이식, INDEX.md는 아직 미갱신"
+          docs/guides/ 3개 신규 이식, clusters는 아직 미갱신"
   reason_for_scope: <왜 focused 또는 full인지>
      예: "focused — 변경 파일이 명확. 다른 docs/는 이전 commit에서 이미 검증됨"
        또는 "full — adopt 후 docs/ 전수 검증 필요. 처음 보는 파일 다수"
@@ -92,7 +92,7 @@ context:
 | commit Step 2 | "WIP 이동 (사용자 명시 요청)" | move-document | focused | WIP 파일 1개 |
 | write-doc Step 6 | "새 문서 생성 직후" | update-index | focused | 방금 만든 파일 1개 |
 | harness-upgrade Step 9 | "Step 4·5에서 docs 규칙 변경" | validate | focused | 변경 파일 N개 |
-| harness-init/adopt 초기 | "최초 INDEX 생성" | full-refresh | full | INDEX·clusters 자체 없음 |
+| harness-init/adopt 초기 | "최초 clusters 생성" | full-refresh | full | clusters 자체 없음 |
 | 사용자 직접 `/docs-manager` | "사용자 헬스체크 요청" | validate | full | 전수 검사 |
 
 ### 폴백
@@ -181,7 +181,6 @@ WIP에서 대상 폴더로 문서를 이동한다:
    - guides/ → decisions/에 근거 문서가 있으면 `implements` 제안
    - 제안이지 강제가 아님. 자명하지 않으면 건너뜀.
 7. clusters/{domain}.md에 추가.
-8. INDEX.md 문서 수 갱신.
 
 ## Step 2.5. 완료 문서 재개 (--reopen 또는 호출자 명시 요청)
 
@@ -197,14 +196,7 @@ SSOT 우선 원칙(`rules/docs.md` "## SSOT 우선 + 분리 판단")에 따라,
 지표로 판단하지 말 것 — 상류 SSOT에 범위·결정 다 있으면 재개 경로를,
 독립 가치·단계 분리 필요 시 새 WIP를 택한다.
 
-## Step 3. INDEX.md 갱신
-
-docs/INDEX.md를 현재 문서 상태에 맞게 갱신한다:
-- 도메인별 문서 수 카운트
-- clusters/ 포인터 확인
-- WIP 문서는 포함하지 않음
-
-## Step 4. clusters/ 갱신
+## Step 3. clusters/ 갱신
 
 docs/clusters/{domain}.md를 갱신한다:
 - 해당 도메인의 모든 문서 목록 (WIP 제외)
@@ -244,7 +236,6 @@ CPS 문서(`docs/guides/project_kickoff_*.md`)를 갱신한다:
   - decisions/foo.md: domain "xyz"가 naming.md에 없음
   - guides/bar.md: relates-to path "old/path.md" 존재하지 않음
 
-✅ INDEX.md: 정상
 ⚠️ clusters/: harness.md에 누락된 문서 1개
   - decisions/harness_improvement_260408.md
 
@@ -261,7 +252,7 @@ CPS 문서(`docs/guides/project_kickoff_*.md`)를 갱신한다:
 갱신됨:
   - 프론트매터: status → completed, updated → 2026-04-19
   - clusters/auth.md: 문서 추가
-  - INDEX.md: auth 도메인 문서 수 갱신
+  - clusters/auth.md: 문서 수 갱신
   - 관계 제안: decisions/old_api_decision.md (supersedes 후보)
 ```
 

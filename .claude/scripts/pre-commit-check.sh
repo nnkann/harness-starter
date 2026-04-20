@@ -187,7 +187,7 @@ fi
 # staging.md S10 신호와 review가 참고. 사용자 가시 메시지는 출력하지 않음.
 # 면제 파일: 버전 범프·이력 갱신처럼 매 커밋마다 같이 변경되는 정상 패턴
 REPEAT_RANGE=5
-REPEAT_EXEMPT_REGEX='^(\.claude/HARNESS\.json|docs/harness/promotion-log\.md|docs/INDEX\.md|docs/clusters/.*\.md)$'
+REPEAT_EXEMPT_REGEX='^(\.claude/HARNESS\.json|docs/harness/promotion-log\.md|docs/clusters/.*\.md)$'
 
 RECENT_FILES=$(git log -${REPEAT_RANGE} --name-only --format= 2>/dev/null | grep -v '^$' | sort)
 REPEAT_WARN_HIT=""
@@ -276,7 +276,7 @@ $(echo "$STAGED_FILES" | awk '
   }
   # 상호 배타 카테고리 (lock > meta > doc 우선순위)
   /^(package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb|uv\.lock|Cargo\.lock|go\.sum|composer\.lock|Gemfile\.lock)$/ { lock++; next }
-  /^(\.claude\/HARNESS\.json|docs\/harness\/promotion-log\.md|docs\/INDEX\.md|docs\/clusters\/.*\.md|\.claude\/memory\/.*\.md|CHANGELOG\.md)$/ { meta++; next }
+  /^(\.claude\/HARNESS\.json|docs\/harness\/promotion-log\.md|docs\/clusters\/.*\.md|\.claude\/memory\/.*\.md|CHANGELOG\.md)$/ { meta++; next }
   /^(docs\/|.*\.md$)/ { doc++; next }
   END {
     printf "%d %d %d %d %d %d %d %d",

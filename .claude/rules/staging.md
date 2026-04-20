@@ -23,7 +23,7 @@
 | S2 | 핵심설정 — `CLAUDE.md`, `.claude/{settings.json,rules,scripts,hooks}`, `Dockerfile*`, `.github/workflows/*` |
 | S3 | 신규 파일만 (전부 `A`) |
 | S4 | lock 파일만 |
-| S5 | 면제 메타만 — `HARNESS.json`, `promotion-log.md`, `INDEX.md`, `clusters/*`, `memory/*`, `CHANGELOG.md` |
+| S5 | 면제 메타만 — `HARNESS.json`, `promotion-log.md`, `clusters/*`, `memory/*`, `CHANGELOG.md` |
 | S6 | 문서만 — `docs/**`, 루트 `*.md` (README/CHANGELOG 제외) |
 | S7 | 일반 코드 (위 어디에도 안 속함) |
 | S8 | 공유 모듈 — export 추가/제거, 공개 시그니처 변경 |
@@ -117,7 +117,7 @@ E. --deep                → 3 강제
 | S3 | 프론트매터·구조·description (신규 패스) |
 | S4 | (단독 검증 X, S7 동반 시 의존성 보안) |
 | S5 | 검증 안 함 |
-| S6 | INDEX/clusters 정합성 + 프론트매터 |
+| S6 | clusters 정합성 + 프론트매터 |
 | S7 | 회귀 + 계약 + 스코프 (3관점) |
 | S8 | 호출자 grep + 시그니처 호환성 |
 | S9 | 해당 도메인의 incidents/decisions 인용 |

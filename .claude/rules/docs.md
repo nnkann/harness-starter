@@ -4,8 +4,7 @@
 
 ```
 docs/
-├── INDEX.md        ← 도메인 목록 + 진입 포인터 (경량)
-├── clusters/       ← 도메인별 상세 인덱스
+├── clusters/       ← 도메인별 인덱스 (SSOT — 진입점)
 ├── WIP/            ← 작업 중. 파일 있으면 할 일 있다.
 ├── decisions/      ← "왜 X를 선택했나?"
 ├── guides/         ← "X를 어떻게 하나?"
@@ -62,16 +61,18 @@ incident 생성 시 빈 필드면 재질의.
 - 본 리포가 public이면 history 재작성 불가하므로 처음부터 placeholder
   필수. 관련 incident: `docs/incidents/downstream_name_leak_in_archive_260420.md`.
 
-## INDEX.md + clusters/
+## clusters/
 
 ```
-탐색: INDEX.md (어떤 도메인?) → clusters/해당.md (어떤 문서?) → 본문 Read
+탐색: clusters/{domain}.md (문서 목록 + 관계 맵) → 본문 Read
 ```
 
-- INDEX.md: 도메인 목록 + 진입 포인터 (경량, 고정 크기)
-- clusters/{domain}.md: 도메인별 문서 목록 + 관계 맵
-- WIP는 INDEX/clusters 미포함 (완료 후 이동 시 추가)
-- commit 스킬이 문서 이동 시 cluster + INDEX 갱신
+- clusters/{domain}.md: 도메인별 문서 목록 + 관계 맵. **진입점 SSOT**.
+- 도메인 목록은 `.claude/rules/naming.md`의 "도메인 목록"이 유일한 SSOT.
+  (INDEX.md는 2026-04-20 폐기 — 도메인 2개 구조에서 진입 포인터 역할이
+  무의미해 관리 드리프트만 발생. 자세한 근거는 `docs/harness/index_md_removal_260420.md`)
+- WIP는 clusters 미포함 (완료 후 이동 시 추가)
+- commit 스킬이 문서 이동 시 clusters만 갱신
 
 ## 문서 탐색
 

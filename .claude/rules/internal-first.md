@@ -8,7 +8,7 @@
 1. **사용자 증언** — "예전엔 됐다"는 말이 있으면 그 시점을 찾기가 **최우선**
 2. **git history** — `git log --all --oneline | grep <키워드>` → 해당 시점
    파일 내용 확인. 작동했던 시점이 있으면 거기서 출발
-3. **docs/** — INDEX.md → clusters/{domain}.md → decisions/incidents/guides
+3. **docs/** — clusters/{domain}.md → decisions/incidents/guides
 4. **rules/** — 관련 규칙·금지 사항이 이미 있는지
 5. **외부** (Context7, 웹 검색, 공식 문서) — 위 4단계가 비었을 때만
 

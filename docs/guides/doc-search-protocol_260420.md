@@ -32,7 +32,7 @@ created: 2026-04-20
 ## 탐색 절차
 
 ```
-1. docs/INDEX.md → 도메인 식별
+1. 도메인 식별 (SSOT: .claude/rules/naming.md "도메인 목록")
 2. clusters/{domain}.md → 문서 목록 + 관계 맵
 3. 관련 문서 본문 Read (보통 1~3개)
 4. relates-to 포인터로 1홉 추가 (필요 시)

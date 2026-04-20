@@ -47,9 +47,8 @@ tools: Read, Glob, Grep
 
 ## 탐색 절차
 
-1. `docs/INDEX.md`를 읽어 도메인 목록과 포인터를 파악한다.
-2. 질문 유형을 판단하고, 관련 도메인을 식별한다.
-3. `docs/clusters/{domain}.md`를 읽어 문서 목록과 관계 맵을 확인한다.
+1. 질문 유형을 판단하고, 관련 도메인을 식별한다 (도메인 목록 SSOT: `.claude/rules/naming.md`).
+2. `docs/clusters/{domain}.md`를 읽어 문서 목록과 관계 맵을 확인한다.
 4. **우선 탐색 폴더**의 관련 문서 본문을 Read한다 (최대 3개).
 5. `relates-to` 포인터를 **관계 타입에 따라** 추적한다:
    - `caused-by` → 원인 문서로 이동 (왜 이런 결정을 했는지)

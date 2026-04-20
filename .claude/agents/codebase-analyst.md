@@ -42,8 +42,7 @@ tools: Read, Glob, Grep, Bash
 2. **git history** — `git log --all --oneline | grep <키워드>` 로
    관련 커밋 찾고, 그 시점의 파일 내용 확인 (`git show`).
 
-3. **docs/ 클러스터** — `docs/INDEX.md` → 관련 도메인의
-   `clusters/{domain}.md` → 본문 Read. 특히:
+3. **docs/ 클러스터** — `docs/clusters/{domain}.md` → 본문 Read. 특히:
    - `decisions/`: 과거 결정과 근거 (선례)
    - `incidents/`: 실패 패턴 (반복 회피)
    - `guides/`: 기존 방법론 (따라야 할 것)

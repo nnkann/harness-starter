@@ -126,9 +126,10 @@ git add docs/decisions/short.md
 # diff_stats에서 added 라인 ≤ 5인지 확인 어려우므로 stage로 검증
 # 위 파일은 8줄이라 skip 안 될 수도. 짧게 다시:
 reset
-echo "한 줄 변경" > docs/INDEX.md
-git add docs/INDEX.md
-run_case "T4.1 INDEX 1줄 변경 → S5 또는 skip" "recommended_stage" "skip" must_match
+mkdir -p docs/clusters
+echo "한 줄 변경" > docs/clusters/harness.md
+git add docs/clusters/harness.md
+run_case "T4.1 clusters 1줄 변경 → S5 또는 skip" "recommended_stage" "skip" must_match
 
 # ─────────────────────────────────────────────────
 # T5. S8 — 테스트 파일 면제
@@ -363,12 +364,12 @@ run_case "T16.3 recommended_stage" "recommended_stage" "standard|micro|deep" mus
 # T17. 교차 — meta + 일반 코드 혼합
 # 기대: S5 안 뜸(meta 단독 아님) · S7 뜸
 # ─────────────────────────────────────────────────
-echo "[T17] 교차 — meta(INDEX) + 코드"
+echo "[T17] 교차 — meta(clusters) + 코드"
 reset
-mkdir -p docs src
-echo "# INDEX" > docs/INDEX.md
+mkdir -p docs/clusters src
+echo "# clusters" > docs/clusters/harness.md
 echo "export const x = 1" > src/foo.ts
-git add docs/INDEX.md src/foo.ts
+git add docs/clusters/harness.md src/foo.ts
 run_case "T17.1 S5 안 뜸" "signals" "S5" must_not_match
 run_case "T17.2 S7 뜸"    "signals" "S7" must_match
 

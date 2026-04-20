@@ -56,7 +56,7 @@ description: 하네스 업그레이드. harness-upstream remote에서 fetch → 
      ```
      ⚠️ adopt가 완료되지 않은 프로젝트입니다.
      upgrade 전에 harness-adopt를 먼저 실행합니다.
-     (문서 재분류, 프론트매터, INDEX/clusters 생성이 필요합니다)
+     (문서 재분류, 프론트매터, clusters 생성이 필요합니다)
      ```
      harness-adopt 스킬을 실행한다. adopt 완료 후 upgrade를 이어서 진행.
 
@@ -402,7 +402,7 @@ v0.7.0에서 단일 `bash-guard.sh`로 통합됨 → 구 매처는 찌꺼기.
 업그레이드로 docs/ 관련 규칙(docs.md, 폴더 구조, 프론트매터 스펙)이 변경되었을 수 있다.
 **docs-manager 스킬을 호출**하여:
 - 프론트매터 검증 (새 필수 필드 추가 등)
-- INDEX.md + clusters/ 정합성 확인
+- clusters/ 정합성 확인
 - relates-to 경로 유효성 확인
 
 호출 시 전달 규약 (누수 #3 해소):

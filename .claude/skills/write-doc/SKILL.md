@@ -56,7 +56,7 @@ description: >-
 
 ### Step 2. 관련 문서 탐색
 
-docs/INDEX.md → clusters/{domain}.md 순으로 탐색하여:
+clusters/{domain}.md 순으로 탐색하여:
 - 같은 주제의 기존 문서가 있는지 확인한다.
 - 있으면 사용자에게 알린다:
   > 관련 문서가 이미 있습니다:
@@ -182,7 +182,6 @@ harness/:
 - WIP에서 대상 폴더로 이동
 - 접두사(`{대상폴더}--`) 제거
 - clusters/{domain}.md에 추가
-- INDEX.md 갱신
 
 ## 규칙
 
