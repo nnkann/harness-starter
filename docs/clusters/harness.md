@@ -26,6 +26,7 @@
 - [하네스 단순화 P0 — 마찰 회수 6단계](../harness/harness_simplification_260419.md) — tags: simplification, friction, rollback, hook-strength
 - [(abandoned) advisor 통합](../archived/advisor_integration_260419.md) — staging 신호와 70% 겹쳐 자체 규칙 위반
 - [(abandoned) hook 흐름 감사](../archived/hook_flow_efficiency_260418.md) — 이번 세션 중 의도 80% 자연 달성, 남은 자동화는 단순화와 충돌
+- [(archived) 승격/강등 이력 2026 Q2 초반](../archived/promotion-log-2026q2-early.md) — promotion-log B+D 압축 전 원본, 2026-04-08~20 구간 152행 보존
 - [staging 잔여 — S8·5커밋 측정·폭증 게이트](../harness/staging_remaining_260419.md) — tags: staging, review, measurement
 - [다운스트림 마이그레이션 가이드](../harness/MIGRATIONS.md) — tags: migration, upgrade, downstream
 - [harness-starter CPS](../guides/project_kickoff_harness_starter_260420.md) — tags: cps, meta, starter
@@ -40,6 +41,7 @@
 - [commit + review 핸드오프 계약 이식 + 중복 제거](../harness/commit_review_handoff_refactor_260420.md) — tags: skill, agent, commit, review, handoff, refactor
 - [eval 4관점 advisor 이관 + specialist 품질 보강](../harness/eval_advisor_migration_with_quality_uplift_260420.md) — tags: eval, advisor, specialist, threat-analyst, quality, scoring
 - [advisor 전면 재설계 — 의사결정 프레임 라이브러리 + 판단 경로 명시](../harness/advisor_decision_framework_redesign_260420.md) — tags: advisor, decision-framework, orchestration, judgment
+- [코드 SSOT 서더링 감사](../decisions/code_ssot_audit_260420.md) — tags: ssot, audit, code, refactor
 
 ## 관계 맵
 
@@ -62,3 +64,5 @@
 - eval_advisor_migration_with_quality_uplift_260420 --extends--> implementation_router_redesign_260420
 - advisor_decision_framework_redesign_260420 --extends--> eval_advisor_migration_with_quality_uplift_260420
 - advisor_decision_framework_redesign_260420 --extends--> implementation_router_redesign_260420
+- code_ssot_audit_260420 --extends--> skill_agent_role_audit_260420
+- code_ssot_audit_260420 --references--> commit_review_handoff_refactor_260420
