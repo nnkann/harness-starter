@@ -43,6 +43,7 @@
 - [advisor 전면 재설계 — 의사결정 프레임 라이브러리 + 판단 경로 명시](../harness/advisor_decision_framework_redesign_260420.md) — tags: advisor, decision-framework, orchestration, judgment
 - [코드 SSOT 서더링 감사](../decisions/code_ssot_audit_260420.md) — tags: ssot, audit, code, refactor
 - [archived/promotion-log에 다운스트림 제품명 유출](../incidents/downstream_name_leak_in_archive_260420.md) — tags: contamination, review, archive, downstream-name
+- [정보 흐름 누수 해소 Phase 3 — 정성 평가 종결](../harness/info_flow_leak_phase3_measurement_260420.md) — tags: audit, information-flow, measurement, phase3
 
 ## 관계 맵
 
@@ -69,3 +70,4 @@
 - code_ssot_audit_260420 --references--> commit_review_handoff_refactor_260420
 - downstream_name_leak_in_archive_260420 --references--> matcher_false_block_and_readme_overwrite_260419
 - downstream_name_leak_in_archive_260420 --extends--> generic_contamination_protection_260418
+- info_flow_leak_phase3_measurement_260420 --caused-by--> info_flow_leak_audit_260420
