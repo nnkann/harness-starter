@@ -30,58 +30,30 @@ fi
 
 # ─────────────────────────────────────────────
 # 검증 1: --no-verify 플래그 (commit/push hook 우회)
+# bash 내장 [[ =~ ]] 사용 — echo|grep 대비 ~10ms 절감 (매 Bash 호출마다)
 # ─────────────────────────────────────────────
-if echo "$COMMAND" | grep -qE '(^|[[:space:]])--no-verify([[:space:]]|$)'; then
+if [[ $COMMAND =~ (^|[[:space:]])--no-verify([[:space:]]|$) ]]; then
   echo "❌ --no-verify 금지 (pre-commit/pre-push hook 우회)." >&2
   exit 2
 fi
 
 # ─────────────────────────────────────────────
 # 검증 2: git commit -n (--no-verify의 short form)
-# 공백 구분 토큰으로 검사 — 단순 substring 아님
-# ─────────────────────────────────────────────
-# git commit으로 시작하는 명령에서 -n 옵션이 인자로 등장하는지.
-#
 # 토큰 분리 주의: eval "TOKENS=($COMMAND)"는 금지 — $COMMAND 안의
 # $(...)나 백틱이 실제 실행되어 hook이 임의 명령 실행 경로가 됨.
-# Claude가 만드는 명령이라도 안전 여유 확보.
-#
-# 정규식으로 quoted 영역을 제외하고 bare -n만 찾는다:
-# - "text -n text" 안의 -n은 제외 (double-quoted)
-# - 'text -n text' 안의 -n도 제외 (single-quoted)
-if echo "$COMMAND" | grep -qE '^[[:space:]]*git[[:space:]]+commit([[:space:]]|$)'; then
-  # quoted 영역 제거 후 -n 토큰 검사
-  # sed로 "..." 와 '...' 내부를 지움 (중첩·이스케이프는 근사치)
+# ─────────────────────────────────────────────
+if [[ $COMMAND =~ ^[[:space:]]*git[[:space:]]+commit([[:space:]]|$) ]]; then
+  # quoted 영역 제거 후 -n 토큰 검사 (sed는 $COMMAND 평가 안전 — 외부 실행 없음)
   UNQUOTED=$(echo "$COMMAND" | sed -E 's/"[^"]*"//g; s/'"'"'[^'"'"']*'"'"'//g')
-  if echo "$UNQUOTED" | grep -qE '(^|[[:space:]])-n([[:space:]]|$)'; then
+  if [[ $UNQUOTED =~ (^|[[:space:]])-n([[:space:]]|$) ]]; then
     echo "❌ git commit -n 금지 (verify 우회). bash -n 같은 다른 -n은 영향 없음." >&2
     exit 2
   fi
 fi
 
-# ─────────────────────────────────────────────
-# 검증 3: git commit 호출 시 pre-commit-check.sh 실행
-# (이전 settings.json의 별도 매처 통합)
-# ─────────────────────────────────────────────
-if echo "$COMMAND" | grep -qE '^[[:space:]]*([^|;&]+[[:space:]]+)?git[[:space:]]+commit([[:space:]]|$)'; then
-  if [ -f ".claude/scripts/pre-commit-check.sh" ]; then
-    # command에서 env var prefix 파싱 — PreToolUse hook은 hook 프로세스에
-    # 전파되지 않으므로 command 문자열에서 직접 추출.
-    # 예: "HARNESS_EXPAND=1 git commit ..." → HARNESS_EXPAND=1 env로 전달
-    #
-    # COMMIT_EDITMSG는 직전 커밋 메시지라 [expand] 태그 우회 불가.
-    # HARNESS_EXPAND=1 prefix가 유일한 정당 우회 경로.
-    EXPAND_PREFIX=""
-    if echo "$COMMAND" | grep -qE '^[[:space:]]*HARNESS_EXPAND=1[[:space:]]'; then
-      EXPAND_PREFIX="HARNESS_EXPAND=1"
-    fi
-
-    HARNESS_EXPAND="${EXPAND_PREFIX#*=}" bash .claude/scripts/pre-commit-check.sh
-    PRE_EXIT=$?
-    if [ "$PRE_EXIT" -ne 0 ]; then
-      exit "$PRE_EXIT"
-    fi
-  fi
-fi
+# pre-commit-check.sh는 commit 스킬이 Step 0(린터)·Step 5(신호)에서 직접
+# 실행. bash-guard가 `git commit`마다 재실행하면 2회 낭비(실측으로 체감
+# 지연 발생). commit 스킬을 경유하지 않는 직접 커밋은 의도적 우회로 보고
+# 허용 — `--no-verify` 차단(검증 2)과 HARNESS_DEV starter 가드만 유지.
 
 exit 0

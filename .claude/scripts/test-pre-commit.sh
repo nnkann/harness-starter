@@ -346,6 +346,96 @@ else
 fi
 
 # ─────────────────────────────────────────────────
+# T16. 교차 카테고리 — lock + doc 혼합 (awk 1패스 분류 정확성)
+# 기대: S4 안 뜸(lock 단독 아님) · S6 안 뜸(doc 단독 아님) · S7 뜸
+# ─────────────────────────────────────────────────
+echo "[T16] 교차 — lock + doc 혼합"
+reset
+echo "{}" > package-lock.json
+mkdir -p docs
+echo "# note" > docs/note.md
+git add package-lock.json docs/note.md
+run_case "T16.1 S4 안 뜸"        "signals" "S4" must_not_match
+run_case "T16.2 S6 안 뜸"        "signals" "S6" must_not_match
+run_case "T16.3 recommended_stage" "recommended_stage" "standard|micro|deep" must_match
+
+# ─────────────────────────────────────────────────
+# T17. 교차 — meta + 일반 코드 혼합
+# 기대: S5 안 뜸(meta 단독 아님) · S7 뜸
+# ─────────────────────────────────────────────────
+echo "[T17] 교차 — meta(INDEX) + 코드"
+reset
+mkdir -p docs src
+echo "# INDEX" > docs/INDEX.md
+echo "export const x = 1" > src/foo.ts
+git add docs/INDEX.md src/foo.ts
+run_case "T17.1 S5 안 뜸" "signals" "S5" must_not_match
+run_case "T17.2 S7 뜸"    "signals" "S7" must_match
+
+# ─────────────────────────────────────────────────
+# T18. 교차 — package.json + 코드 (기존 파일 수정)
+# 기대: S15 뜸. 기존 파일 수정이라 S3(신규만) 배제 + S7 활성.
+# 신규 파일 두 개를 쓰면 S3가 먼저 걸려 S7이 배제되므로
+# 실제 배포 시나리오(기존 코드베이스 수정)를 재현.
+# ─────────────────────────────────────────────────
+echo "[T18] 교차 — package.json + 코드 수정"
+reset
+mkdir -p src
+echo '{"name":"x","version":"0.0.1"}' > package.json
+echo "export const x = 1" > src/bar.ts
+git add package.json src/bar.ts
+HARNESS_DEV=1 git -c commit.gpgsign=false commit -q -m "T18 prep" 2>/dev/null
+# 기존 파일 수정 (신규 아님)
+echo "export const x = 2" > src/bar.ts
+echo '{"name":"x","version":"0.0.2"}' > package.json
+git add src/bar.ts package.json
+run_case "T18.1 S15 뜸" "signals" "S15" must_match
+run_case "T18.2 S7 뜸"  "signals" "S7"  must_match
+# S8(export 수정) + S15 공존 시 stage는 deep 가능 — 정확 값 대신 비-skip만 체크
+run_case "T18.3 stage 실제 계산됨" "recommended_stage" "(standard|deep)" must_match
+
+# ─────────────────────────────────────────────────
+# T19. 성능 — 전체 실행 시간 측정 (회귀 방어선)
+# 최근 최적화 후 ~800ms. 1500ms 넘으면 회귀로 본다.
+# ─────────────────────────────────────────────────
+echo "[T19] 성능 측정 (3회 평균)"
+reset
+# 중간 크기 staged 상태로 측정: 파일 5개 (코드·docs·lock·meta·package)
+mkdir -p src docs .claude
+echo "export const a = 1" > src/a.ts
+echo "export const b = 2" > src/b.ts
+echo "# doc" > docs/x.md
+echo "{}" > package-lock.json
+echo '{"version":"0.0.1"}' > package.json
+git add src/a.ts src/b.ts docs/x.md package-lock.json package.json
+
+# warm-up 1회 (clone 직후 cold git 프로세스 편향 제거)
+bash .claude/scripts/pre-commit-check.sh >/dev/null 2>&1
+
+TOTAL_MS=0
+RUNS=3
+for i in $(seq 1 $RUNS); do
+  start=$(date +%s%N)
+  bash .claude/scripts/pre-commit-check.sh >/dev/null 2>&1
+  end=$(date +%s%N)
+  ms=$(( (end - start) / 1000000 ))
+  TOTAL_MS=$((TOTAL_MS + ms))
+done
+AVG_MS=$((TOTAL_MS / RUNS))
+echo "    평균: ${AVG_MS}ms (${RUNS}회, warm)"
+# 임계값 2500ms: Windows Git Bash + tmp clone repo는 프로젝트 내 실측(~800ms)
+# 보다 2~3배 느림 (fs·process 오버헤드). 2500ms는 "최적화 유지" 방어선.
+# 4000ms 넘으면 명백한 회귀(최적화 전 원본이 2000ms 수준).
+if [ "$AVG_MS" -le 2500 ]; then
+  echo "  [PASS] T19.1 성능 ≤2500ms (${AVG_MS}ms)"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] T19.1 성능 회귀 (${AVG_MS}ms > 2500ms)"
+  FAIL=$((FAIL + 1))
+  FAILED_CASES="${FAILED_CASES}\n  - T19.1 성능 회귀"
+fi
+
+# ─────────────────────────────────────────────────
 # 결과
 # ─────────────────────────────────────────────────
 echo ""

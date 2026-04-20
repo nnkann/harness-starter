@@ -8,18 +8,16 @@ if [ "$uncommitted" -gt 0 ]; then
 fi
 
 # 2. in-progress WIP 문서 확인
+# awk 1회로 모든 WIP 파일의 in-progress 카운트 (파일당 sed+grep → awk)
 if [ -d "docs/WIP" ]; then
-  in_progress=0
-  for f in docs/WIP/*.md; do
-    [ -f "$f" ] || continue
-    # 프론트매터에서 status 읽기 (fallback: 인라인 > status:)
-    s=$(sed -n '/^---$/,/^---$/{ /^status:/{ s/status:[[:space:]]*//; p; q; } }' "$f" 2>/dev/null | tr -d '[:space:]')
-    [ -z "$s" ] && s=$(grep -m1 '^> status:' "$f" 2>/dev/null | sed 's/> status: //' | tr -d ' ')
-    if [ "$s" = "in-progress" ]; then
-      in_progress=$((in_progress + 1))
-    fi
-  done
-  if [ "$in_progress" -gt 0 ]; then
+  in_progress=$(awk '
+    FNR==1 { in_fm=0; fm_done=0; found=0 }
+    /^---$/ { if (in_fm) { in_fm=0; fm_done=1 } else if (!fm_done) in_fm=1; next }
+    in_fm && /^status:[[:space:]]*in-progress/ { count++; found=1; nextfile }
+    fm_done && !found && /^> status:[[:space:]]*in-progress/ { count++; nextfile }
+    END { print count+0 }
+  ' docs/WIP/*.md 2>/dev/null)
+  if [ "${in_progress:-0}" -gt 0 ]; then
     echo "📋 in-progress 작업 ${in_progress}개 남아있음." >&2
   fi
 fi

@@ -28,17 +28,25 @@ if git rev-parse --is-inside-work-tree &>/dev/null; then
 fi
 
 # 2. docs/WIP/ 진행 중 작업 확인
+# awk 1회로 파일 내 frontmatter(status·title) + 인라인 fallback 모두 처리.
+# 기존: 파일당 sed 2회 + grep 2회 (~40ms/파일). 변경: 파일당 awk 1회 (~10ms).
 if [ -d "docs/WIP" ] && [ "$(ls -A docs/WIP 2>/dev/null)" ]; then
   echo ""
   echo "📋 진행 중인 작업:"
   for f in docs/WIP/*.md; do
     [ -f "$f" ] || continue
-    # 프론트매터에서 status 읽기 (fallback: 인라인 > status:)
-    status=$(sed -n '/^---$/,/^---$/{ /^status:/{ s/status:[[:space:]]*//; p; q; } }' "$f" 2>/dev/null)
-    [ -z "$status" ] && status=$(grep -m1 '^> status:' "$f" 2>/dev/null | sed 's/> status: //')
-    # 프론트매터에서 title 읽기 (fallback: 첫 # 제목)
-    title=$(sed -n '/^---$/,/^---$/{ /^title:/{ s/title:[[:space:]]*//; p; q; } }' "$f" 2>/dev/null)
-    [ -z "$title" ] && title=$(grep -m1 '^# ' "$f" 2>/dev/null | sed 's/^# //')
+    # awk: frontmatter 안의 status/title 우선, 없으면 본문 `> status:`·`# `로 fallback
+    line=$(awk '
+      BEGIN { in_fm=0; fm_done=0 }
+      /^---$/ { if (in_fm) { in_fm=0; fm_done=1 } else if (!fm_done) in_fm=1; next }
+      in_fm && /^status:/ { sub(/^status:[[:space:]]*/, ""); status=$0; next }
+      in_fm && /^title:/  { sub(/^title:[[:space:]]*/, "");  title=$0;  next }
+      fm_done && !status && /^> status:/ { sub(/^> status:[[:space:]]*/, ""); status=$0 }
+      fm_done && !title  && /^# / { sub(/^# /, ""); title=$0 }
+      END { printf "%s\t%s", status, title }
+    ' "$f")
+    status="${line%%$'\t'*}"
+    title="${line#*$'\t'}"
     echo "  - [$status] $title ($(basename "$f"))"
   done
 else
@@ -53,17 +61,17 @@ if [ -f ".claude/memory/MEMORY.md" ]; then
   echo "🧠 메모리: ${mem_count}개 항목 로드됨"
 fi
 
-# 4. TODO/FIXME 잔존 확인
-todo_count=$(grep -rn "TODO\|FIXME\|HACK" src/ --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.py" 2>/dev/null | wc -l)
-if [ "$todo_count" -gt 0 ]; then
-  echo ""
-  echo "⚠️ 코드에 TODO/FIXME/HACK $todo_count개 발견. docs/WIP/에 옮겨야 함."
+# 4. TODO/FIXME 잔존 확인 (src/ 있을 때만 — 없으면 grep 자체 스킵)
+if [ -d "src" ]; then
+  todo_count=$(grep -rn "TODO\|FIXME\|HACK" src/ --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.py" 2>/dev/null | wc -l)
+  if [ "$todo_count" -gt 0 ]; then
+    echo ""
+    echo "⚠️ 코드에 TODO/FIXME/HACK $todo_count개 발견. docs/WIP/에 옮겨야 함."
+  fi
 fi
 
-# 5. 좀비 프로세스 확인 (node, python 테스트 서버 등)
-zombie_node=$(pgrep -f "node.*test" 2>/dev/null | wc -l)
-zombie_python=$(pgrep -f "python.*test" 2>/dev/null | wc -l)
-zombie_total=$((zombie_node + zombie_python))
+# 5. 좀비 프로세스 확인 (node·python 테스트 서버) — pgrep 1회로 통합
+zombie_total=$(pgrep -f "(node|python).*test" 2>/dev/null | wc -l)
 if [ "$zombie_total" -gt 0 ]; then
   echo ""
   echo "⚠️ 테스트 관련 좀비 프로세스 ${zombie_total}개 발견."
