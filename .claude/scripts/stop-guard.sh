@@ -22,7 +22,12 @@ if [ -d "docs/WIP" ]; then
   fi
 fi
 
-# 3. 컴팩션 카운터 리셋
+# 3. memory 저장 환기 (강제 아님. /clear 전 사용자 눈으로 판단)
+if [ -d ".claude/memory" ]; then
+  echo "💭 이번 세션에서 memory에 저장할 feedback·project 있나? (/clear 전 확인)" >&2
+fi
+
+# 4. 컴팩션 카운터 리셋
 rm -f .claude/.compact_count
 
 exit 0

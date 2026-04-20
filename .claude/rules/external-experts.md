@@ -66,3 +66,14 @@ researcher 에이전트가 외부 조사 시 참조할 업계 탑 인물 목록.
   - source: https://martinfowler.com/bliki/ArchitectureDecisionRecord.html
   - 신뢰: 최초 식별 (미검증)
   - 마지막 참조: 2026-04-20
+
+### LLM 에이전트 메모리 아키텍처
+
+- Charles Packer (Letta 공동창업자, MemGPT 창안자)
+  - 최근 포지션: MemGPT 논문(2023) 제1저자. UC Berkeley → Letta 창업.
+    Core/Recall/Archival 3계층 메모리·sleep-time compute 정제 패턴 제안.
+    핵심 주장: "LLM의 컨텍스트는 OS의 RAM과 같다 — 외부 메모리와의
+    페이징 전략이 에이전트의 장기 일관성을 결정한다."
+  - source: https://arxiv.org/abs/2310.08560
+  - 신뢰: 최초 식별 (미검증)
+  - 마지막 참조: 2026-04-21

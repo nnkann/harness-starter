@@ -51,6 +51,17 @@ if [[ $COMMAND =~ ^[[:space:]]*git[[:space:]]+commit([[:space:]]|$) ]]; then
   fi
 fi
 
+# ─────────────────────────────────────────────
+# 검증 3: .claude/tmp/ 잔재 재발 방지
+# memory_redesign_260420.md — tmp 개념 폐기. .claude/memory/ 흡수.
+# Claude가 수동 실행으로 잔재 파일 생성하는 경로 차단.
+# ─────────────────────────────────────────────
+if [[ $COMMAND =~ \.claude/tmp/ ]]; then
+  echo "❌ .claude/tmp/ 는 폐기됨. 세션 snapshot은 .claude/memory/session-* 사용." >&2
+  echo "   근거: docs/decisions/memory_redesign_260420.md (또는 WIP)" >&2
+  exit 2
+fi
+
 # pre-commit-check.sh는 commit 스킬이 Step 0(린터)·Step 5(신호)에서 직접
 # 실행. bash-guard가 `git commit`마다 재실행하면 2회 낭비(실측으로 체감
 # 지연 발생). commit 스킬을 경유하지 않는 직접 커밋은 의도적 우회로 보고
