@@ -15,65 +15,29 @@ description: >-
 
 # /advisor 스킬
 
-판단이 어려울 때, advisor 에이전트(PM·판단 엔진, opus)가 specialist 풀에서
-필요한 것만 골라 병렬 호출하고, **의사결정 프레임 라이브러리**로 판단
-경로·충돌 해소·뒤집힐 조건을 명시한다. 단순 조합 기계가 아니다.
+`.claude/agents/advisor.md` 에이전트를 호출하는 얇은 래퍼. 실제 로직
+(Orchestration·프레임 라이브러리·충돌 해소·판단 경로)은 **전부 에이전트
+본문이 SSOT**. 본문 중복 금지.
 
 ## 사용법
 
 | 사용법 | 설명 |
 |--------|------|
-| `/advisor <질문>` | 질문에 대해 적정 specialist 조합으로 검증 |
+| `/advisor <질문>` | 질문을 에이전트에 위임 |
 | `/advisor <계획 또는 접근법>` | 계획의 타당성 검증 |
 
 ## 흐름
 
-이 스킬은 advisor 에이전트(`.claude/agents/advisor.md`)를 호출하는
-얇은 래퍼다. 실제 orchestration·specialist 선정·종합 로직은 에이전트가
-가진다.
-
-### Step 1. 사용자 입력 수신
-
-질문 또는 계획을 받는다. 모호하면 한 줄로 "무엇을 검증할까요?" 질문.
-
-### Step 2. advisor 에이전트 호출
-
-Agent tool로 advisor 에이전트 호출. prompt에 다음 포함:
-- 사용자 질문/계획 원문
-- 맥락 (선행 작업, 관련 파일, 이미 알고 있는 것)
-- 명시적 우선순위 (있으면)
-
-advisor 에이전트가 내부에서:
-- specialist 선정 (scaling rule: 단순 0~1개, 보통 2~3개, 복잡 4~5개)
-- 병렬 호출 (단일 메시지)
-- 결과 종합 → 권고 작성
-
-### Step 3. 사용자 보고
-
-advisor 에이전트의 응답을 그대로 사용자에게 전달. 추가 가공 없음.
-
-## 핵심 원칙
-
-- advisor는 **권고만** 한다. 코드를 수정하지 않는다.
-- 결정은 **사용자가** 내린다.
-- specialist는 **병렬로** 호출된다 (외부 표준).
-- specialist 1개가 실패해도 나머지 결과로 진행한다.
-- **max 1 round of specialist calls** — 같은 사안 재호출 금지.
-
-## TRIGGER/SKIP은 description SSOT
-
-이 스킬을 언제 쓰고 언제 안 쓰는지는 본 파일 frontmatter `description`과
-`.claude/agents/advisor.md` description이 SSOT. 본문에서 재선언 안 함.
+1. 사용자 입력 수신. 모호하면 "무엇을 검증할까요?" 한 줄 질문
+2. Agent tool로 advisor 에이전트 호출. prompt에 사용자 원문 + 맥락 +
+   명시적 우선순위(있으면) 포함
+3. 에이전트 응답을 그대로 사용자에게 전달. 추가 가공 없음
 
 ## 다른 스킬과의 연동
 
-| 스킬·에이전트 | 연동 지점 | 동작 |
-|------|----------|------|
-| implementation | Step 0.5 | "접근법 검증할까요? [Y/n]" → Y 시 advisor 호출 |
-| harness-init | Step 6 | 스택 결정 전 — 직접 researcher 호출이 더 적합한 경우도 |
-| commit | Step 7 | review와 병렬로 advisor 호출 (큰 결정 hit 시) |
-| eval --deep | 2차 검증 | 4 specialist 필수 병렬 (risk/researcher/codebase/threat). advisor.md "예외" 섹션 SSOT |
-
-## 답변
-
-답변은 한국어로.
+| 호출자 | 지점 | 동작 |
+|--------|------|------|
+| implementation | Step 0.5 | "접근법 검증할까요? [Y/n]" → Y 시 호출 |
+| harness-init | Step 6 | 스택 결정 전 — 단일 researcher로 족한 경우 직접 호출 권장 |
+| commit | Step 7 | 큰 결정 hit 시 review와 병렬 |
+| eval --deep | 2차 검증 | 4 specialist 고정 병렬 (advisor.md "예외" 섹션 SSOT) |

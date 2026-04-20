@@ -158,4 +158,8 @@ created: 2026-04-08
 | 2026-04-20 | eval 4관점 advisor 이관 | eval/SKILL.md L317-432(115줄) → advisor 호출 섹션(70줄)으로 대체. 4관점 → 4 specialist 1:1 매핑(risk/researcher/codebase/threat). Step 0/1 결과를 advisor prompt에 인라인 전달(누수 #6 해소 유지). 508 → 458줄 |
 | 2026-04-20 | advisor 판단 엔진 전면 재설계 | 단순 "종합 기계"에서 판단 엔진으로 승격. 6단계 Orchestration + 의사결정 프레임 6개 라이브러리(Weighted Matrix·Pre-mortem·Trade-off·Expected Value·ADR·Reversibility) + 주제별 매핑표 + Specialist 응답 구조 사전 인지표 + 6단계 충돌 해소 tie-breaker + 판단 경로·뒤집힐 조건 필수. 171 → 334줄. researcher 외부 조사 기반(Nygard·Fowler·Larson·Majors·Fournier + Anthropic Lead-Subagent·LLM-as-Judge·Implicit Consensus) |
 | 2026-04-20 | 버전 | 0.11.0 → 0.12.0 | 스킬·에이전트 구조 변경(minor — 다운스트림이 자기 커스텀 스킬에 자가평가 블록 이식·advisor 판단 엔진 호출 패턴 대응 필요) |
+| 2026-04-20 | P0-3 harness-adopt 핸드오프 이식 | harness-adopt/SKILL.md 서두에 "고유 책임 / 위임 대상 / 핸드오프 계약(상속)" 3 섹션 이식. 본문 Step 1~9 변경 없음. 498→542줄. 줄수 감축은 실측 후 재평가로 보류 |
+| 2026-04-20 | P1-1 advisor 스킬 슬림화 | advisor/SKILL.md 79→43줄. "흐름 Step 1~3 나열"·"핵심 원칙 5줄" 제거(에이전트 SSOT 중복). description TRIGGER/SKIP이 SSOT. 감사 목표 ~40줄 달성 |
+| 2026-04-20 | SSOT 우선·분리 판단 원칙 규칙화 | 본 세션에서 "harness-adopt 이식용 WIP를 감사 문서와 중복 생성"한 실수를 규칙으로 코드화. rules/docs.md "## SSOT 우선 + 분리 판단" + "## 완료 문서 재개" 신설(106→143). implementation Step 0.8 신설(WIP 생성 여부 판단을 규모 분기 Step 0.7과 분리. 245→267). docs-manager `--reopen` 모드 + Step 2.5 신설(263→271). 단순 지표(규모 hit) 판단 금지, 분리 필요성은 판단 기준으로 결정 |
+| 2026-04-20 | 버전 | 0.12.0 → 0.13.0 | 워크플로 규칙 추가(minor — 다운스트림이 Step 0.8 분기·rules/docs.md 신규 섹션·docs-manager --reopen 플로우 적용 필요) |
 | 2026-04-19 | 버전 | 1.9.0 → 0.7.0 | **다운그레이드.** 사용자 지적: "수정한거와 실제 내용 꼬라지에 비해 버전이 너무 높다, 오류 투성이가 무슨 1.8.0이 넘냐". 정당함 — 이번 세션만 추측 수정 3회·매처 갈아엎기·12커밋 push 누락. semver 0.x = "공개 API 불안정·실험 단계"가 현재 상태와 정확히 일치. 다운스트림 실측 누적·매처 동작 충분 검증·README 격차 안정화 등이 누적된 후에 1.0.0 검토. |

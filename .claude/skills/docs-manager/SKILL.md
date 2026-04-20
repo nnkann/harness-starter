@@ -25,7 +25,8 @@ docs/ 폴더의 정합성·구조·관계 맵을 관리한다. Edit/Write 권한
 | 사용법 | 설명 |
 |--------|------|
 | `/docs-manager` | 전체 정합성 검증 (검증 모드) |
-| `/docs-manager --move <WIP 파일>` | 단일 문서 이동 + 갱신 |
+| `/docs-manager --move <WIP 파일>` | 단일 문서 이동 + 갱신 (WIP → 최종) |
+| `/docs-manager --reopen <최종 파일>` | completed 문서를 WIP로 되돌려 재개 |
 | `/docs-manager --validate` | 프론트매터·관계 맵만 검증 (수정 없음) |
 | `/docs-manager --refresh-index` | INDEX.md/clusters 재생성 |
 
@@ -178,6 +179,20 @@ WIP에서 대상 폴더로 문서를 이동한다:
    - 제안이지 강제가 아님. 자명하지 않으면 건너뜀.
 7. clusters/{domain}.md에 추가.
 8. INDEX.md 문서 수 갱신.
+
+## Step 2.5. 완료 문서 재개 (--reopen 또는 호출자 명시 요청)
+
+SSOT 우선 원칙(`rules/docs.md` "## SSOT 우선 + 분리 판단")에 따라,
+이미 completed로 이동된 문서에 후속 실행 결과를 기록해야 할 때 새 WIP를
+복제하지 말고 원본을 **되돌린다**:
+
+1. `git mv docs/{폴더}/<파일명>_{YYMMDD}.md docs/WIP/{원래접두사}--<파일명>_{YYMMDD}.md`
+2. 프론트매터 `status: completed` → `in-progress`
+3. 호출자가 후속 실행 → 완료 시 Step 2(이동) 재호출
+
+**판단 규칙**: `rules/docs.md` "## SSOT 우선 + 분리 판단" 기준 적용. 단순
+지표로 판단하지 말 것 — 상류 SSOT에 범위·결정 다 있으면 재개 경로를,
+독립 가치·단계 분리 필요 시 새 WIP를 택한다.
 
 ## Step 3. INDEX.md 갱신
 
