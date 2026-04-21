@@ -49,6 +49,74 @@ fail을 막는다.
 
 ---
 
+## v0.17.0 — review staging 5줄 룰 (경로 기반 이진 판정)
+
+### 자동 적용 (스킬이 처리)
+
+- `.claude/rules/staging.md` — Stage 결정 1단계 전면 대체. 기존 16줄 룰
+  → 경로 기반 **5줄 룰**. 2단계 격상 룰 중 다중 도메인 격상(A) 폐기
+- `.claude/scripts/pre-commit-check.sh` — RECOMMENDED_STAGE 계산 블록
+  (L462~545) 교체. 신호 계산(S1~S15)은 그대로 유지 — review prompt용
+- `.claude/scripts/test-pre-commit.sh` — T21~T32 회귀 케이스 12개 추가
+  + clone 시 워킹 트리 스크립트 cp 보정(로컬 변경 테스트 가능)
+
+### 왜
+
+업스트림 실측: staging 도입 후 52커밋 중 deep 22건(42%), standard 0건.
+**4단계 중 1단계가 완전히 안 쓰임**. deep 22건 전수 분석 시 41%(9건)는
+standard 이하로 내려가도 warn 놓침 없음 (실측 warn은 모두 grep/Read 1회
+수준 → standard 커버). 16줄 룰이 복잡도·드리프트 유발, 사용자 "왜 deep
+인지 설명 불가" 피드백.
+
+5줄 룰 구조:
+```
+1. .claude/scripts|agents|hooks|settings.json  → deep
+2. S1 line-confirmed OR S14 OR S8             → deep
+3. docs/** rename ≥30% OR 파일 ≥20            → bulk
+4. S5 OR S4 단독                              → skip
+5. 나머지                                     → standard
+```
+
+### 수동 액션 (다운스트림 필수·권장)
+
+- [ ] **다운스트림 영향 확인**
+
+  4줄(룰 1·2·3·4)이 `.claude/*` 경로 기반이라 `src/*`·`tests/*` 주력
+  다운스트림은 대부분 룰 5(standard)로 폴백. 기존 행동 크게 안 바뀜.
+  다만 과거 `deep`으로 잡혔던 `.claude/rules/` 단독 변경은 이제 `standard`.
+
+- [ ] **`--deep` 수동 오버라이드 여전히 유효**
+
+  애매한 케이스(예: rules 본문 대폭 재작성)는 명시적 `--deep`으로 격상
+  가능. 5줄 룰은 기본값일 뿐.
+
+- [ ] **다중 도메인 격상 폐기 재검토**
+
+  기존 "다중 도메인 + critical → deep 격상" 룰 폐기. 다운스트림이
+  `src/payment/` + `src/auth/` 같은 혼합 변경을 deep로 유지하고 싶으면
+  CLAUDE.md 또는 local staging 확장 섹션에 커스텀 룰 추가 필요.
+
+### 검증
+
+```bash
+# 회귀 테스트 — T21~T32 12케이스 통과 확인
+bash .claude/scripts/test-pre-commit.sh | grep -E "T(2[1-9]|3[0-2])"
+
+# 실측 — 최근 커밋을 대상으로 stage 분포 확인
+git log -20 --format='%h %s' | grep -oE "review: [a-z]+" | sort | uniq -c
+```
+
+### 회귀 위험
+
+- **룰 1 오탐 가능성** — `.claude/rules/` 아래 하위 경로(예: `.claude/rules/
+  subdir/*`)는 룰 1에 안 들어감(정확한 경로만 매칭). 룰 5 standard로 폴백
+- **다중 도메인 커버리지 약화** — 다중 도메인 격상 폐기로 혼합 변경이
+  standard가 될 수 있음. review.md가 signal 기반 카테고리 추가로 커버
+- **docs rename bulk 임계 (20 파일 / 30%)** — 임계 미달 대량 변경은 여전히
+  standard. 사용자가 `--bulk` 수동 지정
+
+---
+
 ## v0.16.1 — `/commit --bulk` 플래그 (거대 변경 review 대체)
 
 ### 자동 적용 (스킬이 처리)

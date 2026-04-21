@@ -66,48 +66,53 @@
 
 ## Stage 결정
 
-### 1단계 — 기본 (첫 매칭)
+### 1단계 — 기본 (5줄 룰, 첫 매칭)
+
+**v0.17.0부터 전면 대체**. 기존 16줄 룰은 업스트림 편향 실측(22 deep
+중 41%가 과잉)에서 폐기. `hn_review_staging_rebalance.md` 참조.
 
 ```
-0a. 메타·문서 단독은 도메인 등급 무시
-1.  S9(critical) + (S7·S2·S8·S14 동반)        → 3
-    ※ S5/S6 단독이면 미적용 (incident: doc-only deep 과잉 호출)
-2.  S1(line-confirmed)                         → 3
-3.  S2·S8                                      → 3
-3a. S14                                        → 3
-3b. S1(file-only)                              → 2
-4.  S5 + S9(meta)만                            → 0
-5.  S5만                                       → 0
-6.  S4만                                       → 0
-7.  S6만 + S9(meta)                            → 0
-8.  S4 + S7                                    → 2 (lock 단독 신뢰 X)
-9.  S15 + S7                                   → 2
-10. S11                                        → 2
-11. S3만                                       → 1 (신규 패스)
-12. S6만 + light                               → 0
-13. S6만 + strict                              → 1
-14. S7·S9(normal) + ≤50줄·≤3파일               → 1
-15. S7·S9(normal) + ≤300줄·≤10파일             → 2
-16. S7·S9(normal) + >300줄·>10파일             → 3
+1. .claude/scripts/** OR .claude/agents/** OR .claude/hooks/**
+   OR .claude/settings.json 건드림                              → deep
+2. S1 line-confirmed OR S14 OR S8(export 시그니처 변경)         → deep
+3. docs/** rename ≥30% OR 파일 수 ≥20                           → bulk
+4. S5(메타 단독) OR S4(lock 단독) OR WIP cleanup 단독           → skip
+5. (나머지 — 업스트림 외 경로·일반 코드·문서·rules·skills)      → standard
 ```
 
-### 2단계 — 격상·완화
+**설계 철학**:
+- **경로 기반 이진 판정**. 줄 수·파일 수 임계 없음 (ec85c790: 13줄 수정이
+  warn 1건). scripts 한 줄도 위험
+- **standard도 신호 hit 카테고리는 잡음**. 놓침 아님, 심도 차이
+- **단순성 = 신뢰성**. 사용자가 "왜 deep인지" 즉시 추론 가능
+
+**룰 1 "업스트림 위험 경로" 근거**:
+- `.claude/scripts/` — 실행 로직. 한 줄 bug가 다운스트림 전체 파괴
+- `.claude/agents/` — 에이전트 판정 기준. 회귀 시 매 커밋에 영향
+- `.claude/hooks/` — PreToolUse·SessionStart. 잘못되면 하네스 자체 불안정
+- `.claude/settings.json` — matcher·permission. 오버블록 incident 이력
+
+`.claude/rules/`·`.claude/skills/`는 **룰 1에 미포함** — 문서형 수정이
+대부분이라 standard로 충분. review.md 신호 매핑이 S2 hit 시 카테고리
+추가로 커버.
+
+### 2단계 — 격상·완화 (유지)
 
 ```
-A. 다중 도메인 hit       → 최고 등급으로 격상 + "스코프 이탈" 경고
-                          ※ S5/S6 단독(코드·핵심설정·마이그레이션·빌드 미동반)은 면제 (룰 0a 정신 보존)
-B. S10 2회               → +1 격상
-C. S10 3회               → 3 강제
-D. --quick               → 1 강제 (격상 무시)
-E. --deep                → 3 강제
+B. S10 2회               → +1 격상 (skip→standard 포함)
+C. S10 3회               → deep 강제
+D. --quick               → micro 강제 (격상 무시)
+E. --deep                → deep 강제
 F. --bulk                → bulk 강제 (다른 플래그·신호 모두 무시)
+G. --no-review           → skip 강제
 ```
 
-격상 후 0이면 1로. 누적 가능.
+**룰 A 폐기** (다중 도메인 격상): 5줄 룰이 경로 기반이라 이미 "업스트림
+하면 deep"로 격상 의미 무효. 다운스트림 `src/payment/*` + `src/auth/*`
+같은 혼합은 S9 critical로 룰 1 miss 시 standard 유지 (review.md가 다중
+도메인 경고 출력).
 
-룰 A의 ※ 면제 사유: 1단계에서 "S6/S5 단독은 critical 무시"한 결정을
-2단계 격상이 짓밟지 못하도록. (incident: c976255 — S6+S9 critical에서
-1단계 micro 결정이 2단계에서 deep으로 격상됨)
+격상 후 skip이면 micro로. 누적 가능.
 
 ## 연결 규칙
 

@@ -459,90 +459,78 @@ if [ -n "$NEW_CODE_FILES" ] || [ -n "$NEW_FUNC_FILES" ]; then
   TEST_TARGETS=$(printf "%s\n%s\n" "$NEW_CODE_FILES" "$NEW_FUNC_FILES" | grep -v '^$' | sort -u | paste -sd',' -)
 fi
 
-# Stage 결정 (1단계: 기본 stage)
-RECOMMENDED_STAGE="standard"  # 안전한 기본값
+# Stage 결정 (v0.17.0 — 5줄 룰, SSOT: .claude/rules/staging.md)
+# 경로 기반 이진 판정. 신호 값(S1~S15)은 review prompt용으로 여전히 유지.
+#
+# 룰 1~5 첫 매칭:
+#   1. 업스트림 위험 경로 (.claude/scripts|agents|hooks|settings.json) → deep
+#   2. S1 line-confirmed OR S14 OR S8                                  → deep
+#   3. docs/** 대량 rename OR 파일 ≥20                                 → bulk
+#   4. S5 OR S4 OR WIP cleanup 단독                                    → skip
+#   5. 나머지                                                          → standard
 
-# 도메인 등급 판정 (bash 내장 패턴 매칭 — 서브쉘 grep 제거)
-HAS_CRITICAL=""; HAS_META=""
-[[ ,$DOMAIN_GRADES, == *,critical,* ]] && HAS_CRITICAL="yes"
-[[ ,$DOMAIN_GRADES, == *,meta,* ]]     && HAS_META="yes"
+RECOMMENDED_STAGE=""
 
-# 우선순위 순 평가
-# critical 도메인이라도 메타·문서 단독(S5/S6만)이면 deep 강제 안 함.
-# 실제 코드·핵심설정 변경(S7/S2/S8) 또는 마이그레이션(S14) 동반 시에만 deep.
-# (incident: doc-only commit이 deep 호출되어 48k tokens 소모)
-HAS_CODE_OR_CORE=""
-if has_sig S7 || has_sig S2 || has_sig S8 || has_sig S14; then
-  HAS_CODE_OR_CORE="yes"
+# 룰 1: 업스트림 위험 경로 hit
+if echo "$STAGED_FILES" | grep -qE '^(\.claude/scripts/|\.claude/agents/|\.claude/hooks/|\.claude/settings\.json$)'; then
+  RECOMMENDED_STAGE="deep"
 fi
 
-if [ -n "$HAS_CRITICAL" ] && [ -n "$HAS_CODE_OR_CORE" ]; then
-  RECOMMENDED_STAGE="deep"
-elif [ "$S1_LEVEL" = "line-confirmed" ]; then
-  RECOMMENDED_STAGE="deep"
-elif has_sig S2 || has_sig S8; then
-  RECOMMENDED_STAGE="deep"
-elif has_sig S14; then
-  RECOMMENDED_STAGE="deep"
-elif [ "$S1_LEVEL" = "file-only" ]; then
-  RECOMMENDED_STAGE="standard"
-elif has_sig S5 && [ -n "$HAS_META" ]; then
-  RECOMMENDED_STAGE="skip"
-elif has_sig S5; then
-  RECOMMENDED_STAGE="skip"
-elif has_sig S4 && ! has_sig S7; then
-  RECOMMENDED_STAGE="skip"
-elif has_sig S6 && [ -n "$HAS_META" ]; then
-  RECOMMENDED_STAGE="skip"
-elif has_sig S4 && has_sig S7; then
-  RECOMMENDED_STAGE="standard"
-elif has_sig S15 && has_sig S7; then
-  RECOMMENDED_STAGE="standard"
-elif has_sig S11; then
-  RECOMMENDED_STAGE="standard"
-elif has_sig S3 && ! has_sig S7; then
-  RECOMMENDED_STAGE="micro"
-elif has_sig S6 && [ "$HARNESS_LEVEL" = "light" ]; then
-  RECOMMENDED_STAGE="skip"
-elif has_sig S6 && [ "$TOTAL_LINES" -le 5 ]; then
-  RECOMMENDED_STAGE="skip"
-elif has_sig S6; then
-  RECOMMENDED_STAGE="micro"
-elif has_sig S7; then
-  if [ "$TOTAL_LINES" -le 50 ] && [ "$TOTAL_FILES" -le 3 ]; then
-    RECOMMENDED_STAGE="micro"
-  elif [ "$TOTAL_LINES" -le 300 ] && [ "$TOTAL_FILES" -le 10 ]; then
-    RECOMMENDED_STAGE="standard"
-  else
+# 룰 2: 치명 신호
+if [ -z "$RECOMMENDED_STAGE" ]; then
+  if [ "$S1_LEVEL" = "line-confirmed" ] || has_sig S14 || has_sig S8; then
     RECOMMENDED_STAGE="deep"
   fi
 fi
 
-# Stage 결정 (2단계: 격상)
+# 룰 3: docs 대량 변경 → bulk (자동)
+# docs rename ≥30% (전체 staged의 30% 이상이 docs rename) OR 파일 ≥20
+if [ -z "$RECOMMENDED_STAGE" ]; then
+  DOC_RENAME_COUNT=$(echo "$STAGED_NAME_STATUS" | awk '$1 ~ /^R/ && $NF ~ /^docs\// {c++} END{print c+0}')
+  if [ "$TOTAL_FILES" -ge 20 ]; then
+    RENAME_RATIO_HIT=""
+    if [ "$DOC_RENAME_COUNT" -gt 0 ]; then
+      # 정수 산술: rename*100 / total ≥ 30 ⇔ rename*10 ≥ total*3
+      if [ $((DOC_RENAME_COUNT * 10)) -ge $((TOTAL_FILES * 3)) ]; then
+        RENAME_RATIO_HIT="yes"
+      fi
+    fi
+    if [ -n "$RENAME_RATIO_HIT" ] || [ "$TOTAL_FILES" -ge 20 ]; then
+      RECOMMENDED_STAGE="bulk"
+    fi
+  fi
+fi
+
+# 룰 4: skip 조건 (메타·lock 단독, WIP cleanup)
+if [ -z "$RECOMMENDED_STAGE" ]; then
+  # S5 단독 (메타 파일만)
+  if has_sig S5 && ! (has_sig S7 || has_sig S2 || has_sig S8 || has_sig S14); then
+    RECOMMENDED_STAGE="skip"
+  # S4 단독 (lock 파일만, S7 미동반)
+  elif has_sig S4 && ! has_sig S7; then
+    RECOMMENDED_STAGE="skip"
+  fi
+fi
+
+# 룰 5: 나머지 → standard
+if [ -z "$RECOMMENDED_STAGE" ]; then
+  RECOMMENDED_STAGE="standard"
+fi
+
+# Stage 결정 (2단계: 격상 — 유지)
 # B/C: S10 연속 수정 격상
 if [ "$REPEAT_MAX" -ge 3 ]; then
   RECOMMENDED_STAGE="deep"
 elif [ "$REPEAT_MAX" = "2" ]; then
   case "$RECOMMENDED_STAGE" in
-    skip) RECOMMENDED_STAGE="micro" ;;
+    skip) RECOMMENDED_STAGE="standard" ;;  # skip→micro 대신 standard 직행 (5줄 룰에서 micro 없음)
     micro) RECOMMENDED_STAGE="standard" ;;
     standard) RECOMMENDED_STAGE="deep" ;;
   esac
 fi
 
-# A: 다중 도메인 hit + critical 동반이면 격상
-# 단, 메타·문서 단독(S5/S6만, 코드/핵심설정/마이그레이션/빌드 동반 X)은 격상 면제.
-# 룰 0a 정신: 1단계에서 "S6 단독이면 critical 무시"한 결정을 2단계가 짓밟지 못하도록.
-# (incident: c976255 — S6 + S9 critical에서 1단계 micro 결정 → 2단계가 deep 격상)
-IS_DOC_ONLY=""
-if (has_sig S5 || has_sig S6) && \
-   ! (has_sig S7 || has_sig S2 || has_sig S8 || has_sig S14 || has_sig S11); then
-  IS_DOC_ONLY="yes"
-fi
-
-if [ "$MULTI_DOMAIN" = "true" ] && [ -n "$HAS_CRITICAL" ] && [ -z "$IS_DOC_ONLY" ]; then
-  RECOMMENDED_STAGE="deep"
-fi
+# 룰 A(다중 도메인 격상)는 5줄 룰에서 폐기 — staging.md 참조.
+# 경로 기반 룰 1이 이미 "업스트림 혼합 시 deep" 효과 커버.
 
 # 결과
 if [ $ERRORS -gt 0 ]; then

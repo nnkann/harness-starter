@@ -19,6 +19,7 @@
 - [코드 SSOT 서더링 감사](../decisions/hn_code_ssot_audit.md) — tags: ssot, audit, code, refactor
 - [memory 재설계 — tmp 폐기 + 동적 snapshot + 트리거 3개](../decisions/hn_memory.md) — tags: memory, snapshot, ssot, simplification, trigger
 - [문서 네이밍 전면 개편 — 도메인 약어 + 통합 원칙](../decisions/hn_doc_naming.md) — tags: naming, docs, upstream-rule
+- [review staging 재조정 — 5줄 룰 이진 판정](../decisions/hn_review_staging_rebalance.md) — tags: staging, review, rule, tokens
 
 ### guides/
 - [업그레이드 전파 전략](../guides/hn_upgrade_propagation.md) — tags: upgrade, propagation, versioning

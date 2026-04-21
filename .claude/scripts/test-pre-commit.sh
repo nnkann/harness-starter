@@ -22,6 +22,13 @@ trap cleanup EXIT
 git clone -q "$SOURCE_REPO" "$TEST_DIR/repo" 2>/dev/null
 cd "$TEST_DIR/repo"
 
+# 커밋되지 않은 로컬 변경사항을 테스트 대상에 반영:
+# clone은 HEAD만 가져오므로 워킹 트리의 수정사항이 누락됨.
+# pre-commit-check.sh 자체를 테스트할 때 로컬 수정이 적용되어야 유효.
+cp "$SOURCE_REPO/.claude/scripts/pre-commit-check.sh" .claude/scripts/pre-commit-check.sh 2>/dev/null || true
+cp "$SOURCE_REPO/.claude/rules/staging.md" .claude/rules/staging.md 2>/dev/null || true
+cp "$SOURCE_REPO/.claude/rules/naming.md" .claude/rules/naming.md 2>/dev/null || true
+
 # 헬퍼: 시나리오 실행 + 기대값 비교
 # $1: case 이름
 # $2: 검증할 stdout key (예: signals)
@@ -489,6 +496,159 @@ else
   FAIL=$((FAIL + 1))
   FAILED_CASES="${FAILED_CASES}\n  - T20.3 snapshot 생성"
 fi
+
+# ─────────────────────────────────────────────────
+# T21~T32. 5줄 룰 회귀 (v0.17.0, staging.md 5줄 룰)
+# 경로 기반 이진 판정. 업스트림 위험 경로 hit 시 deep, 일반 코드/문서
+# /rules/skills는 standard, 메타 단독 skip.
+# ─────────────────────────────────────────────────
+
+# T21: scripts 단독 → deep
+echo "[T21] 5줄 룰 #1 — .claude/scripts 단독 변경"
+reset
+mkdir -p .claude/scripts
+echo '#!/bin/bash' > .claude/scripts/foo.sh
+git add .claude/scripts/foo.sh
+run_case "T21.1 scripts 단독 → deep" "recommended_stage" "deep" must_match
+
+# T22: agents 단독 → deep
+echo "[T22] 5줄 룰 #1 — .claude/agents 단독 변경"
+reset
+mkdir -p .claude/agents
+echo "# agent" > .claude/agents/foo.md
+git add .claude/agents/foo.md
+run_case "T22.1 agents 단독 → deep" "recommended_stage" "deep" must_match
+
+# T23: hooks 단독 → deep
+echo "[T23] 5줄 룰 #1 — .claude/hooks 단독 변경"
+reset
+mkdir -p .claude/hooks
+echo '#!/bin/bash' > .claude/hooks/pre.sh
+git add .claude/hooks/pre.sh
+run_case "T23.1 hooks 단독 → deep" "recommended_stage" "deep" must_match
+
+# T24: settings.json 단독 → deep
+echo "[T24] 5줄 룰 #1 — .claude/settings.json 단독"
+reset
+mkdir -p .claude
+echo '{"permissions":{}}' > .claude/settings.json
+git add .claude/settings.json
+run_case "T24.1 settings.json → deep" "recommended_stage" "deep" must_match
+
+# T25: rules 단독 → standard (룰 1 miss)
+echo "[T25] 5줄 룰 #5 — .claude/rules 단독 (룰 1 miss)"
+reset
+mkdir -p .claude/rules
+echo "# rule" > .claude/rules/foo.md
+git add .claude/rules/foo.md
+run_case "T25.1 rules 단독 → standard" "recommended_stage" "standard" must_match
+
+# T26: skills 단독 → standard (룰 1 miss)
+echo "[T26] 5줄 룰 #5 — .claude/skills 단독 (룰 1 miss)"
+reset
+mkdir -p .claude/skills/foo
+echo "# skill" > .claude/skills/foo/SKILL.md
+git add .claude/skills/foo/SKILL.md
+run_case "T26.1 skills 단독 → standard" "recommended_stage" "standard" must_match
+
+# T27: CLAUDE.md 단독 → standard (룰 1 미포함)
+echo "[T27] 5줄 룰 #5 — CLAUDE.md 단독"
+reset
+cat > CLAUDE.md <<'EOF'
+# CLAUDE
+
+## 언어
+- 한국어.
+
+## 환경
+- 하네스 강도: strict
+- 패키지 매니저:
+EOF
+git add CLAUDE.md
+run_case "T27.1 CLAUDE.md 단독 → standard" "recommended_stage" "standard" must_match
+
+# T28: docs 일반 변경 → standard
+echo "[T28] 5줄 룰 #5 — docs 일반 변경"
+reset
+mkdir -p docs/guides
+cat > docs/guides/note.md <<EOF
+---
+title: 노트
+domain: harness
+status: completed
+created: 2026-04-21
+---
+본문.
+EOF
+git add docs/guides/note.md
+run_case "T28.1 docs 일반 → standard" "recommended_stage" "standard" must_match
+
+# T29: docs rename ≥20 파일 → bulk
+echo "[T29] 5줄 룰 #3 — docs 대량 rename → bulk"
+reset
+mkdir -p docs/decisions
+# 25개 파일 생성 + 커밋
+for i in $(seq 1 25); do
+  cat > docs/decisions/hn_orig_${i}.md <<EOF
+---
+title: 원본 ${i}
+domain: harness
+status: completed
+created: 2026-04-21
+---
+본문 ${i}.
+EOF
+  git add docs/decisions/hn_orig_${i}.md
+done
+HARNESS_DEV=1 git -c commit.gpgsign=false commit -q -m "T29 prep" 2>/dev/null
+# rename 시뮬레이션 (git mv)
+for i in $(seq 1 25); do
+  git mv docs/decisions/hn_orig_${i}.md docs/decisions/hn_renamed_${i}.md 2>/dev/null
+done
+run_case "T29.1 docs rename 25개 → bulk" "recommended_stage" "bulk" must_match
+
+# T30: S5 메타 단독 (promotion-log.md만) → skip
+echo "[T30] 5줄 룰 #4 — promotion-log.md 단독 → skip"
+reset
+mkdir -p docs/harness
+echo "# log" > docs/harness/promotion-log.md
+git add docs/harness/promotion-log.md
+run_case "T30.1 promotion-log 단독 → skip" "recommended_stage" "skip" must_match
+
+# T31: src/* + scripts/* 혼합 → deep (룰 1 우선)
+echo "[T31] 5줄 룰 #1 — src + scripts 혼합"
+reset
+mkdir -p src .claude/scripts
+echo "export const x = 1" > src/foo.ts
+echo '#!/bin/bash' > .claude/scripts/bar.sh
+git add src/foo.ts .claude/scripts/bar.sh
+run_case "T31.1 src + scripts → deep" "recommended_stage" "deep" must_match
+
+# T32: rules + docs + src(비-export) 혼합 (룰 1·2 miss) → standard
+# export 시그니처는 S8 → 룰 2 → deep이 정답이므로 케이스를 비-export 수정으로 재구성.
+echo "[T32] 5줄 룰 #5 — rules + docs + src(비-export) (룰 1·2 miss)"
+reset
+mkdir -p .claude/rules docs/guides src
+echo "// existing module" > src/foo.ts
+git add src/foo.ts
+HARNESS_DEV=1 git -c commit.gpgsign=false commit -q -m "T32 prep" 2>/dev/null
+echo "# rule" > .claude/rules/foo.md
+cat > docs/guides/note.md <<EOF
+---
+title: 가이드
+domain: harness
+status: completed
+created: 2026-04-21
+---
+본문.
+EOF
+# src 파일 비-export 수정 (const이지만 export 없음 → S8 미hit)
+cat > src/foo.ts <<EOF
+// existing module
+const x = 1;
+EOF
+git add .claude/rules/foo.md docs/guides/note.md src/foo.ts
+run_case "T32.1 rules+docs+src(non-export) → standard" "recommended_stage" "standard" must_match
 
 # ─────────────────────────────────────────────────
 # 결과
