@@ -61,9 +61,20 @@ if [ -n "$LINT_CMD" ]; then
   LINT_OUTPUT=$($LINT_CMD 2>&1)
   LINT_EXIT=$?
   if [ "$LINT_EXIT" -ne 0 ]; then
-    echo "❌ 린터 에러. 에러 0에서만 커밋 가능. (실행: $LINT_CMD)" >&2
-    echo "$LINT_OUTPUT" | tail -20 >&2
-    ERRORS=$((ERRORS + 1))
+    # 도구 실종(ENOENT·node_modules 누락)과 실제 rule 위반을 구분.
+    # 실종 → warn + skip (환경 문제, 차단하면 매 commit 방해). rule 위반 → 차단.
+    # incident: hn_test_isolation_git_log_leak.md (v0.18.3에서 확정)
+    # 보수적 패턴만 매칭 — ESLint 자체 출력과 겹치지 않는 문자열.
+    if echo "$LINT_OUTPUT" | grep -qE "is not recognized as an internal or external command|command not found|No such file or directory|Cannot find module|ENOENT"; then
+      echo "⚠ 린터 도구 미설치 또는 PATH 누락. 린트 스킵 (커밋 계속)." >&2
+      echo "   (실행: $LINT_CMD — node_modules 확인 또는 \`npm install\` 검토)" >&2
+      echo "$LINT_OUTPUT" | tail -5 >&2
+      # ERRORS 증가시키지 않음 — 환경 문제는 다운스트림이 해결
+    else
+      echo "❌ 린터 에러. 에러 0에서만 커밋 가능. (실행: $LINT_CMD)" >&2
+      echo "$LINT_OUTPUT" | tail -20 >&2
+      ERRORS=$((ERRORS + 1))
+    fi
   fi
 fi
 

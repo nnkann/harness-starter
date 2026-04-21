@@ -49,6 +49,91 @@ fail을 막는다.
 
 ---
 
+## v0.18.3 — 린터 도구 실종 구분 (T13.1 원인 확정)
+
+### 자동 적용 (스킬이 처리)
+
+- `.claude/scripts/pre-commit-check.sh` 린터 단계에 **ENOENT 구분** 추가
+  - 도구 실종 패턴(`is not recognized as an internal or external command`·
+    `command not found`·`No such file or directory`·`Cannot find module`·
+    `ENOENT`) 감지 시 → **warn + skip** (ERRORS 증가 없음, 커밋 계속)
+  - 실제 rule 위반 → 기존대로 **차단**
+- `docs/incidents/hn_test_isolation_git_log_leak.md` 전면 재작성
+  - 제목: `T13 격리 실패 — 다운스트림 git log 교차 오염` → `린터 도구
+    실종 — T13이 우연히 가시화한 환경 이슈`
+  - status: in-progress → **completed**
+  - v0.18.1·0.18.2 가설 이력 + 진짜 원인 확정 과정 + 교훈 본문화
+  - 파일명 `git_log_leak`은 초기 가설 유래라 보존(링크 깨짐 방지) + 상단
+    주석으로 명시
+
+### 왜
+
+다운스트림 `TEST_DEBUG=1` dump 결과:
+```
+'eslint' is not recognized as an internal or external command
+'next' is not recognized as an internal or external command
+```
+
+**진짜 원인은 `node_modules` 누락/PATH 문제** — `npm run lint`가 ENOENT로
+exit 2 → pre-check exit 2 → T13.1 FAIL. 다른 테스트가 PASS로 보인 건
+run_case가 stderr를 버리고 stdout key-value만 봐서 린터 실패를 감지 못한
+구조적 은폐. T13이 유일하게 `exit_code`를 직접 체크해서 가시화.
+
+"실수를 코드화" 원칙: **환경 문제와 rule 위반을 동일 처리하면 매 커밋
+차단 마찰 발생**. 분리해 환경은 warn, rule은 block.
+
+### 수동 액션 (다운스트림 필수·권장)
+
+- [ ] **`npm install` 실행 (근본 해결)**
+
+  ```bash
+  cd <downstream-repo>
+  npm install   # 또는 pnpm install / yarn / bun install
+  ```
+
+  node_modules 복구 후 pre-check이 정상 린터 실행. upstream fix는 환경
+  마찰 완화이지 근본 해결 아님.
+
+- [ ] **lint 설정 확인**
+
+  `package.json`의 `"lint"` 스크립트가 실제 린터를 참조하는지 확인.
+  ESLint를 쓰면 `eslint`가 dependencies에 있어야 하고, `node_modules/.bin/
+  eslint`가 있어야 npm run이 찾을 수 있음.
+
+- [ ] **v0.18.1·0.18.2 incident 문서 참조 중단**
+
+  이전 버전의 "git log 교차 = 원인" 서술은 철회된 가설. 현재 incident
+  본문이 진짜 원인·해결·교훈 담음.
+
+### 검증
+
+```bash
+# 1. 린터 정상 작동 시 rule 위반이 기존대로 차단되는지
+echo 'const unused = 1' > src/test.js   # ESLint no-unused-vars 트리거 가정
+git add src/test.js
+bash .claude/scripts/pre-commit-check.sh 2>&1 | grep "❌ 린터 에러"
+# 라인 나오면 정상 (rule 위반 차단)
+
+# 2. 도구 실종 시 warn만 나오는지
+PATH="/usr/bin" bash .claude/scripts/pre-commit-check.sh 2>&1 | grep "⚠ 린터 도구 미설치"
+# 라인 나오면 정상 (warn + skip)
+
+# 3. 전체 회귀
+bash .claude/scripts/test-pre-commit.sh 2>&1 | tail -5
+# 45/45 기대 (upstream 격리 기준)
+```
+
+### 회귀 위험
+
+- **오탐 가능성** — ESLint 출력에 우연히 ENOENT 문자열이 섞이면 rule
+  위반이 warn으로 격하될 수 있음. 완화: 패턴을 **엄격한 문자열 매칭**
+  으로 제한 (위 5개만). 실제 ESLint·Ruff 출력과 겹치지 않음
+- **환경 문제가 은폐됨** — warn으로 스킵되므로 다운스트림이 node_modules
+  문제를 방치할 수 있음. 완화: warn 메시지에 `npm install` 검토 안내
+  명시 + MIGRATIONS.md 수동 액션으로 강조
+
+---
+
 ## v0.18.2 — T13 재진단 훅 (원인 미확정)
 
 ### 자동 적용 (스킬이 처리)
