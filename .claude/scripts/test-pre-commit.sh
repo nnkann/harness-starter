@@ -245,11 +245,15 @@ run_case "T12.1 신규 .test.ts → needs_test_strategist=false" "needs_test_str
 
 # ─────────────────────────────────────────────────
 # T13. 연속 수정 — 차단·경고 없음 (정보만)
+# 파일명은 PID + 에포크로 unique. 다운스트림 repo가 과거에 같은 고정 경로를
+# 커밋한 이력이 있으면 git log -5 교차로 COUNT가 부풀려져 T13.1이 다른 이유로
+# 차단됨. incident: hn_test_isolation_git_log_leak.md
 # ─────────────────────────────────────────────────
 echo "[T13] 연속 수정 — 차단 없음, repeat_count만"
 reset
 mkdir -p docs/WIP
-cat > docs/WIP/test--scenario_260419.md <<EOF
+T13_FILE="docs/WIP/test--scenario_$$_$(date +%s).md"
+cat > "$T13_FILE" <<EOF
 ---
 title: 시나리오
 domain: harness
@@ -258,15 +262,15 @@ created: 2026-04-19
 ---
 첫 줄.
 EOF
-git add docs/WIP/test--scenario_260419.md
+git add "$T13_FILE"
 HARNESS_DEV=1 git -c commit.gpgsign=false commit -q -m "T13 prep1" 2>/dev/null
 # 같은 파일 또 수정
-echo "둘째 줄." >> docs/WIP/test--scenario_260419.md
-git add docs/WIP/test--scenario_260419.md
+echo "둘째 줄." >> "$T13_FILE"
+git add "$T13_FILE"
 HARNESS_DEV=1 git -c commit.gpgsign=false commit -q -m "T13 prep2" 2>/dev/null
 # 세 번째 수정 (3회 도달)
-echo "셋째 줄." >> docs/WIP/test--scenario_260419.md
-git add docs/WIP/test--scenario_260419.md
+echo "셋째 줄." >> "$T13_FILE"
+git add "$T13_FILE"
 output=$(bash .claude/scripts/pre-commit-check.sh 2>&1)
 exit_code=$?
 if [ "$exit_code" = "0" ]; then

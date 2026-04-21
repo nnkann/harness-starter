@@ -49,6 +49,57 @@ fail을 막는다.
 
 ---
 
+## v0.18.1 — T13 테스트 격리 fix
+
+### 자동 적용 (스킬이 처리)
+
+- `.claude/scripts/test-pre-commit.sh` T13 파일명 unique화 — 고정
+  `docs/WIP/test--scenario_260419.md` → `test--scenario_$$_$(date +%s).md`
+
+### 왜
+
+v0.18.0 병합 후 다운스트림(`<프로젝트 사례>`)에서 T13.1만 FAIL (44/45).
+업스트림 격리 clone은 45/45. 원인은 T13이 만드는 prep 커밋의 **고정 파일
+경로**가 다운스트림 repo 히스토리와 교차 오염 → `git log -5 <file>` S10
+카운트가 예상 범위 이탈.
+
+상세: `docs/incidents/hn_test_isolation_git_log_leak.md`.
+
+### 수동 액션 (다운스트림 필수·권장)
+
+- [ ] **T13 FAIL 보고 있었으면 재실행**
+
+  ```bash
+  bash .claude/scripts/test-pre-commit.sh | tail -5
+  # 기대: 통과 45 / 실패 0
+  ```
+
+  여전히 실패 시 incident symptom-keywords(`T13.1 repeat_count 다운스트림
+  격리 실패`)로 추가 조사.
+
+- [ ] **잔재 파일 정리 (선택)**
+
+  이전 실패로 `docs/WIP/test--scenario_260419.md`가 untracked로 남아 있을
+  수 있음. git status로 확인 후 수동 삭제 (reset 함수는 git tracked만
+  정리).
+
+### 검증
+
+```bash
+bash .claude/scripts/test-pre-commit.sh 2>&1 | grep -E "T13|결과|통과:"
+# T13.1 PASS · T13.2 max=2 PASS · 통과 45 실패 0 기대
+```
+
+### 회귀 위험
+
+- **운영 로직 무변경** — pre-commit-check.sh·staging.md·review.md 등 운영
+  스크립트 및 rules 건드리지 않음. 테스트 파일 5줄 수정만
+- **exempt regex 추가 방향 철회** — 초기에 pre-check `REPEAT_EXEMPT_REGEX`
+  에 테스트 경로 추가했으나 T13.2가 측정하는 `repeat_count: max=2`가
+  exempt로 0이 되어 회귀 의미 붕괴. 운영에는 영향 없음
+
+---
+
 ## v0.18.0 — pipeline-design 규칙 업스트림 이식
 
 ### 자동 적용 (스킬이 처리)
