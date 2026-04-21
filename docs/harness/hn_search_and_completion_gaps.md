@@ -14,7 +14,7 @@ updated: 2026-04-19
   fd66269)
 - Part B 후속: review가 staged diff 우회 호출하던 사고 재발 방지 (fd66269)
 - 남은 Part A 후속(write-doc symptom-keywords·commit completed 미결 차단)은
-  별도 WIP로 분리 → `harness--commit_step2_partial_completion_260419.md`
+  별도 WIP로 분리 → `harness--hn_commit_step2_partial_completion.md`
 - Part C(다운스트림 전파)는 본 레포 범위 외, harness-upgrade 흐름이 처리
 
 # 하네스 구멍 정리 + 리뷰 구조 재확정

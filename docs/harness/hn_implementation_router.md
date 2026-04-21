@@ -3,7 +3,7 @@ title: implementation 스킬 재정의 — 라우터·추적자로 역할 좁히
 domain: harness
 tags: [implementation, skill, routing, orchestration]
 relates-to:
-  - path: harness/info_flow_leak_audit_260420.md
+  - path: harness/hn_info_flow_leak_audit.md
     rel: references
 status: completed
 created: 2026-04-20
@@ -215,5 +215,5 @@ Step 4 완료 처리 시:
   실행 경로를 개선하지만 Problem/Solution 문구 자체는 변화 없음.
 - Phase 3 실측 대상: description 재작성 후 자동 발화율, specialist 호출
   기록 WIP 기록률, 단계 분리(옵션 B/C) 재평가 근거 수집.
-- 파생 WIP `harness--info_flow_leak_phase3_measurement_260420.md`가 실측
+- 파생 WIP `harness--hn_info_flow_leak_phase3.md`가 실측
   담당.

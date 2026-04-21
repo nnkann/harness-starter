@@ -3,7 +3,7 @@ title: 하네스 엔지니어링 적합성 분석
 domain: harness
 tags: [gap-analysis, verification]
 relates-to:
-  - path: decisions/harness_upgrade_260410.md
+  - path: decisions/hn_upgrade.md
     rel: references
 status: completed
 created: 2026-04-14

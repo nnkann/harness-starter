@@ -10,7 +10,7 @@ symptom-keywords:
   - "harness-upstream main:.claude 차단"
   - "다운스트림 README 사라짐"
 relates-to:
-  - path: ./bash_n_flag_overblock_260419.md
+  - path: ./hn_bash_n_flag_overblock.md
     rel: extends
 status: completed
 created: 2026-04-19

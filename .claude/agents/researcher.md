@@ -52,7 +52,7 @@ tools: WebSearch, WebFetch, Read, Glob, Grep, mcp__claude_ai_Context7__query-doc
 1. **공식 문서 우선** — Context7 MCP(`query-docs`) 또는 공식 사이트 HTTP
    API로 관련 라이브러리·프레임워크의 **최신 공식 문서**를 먼저 조회한다.
    모델 학습 데이터는 오래될 수 있으므로 공식 문서가 항상 1순위 출처다.
-   도구 선택 가이드: `docs/guides/external-research-patterns_260420.md`.
+   도구 선택 가이드: `docs/guides/hn_external_research_patterns.md`.
 
 2. **업계 탑 인물 의견 반영** — `.claude/rules/external-experts.md` 조회.
    - 해당 분야 인물이 캐시에 있으면 → 그 인물의 최근 의견 우선 탐색

@@ -3,9 +3,9 @@ title: commit + review 핸드오프 계약 이식 + 중복 제거
 domain: harness
 tags: [skill, agent, commit, review, handoff, refactor]
 relates-to:
-  - path: decisions/skill_agent_role_audit_260420.md
+  - path: decisions/hn_skill_agent_role_audit.md
     rel: implements
-  - path: harness/implementation_router_redesign_260420.md
+  - path: harness/hn_implementation_router.md
     rel: extends
 status: completed
 created: 2026-04-20
@@ -16,7 +16,7 @@ updated: 2026-04-20
 
 ## 목표
 
-감사 문서(`decisions--skill_agent_role_audit_260420.md`) 실행 순서 1단계
+감사 문서(`decisions--hn_skill_agent_role_audit.md`) 실행 순서 1단계
 **P0-1 commit + P1-2 review 쌍**을 실행.
 
 - CPS 연결: P1(추측 수정)·P2(review 과잉 비용)·P5(컨텍스트 팽창) 모두에

@@ -62,10 +62,10 @@ REFERENCED_DOCS=$(
 
 | 대상 docs | 참조하는 rules |
 |-----------|---------------|
-| `docs/guides/doc-search-protocol_260420.md` | `rules/docs.md` |
-| `docs/guides/external-research-patterns_260420.md` | `rules/internal-first.md` |
-| `docs/decisions/staging_governance_260420.md` | `rules/staging.md` |
-| `docs/decisions/rules_metadata_260420.md` | `rules/security.md`·`internal-first.md`·`no-speculation.md` |
+| `docs/guides/hn_doc_search_protocol.md` | `rules/docs.md` |
+| `docs/guides/hn_external_research_patterns.md` | `rules/internal-first.md` |
+| `docs/decisions/hn_staging_governance.md` | `rules/staging.md` |
+| `docs/decisions/hn_rules_metadata.md` | `rules/security.md`·`internal-first.md`·`no-speculation.md` |
 
 동적 탐색이 수동 목록을 **누락 없이** 대체함을 확인.
 

@@ -443,7 +443,7 @@ NEW_CODE_FILES=$(echo "$STAGED_NAME_STATUS" | awk '$1=="A" {print $2}' | \
 # 9b. 새 함수·메소드·클래스 라인 추가 (휴리스틱)
 # NEW_FUNC_LINES_FULL: 정보 흐름 누수 #2 해소용 — test-strategist prompt에
 # 인라인 박을 함수 추가 줄 전체 (최대 20줄, 길어지면 truncated 표시).
-# 보고서: docs/WIP/harness--info_flow_leak_audit_260420.md
+# 보고서: docs/WIP/harness--hn_info_flow_leak_audit.md
 NEW_FUNC_LINES_FULL=$(echo "$STAGED_DIFF_U0" | \
   grep -E '^\+[[:space:]]*(export[[:space:]]+)?(async[[:space:]]+)?(function|def|class|func)[[:space:]]+[a-zA-Z_]' | head -20)
 NEW_FUNC_LINES=$(echo "$NEW_FUNC_LINES_FULL" | head -1)  # 호환성: 기존 감지용 (1줄)

@@ -42,17 +42,31 @@ description: >-
 > 2. guides/ — 방법과 패턴 정리
 > 3. incidents/ — 문제 원인과 해결 기록
 
-### Step 1. domain 확인
+### Step 1. domain 및 abbr 확인
 
-`.claude/rules/naming.md`의 "도메인 목록 > 확정"을 읽는다.
+`.claude/rules/naming.md`를 읽어 두 가지를 확인한다:
 
-- 요청 내용이 확정 도메인에 해당하면 해당 domain 사용.
+1. **"도메인 목록 > 확정"**: 요청에 해당하는 domain 결정
+2. **"도메인 약어" 표**: 해당 domain의 abbr 조회
+
+- 요청 내용이 확정 도메인에 해당하면 그 domain 사용.
 - 해당 domain이 없으면 사용자에게 확인:
   > naming.md에 이 주제에 맞는 도메인이 없습니다. 기존 도메인 중 선택하시겠습니까, 새 도메인을 추가할까요?
   > 기존: harness, meta, ...
 
-새 도메인 추가 시 naming.md "도메인 목록 > 후보"에 먼저 추가한다.
-사용자가 확정으로 승격을 결정하면 "확정"으로 이동한다.
+**새 도메인 추가 시 abbr도 함께 등록**:
+- 사용자에게 abbr 제안 (원 이름 첫 자·자음 조합)
+- 2~3자 소문자, 영문만, 기존 약어와 충돌 없어야 함
+- naming.md "도메인 목록 > 후보"와 "도메인 약어" 표 모두에 추가
+- 사용자가 확정으로 승격을 결정하면 "확정"으로 이동
+
+**기존 domain인데 약어 표에 abbr이 누락된 경우** (보통 업그레이드 직후):
+- 사용자에게 abbr 입력 요청
+- 입력받은 약어로 naming.md "도메인 약어" 표 갱신
+- 파일명 생성은 등록된 abbr을 사용
+
+**전역 마스터 문서** (프로젝트 전역 인덱스, 도메인 횡단): abbr 생략하고
+파일명은 `{slug}.md` 형식. 프론트매터 `domain:`만 설정.
 
 ### Step 2. 관련 문서 탐색
 
@@ -69,10 +83,24 @@ clusters/{domain}.md 순으로 탐색하여:
 
 docs/WIP/에 문서를 만든다.
 
-**파일명**: `{대상폴더}--{작업내용}_{YYMMDD}.md`
-- 대상폴더: Step 0에서 결정한 폴더명
-- 작업내용: snake_case, 간결하게
-- YYMMDD: 오늘 날짜
+**파일명** (SSOT: `.claude/rules/naming.md` "파일명 — WIP"):
+
+| 유형 | 패턴 | 예 |
+|------|------|-----|
+| 일반 (모든 대상 폴더) | `{대상폴더}--{abbr}_{slug}.md` | `decisions--hn_memory.md` |
+| 전역 마스터 | `{대상폴더}--{slug}.md` | `guides--project_kickoff.md` |
+
+- 대상폴더: Step 0에서 결정 (decisions / guides / incidents / harness)
+- abbr: Step 1에서 조회한 도메인 약어
+- slug: snake_case 의미명, 간결하게
+
+**날짜 suffix 전면 금지** (incidents 포함):
+- 발생 시점은 프론트매터 `created` + git history로 충분
+- 같은 주제가 이미 있으면 Step 2에서 감지됨. 새 파일 생성 금지
+- 사용자가 명시적으로 날짜 suffix를 요구해도 거부:
+  > 업스트림 naming.md 규칙상 문서 파일명에 날짜 suffix를 붙이지 않습니다.
+  > 같은 주제는 같은 파일을 갱신합니다 (본문 `## 변경 이력` 섹션 활용).
+  > 그래도 새 파일이 필요하면 slug를 다르게 하거나 archived/ 이동 후 새 결정으로 만드세요.
 
 **프론트매터** (docs.md 규칙 준수):
 ```yaml
@@ -180,8 +208,8 @@ harness/:
 
 이후 `/commit` 시 commit 스킬이 자동으로:
 - WIP에서 대상 폴더로 이동
-- 접두사(`{대상폴더}--`) 제거
-- clusters/{domain}.md에 추가
+- 접두사(`{대상폴더}--`) 제거 → `{abbr}_{slug}.md`
+- clusters/{domain}.md에 추가 (파일명 abbr로 자동 매핑)
 
 ## 규칙
 

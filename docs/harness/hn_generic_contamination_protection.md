@@ -15,7 +15,7 @@ updated: 2026-04-19
 ## 잔여 → 후속 WIP로 분리
 
 - P2 review 검증 항목 + P3 스킬 질의 + 정밀화
-  → `harness--contamination_followup_260419.md`
+  → `harness--hn_contamination_followup.md`
 
 # 하네스 범용성 오염 방지
 
@@ -87,7 +87,7 @@ review.md에:
 
 ### 5. 연속 수정 + 범용성 오염 결합 감지 (참조만)
 
-> **기능 소유**: `harness--llm_mistake_guardrails_260418.md` §4 "같은 영역 연속
+> **기능 소유**: `harness--hn_llm_mistake_guardrails.md` §4 "같은 영역 연속
 > 수정 감지"가 구현한다. 이 문서는 **재구현하지 않고**, 해당 기능이 추가되면
 > 고유명사 감지 결과와 결합해 차단 수준으로 격상하는 **통합 로직만** 추가한다.
 

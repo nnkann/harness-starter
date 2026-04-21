@@ -1,11 +1,28 @@
 ---
 title: 프론트매터 그래프 스펙 설계
 domain: harness
-tags: [frontmatter, graph, docs-structure]
+tags: [frontmatter, graph, docs-structure, historical]
+relates-to:
+  - path: harness/hn_index_md_removal.md
+    rel: references
+  - path: decisions/hn_doc_naming.md
+    rel: references
 status: completed
 created: 2026-04-16
-updated: 2026-04-16
+updated: 2026-04-21
 ---
+
+> **역사적 맥락 (2026-04-21 갱신):** 본 문서는 프론트매터 + `INDEX.md`
+> 기반 탐색을 제안한 **2026-04-16 설계**다. 이후:
+> - 2026-04-20 `INDEX.md` 폐기 (`docs/harness/hn_index_md_removal.md`)
+>   — 도메인 2개 구조에서 진입 포인터 관리 드리프트만 발생
+> - 2026-04-21 파일명 abbr 체계 + `clusters/{domain}.md` 자동 매핑 도입
+>   (`docs/decisions/hn_doc_naming.md`)
+>
+> 현재 운영 규칙은 `.claude/rules/docs.md`·`naming.md`. 본 문서의
+> **프론트매터 스키마·관계 타입**은 여전히 유효하나, **`INDEX.md` 섹션
+> (§6 "INDEX.md 구조", §7 "탐색 흐름")**은 clusters + 파일명 규약으로
+> 대체됐다.
 
 # 프론트매터 그래프 스펙 설계
 
@@ -96,9 +113,9 @@ updated: 2026-04-14
 ```
 클러스터 "harness":
   ├── docs/harness/promotion-log.md
-  ├── docs/decisions/harness_upgrade_260410.md
-  ├── docs/guides/harness_upgrade_propagation_260410.md
-  └── docs/decisions/harness_gap_analysis_260414.md
+  ├── docs/decisions/hn_upgrade.md
+  ├── docs/guides/hn_upgrade_propagation.md
+  └── docs/decisions/hn_gap_analysis.md
 
 클러스터 "meta":
   └── docs/guides/project_kickoff_sample.md
@@ -119,18 +136,18 @@ updated: 2026-04-14
 ## 도메인별
 
 ### harness
-- [승격/강등 이력](harness/promotion-log.md) — tags: promotion, rule-change
-- [업그레이드 계획](decisions/harness_upgrade_260410.md) — tags: memory, hook, skill
-- [업그레이드 전파](guides/harness_upgrade_propagation_260410.md) — tags: upgrade, script
-- [적합성 분석](decisions/harness_gap_analysis_260414.md) — tags: gap-analysis, verification
+- [승격/강등 이력](../harness/promotion-log.md) — tags: promotion, rule-change
+- [업그레이드 계획](hn_upgrade.md) — tags: memory, hook, skill
+- [업그레이드 전파](../guides/hn_upgrade_propagation.md) — tags: upgrade, script
+- [적합성 분석](hn_gap_analysis.md) — tags: gap-analysis, verification
 
 ### meta
-- [프로젝트 출범 샘플](guides/project_kickoff_sample.md) — tags: cps, stack — status: sample
+- [프로젝트 출범 샘플](../guides/project_kickoff_sample.md) — tags: cps, stack — status: sample
 
 ## 관계 맵 (주요)
-- harness_upgrade_260410 --extends--> promotion-log
-- harness_gap_analysis_260414 --references--> harness_upgrade_260410
-- harness_upgrade_propagation_260410 --implements--> harness_upgrade_260410
+- hn_upgrade --extends--> promotion-log
+- hn_gap_analysis --references--> hn_upgrade
+- hn_upgrade_propagation --implements--> hn_upgrade
 ```
 
 ### 7. Claude의 탐색 흐름
@@ -299,10 +316,10 @@ harness-starter의 기존 6개 문서에 즉시 적용.
 | 현재 위치 | 이동 대상 | domain | 예상 관계 |
 |-----------|----------|--------|----------|
 | harness/promotion-log.md | harness/ (유지) | harness | - |
-| harness/harness_improvement_260408.md | decisions/ | harness | references: promotion-log |
-| development/harness_upgrade_260410.md | decisions/ | harness | extends: promotion-log |
-| development/harness_upgrade_propagation_260410.md | guides/ | harness | implements: harness_upgrade_260410 |
-| development/harness_gap_analysis_260414.md | decisions/ | harness | references: harness_upgrade_260410 |
+| harness/hn_improvement.md | decisions/ | harness | references: promotion-log |
+| development/hn_upgrade.md | decisions/ | harness | extends: promotion-log |
+| development/hn_upgrade_propagation.md | guides/ | harness | implements: hn_upgrade |
+| development/hn_gap_analysis.md | decisions/ | harness | references: hn_upgrade |
 | setup/project_kickoff_sample.md | guides/ | meta | - (sample) |
 
 #### domain 어휘 거버넌스

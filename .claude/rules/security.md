@@ -38,7 +38,7 @@
 ## 방어 레이어
 
 4단(로컬 hook → CI → eval --deep → rotation 플레이북). 상세·rotation 절차·
-2026-04-18 사고 참고는 `docs/decisions/rules_metadata_260420.md` 참조.
+2026-04-18 사고 참고는 `docs/decisions/hn_rules_metadata.md` 참조.
 
 요약:
 - 로컬 pre-commit hook (`scripts/install-secret-scan-hook.sh`)

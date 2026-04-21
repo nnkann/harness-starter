@@ -3,9 +3,9 @@ title: 코드 SSOT 서더링 감사 — 중복 정의·동기화 부담 정리
 domain: harness
 tags: [ssot, audit, code, refactor]
 relates-to:
-  - path: decisions/skill_agent_role_audit_260420.md
+  - path: decisions/hn_skill_agent_role_audit.md
     rel: extends
-  - path: harness/commit_review_handoff_refactor_260420.md
+  - path: harness/hn_commit_review_handoff.md
     rel: references
 status: completed
 created: 2026-04-20

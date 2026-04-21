@@ -3,7 +3,7 @@ title: commit Step 2 후속 — write-doc symptom-keywords 재질의 + completed
 domain: harness
 tags: [commit, write-doc, completion-gate]
 relates-to:
-  - path: ../harness/search_and_completion_gaps_260418.md
+  - path: ../harness/hn_search_and_completion_gaps.md
     rel: extends
 status: completed
 created: 2026-04-19
@@ -28,7 +28,7 @@ updated: 2026-04-19
 
 ## 원본
 
-원본 WIP `harness--search_and_completion_gaps_260418.md`의 Part A 후속 항목.
+원본 WIP `harness--hn_search_and_completion_gaps.md`의 Part A 후속 항목.
 
 ## 잔여 작업
 

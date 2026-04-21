@@ -18,7 +18,7 @@ updated: 2026-04-19
 ## 잔여 → 후속 WIP로 분리
 
 - review needs_advisor 기준 + 허위 후속 감지 + commit Step 7 advisor 통합
-  → `harness--guardrails_followup_260419.md`
+  → `harness--hn_guardrails_followup.md`
 
 # LLM 실수 방지 가드레일
 
@@ -190,7 +190,7 @@ done
 
 ### 범용성 오염 결합
 
-`harness--generic_contamination_protection_260418.md` §5에서 참조:
+`harness--hn_generic_contamination_protection.md` §5에서 참조:
 같은 파일에 고유명사 의심 단어가 반복 추가되면 **차단 수준 격상** — 이
 기능의 구현 소유는 guardrails 쪽 (§위 로직에 contamination 감지 결과 주입).
 

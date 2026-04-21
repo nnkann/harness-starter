@@ -132,7 +132,7 @@ updated: 2026-04-20
 | 2026-04-20 | auto-format.sh + readiness에 통합 | settings.json Write/Edit 후 자동 검증, readiness 자가 진단에도 추가 |
 | 2026-04-20 | 버전 | 0.7.1 → 0.7.2 | settings.json schema 검증 자동화 (patch) |
 | 2026-04-20 | review.md 전면 재작성 | "카테고리 설명"을 "diff 패턴 → 검증 행동" 매핑 9개로 전환. 각 패턴별 tool 선택·호출 횟수 명시. maxTurns: 6 frontmatter 상한 |
-| 2026-04-20 | starter 자체 CPS 작성 | `docs/guides/project_kickoff_harness_starter_260420.md`. 이번 세션 내내 CPS 없이 작업 진행(하네스 자체 무너짐)이라 사용자 지적. P1~P5 정리, 기존 Solution 상태 기록. 다음 세션부터 implementation Step 0이 본 CPS와 대조 가능 |
+| 2026-04-20 | starter 자체 CPS 작성 | `docs/guides/project_kickoff.md`. 이번 세션 내내 CPS 없이 작업 진행(하네스 자체 무너짐)이라 사용자 지적. P1~P5 정리, 기존 Solution 상태 기록. 다음 세션부터 implementation Step 0이 본 CPS와 대조 가능 |
 | 2026-04-20 | review.md 9번 CPS 감지 패턴 | 새 도메인·규칙·스킬·에이전트 신설 시 CPS 갱신 누락 감지 [주의]. sample 외 실제 CPS 있을 때만 작동 |
 | 2026-04-20 | 버전 | 0.7.2 → 0.8.0 | review·CPS 구조 변경 (minor — 검증 모델 자체 업그레이드) |
 | 2026-04-20 | commit Step 7 병렬 호출 명시 강화 | review + test-strategist를 한 응답 메시지에 Agent tool use 2개 동시 배치하도록 강제. 순차 실행 유발 금지 패턴 명시 (분리 메시지·결과 대기·조건부 호출) |
@@ -140,17 +140,17 @@ updated: 2026-04-20
 | 2026-04-20 | docs/guides/external-research-patterns 신설 | Context7 HTTP·WebFetch·WebSearch 도구 선택 가이드. Context7 MCP 사용 금지 명시. internal-first.md에 포인터 추가 |
 | 2026-04-20 | 버전 | 0.8.0 → 0.9.0 | 외부 조사 패턴 재정립 (minor — MCP 폐기 권고·가이드 추가는 새 인터페이스) |
 | 2026-04-20 | rules/ 파일 다이어트 | 7개 파일 대폭 압축 (staging.md 49%↓, docs.md 55%↓, security.md 43%↓, self-verify.md 40%↓, no-speculation.md 42%↓, internal-first.md 25%↓, memory.md 소폭). 매 세션 시스템 프롬프트 용량 약 15KB 절감. 배경·자동 감지 상세·rotation 플레이북·탐색 절차는 docs/decisions·docs/guides로 분리 (LLM이 매 세션 읽을 필요 없는 메타·거버넌스) |
-| 2026-04-20 | docs/decisions/staging_governance_260420 신설 | 폭증 차단 게이트·신호 추가 4질문·알려진 한계·pre-check stdout 스키마 분리 보관 |
-| 2026-04-20 | docs/decisions/rules_metadata_260420 신설 | no-speculation·internal-first·security의 배경·자동 감지 패턴·2026-04-18 사고 참고 통합 보관 |
-| 2026-04-20 | docs/guides/doc-search-protocol_260420 신설 | IDE 컨텍스트 힌트·"없다" 3단계·escalation 절차. doc-finder 에이전트와 메인 Claude가 탐색 시 참조 |
+| 2026-04-20 | docs/decisions/hn_staging_governance 신설 | 폭증 차단 게이트·신호 추가 4질문·알려진 한계·pre-check stdout 스키마 분리 보관 |
+| 2026-04-20 | docs/decisions/hn_rules_metadata 신설 | no-speculation·internal-first·security의 배경·자동 감지 패턴·2026-04-18 사고 참고 통합 보관 |
+| 2026-04-20 | docs/guides/hn_doc_search_protocol 신설 | IDE 컨텍스트 힌트·"없다" 3단계·escalation 절차. doc-finder 에이전트와 메인 Claude가 탐색 시 참조 |
 | 2026-04-20 | 버전 | 0.9.0 → 0.9.1 | rules 재구조화 + docs/ 3개 문서 신설 (patch — 행동 변경 없음, SSOT 이동과 압축) |
-| 2026-04-20 | harness-upgrade 화이트리스트 | rules가 참조하는 `docs/guides/*`·`docs/decisions/*` 파일을 "하네스 파일 범위"에 명시 추가. v0.9.1 다운스트림에서 dead link 발생(rules/docs.md → doc-search-protocol_260420.md)한 실측 증상에 대응. 원칙(guides/decisions는 사용자 전용) 유지 + 화이트리스트 예외 도입 |
+| 2026-04-20 | harness-upgrade 화이트리스트 | rules가 참조하는 `docs/guides/*`·`docs/decisions/*` 파일을 "하네스 파일 범위"에 명시 추가. v0.9.1 다운스트림에서 dead link 발생(rules/docs.md → hn_doc_search_protocol.md)한 실측 증상에 대응. 원칙(guides/decisions는 사용자 전용) 유지 + 화이트리스트 예외 도입 |
 | 2026-04-20 | MIGRATIONS v0.9.1 섹션 추가 | 다운스트림이 rules 참조 문서 4개를 수동 복사하는 절차. 이전 버전 upgrade가 `docs/guides/*`를 이식 안 했기 때문에 v0.9.1에서 dead link가 필연적 발생 |
 | 2026-04-20 | 버전 | 0.9.1 → 0.9.2 | harness-upgrade SKILL 수정 + MIGRATIONS 보강 (patch — dead link 회귀 수정) |
 | 2026-04-20 | pre-commit-check.sh 격상 면제 | 룰 0a("메타·문서 단독은 도메인 등급 무시")가 1단계 stage 결정에서만 적용되고 2단계 격상(MULTI_DOMAIN + critical → deep)이 짓밟던 버그. IS_DOC_ONLY 변수 도입 — S5/S6 단독(코드/핵심설정/마이그레이션/빌드 미동반)이면 격상 면제. 다운스트림 c976255 측정에서 발견 (S6+S9 critical, 자동분류 deep → --quick 오버라이드 필요했음) |
 | 2026-04-20 | staging.md 룰 A에 면제 명시 | "다중 도메인 hit + critical → deep 격상" 룰에 ※ S5/S6 단독은 면제 추가. 룰 0a 의도가 격상 단계까지 일관 |
 | 2026-04-20 | 버전 | 0.9.2 → 0.9.3 | stage 격상 면제 버그 수정 (patch) |
-| 2026-04-20 | 정보 흐름 누수 전수 조사 | 13 스킬·8 에이전트·11 스크립트 감사. 10건 누수 식별 (강 1·중 5·약 4). codebase-analyst 위임 결과를 docs/WIP/harness--info_flow_leak_audit_260420.md에 정리 |
+| 2026-04-20 | 정보 흐름 누수 전수 조사 | 13 스킬·8 에이전트·11 스크립트 감사. 10건 누수 식별 (강 1·중 5·약 4). codebase-analyst 위임 결과를 docs/WIP/harness--hn_info_flow_leak_audit.md에 정리 |
 | 2026-04-20 | Phase 1 — pre-check + commit + eval 누수 해소 | (1) pre-check stdout에 new_func_lines_b64 key 추가 (test-strategist 파일 재Read 방지) (2) commit Step 7에 메타 파일 본문 박기 규정 신설 (HARNESS.json·promotion-log·MIGRATIONS·INDEX 본문 인라인) (3) eval 4관점 에이전트 prompt에 Step 0/1 결과 인라인 주입 명시 |
 | 2026-04-20 | Phase 2 — docs-manager 호출자 전달 규약 | docs-manager SKILL 상단에 trigger·intent·scope·files·context 5종 필드 규약 신설. commit·harness-upgrade·harness-init·harness-adopt 4개 호출자가 규약 따르도록 수정. 누수 #3·#5·#11 일괄 해소 |
 | 2026-04-20 | WIP 후속 과제 2건 | (a) review 화이트리스트 자동 감지 (rules → docs 참조 시 harness-upgrade SKILL 화이트리스트 등록 여부) (b) implementation 스킬 재정의 (라우터·추적자로 역할 좁히기) |

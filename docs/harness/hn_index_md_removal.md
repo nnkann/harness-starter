@@ -3,8 +3,10 @@ title: docs/INDEX.md 폐기 — 관리 드리프트 SSOT 제거
 domain: harness
 tags: [docs, ssot, simplification, index-removal]
 relates-to:
-  - path: harness/harness_simplification_260419.md
+  - path: harness/hn_simplification.md
     rel: extends
+  - path: decisions/hn_frontmatter_graph_spec.md
+    rel: supersedes
 status: completed
 created: 2026-04-20
 updated: 2026-04-20
@@ -75,5 +77,5 @@ updated: 2026-04-20
 
 ## 단순화 정신
 
-`harness_simplification_260419.md`의 "더 추가가 아니라 더 빼기"를
+`hn_simplification.md`의 "더 추가가 아니라 더 빼기"를
 관리되지 않는 SSOT 제거로 확장 적용.

@@ -8,7 +8,7 @@ symptom-keywords:
   - 68k
   - 15 tool calls
 relates-to:
-  - path: ../guides/project_kickoff_harness_starter_260420.md
+  - path: ../guides/project_kickoff.md
     rel: implements
 status: completed
 created: 2026-04-20

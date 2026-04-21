@@ -3,7 +3,7 @@ title: review·commit advisor 통합 — needs_advisor 자동 트리거
 domain: harness
 tags: [advisor, review, commit, integration]
 relates-to:
-  - path: ../harness/guardrails_followup_260419.md
+  - path: ../harness/hn_guardrails_followup.md
     rel: extends
 status: abandoned
 created: 2026-04-19

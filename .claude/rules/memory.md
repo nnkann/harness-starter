@@ -1,7 +1,7 @@
 # Memory 활용 규칙
 
 "실수를 코드화"의 세션 간 확장 + 세션 내 동적 snapshot 저장소.
-배경: `docs/decisions/memory_redesign_260420.md`.
+배경: `docs/decisions/hn_memory.md`.
 
 ## 두 종류의 memory — 경계 엄수
 
@@ -56,7 +56,7 @@ commit → review → 재commit 사이클에서 diff·pre-check 결과 재사용
 | `session-pre-check.txt` | pre-check stdout 14 keys | Step 5 직후 | Step 7 review prompt |
 | `session-tree-hash.txt` | `git write-tree` 결과 | Step 5 직전 | 캐시 유효성 판정 |
 
-**확장 금지**: 3개 외 추가 원할 시 `memory_redesign_260420.md` 수정 후 재합의.
+**확장 금지**: 3개 외 추가 원할 시 `hn_memory.md` 수정 후 재합의.
 
 **라이프사이클**:
 - commit 성공 → 스킬 끝에서 `rm -f .claude/memory/session-*.txt`

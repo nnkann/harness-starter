@@ -27,9 +27,9 @@ created: 2026-04-08
 ### 확인 필요 (사용자 확인 요망)
 "학습모드"가 구체적으로 어느 것을 가리키는지 확정해야 함. 후보:
 
-1. **SessionStart hook의 RULES 자동 출력** — [session-start.sh:38-44](.claude/scripts/session-start.sh#L38-L44)
+1. **SessionStart hook의 RULES 자동 출력** — [session-start.sh:38-44](../../.claude/scripts/session-start.sh#L38-L44)
    매 세션 시작마다 4개 규칙을 무조건 출력. 초보자용 리마인드 성격.
-2. **harness 강도 `light`가 기본** — [harness-init/SKILL.md:56-59](.claude/skills/harness-init/SKILL.md#L56-L59)
+2. **harness 강도 `light`가 기본** — [harness-init/SKILL.md:56-59](../../.claude/skills/harness-init/SKILL.md#L56-L59)
    `light` 기준에 "학습용"이 포함됨. 셋업 시 기본 추천일 가능성.//이게 맞는 것 같아. light모드라도 학습모드는 선택에 맞겨야 해.
 3. **다른 후보** — 사용자가 실제로 본 메시지/동작 확인 필요.
 
@@ -46,7 +46,7 @@ created: 2026-04-08
 `h-setup.sh` 실행 → `docs/WIP/`가 비어 있음. `.gitkeep`만 생성. 사용자가 다음에 뭘 해야 할지 문서로 존재하지 않음.
 
 ### 현재 상태
-- [harness-init/SKILL.md:197-254](.claude/skills/harness-init/SKILL.md#L197-L254)에 Step 8 "첫 번째 작업 생성"이 이미 정의돼 있음 — 도메인별 작업 문서를 만들게 돼 있음.
+- [harness-init/SKILL.md:197-254](../../.claude/skills/harness-init/SKILL.md#L197-L254)에 Step 8 "첫 번째 작업 생성"이 이미 정의돼 있음 — 도메인별 작업 문서를 만들게 돼 있음.
 - 하지만 **그 이전**, `h-setup.sh` 직후 `harness-init`을 돌리기 전까지의 공백이 문제. 사용자는 `docs/WIP/`를 봤는데 아무것도 없으니 "다음에 뭘 해야 하는지" 모름.
 
 ### 방향
@@ -194,17 +194,17 @@ created: 2026-04-08
 ## 구현 결과 (2026-04-08)
 
 ### 이슈 1 ✅
-- [commit/SKILL.md](.claude/skills/commit/SKILL.md): "기본은 light" 제거. CLAUDE.md `하네스 강도:` 읽어서 분기. 비어 있으면 실행 중단 + 사용자 질의.
-- [CLAUDE.md](CLAUDE.md): `## 환경`에 `하네스 강도:` 라인 추가.
-- [harness-init/SKILL.md](.claude/skills/harness-init/SKILL.md): "기본값 없음, 반드시 선택" 명시. Step 7 반영 표에 강도 추가.
-- [README.md](README.md): 하네스 강도 섹션 업데이트, "학습용" 제거.
+- [commit/SKILL.md](../../.claude/skills/commit/SKILL.md): "기본은 light" 제거. CLAUDE.md `하네스 강도:` 읽어서 분기. 비어 있으면 실행 중단 + 사용자 질의.
+- [CLAUDE.md](../../CLAUDE.md): `## 환경`에 `하네스 강도:` 라인 추가.
+- [harness-init/SKILL.md](../../.claude/skills/harness-init/SKILL.md): "기본값 없음, 반드시 선택" 명시. Step 7 반영 표에 강도 추가.
+- [README.md](../../README.md): 하네스 강도 섹션 업데이트, "학습용" 제거.
 
 ### 이슈 2 ✅
-- [h-setup.sh](h-setup.sh): `docs/WIP/harness_init_pending.md` placeholder 자동 생성. session-start hook이 자연스럽게 유도.
-- [harness-init/SKILL.md:148-200](.claude/skills/harness-init/SKILL.md#L148-L200): Step 7-1을 "프로젝트 출범 문서 생성"으로 구체화. `project_kickoff_YYMMDD.md` 템플릿 포함. 프로젝트가 존재하는 한 유지되는 **living document**.
+- [h-setup.sh](../../h-setup.sh): `docs/WIP/harness_init_pending.md` placeholder 자동 생성. session-start hook이 자연스럽게 유도.
+- [harness-init/SKILL.md:148-200](../../.claude/skills/harness-init/SKILL.md#L148-L200): Step 7-1을 "프로젝트 출범 문서 생성"으로 구체화. `project_kickoff_YYMMDD.md` 템플릿 포함. 프로젝트가 존재하는 한 유지되는 **living document**.
 
 ### 이슈 3 ✅
-- [.claude/skills/harness-sync/SKILL.md](.claude/skills/harness-sync/SKILL.md) 신규 스킬.
+- [.claude/skills/harness-sync/SKILL.md](../../.claude/skills/harness-sync/SKILL.md) 신규 스킬.
 - 멱등성: `.claude/.env_synced` 마커로 "한 번만" 보장. 최초 머신 재실행 불필요.
 - CLAUDE.md `## 환경` 파싱 → 패키지 매니저별 설치 명령 매핑 → 사용자 확인 후 실행.
 - h-setup.sh가 `.gitignore`에 `.claude/.env_synced` 자동 추가.

@@ -1,5 +1,23 @@
 # Docs 규칙
 
+## 핵심 원칙 — 파일명이 곧 인덱스
+
+문서 시스템은 **파일명 → 도메인 → cluster** 체인으로 자동 탐색된다.
+별도 인덱스 파일(과거 `INDEX.md`) 없이 **파일명 규약 + abbr 표 + cluster
+자동 매핑**으로 진입점을 대체한다.
+
+탐색 공식:
+```
+파일명 prefix (abbr)    →  naming.md "도메인 약어" 표  →  domain
+파일명 slug             →  주제 식별 (grep 대상)
+프론트매터 tags         →  세분화 분류 (skill·agent·rule 등)
+clusters/{domain}.md    →  도메인 진입점 (docs-manager가 자동 갱신)
+```
+
+따라서 `ls docs/**/hn_*`·`grep -r "memory"`만으로 원하는 문서를 찾을 수
+있어야 하며, 그렇지 못하면 파일명·약어 등록·cluster 중 어딘가가 규칙
+위반 상태다. 이 원칙을 유지하기 위한 구체 규칙이 아래에 있다.
+
 ## 폴더 구조
 
 ```
@@ -59,7 +77,7 @@ incident 생성 시 빈 필드면 재질의.
 - incident 외 폴더(`archived/`·`harness/`·`guides/`·`decisions/`)는 **면제
   없음**. 다운스트림 실명 노출 시 review가 [주의] 이상으로 지적.
 - 본 리포가 public이면 history 재작성 불가하므로 처음부터 placeholder
-  필수. 관련 incident: `docs/incidents/downstream_name_leak_in_archive_260420.md`.
+  필수. 관련 incident: `docs/incidents/hn_downstream_name_leak.md`.
 
 ## clusters/
 
@@ -70,16 +88,45 @@ incident 생성 시 빈 필드면 재질의.
 - clusters/{domain}.md: 도메인별 문서 목록 + 관계 맵. **진입점 SSOT**.
 - 도메인 목록은 `.claude/rules/naming.md`의 "도메인 목록"이 유일한 SSOT.
   (INDEX.md는 2026-04-20 폐기 — 도메인 2개 구조에서 진입 포인터 역할이
-  무의미해 관리 드리프트만 발생. 자세한 근거는 `docs/harness/index_md_removal_260420.md`)
+  무의미해 관리 드리프트만 발생. 자세한 근거는 `docs/harness/hn_index_md_removal.md`)
 - WIP는 clusters 미포함 (완료 후 이동 시 추가)
 - commit 스킬이 문서 이동 시 clusters만 갱신
 
+### 자동 매핑 (파일명 abbr → cluster)
+
+docs-manager가 파일명을 파싱해 cluster를 자동 결정한다. SSOT는
+`naming.md` "Cluster 자동 매핑" 섹션. 요약:
+
+- 파일명에 등록된 abbr이 있으면 → 그 도메인 cluster에 등록
+  (불투명 prefix·라우팅 태그 통과, 여러 abbr 있으면 첫 매치)
+- abbr 없는 전역 마스터 (`project_kickoff.md`·`MIGRATIONS.md` 등) →
+  프론트매터 `domain:`으로 폴백
+- 약어 누락·중복은 `docs-manager --validate`가 감지
+
 ## 문서 탐색
 
-탐색 절차·"없다" 3단계·escalation은 `docs/guides/doc-search-protocol_260420.md` 참조.
+### 기본 경로 (파일명·cluster 1차)
 
-핵심: IDE 컨텍스트는 힌트일 뿐, 사용자 원문 고유명사로 Glob → 제목/태그 grep → 본문 grep
-3단계 모두 거친 뒤에만 "없다" 결론.
+```
+1. 도메인 짐작되면        → ls docs/**/{abbr}_*    (예: hn_*)
+2. 주제 키워드 있으면      → ls docs/**/*{keyword}* (예: *memory*, *staging*)
+3. 위 둘 결합 가능         → ls docs/**/hn_*memory*
+4. cluster 진입점         → cat docs/clusters/{domain}.md
+5. tags 세분화 필요       → grep -l "tags:.*skill" docs/
+```
+
+파일명이 규칙을 따르면 1~4로 끝난다.
+
+### 깊은 탐색 (1차 실패 시)
+
+고유명사·사용자 원문 키워드가 파일명에 안 들어가는 경우가 있다. 이럴
+때는 `docs/guides/hn_doc_search_protocol.md`의 절차:
+- 사용자 원문 고유명사로 Glob
+- 제목/태그 grep
+- 본문 grep
+- 3단계 모두 거친 뒤에만 "없다" 결론
+
+IDE 컨텍스트는 힌트일 뿐, 사용자 원문 기준으로 검색한다.
 
 ## SSOT 우선 + 분리 판단 (단순 지표 금지)
 
@@ -108,27 +155,75 @@ incident 생성 시 빈 필드면 재질의.
 **완료된 문서 재개**: SSOT를 다시 쓰려면 `docs/X/` → `docs/WIP/` 되돌린 뒤
 `status: completed` → `in-progress`. 같은 내용을 새 WIP로 복제하지 마라.
 
+## 파일명 (SSOT: naming.md "파일명 — 문서" 섹션)
+
+요약:
+```
+{abbr}_{slug}.md                  모든 폴더 (decisions/guides/harness/incidents)
+{slug}.md                         전역 마스터 문서 (abbr 없음, 도메인 횡단)
+```
+
+- `abbr`: `naming.md` "도메인 약어" 표의 값 (도메인당 1개)
+- `slug`: snake_case 의미명 — **주제 자체**. 세분화(어느 skill·rule·agent인지)는
+  파일명이 아니라 `tags:` 프론트매터로 표현 (단일 도메인 유지, 탐색 유연성 확보)
+- **날짜 suffix 전면 금지** — incidents 포함. 같은 주제는 같은 파일을
+  갱신. 발생 시점은 프론트매터 `created` + git history가 담당.
+  주요 전환점은 본문 `## 변경 이력` 섹션에 기록
+- 전역 마스터 vs 단일 도메인 마스터 판단 기준은 `naming.md` 참조
+
+### 왜 이 형식인가 (운영 관점)
+
+- **파일명만으로 도메인 즉시 확정** → Read 안 해도 cluster 확정, docs-manager
+  가 프론트매터 재파싱 없이 매핑 가능
+- **주제 = 파일 1:1** → `grep -r "memory"` 한 번에 관련 논의 전부 모임.
+  여러 날짜 파일 중 최신 찾는 수고 없음
+- **abbr prefix** → `ls docs/**/hn_*`로 도메인 전체 리스트업 1초
+- **tags 세분화** → 같은 도메인 안에서 `skill`·`agent`·`rule`·`hook` 등 태그로
+  관심사 필터링. 도메인을 여러 개로 쪼개지 않고도 축 분리 가능
+
+### 주제 분할 규칙
+
+한 파일이 여러 주제를 다루면 grep이 실패한다. 분할 기준:
+- 결정 근거가 독립적이고 서로 다른 문제를 다루면 **분할** (`hn_staging_governance.md`
+  + `hn_staging_followup.md`)
+- 같은 결정의 후속 실행·측정은 **본문 누적** (`## 변경 이력` 섹션)
+- 동일 주제 재결정은 같은 파일 갱신. 완전 superseded만 `archived/` + 새 파일
+
 ## 문서 생성
+
+생성 흐름 (write-doc·implementation 스킬이 강제):
+
+```
+1. 폴더 결정 (decisions / guides / incidents / harness)
+2. domain 조회 + abbr 조회 (naming.md "도메인 약어" 표)
+   └ abbr 누락 시 사용자에게 입력 요청 + naming.md 약어 표 갱신
+3. 기존 문서 탐색 (같은 주제 있으면 갱신 유도, 분리 판단)
+4. 파일명 생성: {대상폴더}--{abbr}_{slug}.md
+5. 프론트매터 작성: title / domain / tags / status / created
+6. 본문 작성
+```
 
 - 코드 작업과 함께 → implementation 스킬이 docs/WIP/에 계획 문서 생성
   (단, 위 SSOT 우선·분리 판단 선행)
 - 문서만 단독 → write-doc 스킬이 폴더·프론트매터·파일명 강제
-- WIP 파일명: `{대상폴더}--{작업내용}_{YYMMDD}.md` (`--`는 라우팅 태그)
-- 대상폴더: decisions, guides, incidents, harness 중 하나
+- WIP 파일명: `{대상폴더}--{abbr}_{slug}.md`
+  - `--`는 라우팅 태그. `{대상폴더}`: decisions, guides, incidents, harness
 - 프론트매터 필수. `relates-to`는 작업 중 비어도 됨
 
 ## 문서 이동
 
 - 완료/중단 문서는 docs/WIP/에 남기지 않음
 - 이동은 commit 스킬 처리. 수동 이동 금지
-- 이동 시 `{대상폴더}--` 접두사 제거 → 최종 `{작업내용}_{YYMMDD}.md`
+- 이동 시 `{대상폴더}--` 접두사 제거 → `{abbr}_{slug}.md`
 - 위 구조 폴더만 허용. **새 하위 폴더 만들지 마라**
 - 이동 시: status → completed/abandoned, updated 갱신, clusters/{domain}.md에 추가
+  - cluster는 파일명 abbr을 `naming.md` "Cluster 자동 매핑" 규칙으로
+    결정. abbr 없는 전역 마스터는 프론트매터 `domain:`으로 폴백
 
 ### 완료 문서 재개 (역방향 이동)
 
 completed로 이동된 SSOT 문서에 후속 실행 결과를 기록해야 하면:
-1. `git mv docs/{폴더}/X_{YYMMDD}.md docs/WIP/{원래접두사}--X_{YYMMDD}.md`
+1. `git mv docs/{폴더}/{abbr}_{slug}.md docs/WIP/{원래접두사}--{abbr}_{slug}.md`
 2. 프론트매터 `status: completed` → `in-progress`
 3. 작업 완료 시 다시 completed 전환 + 원래 폴더로 이동 (commit 스킬)
 
@@ -152,3 +247,6 @@ commit 스킬이 검사. 수동 completed 전환 금지.
 - docs/ 하위 임의 폴더 생성 (위 구조만 허용)
 - 새 폴더가 필요하면 사용자에게 먼저 확인
 - naming.md에 없는 domain 사용
+- naming.md "도메인 약어" 표에 없는 abbr 사용 (abbr 먼저 등록)
+- 파일명 날짜 suffix (incidents 포함). 발생 시점은 프론트매터 `created`
+- 주제 여럿을 한 파일에 뭉치기 (grep 실패 → 탐색 체인 깨짐)

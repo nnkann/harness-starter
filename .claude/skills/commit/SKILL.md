@@ -570,7 +570,7 @@ Agent tool call #2:
     # 시그니처 평가 가능하므로 파일 재Read 불필요.
 ```
 
-**정보 흐름 누수 #2 해소** (docs/WIP/harness--info_flow_leak_audit_260420):
+**정보 흐름 누수 #2 해소** (docs/WIP/harness--hn_info_flow_leak_audit):
 pre-check이 이미 함수 추가 라인을 추출했으므로 test-strategist가 파일을
 다시 Read할 필요 없음. commit이 base64 디코드해서 prompt에 인라인 박음.
 
@@ -664,7 +664,7 @@ fi
 ```
 
 이 단계를 빼면 starter 변경이 GitHub에 반영 안 됨 → 다운스트림이 fetch
-해도 못 봄 (incident `starter_push_skipped_260419` 참조).
+해도 못 봄 (incident `hn_starter_push_skipped` 참조).
 
 ### 세션 snapshot 정리 (push 성공 후)
 

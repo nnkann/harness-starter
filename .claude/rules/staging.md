@@ -4,7 +4,7 @@
 `pre-commit-check.sh`·`commit/SKILL.md`·`review.md`가 이 문서를 참조.
 
 거버넌스(신호 추가 게이트)·알려진 한계·pre-check stdout 스키마는
-`docs/decisions/staging_governance_260420.md`로 분리.
+`docs/decisions/hn_staging_governance.md`로 분리.
 
 ## 원칙
 
@@ -154,5 +154,5 @@ Stage 0(skip)도 반드시 한 줄. **검증 안 한 사실 자체가 추적 대
 - `pre-commit-check.sh`: 신호 감지 SSOT + stdout 스키마
 - `commit/SKILL.md`: stage 분기 + 플래그 처리
 - `review.md`: 카테고리 매핑 수행
-- `docs/decisions/staging_governance_260420.md`: 거버넌스·한계·stdout 스키마
-- `docs/WIP/harness--commit_review_staging_260419.md`: 설계 배경
+- `docs/decisions/hn_staging_governance.md`: 거버넌스·한계·stdout 스키마
+- `docs/WIP/harness--hn_commit_review_staging.md`: 설계 배경

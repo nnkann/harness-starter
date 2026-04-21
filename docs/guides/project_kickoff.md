@@ -115,7 +115,7 @@ Step 8.2(구 hook 감지) + 9.5(수동 액션 표시).
 
 **검증됨 (2026-04-20)**: starter 격리 벤치마크 3시나리오 실측 — tool_uses
 0~1회, duration 8~17초, tokens ~30k. 이전 48~68k/5~15회 대비 38~98% 감소.
-상세: `docs/incidents/review-v080-benchmark_260420.md`.
+상세: `docs/incidents/hn_review_v080_benchmark.md`.
 
 **제약**: 다운스트림은 환경 요인(플러그인·MCP) 추가로 기준선이 다름.
 다운스트림 실측은 별도 측정 필요.

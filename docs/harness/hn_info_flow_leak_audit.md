@@ -20,7 +20,7 @@ updated: 2026-04-20
 **Solution 영향**: 단계간 정보 전달 규약 도입. `## Solutions` 섹션의
 "단계 분리 + 정보 흐름" 보강 필요 (Phase 1 완료 후 CPS 갱신).
 
-**관련 incident**: `docs/incidents/review-agent-wrong-diff_260419.md`
+**관련 incident**: `docs/incidents/hn_review_agent_wrong_diff.md`
 — review가 prompt 안 staged diff를 신뢰하지 않고 git 명령 부른 사고.
 이번 작업은 그 연장선: review가 메타 파일 본문도 prompt에서 받게 만들어
 외부 Read 동기 자체 제거.
@@ -162,7 +162,7 @@ write-doc·session-start가 직접 알고 있는 WIP 파일 경로를 다음 단
 ### Phase 3: 실측 검증
 
 6. Phase 1·2 적용 효과를 실측 데이터로 검증.
-   → 별도 WIP `harness--info_flow_leak_phase3_measurement_260420.md`로 분리.
+   → 별도 WIP `harness--hn_info_flow_leak_phase3.md`로 분리.
 
 ## Phase 1 구현 결과 (2026-04-20) ✅
 
@@ -198,7 +198,7 @@ write-doc·session-start가 직접 알고 있는 WIP 파일 경로를 다음 단
 
 ### 다음 (Phase 2·3)
 Phase 2(docs-manager 전달 규약) — 본 문서 Phase 2 섹션 참조 (완료).
-Phase 3(실측 검증) — 별도 WIP `harness--info_flow_leak_phase3_measurement_260420.md`로 분리.
+Phase 3(실측 검증) — 별도 WIP `harness--hn_info_flow_leak_phase3.md`로 분리.
 
 ## Phase 2 구현 결과 (2026-04-20) ✅
 
@@ -240,7 +240,7 @@ docs-manager 호출자 전달 규약 도입. 누수 #3·#5·#11 일괄 해소.
 
 ### CPS 갱신 사항
 
-`docs/guides/project_kickoff_harness_starter_260420.md` P2 섹션:
+`docs/guides/project_kickoff.md` P2 섹션:
 - **Solution 갱신**: "staging.md 정밀화" 외에 "단계간 정보 흐름 규약 (Phase 1)"
   추가. review·test-strategist·eval 4관점이 prompt 인라인 컨텍스트로 작동.
 - 이번 커밋에서 CPS 문서 직접 갱신 안 함 — P2 승격 상태 업데이트는

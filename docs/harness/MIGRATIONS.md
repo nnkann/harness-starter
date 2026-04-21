@@ -49,6 +49,145 @@ fail을 막는다.
 
 ---
 
+## v0.16.0 — 문서 네이밍 전면 개편 (도메인 약어 + 통합 원칙)
+
+### 자동 적용 (스킬이 처리)
+
+**규칙 갱신**:
+- `.claude/rules/naming.md` — "왜 — 파일명이 곧 인덱스다" 섹션 신설,
+  "도메인 약어" 표 신설, "파일명 — 문서/WIP" 섹션 채움, "Cluster 자동
+  매핑" 직교 파싱 규칙 추가. **날짜 suffix 전면 금지 (incidents 포함)**
+- `.claude/rules/docs.md` — "핵심 원칙" 섹션 최상단 추가(탐색 체인),
+  "문서 탐색" 섹션을 `ls`/`grep` 우선 경로로 재구성, 파일명 규칙 +
+  주제 분할 기준, 금지 목록에 날짜 suffix·미등록 abbr 추가
+
+**스킬 갱신**:
+- `.claude/skills/write-doc/SKILL.md` — Step 1에 abbr 조회·검증 + 누락
+  시 사용자 입력 요청, Step 3 파일명 생성이 신 형식, 날짜 suffix 요청
+  거부 로직
+- `.claude/skills/docs-manager/SKILL.md` — Step 3 cluster 매핑이 파일명
+  abbr 직교 파싱(불투명 prefix·라우팅 태그·레거시 `_p2_` 통과), `--validate`
+  에 약어 중복·도메인 1:1 대응·파일명 날짜 suffix 검사 추가
+
+**업스트림 파일 rename (40개 + cluster + 결정문)**:
+- `docs/decisions/*` 10개: 날짜 suffix 제거 + `hn_` abbr 부착
+- `docs/guides/*` 6개: 동일 (전역 마스터 2개는 abbr 없음)
+- `docs/harness/*` 19개: 동일 (`MIGRATIONS.md`·`promotion-log.md`는 전역 마스터)
+- `docs/incidents/*` 6개: 날짜 suffix 제거 + `hn_` abbr 부착
+- `docs/clusters/harness.md` 재생성 (신 파일명 기준 + 폴더별 분류)
+- 본문 참조 173건 전수 치환 (마크다운 링크·relates-to·rules 본문)
+
+### 왜
+
+- 파일명이 곧 인덱스 → `ls docs/**/{abbr}_*`로 도메인 문서 즉시 목록화
+- 같은 주제 = 같은 파일 → 날짜 suffix로 인한 SSOT 분열 차단
+- docs-manager가 파일명만으로 cluster 자동 매핑 → 수동 인덱스 관리 제거
+- 다운스트림이 앞에 `m3-`·`s12-` 같은 불투명 prefix를 붙여도 직교 파싱
+  이 abbr만 추출해 cluster 매핑 유지
+- tags 프론트매터로 세분화 (`skill`·`rule`·`agent` 등) → 도메인을 여러
+  개로 쪼개지 않고도 축 분리 가능
+
+자세한 결정 근거: `docs/decisions/hn_doc_naming.md`
+
+### 수동 액션 (다운스트림 필수)
+
+- [ ] **`.claude/rules/naming.md` "도메인 약어" 표 채우기**
+
+  업그레이드 후 naming.md에 "도메인 약어" 섹션이 추가됐지만 표에는
+  하네스 시드(`hn`·`mt`)만 있음. **"도메인 목록 > 확정"의 모든 도메인
+  에 대해 abbr을 등록**해야 함.
+
+  규칙:
+  - 2~3자 소문자 영문
+  - 도메인당 1개
+  - 기존 약어와 충돌 금지
+  - 원 이름의 첫 자·자음 조합 선호 (`payment → pm`, `migration → mg`)
+
+  예:
+  ```
+  | 도메인 | abbr | cluster 파일 |
+  |--------|------|--------------|
+  | harness | hn | clusters/harness.md |
+  | meta    | mt | clusters/meta.md    |
+  | payment | pm | clusters/payment.md |
+  | auth    | au | clusters/auth.md    |
+  | api     | ap | clusters/api.md     |
+  ```
+
+  등록 안 하면 `docs-manager --validate`가 "도메인-약어 1:1 대응 누락"
+  경고. 파일명 prefix 매칭도 실패해 cluster 자동 매핑 안 됨.
+
+- [ ] **(선택) 기존 문서 이름 마이그레이션 정책 결정**
+
+  현재 문서가 날짜 suffix(`hn_memory_260420.md` 같은)를 가지고 있을
+  수 있음. 기존 파일 처리는 다운스트림 자율:
+
+  **옵션 A — 점진 이동 (권장)**
+  갱신 시점마다 같은 커밋에서 파일명도 신 규칙으로 변경 (`git mv`).
+  본문 내 마크다운 링크·relates-to path 함께 갱신. 소규모·저위험.
+
+  **옵션 B — 일괄 이동**
+  자체 스크립트로 한 번에 이동. 업스트림이 v0.16.0에서 자기 40개 파일을
+  이렇게 이동했음. 참조 대량 치환 필수. 프로젝트마다 참조 구조가 달라
+  업스트림은 범용 스크립트 제공 안 함.
+
+  업스트림 일괄 이동 절차 참고 (템플릿):
+  ```bash
+  # 1. rename 매핑 파일 작성 (src dst 쌍)
+  # 2. 일괄 git mv
+  # 3. 본문 참조 sed 치환 (옛 파일명 basename → 신 basename)
+  # 4. dead link 검사
+  # 5. clusters/* 재생성
+  # 6. 회귀 테스트 (test-pre-commit.sh 등)
+  ```
+
+  **옵션 C — 현상 유지**
+  옛 이름 그대로. 직교 파싱 규칙이 구 파일명도 abbr 추출 성공하므로
+  cluster 매핑은 동작. 신규만 신 규칙 준수.
+
+- [ ] **(선택) 마일스톤·Phase prefix 등 프로젝트 고유 확장 정의**
+
+  Phase/Milestone/Sprint 기반 개발 구조를 가진 프로젝트는 `naming.md`
+  하단에 `### 파일명 — 확장 (프로젝트 고유)` 섹션을 추가하고 자기
+  문법 정의:
+  ```
+  ### 파일명 — 확장 (프로젝트 고유)
+
+  m{N}-{abbr}_t{NN}_{slug}.md       마일스톤-task
+  m{N}_{slug}.md                    마일스톤 횡단
+  ```
+
+  업스트림 직교 파싱은 앞쪽 `m{N}-`을 **불투명 prefix로 통과**시키고
+  abbr만 추출하므로 cluster 매핑은 그대로 동작. `harness-upgrade`는
+  업스트림 소유 섹션만 덮어쓰므로 이 확장 섹션은 보존됨.
+
+### 검증
+
+```bash
+# 도메인-약어 1:1 대응 확인
+grep -A20 "도메인 약어" .claude/rules/naming.md
+
+# 파일명 규칙 위반 스캔
+find docs -name "*.md" | grep -vE "(incidents/|^docs/WIP/)" \
+  | grep -E "_[0-9]{6}\.md$"
+# 출력 있으면: incidents 외 날짜 suffix 남은 파일
+
+# docs-manager 정합성 검사
+# (Claude에게 /docs-manager --validate 실행 요청)
+```
+
+### 회귀 위험
+
+- **기존 파일 이름 혼재 기간** — 구 이름(`hn_memory_260420.md`)과 신
+  이름(`hn_memory.md`) 공존. 직교 파싱으로 매핑은 둘 다 성공하나, 사용자
+  ·LLM 모두 당분간 두 패턴 동시 노출
+- **abbr 표 누락 시 조용한 실패** — 도메인 추가하고 약어 등록 안 하면
+  그 도메인 문서는 cluster에 등록 안 됨. `--validate` 정기 실행 필요
+- **마일스톤 확장 섹션 관리 책임** — 업스트림이 의미 해석 안 하므로
+  다운스트림 자체 규율 필요. `m{N}-`이 무엇인지 그 프로젝트에서 정의
+
+---
+
 ## v0.9.3 — stage 격상 면제 버그 수정
 
 ### 자동 적용 (스킬이 처리)
@@ -104,10 +243,10 @@ docs/가 존재하지 않는 dead link**가 발생한다. 이전 버전의 harne
 
   # starter 리포에서 직접 복사 (harness-upstream remote 활용)
   for f in \
-    docs/guides/doc-search-protocol_260420.md \
-    docs/guides/external-research-patterns_260420.md \
-    docs/decisions/staging_governance_260420.md \
-    docs/decisions/rules_metadata_260420.md; do
+    docs/guides/hn_doc_search_protocol.md \
+    docs/guides/hn_external_research_patterns.md \
+    docs/decisions/hn_staging_governance.md \
+    docs/decisions/hn_rules_metadata.md; do
     mkdir -p "$(dirname "$f")"
     MSYS_NO_PATHCONV=1 git show harness-upstream/main:"$f" > "$f"
   done
@@ -125,10 +264,10 @@ docs/가 존재하지 않는 dead link**가 발생한다. 이전 버전의 harne
 grep -nE "docs/(guides|decisions)/[a-z_-]+_260420\.md" .claude/rules/*.md
 
 # 위 출력의 각 경로가 실제 존재하는지
-ls docs/guides/doc-search-protocol_260420.md \
-   docs/guides/external-research-patterns_260420.md \
-   docs/decisions/staging_governance_260420.md \
-   docs/decisions/rules_metadata_260420.md
+ls docs/guides/hn_doc_search_protocol.md \
+   docs/guides/hn_external_research_patterns.md \
+   docs/decisions/hn_staging_governance.md \
+   docs/decisions/hn_rules_metadata.md
 ```
 
 ### 회귀 위험
@@ -298,7 +437,7 @@ bash .claude/scripts/downstream-readiness.sh  # 0/0
 공백 포함 모든 문자에 매칭되며 "argument constraint는 fragile" 명시
 경고 + jq 기반 hook 권장 발견. 이에 따라 매처 자체를 폐기.
 
-incident: `docs/incidents/bash_n_flag_overblock_260419.md` 3차 섹션.
+incident: `docs/incidents/hn_bash_n_flag_overblock.md` 3차 섹션.
 
 ---
 

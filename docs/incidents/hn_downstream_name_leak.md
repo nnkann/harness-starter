@@ -10,11 +10,11 @@ symptom-keywords:
   - promotion-log 복사
   - review verdict warn
 relates-to:
-  - path: incidents/matcher_false_block_and_readme_overwrite_260419.md
+  - path: incidents/hn_matcher_false_block.md
     rel: references
-  - path: harness/generic_contamination_protection_260418.md
+  - path: harness/hn_generic_contamination_protection.md
     rel: extends
-  - path: decisions/code_ssot_audit_260420.md
+  - path: decisions/hn_code_ssot_audit.md
     rel: references
 status: completed
 created: 2026-04-20
@@ -34,14 +34,14 @@ symptom-keywords 필드 외 본문에는 반복하지 않는다. -->
 - 본 문서 증상 섹션의 `StageLink` 인용에 근거 주석 첨부 (위 HTML 주석).
   근거: rules/docs.md "사고 인용이 불가피하면 주석으로 근거 명시".
 - 재발 방지 #1의 "별도 과제로 분리" 추적 단서 추가: `docs/WIP/
-  harness--review_whitelist_autodetect_260420.md`와 같은 범주(commit
+  harness--hn_review_whitelist_autodetect.md`와 같은 범주(commit
   직전 리포 전체 스캔)로 후일 통합 검토.
 
 추가 조사 결과 **4곳**에 같은 제품명이 남아 있었음:
 - `.claude/rules/security.md:30` — DB 클라이언트 모듈 예시
-- `docs/harness/harness_simplification_260419.md:260` — review 실측 예시
+- `docs/harness/hn_simplification.md:260` — review 실측 예시
   (`Stagelink`/`ACME Corp`)
-- `docs/incidents/matcher_false_block_and_readme_overwrite_260419.md:24, 133`
+- `docs/incidents/hn_matcher_false_block.md:24, 133`
   — 실제 사고 인용
 
 ## 원인

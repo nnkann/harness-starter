@@ -53,12 +53,12 @@ fi
 
 # ─────────────────────────────────────────────
 # 검증 3: .claude/tmp/ 잔재 재발 방지
-# memory_redesign_260420.md — tmp 개념 폐기. .claude/memory/ 흡수.
+# hn_memory.md — tmp 개념 폐기. .claude/memory/ 흡수.
 # Claude가 수동 실행으로 잔재 파일 생성하는 경로 차단.
 # ─────────────────────────────────────────────
 if [[ $COMMAND =~ \.claude/tmp/ ]]; then
   echo "❌ .claude/tmp/ 는 폐기됨. 세션 snapshot은 .claude/memory/session-* 사용." >&2
-  echo "   근거: docs/decisions/memory_redesign_260420.md" >&2
+  echo "   근거: docs/decisions/hn_memory.md" >&2
   exit 2
 fi
 

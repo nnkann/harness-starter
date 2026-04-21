@@ -3,11 +3,11 @@ title: eval 4관점 advisor 이관 + specialist 품질 보강 (threat-analyst �
 domain: harness
 tags: [eval, advisor, specialist, threat-analyst, quality, scoring]
 relates-to:
-  - path: decisions/skill_agent_role_audit_260420.md
+  - path: decisions/hn_skill_agent_role_audit.md
     rel: implements
-  - path: harness/implementation_router_redesign_260420.md
+  - path: harness/hn_implementation_router.md
     rel: extends
-  - path: harness/commit_review_handoff_refactor_260420.md
+  - path: harness/hn_commit_review_handoff.md
     rel: references
 status: completed
 created: 2026-04-20

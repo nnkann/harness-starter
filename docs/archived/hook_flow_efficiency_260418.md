@@ -20,7 +20,7 @@ updated: 2026-04-19
 2. **이번 세션이 본 WIP 의도 80% 달성** — 단순화 작업과 시나리오 검증
    중 자연스럽게 처리됨:
    - PreToolUse `Bash(* -n *)` 광역 매처 오탐 발견·수정
-     (커밋 1a50efd, incident bash_n_flag_overblock_260419)
+     (커밋 1a50efd, incident hn_bash_n_flag_overblock)
    - 매처 substring 매칭 동작 문서화
    - 신규 hook 추가 시 격리 시나리오 검증 절차 확립
    - 매처 추가 4질문 도출 (광역 와일드카드 금지)
@@ -134,9 +134,9 @@ updated: 2026-04-19
 
 ## 연관
 
-- `harness--commit_perf_optimization_260418.md`: commit 관련 hook은 이 검토와
+- `harness--hn_commit_perf_optimization.md`: commit 관련 hook은 이 검토와
   같이 진행하는 게 효율적
-- `harness--llm_mistake_guardrails_260418.md`: 연속 수정 감지·고유명사 감지
+- `harness--hn_llm_mistake_guardrails.md`: 연속 수정 감지·고유명사 감지
   같은 신규 hook 아이디어는 이 검토 결과 나온 표준 가이드에 맞춰야 함
 
 ## 우선순위
