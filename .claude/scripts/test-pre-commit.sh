@@ -278,6 +278,12 @@ if [ "$exit_code" = "0" ]; then
   PASS=$((PASS + 1))
 else
   echo "  [FAIL] T13.1 차단됨 (exit $exit_code)"
+  # TEST_DEBUG=1: FAIL 시 캡처된 output 출력. 다운스트림 격리 실패 진단용.
+  # incident: hn_test_isolation_git_log_leak.md
+  if [ "${TEST_DEBUG:-0}" = "1" ]; then
+    echo "    [pre-check 출력 dump]"
+    echo "$output" | sed 's/^/      /'
+  fi
   FAIL=$((FAIL + 1))
   FAILED_CASES="${FAILED_CASES}\n  - T13.1 연속 수정 차단"
 fi

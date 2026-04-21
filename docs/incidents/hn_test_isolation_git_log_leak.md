@@ -1,21 +1,23 @@
 ---
-title: test-pre-commit.sh T13 격리 실패 — 다운스트림 git log 교차 오염
+title: test-pre-commit.sh T13 격리 실패 — 원인 부분 확정 (진행 중)
 domain: harness
-tags: [testing, isolation, regression, git-log]
+tags: [testing, isolation, regression]
 symptom-keywords:
   - T13.1 repeat_count 다운스트림 격리 실패
-  - test prep 커밋 히스토리 오염
-  - git log -5 테스트 경계 누출
-  - docs/WIP/test--scenario_260419.md
+  - 수동 재현 exit 0 스위트 내부 exit 2
+  - T1~T12 누적 상태 T13 영향
+  - docs/WIP/test--scenario_*.md
   - 44/45 T13.1만 실패
+  - TEST_DEBUG=1
 relates-to:
   - path: decisions/hn_review_staging_rebalance.md
     rel: caused-by
-status: completed
+status: in-progress
 created: 2026-04-22
+updated: 2026-04-22
 ---
 
-# test-pre-commit.sh T13 격리 실패 — 다운스트림 git log 교차 오염
+# test-pre-commit.sh T13 격리 실패 — 원인 부분 확정 (진행 중)
 
 ## 증상
 
@@ -24,85 +26,96 @@ created: 2026-04-22
 (`/tmp/upstream-check`)에서는 45/45 통과. 테스트 스크립트 자체가 병합된
 내용은 업스트림과 동일.
 
-## 재현 조건
+## 진행 상황 (2026-04-22)
 
-1. 다운스트림 repo에 `test-pre-commit.sh` 적용 (v0.17.0 이후 버전)
-2. 다운스트림의 git 히스토리에 `docs/WIP/test--scenario_260419.md`와
-   **동일 경로**를 건드린 이력이 하나라도 존재
-3. 전체 스위트 실행 시 T11·T12 등 이전 테스트가 prep 커밋을 남김
-4. T13이 같은 고정 경로로 prep1·prep2 커밋 생성
-5. T13 staged 상태(3번째 수정)에서 `pre-commit-check.sh` 호출
-6. `git log -5 <file>` 카운트가 T13 자체 2회 + 다운스트림 기존 이력 →
-   `COUNT ≥ 3` + `CORE_CONFIG_REGEX`는 miss라 차단 조건엔 안 걸리지만,
-   스위트 중간 누적 상태와 결합해 `exit 0` 이외 경로로 빠짐
+### 확인된 사실
 
-## 근본 원인
+- 스위트 내부 T13 → `exit 2`
+- **수동 재현** (reset → 동일 steps → pre-check 직접 호출) → `exit 0`
+- 유일한 차이: 스위트가 T1~T12 동안 누적시킨 repo 상태
+- `reset()` 함수는 `git reset HEAD . && git clean -fdq`만 수행 →
+  **이전 테스트가 만든 prep 커밋과 git log는 그대로 남음**
 
-`test-pre-commit.sh`의 `reset()` 함수 (L68~71):
+### 최초 가설 (v0.18.1에서 fix 시도) — 한 측면만 해결
+
+최초 진단: **고정 파일명 `docs/WIP/test--scenario_260419.md`가 다운스트림
+repo 히스토리와 교차 오염 → `git log -5 <file>` S10 카운트가 예상 범위
+이탈 → exit 2**.
+
+v0.18.1에서 파일명을 PID + 에포크로 unique화 (A안). 하지만 **다운스트림
+재검증 결과: fix 적용 후에도 여전히 T13.1 exit 2 지속**.
+
+### 가설의 한계 — 원인 미확정 자인
+
+- unique 파일명이면 **git history 교차 자체가 불가능**. 그런데도 실패
+  지속 → 교차가 exit 2의 직접 원인이 **아닐 가능성** 높음
+- A안은 "고정 경로 교차 가능성"은 봉쇄했지만 **다운스트림 실제 실패의
+  원인은 미해결**
+- 최초 가설이 그럴듯한 설명이었던 탓에 관찰 없이 고정시킨 분석 실수
+
+### 정정된 상태 — 원인 미확정
+
+**현재 시점에서 exit 2의 확정 원인은 밝혀지지 않음**. 이유는 스위트
+내부 T13 분기가 `output=$(bash .claude/scripts/pre-commit-check.sh 2>&1)`
+로 stderr 캡처만 하고 출력하지 않음 → **사용자 가시 stderr가 없어 exit
+2 사유 파악 불가**.
+
+## 재진단 프로토콜 (v0.18.2 도입)
+
+### TEST_DEBUG=1 디버그 훅
+
+`test-pre-commit.sh` T13·T19·T20 등 **출력 캡처 FAIL 분기**에 옵트인
+디버그 출력 추가. 평상시 결과는 변화 없음, 재현 시에만:
 
 ```bash
-reset() {
-  git reset HEAD . >/dev/null 2>&1
-  git clean -fdq >/dev/null 2>&1
-}
+TEST_DEBUG=1 bash .claude/scripts/test-pre-commit.sh 2>&1 \
+  | sed -n '/\[T13\]/,/\[T14\]/p'
 ```
 
-- staging area 해제·untracked 삭제만 수행
-- **이미 만든 prep 커밋과 git log 히스토리는 되돌리지 않음**
-- T13의 고정 파일명 `docs/WIP/test--scenario_260419.md`가 다운스트림 repo
-  히스토리와 교차할 때 `git log -5` 기반 S10 계산이 예상 범위 이탈
+FAIL 분기에서 캡처된 `$output`을 `[pre-check 출력]` 헤더와 함께 stderr
+사유까지 보여줌. 이 결과로 exit 2 직접 원인 특정 가능.
 
-격리 clone에선 업스트림 히스토리가 이 경로를 한 번도 건드린 적 없어
-드러나지 않음. 다운스트림에서만 재현.
-
-## 해결 (v0.18.1)
-
-### A. 테스트 파일명 unique화 (채택)
-
-`test-pre-commit.sh` T13의 파일명을 PID + 에포크로 생성:
+### 다운스트림 재실행 절차
 
 ```bash
-T13_FILE="docs/WIP/test--scenario_$$_$(date +%s).md"
+cd <downstream-repo>
+# v0.18.2 upgrade 받은 뒤
+TEST_DEBUG=1 bash .claude/scripts/test-pre-commit.sh 2>&1 \
+  | sed -n '/\[T13\]/,/\[T14\]/p'
 ```
 
-각 실행마다 다른 경로. 다운스트림 히스토리와 절대 겹치지 않음.
-다운스트림 repo 어느 커밋에도 이 파일명은 존재하지 않으므로 `git log -5
-<file>` 카운트가 테스트 자체가 만든 prep 2회만 반영.
+나오는 stderr 라인 (`❌ ...` 등)이 exit 2 이유. 그걸 본 incident에 반영
+후 실제 fix를 v0.18.3에 반영.
 
-### (철회) B. 운영 pre-check 면제 정규식 보강
+## 잠정 유지 결정
 
-초기 패치에서 `pre-commit-check.sh` `REPEAT_EXEMPT_REGEX`에 `^docs/WIP/
-test--scenario_.*\.md$`를 추가했으나, **T13.2가 기대하는 `repeat_count:
-max=2`가 exempt 적용으로 0이 되어 깨짐**. 테스트가 측정하려는 **S10 카운트
-자체**가 사라지면 회귀 의미가 없음. 철회 결정.
+### A. 테스트 파일명 unique화 (유지)
 
-운영 배포에서 `docs/WIP/test--scenario_*` 같은 파일명을 사람이 만들
-가능성은 매우 낮고, 만들어도 정상적인 연속 수정 경고 동작은 해롭지 않음.
+v0.18.1의 파일명 unique화는 **고정 경로 교차 가능성은 봉쇄**함. 다운스트림
+실제 실패의 원인이 아닐 수 있지만, **경로 교차 리스크 자체는 현실이므로
+유지할 가치 있음**.
 
-## 왜 이 해결책인가
+### (철회) B. 운영 pre-check 면제 정규식
 
-**B·C 안 채택 안 한 이유**:
-- B안 (pre-check exempt regex): 테스트 자체가 "S10 카운트 감지" 회귀이므로
-  exempt 대상으로 만드는 순간 회귀 신뢰도 붕괴 (T13.2 max=2 체크 실패)
-- 또 다른 B안 ("reset이 prep 커밋까지 되돌림"): 테스트 블록별 prep 커밋
-  수를 추적하는 상태 변수 필요. 복잡도↑, 다른 테스트에도 영향
-- C안 ("스위트용 격리 branch 생성·정리"): trap·branch 관리 추가. 실패
-  시나리오(트랩 미발동)에서 branch 잔재 가능
+`pre-commit-check.sh` `REPEAT_EXEMPT_REGEX`에 `^docs/WIP/test--scenario_.*
+\.md$`를 추가하려 했으나, **T13.2의 `repeat_count: max=2` 체크가 exempt로
+0이 되어 깨짐**. 회귀 의미 자체가 붕괴 → 철회.
 
-A안은 **T13 5줄 수정**으로 종결. 격리 실패 재발 구조적으로 차단하면서
-S10 회귀 테스트 의미 보존.
+## 교훈 (과정 자체에 대한)
 
-## 교훈
-
-- 테스트가 고정 경로로 git 커밋을 만들면 **호스트 repo 히스토리와
-  충돌**할 수 있음. 격리 clone에서만 통과하는 건 격리 설계 결함 신호
-- `reset()` 함수가 staging만 정리하면 **이전 테스트의 영구 상태(커밋)**
-  가 다음 테스트에 누수. 테스트 prep 커밋은 unique·일회성 파일명을 써야
-  안전
-- 다운스트림 병합 품질(SHA·review 통과)은 **병합 무결**을 증명하지만
-  **테스트 인프라의 repo-specific 실패**와 구분해서 진단해야 함
+- **관찰 없이 "그럴듯한 설명"을 확정하면 안 된다.** 초기 가설(git log
+  교차)이 그럴듯했던 탓에 `unique 파일명이면 교차 불가능`이라는 단순
+  반증을 놓침. `rules/no-speculation.md` 위반
+- **incident를 "원인 확정"으로 적기 전에 재현 테스트를 검증**해야 함.
+  v0.18.1 fix는 upstream 격리 45/45를 근거로 삼았지만 **다운스트림에서
+  실제로 해결됐는지 확인하지 않고 merge·push**
+- **테스트 스크립트의 FAIL 분기가 정보를 버리면 진단이 불가능**. 출력
+  캡처는 PASS 경로만 최적화하면 안 되고 FAIL 경로도 재현성을 보존해야
 
 ## 변경 이력
 
-- 2026-04-22: 다운스트림 StageLink에서 v0.18.0 병합 후 44/45 보고 (T13.1).
-  업스트림 격리 clone은 45/45 통과. 원인 특정 후 v0.18.1 patch로 종결
+- 2026-04-22 (v0.18.1): 최초 진단 `git log 교차`를 원인으로 확정, 파일명
+  unique화로 fix 시도. **실제로는 한 측면만 해결**, 다운스트림에서 T13.1
+  여전히 exit 2
+- 2026-04-22 (v0.18.2): **원인 미확정 자인**. 재진단 프로토콜(TEST_DEBUG=1)
+  도입. A안 유지 근거 정정 (실제 원인 해결 아닌 별개 리스크 봉쇄).

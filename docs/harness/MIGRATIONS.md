@@ -49,6 +49,67 @@ fail을 막는다.
 
 ---
 
+## v0.18.2 — T13 재진단 훅 (원인 미확정)
+
+### 자동 적용 (스킬이 처리)
+
+- `.claude/scripts/test-pre-commit.sh` T13 FAIL 분기에 `TEST_DEBUG=1`
+  옵트인 훅 추가 — 캡처된 `$output`(pre-check stdout+stderr)을 dump
+- `docs/incidents/hn_test_isolation_git_log_leak.md` 정정
+  - status: completed → **in-progress** (원인 미확정 자인)
+  - v0.18.1의 "git log 교차" 가설은 **한 측면만 해결**이었다고 명시
+  - 재진단 프로토콜(`TEST_DEBUG=1`) 본문에 추가
+
+### 왜
+
+v0.18.1 fix(파일명 unique화) 적용 후에도 다운스트림(`<프로젝트 사례>`)
+에서 T13.1 exit 2 지속. unique 파일명이면 git history 교차 자체가
+불가능 → **최초 가설이 원인이 아님** 자인. 실제 exit 2 사유는 스위트
+내부 FAIL 분기가 stderr를 캡처만 하고 출력하지 않아 미확인 상태.
+
+A안(unique 파일명)은 "고정 경로 교차 가능성" 봉쇄라는 별개 가치가 있어
+유지. 하지만 **다운스트림 실제 실패의 원인은 별건으로 재조사 필요**.
+
+### 수동 액션 (다운스트림 필수)
+
+- [ ] **T13 FAIL 지속 시 TEST_DEBUG=1로 재실행**
+
+  ```bash
+  cd <downstream-repo>
+  TEST_DEBUG=1 bash .claude/scripts/test-pre-commit.sh 2>&1 \
+    | sed -n '/\[T13\]/,/\[T14\]/p'
+  ```
+
+  출력된 `[pre-check 출력 dump]` 섹션의 `❌ ...` 라인이 exit 2 이유.
+  upstream에 공유해주시면 v0.18.3에 실제 fix 반영.
+
+- [ ] **이전 incident 문서(0.18.1 버전) 참조 중단**
+
+  `docs/incidents/hn_test_isolation_git_log_leak.md` 본문이 진행 중 상태
+  로 정정됨. v0.18.1의 "git log 교차 = 원인" 서술은 철회된 가설.
+
+### 검증
+
+```bash
+# upstream starter에서 훅 동작 확인 (기본은 비활성)
+bash .claude/scripts/test-pre-commit.sh 2>&1 | grep -c "pre-check 출력 dump"
+# 0이어야 함 (TEST_DEBUG=0이 기본)
+
+# TEST_DEBUG=1로 훅 활성화 확인
+TEST_DEBUG=1 bash .claude/scripts/test-pre-commit.sh 2>&1 | grep "T13.1"
+# upstream에서는 T13.1 PASS라 dump 안 나옴 — 정상
+```
+
+### 회귀 위험
+
+- **운영 로직·테스트 본체 무변경** — pre-commit-check.sh·staging.md·
+  review.md 등 운영 스크립트 및 rules 건드리지 않음. 훅은 FAIL 시에만
+  동작하는 옵트인 디버그 출력
+- **incident 문서 재작성** — 다운스트림이 이전 버전을 참조 중이었으면
+  "git log 교차 = 원인" 서술이 혼란을 줄 수 있음. 정정된 버전으로 교체
+
+---
+
 ## v0.18.1 — T13 테스트 격리 fix
 
 ### 자동 적용 (스킬이 처리)
