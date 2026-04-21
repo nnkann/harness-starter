@@ -21,6 +21,7 @@
 - [문서 네이밍 전면 개편 — 도메인 약어 + 통합 원칙](../decisions/hn_doc_naming.md) — tags: naming, docs, upstream-rule
 - [review staging 재조정 — 5줄 룰 이진 판정](../decisions/hn_review_staging_rebalance.md) — tags: staging, review, rule, tokens
 - [review 에이전트 tool call 예산 재설계](../decisions/hn_review_tool_budget.md) — tags: review, agent, tool-budget, tokens
+- [pipeline-design 규칙 업스트림 이식](../decisions/hn_pipeline_design_rule.md) — tags: pipeline, rule, upstream-rule, review-pattern
 
 ### guides/
 - [업그레이드 전파 전략](../guides/hn_upgrade_propagation.md) — tags: upgrade, propagation, versioning
@@ -50,6 +51,7 @@
 - [docs/INDEX.md 폐기 — 관리 드리프트 SSOT 제거](../harness/hn_index_md_removal.md) — tags: docs, ssot, simplification, index-removal
 
 ### incidents/
+- [pipeline-design 규칙 업스트림 이식 원천 사례](../incidents/hn_pipeline_design_rule_origin.md) — tags: pipeline, rule-origin, incident, upstream-rule
 - [review 에이전트가 staged diff 대신 직전 커밋을 분석한 사고](../incidents/hn_review_agent_wrong_diff.md) — tags: review-agent, agent-context, false-warning
 - [starter push 누락 + lint stdout 오염](../incidents/hn_starter_push_skipped.md) — tags: push, starter, downstream, propagation
 - [PreToolUse Bash -n 오탐 차단](../incidents/hn_bash_n_flag_overblock.md) — tags: hook, pre-tool-use, false-positive, bash

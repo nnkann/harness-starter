@@ -49,6 +49,79 @@ fail을 막는다.
 
 ---
 
+## v0.18.0 — pipeline-design 규칙 업스트림 이식
+
+### 자동 적용 (스킬이 처리)
+
+- `.claude/rules/pipeline-design.md` **신규** (~120줄, 범용 버전)
+  - 7항목 체크리스트 (입력·중간계산·출력·폐기·보존 책임·전제·검증 케이스)
+  - 4개 금지 패턴 (좋은 도구 버림·상류 출력 폐기·전제 미검증·단일 케이스 over-fit)
+  - 파일 하단 "프로젝트 고유 사례 (로컬)" 섹션 — harness-upgrade 보존 영역
+- `CLAUDE.md` — `<important if="다단 처리 파이프라인..."/>` 블록 추가
+- `.claude/rules/self-verify.md` — "pipeline-design 체크리스트 연계" 섹션 추가
+- `docs/decisions/hn_rules_metadata.md` — pipeline-design.md 섹션 추가
+- `docs/incidents/hn_pipeline_design_rule_origin.md` **신규** — 업스트림 사료
+
+### 왜
+
+다운스트림 프로젝트에서 "상류 단계가 계산한 풍부한 중간 신호를 한 번의
+결정에만 쓰고 **출력 구조에서 폐기** → 하류 단계들이 같은 축의 판단을
+**열등한 정보로 재계산**"하는 구조가 **한 달간 draft1→2→3 재편에도
+발견되지 않음**.
+
+이 실수는 ML 파이프라인뿐 아니라 ETL·빌드·에이전트 체인 등 **다단 처리
+전반에 적용**되므로 업스트림 범용 규칙으로 승격.
+
+**review 자동 감지는 미도입** (의도 설계 문제 특성상 diff 키워드 매칭
+어려움 + 오탐 다수). rule 체크리스트 강제 + self-verify 연계가 더 효과적.
+v0.17.0·0.17.1의 review 축소 방향과 정합.
+
+### 수동 액션 (다운스트림 필수·권장)
+
+- [ ] **파이프라인 프로젝트는 로컬 사례 추가 (권장)**
+
+  `docs/incidents/`에 `{abbr}_pipeline_origin*.md` 형식으로 자기 프로젝트
+  고유 사례 기록. pipeline-design.md 하단 "프로젝트 고유 사례 (로컬)"
+  섹션에 링크 추가 — harness-upgrade가 덮어쓰지 않음.
+
+- [ ] **프로젝트별 단계 네이밍 추가 (선택)**
+
+  자기 네이밍 체계(T0→T1, stage_1→stage_2 등)를 로컬 CLAUDE.md에 추가
+  `<important if>` 조건으로 정의 가능. 업스트림 블록은 건드리지 말고
+  로컬 블록으로 확장.
+
+- [ ] **자기 파이프라인 코드/문서에 7항목 체크리스트 적용 (확인 권장)**
+
+  기존 파이프라인 설계 문서를 열어 7항목 중 누락된 항목 확인. 특히:
+  - 4번 "폐기" 근거가 명시되어 있는지
+  - 5번 "보존 책임"이 인터페이스 문서에 있는지
+  - 6번 "전제" 목록이 최근 재편에도 유효한지
+
+### 검증
+
+```bash
+# rule 파일 생성 확인
+ls -la .claude/rules/pipeline-design.md
+# CLAUDE.md 트리거 확인
+grep -c "pipeline-design" CLAUDE.md  # 1 이상
+# self-verify 연계 확인
+grep -c "pipeline-design 체크리스트" .claude/rules/self-verify.md  # 1 이상
+```
+
+### 회귀 위험
+
+- **파이프라인 없는 프로젝트** — rule 파일이 로드되지만 `<important if>`
+  조건 미발동으로 행동 영향 0. rules/ 용량 ~3KB 증가
+- **다운스트림 커스터마이징 충돌** — 업스트림 덮어쓰기 영역 vs 로컬
+  "프로젝트 고유 사례" 섹션을 명확히 분리 (naming.md의 로컬 확장 섹션
+  패턴과 동일)
+- **review 자동 감지 없음 → 실제 위반 놓침 가능성** — 사람이 눈치 못
+  채면 rule이 있어도 위반 커밋됨. 완화: 원인 자체가 "한 달 재편해도 못
+  봤다"라 review 자동화로도 해결 불확실. rule + self-verify가 "인지
+  도구"로 사람 질문 품질을 높이는 게 더 효과적
+
+---
+
 ## v0.17.1 — review tool call 예산 재설계 (2축 + 조기 중단)
 
 ### 자동 적용 (스킬이 처리)
