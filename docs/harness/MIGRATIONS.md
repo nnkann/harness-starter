@@ -49,6 +49,85 @@ fail을 막는다.
 
 ---
 
+## v0.16.1 — `/commit --bulk` 플래그 (거대 변경 review 대체)
+
+### 자동 적용 (스킬이 처리)
+
+- `.claude/scripts/bulk-commit-guards.sh` 신설 — 정량 가드 4종 통합 실행
+  (test-pre-commit·test-bash-guard·downstream-readiness·파일명/참조 정합성)
+- `.claude/rules/staging.md` — Stage 5단계 확장 (bulk 추가), 결정 우선순위 F(bulk)
+- `.claude/skills/commit/SKILL.md` — Step 7 Stage 분기에 `--bulk` 추가,
+  가드 실행 로직 + `[bulk]` 태그·`🔍 review: skip-bulk` 로그 강제
+- `.claude/scripts/pre-commit-check.sh` — 대규모 변경 감지 시 stderr에
+  `--bulk` 제안 경고 (강제 아님)
+
+### 왜
+
+v0.16.0 커밋(파일 61개, diff 2353줄)에서 review 에이전트가 maxTurns(6)
+상한 소진 시 verdict 미출력으로 `SendMessage` 재호출이 필요했음
+(incident `hn_review_maxturns_verdict_miss`).
+
+거대 일괄 변경(rename·본문 치환 등)은 review가 설계상 커버하기 어렵고,
+사람이 의도 설계로 진행 + 정량 검증(테스트·grep·dead link)이 더 확실.
+`--bulk`는 이를 공식 경로로 만든다.
+
+### 수동 액션 (다운스트림 필수·권장)
+
+- [ ] **업그레이드 후 첫 거대 커밋 시 `--bulk` 인식**
+
+  파일 30+ 또는 diff 1500줄+ 변경을 커밋하려 할 때 pre-check이 stderr에
+  경고를 출력한다:
+  ```
+  ⚠ 대규모 변경 감지 (files=X, +Y, -Z).
+    review maxTurns 한계로 verdict 신뢰도 저하 가능. `/commit --bulk` 고려.
+  ```
+  사용자가 판단해 `--bulk`로 재실행. 자동 전환은 안 함 (오탐 방지).
+
+- [ ] **정량 가드 실패 시 원인 확인**
+
+  `--bulk` 실행 후 가드 실패 시 stderr에 어느 가드가 왜 실패했는지
+  출력됨. 예:
+  ```
+  [FAIL] dead link 존재
+         대응: 위 링크들이 실제 파일을 가리키도록 수정
+             (rename 후 참조 치환 누락일 가능성)
+  ```
+  **가드는 우회 불가**. review의 warn/block과 달리 block-only. 원인 해결
+  후 재시도.
+
+- [ ] **(선택) 프로젝트별 테스트 스크립트 확장**
+
+  `bulk-commit-guards.sh`가 호출하는 테스트 3종(test-pre-commit·test-bash-guard
+  ·downstream-readiness)은 하네스 기본. 다운스트림에 프로젝트 고유
+  회귀 테스트가 있으면 `bulk-commit-guards.sh`의 가드 섹션에 추가 가능.
+  수정 시 incident `hn_review_maxturns_verdict_miss` 근거 인용.
+
+### 검증
+
+```bash
+# 가드 스크립트 단독 실행
+bash .claude/scripts/bulk-commit-guards.sh
+# exit 0: 4개 가드 모두 PASS
+# exit 2: 어느 가드가 실패했는지 stderr에 상세 출력
+
+# pre-check 대규모 감지 테스트 (staged 많을 때 경고 출력 확인)
+git diff --cached --stat | tail -1  # files·라인 확인
+bash .claude/scripts/pre-commit-check.sh 2>&1 | grep "대규모 변경"
+```
+
+### 회귀 위험
+
+- **기존 `/commit` 사용자 영향 없음** — `--bulk`는 명시 플래그, 자동 분류
+  안 됨. 기존 `--quick`·`--deep`·`--no-review`와 독립 동작
+- **가드가 review의 "의도 일관성" 검증을 못 함** — 정책 모순·결정문과
+  문서 불일치는 가드로 안 잡힘. 거대 변경 전 설계 단계에서 사용자가 확보
+  해야 함 (v0.16.0에서 이 문제가 발생해 review가 L226 잔재 잡았지만,
+  원래는 설계 시점에 막혔어야 함)
+- **정량 가드 비용** — 4개 가드 실행에 5~15초 소요. review(60~180초)보다
+  빠르지만 작은 커밋에는 불필요 → 명시 플래그로만 활성
+
+---
+
 ## v0.16.0 — 문서 네이밍 전면 개편 (도메인 약어 + 통합 원칙)
 
 ### 자동 적용 (스킬이 처리)

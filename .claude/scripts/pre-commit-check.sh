@@ -568,6 +568,16 @@ if [ $ERRORS -gt 0 ]; then
   exit 2
 fi
 
+# 거대 변경 감지 → stderr 경고 (강제 아님, 사용자 선택)
+# incident `hn_review_maxturns_verdict_miss`: review maxTurns(6) 상한이
+# 거대 diff에서 verdict 미출력 유발. --bulk 제안으로 우회 경로 안내.
+if [ "${TOTAL_FILES:-0}" -gt 30 ] || [ "${ADDED_LINES:-0}" -gt 1500 ] \
+   || [ "${DELETED_LINES_TOTAL:-0}" -gt 1500 ]; then
+  echo "⚠ 대규모 변경 감지 (files=${TOTAL_FILES}, +${ADDED_LINES}, -${DELETED_LINES_TOTAL})." >&2
+  echo "  review maxTurns 한계로 verdict 신뢰도 저하 가능. \`/commit --bulk\` 고려." >&2
+  echo "  (--bulk: review 대신 정량 가드 4종으로 대체. SSOT: .claude/rules/staging.md)" >&2
+fi
+
 # 통과 시 stdout 요약 (commit 스킬이 캡처해서 review prompt에 주입)
 echo "pre_check_passed: true"
 echo "already_verified: ${ALREADY_VERIFIED}"

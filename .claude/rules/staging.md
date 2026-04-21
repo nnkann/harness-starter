@@ -35,7 +35,7 @@
 
 > S12·S13 결번. 권한·환경 파일은 S1·S2에 흡수.
 
-## Stage (4단계)
+## Stage (5단계)
 
 | Stage | 시간·tool | 행동 |
 |-------|----------|------|
@@ -43,6 +43,26 @@
 | 1 micro | 15~25초, 1~2 calls | hit 신호 매핑 카테고리만 |
 | 2 standard | 30~60초, 3~5 calls | hit 카테고리 + 3관점 |
 | 3 deep | 90~180초, 10+ calls | hit 카테고리 전체 + 3관점 + 호출자 grep |
+| bulk | 20~40초 | review 호출 안 함. **정량 가드 4종**이 대체 |
+
+**bulk 전용 규칙**:
+- 사용자 명시 `--bulk`로만 활성 (자동 분류 없음)
+- 거대 일괄 변경(파일 30+ or diff 1500줄+) 시 review maxTurns(6) 한계로
+  verdict 신뢰도 저하 → 정량 가드가 더 확실 (incident:
+  `hn_review_maxturns_verdict_miss`)
+- **가드 실패는 즉시 차단**. review의 warn/block과 달리 우회 없음
+- 커밋 메시지에 `[bulk]` 태그 + `🔍 review: skip-bulk` 로그 강제
+
+**bulk 가드 항목 (SSOT: `.claude/scripts/bulk-commit-guards.sh`)**:
+1. `test-pre-commit.sh` 전체 통과
+2. `test-bash-guard.sh` 전체 통과
+3. `downstream-readiness.sh` 누락 0 + 경고 허용
+4. 파일명·참조 정합성:
+   - 날짜 suffix 잔재 0 (archived 제외)
+   - dead link 0 (docs·rules·skills md 내 마크다운 링크)
+
+가드는 전부 통과해야 커밋 허용. 하나라도 실패 시 stderr에 원인·대응책
+출력 후 exit 2.
 
 ## Stage 결정
 
@@ -80,6 +100,7 @@ B. S10 2회               → +1 격상
 C. S10 3회               → 3 강제
 D. --quick               → 1 강제 (격상 무시)
 E. --deep                → 3 강제
+F. --bulk                → bulk 강제 (다른 플래그·신호 모두 무시)
 ```
 
 격상 후 0이면 1로. 누적 가능.

@@ -54,6 +54,7 @@
 - [광역 매처 오탐 + README 덮어쓰기 위험](../incidents/hn_matcher_false_block.md) — tags: hook, matcher, false-positive, harness-upgrade, readme, downstream
 - [review v0.8.0 starter 격리 벤치마크](../incidents/hn_review_v080_benchmark.md) — tags: review, benchmark, staging, tool-usage
 - [archived/promotion-log에 다운스트림 제품명 유출](../incidents/hn_downstream_name_leak.md) — tags: contamination, review, archive, downstream-name
+- [review 에이전트 maxTurns 소진 시 verdict 누락](../incidents/hn_review_maxturns_verdict_miss.md) — tags: review, maxturns, bulk-commit, agent-spec
 
 ### archived/
 - [(abandoned) advisor 통합](../archived/advisor_integration_260419.md) — staging 신호와 70% 겹쳐 자체 규칙 위반
