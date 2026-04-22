@@ -742,39 +742,22 @@ fi
 # ─────────────────────────────────────────────
 SPLIT_PLAN=0
 SPLIT_ACTION="single"
+GROUP_ASSIGN=""
 
 if [ "${HARNESS_SPLIT_SUB:-0}" = "1" ]; then
   SPLIT_PLAN=1
   SPLIT_ACTION="sub"
-elif [ "${TOTAL_FILES:-0}" -gt 0 ]; then
-  # 각 파일을 그룹에 할당 (tab-separated: group\tfile)
-  GROUP_ASSIGN=$(echo "$STAGED_FILES" | awk '
-    {
-      f=$0
-      if (f ~ /^docs\//) {
-        # docs 하위는 파일별 독립 그룹
-        g="doc:" f
-      } else if (match(f, /^\.claude\/skills\/[^\/]+\//)) {
-        sub(/\/[^\/]*$/, "", f)
-        g="skill:" f
-      } else if (f ~ /^\.claude\/scripts\//)  g="scripts"
-      else if (f ~ /^\.claude\/agents\//)    g="agents"
-      else if (f ~ /^\.claude\/rules\//)     g="rules"
-      else if (f ~ /^\.claude\/hooks\//)     g="hooks"
-      else if (f == ".claude/HARNESS.json")  g="config"
-      else if (f == ".claude/settings.json") g="config"
-      else if (f == "CLAUDE.md")             g="config"
-      else if (f == "README.md")             g="config"
-      else                                   g="misc"
-      printf "%s\t%s\n", g, $0
-    }
-  ')
-  # 유니크 그룹 수
-  SPLIT_PLAN=$(echo "$GROUP_ASSIGN" | awk -F'\t' '{print $1}' | sort -u | wc -l)
-  if [ "$SPLIT_PLAN" -ge 2 ]; then
-    SPLIT_ACTION="split"
-  else
-    SPLIT_ACTION="single"
+elif [ "${TOTAL_FILES:-0}" -gt 0 ] && [ -x .claude/scripts/task-groups.sh ]; then
+  # task × abbr × kind 3축 그룹화 (audit #18, task-groups.sh 위임).
+  # 실패 시 경로 기반 폴백.
+  GROUP_ASSIGN=$(bash .claude/scripts/task-groups.sh 2>/dev/null || echo "")
+  if [ -n "$GROUP_ASSIGN" ]; then
+    SPLIT_PLAN=$(echo "$GROUP_ASSIGN" | awk -F'\t' 'NF>=2{print $1}' | sort -u | wc -l)
+    if [ "$SPLIT_PLAN" -ge 2 ]; then
+      SPLIT_ACTION="split"
+    else
+      SPLIT_ACTION="single"
+    fi
   fi
 fi
 
