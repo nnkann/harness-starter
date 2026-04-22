@@ -384,8 +384,18 @@ rules/docs.md 참조.
 
 ### 3. 하네스 버전 체크 (harness-starter 전용)
 
-> 이 단계는 **harness-starter 리포에서만** 실행한다. 일반 프로젝트에서는 건너뛴다.
-> 리포 이름이 `harness-starter`이고, `.claude/HARNESS.json`이 존재할 때만 해당.
+**진입 가드 — 실행 가능 판정**:
+
+```bash
+grep -q '"is_starter"[[:space:]]*:[[:space:]]*true' .claude/HARNESS.json 2>/dev/null && echo STARTER || echo SKIP
+```
+
+- `SKIP` → Step 3 전체 건너뛰고 Step 4로. 자연어 추정 금지.
+- `STARTER` → 아래 진행.
+
+다운스트림(`is_starter: false` 또는 파일 없음)은 이 단계를 실행할 이유가
+없다. promotion-log도 존재하지 않고 업스트림 버전 범프는 다운스트림
+맥락에 무의미하다.
 
 이번 커밋이 하네스 스타터에 의미 있는 업그레이드인지 판단한다.
 
