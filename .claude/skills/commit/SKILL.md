@@ -388,12 +388,41 @@ s1_level: ""|file-only|line-confirmed              # S1 시크릿 신호 강도 
 
 - **exit 2 (차단)**: stderr 메시지를 사용자에게 전달. 문제 수정 후
   스테이징(Step 4)부터 재시도. 리뷰 단계로 진행하지 마라.
-- **exit 0 (통과)**: stdout 전체를 보관하고 6단계로 진행.
+- **exit 0 (통과)**: stdout 전체를 보관하고 5.5단계로 진행.
 
 > pre-check은 commit 스킬만 실행한다. `git commit` hook에서 재실행하지
 > 않음 (2회 낭비 제거, v0.9.4). Step 5에서 전체(린터+staged 신호)로 1회만
 > 돌림 (audit #1, 2026-04-22: Step 0 제거). `--no-verify` 차단은
 > bash-guard.sh에서 유지.
+
+### 5.5. 커밋 분리 판정 (audit #18 — 글로벌 원칙, 1 커밋 = 1 논리 단위)
+
+pre-check stdout의 `split_action_recommended` 값으로 분기:
+
+- **`sub`**: 현재 sub-커밋 진행 중 (`HARNESS_SPLIT_SUB=1`). Step 6으로 진행
+- **`single`**: 분리 불필요 (단일 그룹). Step 6으로 진행
+- **`split`**: 분리 필요. 아래 흐름 실행
+
+#### split 흐름
+
+```bash
+bash .claude/scripts/split-commit.sh
+```
+
+- 스크립트가 전체 staged를 비우고 **첫 그룹만 다시 stage**
+- `.claude/memory/split-plan.txt`에 남은 그룹 목록 저장
+- commit 스킬은 **첫 그룹만으로** Step 6·7·7.5·8(커밋)·9(푸시 제외) 수행
+  - 커밋 시 **`HARNESS_SPLIT_SUB=1 HARNESS_COMMIT_SKILL=1 HARNESS_DEV=1` prefix 필수**
+  - sub-커밋은 pre-check 분리 판정 skip, 정상 review·커밋 흐름
+- 첫 sub-커밋 완료 후 **다시 `/commit` 호출** → split-commit.sh가 다음 그룹 stage
+- `split-plan.txt`가 비면 분리 종료
+
+#### 우회
+
+- 사용자가 명시적으로 "분리 안 하고 통째로" 요청 시에만 `single` 경로 사용
+- 자동으로 "이번엔 분리 안 해도 되겠다" 판단 **금지** — 원칙 위반
+- 분리 불가 케이스 (rename-only 대량 변경 등)는 pre-check이 이미 `single`
+  판정 (단일 그룹으로 귀결)
 
 ### 6. 변경 내역 분석
 
