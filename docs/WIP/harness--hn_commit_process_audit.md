@@ -365,8 +365,33 @@ created: 2026-04-22
 **영향 파일**:
 - `.claude/scripts/pre-commit-check.sh` Step 3.5 검사 B에 frontmatter
   파싱 추가
-- `.claude/scripts/test-pre-commit.sh` T36 신설 (relates-to dead link
-  케이스 + 앵커 케이스 + 같은 커밋 동반 케이스)
+- `.claude/scripts/test-pre-commit.sh` T36 신설
+
+**T36 회귀 테스트 케이스 (test-strategist 검증 결과 반영)**:
+
+1. `relates-to.path: decisions/hn_X.md`가 존재 파일 → 통과
+2. `relates-to.path: decisions/hn_X.md`가 미존재 파일 → 차단
+3. `relates-to.path: decisions/hn_X.md#section`(앵커) → 앵커 제거 후
+   파일 존재 확인. Step 3.5 검사 B 기존 로직 재사용
+4. 대상 md가 같은 커밋에 staged add → 통과 (오탐 방지, Step 3.5
+   검사 A의 "같은 커밋 소스 skip" 패턴 재사용)
+5. code block 안의 `relates-to: path:` 예시 → 검출 안 됨 (오탐 방지)
+6. 멀티라인 YAML 리스트 (`relates-to:\n  - path: ...\n    rel: ...`) →
+   첫 `path:`만 추출하지 말고 전 항목 순회
+7. `rel:` 필드만 있고 `path:` 없는 항목 → skip (파싱 오류 회피)
+8. T35 기존 케이스가 T36 추가로 깨지지 않는지 회귀 확인
+
+**잠금 테스트 원칙** (`hn_lint_enoent_pattern_gaps.md` 교훈 동형 적용):
+- T33·T34처럼 "차단/통과 짝"을 명시 케이스로 고정
+- 오탐 케이스(5·6번)가 정탐 케이스(1~4번)와 같은 정규식에서 구분되는지
+  테스트
+
+**구현 시 주의 (test-strategist 사각지대 지적)**:
+- YAML 파싱은 단순 정규식으로 충분하지 않을 수 있음. 안전한 방법:
+  frontmatter 블록(`^---$` ~ `^---$`)만 추출한 뒤 그 안에서 `^  - path:`
+  패턴만 awk 매칭
+- TODO/FIXME 검사(pre-check 섹션 1)는 md 제외 중. 본 항목은 frontmatter
+  검사라 md 포함 — 두 검사의 파일 범위 구분 명시 필요
 
 ### #13. review 2번 호출 구조의 불합리 — 실측 후 결정
 
@@ -404,11 +429,51 @@ review 자체 생략·축소는 **정합성 위험**. 답은 "2번 돌아야 하
    데이터 누적 후 재판단
 4. **CPS 원칙 고수**: 2차 review 자동 호출 자체는 유지. 정합성 우선
 
+**D·E·F 세부 평가 (test-strategist 제안)**:
+
+- **D (warn 기준 재정의) — 가장 유력**:
+  - `hn_review_tool_budget.md` "조기 중단·알파 발동 조건" 설계가 이미
+    이 방향. review가 "참고 1건"을 warn으로 분류하지 않고 pass 내 메모
+    로 처리하면 2차 review 자체 발생 안 함
+  - **pre-check 복잡도 증가 없음** — review.md 출력 형식만 조정
+  - 구현 위치: `.claude/agents/review.md` "## 출력 형식" + 판정 기준
+
+- **E (pre-check 재실행 건너뛰기) — 현재 존재하나 사용 실측 필요**:
+  - `commit/SKILL.md` 응답 처리 섹션에 이미 `verdict: warn → 경고 표시
+    후 진행` 규정 존재
+  - 실제 운영에서 이 경로가 얼마나 쓰이는지 **실측 누락** 상태
+  - 검증: 다음 5 커밋에서 warn 시 "진행" vs "재review" 빈도 기록
+
+- **F (review 자체 분류) — B와 분리, 실현 가능**:
+  - B(Claude가 분류)와 달리 F는 **review 자신**이 warn에 "정적/의미론"
+    플래그 붙임
+  - LLM 분류 일관성 문제는 **T35류 회귀 테스트로 고정** 가능 (test-
+    strategist 지적)
+  - 구현 위치: `review.md` 출력 형식에 플래그 필드 추가
+
+**D·E·F 우선순위 (판단 대기)**:
+- D가 가장 적은 구현 비용 + 근본 원인 해결 (warn 기준 완화)
+- E는 이미 있는 경로 실측 확인만 — **선행 필수**
+- F는 B의 대안. D·E로 안 되면 검토
+
 **영향 파일 (현재 단계)**:
 - `commit/SKILL.md` 응답 처리 섹션 — 현재 구조 유지. 실측 기록 섹션
   추가("warn 발생 시 원인·성격·재호출 결과 기록")
-- test-strategist 호출 선례 기록 (본 항목) — 설계·판단 단계 specialist
-  호출 경로의 첫 실측 사례
+- test-strategist 호출 선례 기록 (본 항목)
+
+**test-strategist가 지적한 사각지대 (반영 필수)**:
+
+1. **v0.18.6 1차 warn 원인 docs 미기록**: 2번 review 발생 유일 실측
+   사례인데 상세 원인이 `promotion-log.md`·incident 어디에도 없음.
+   `hn_staging_followup.md` 실측 테이블에 "재호출 포함 80초+, warn"
+   한 줄뿐. 따라서 "반복 패턴" 확정 불가 → **D·E·F 선택 전 실측 5~10
+   건 필수**
+2. **CPS와 정적 검사의 교환 관계**: pre-check 확장(#12·A)은 **정적
+   오류**만 잡음. CPS 맥락 이해는 여전히 review 담당. A가 2차 review를
+   없앨 수 있는 범위는 **정적 warn 비율만**. 의미론적 warn은 여전히
+   재호출 필요
+3. **C의 전제 부실**: "사용자가 warn 받았을 때 정적/의미론 즉각 판단
+   가능" 전제의 실측 근거 없음. C 폐기 근거 추가
 
 ### #14. pre-check stderr 기본 침묵 — 성공 흐름 과잉 출력 축소
 
