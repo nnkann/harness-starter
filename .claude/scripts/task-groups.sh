@@ -27,19 +27,24 @@ IMPACT_MAP=$(mktemp)
 RAW_ASSIGN=$(mktemp)
 trap "rm -f $IMPACT_MAP $RAW_ASSIGN" EXIT
 
-for wip in docs/WIP/*.md; do
-  [ ! -f "$wip" ] && continue
-  wip_bn=$(basename "$wip" .md)
-  wip_slug="${wip_bn#*--}"
-
-  awk -v wip_slug="$wip_slug" '
-    BEGIN { in_block=0; task_id=""; kind="feature"; explicit_kind=0; in_impact=0; scan_lines=0 }
+# awk 단일 호출로 전체 WIP 처리 (파일당 fork 제거 — WIP 10+ 환경 성능 fix).
+# FILENAME 기반으로 wip_slug 재계산. 파일 경계는 FNR==1로 감지해 상태 리셋.
+WIP_FILES=(docs/WIP/*.md)
+if [ -f "${WIP_FILES[0]}" ]; then
+  awk '
+    function reset_state() { in_block=0; task_id=""; kind="feature"; explicit_kind=0; in_impact=0; scan_lines=0 }
+    FNR == 1 {
+      # 파일 경계 — wip_slug 재계산 + 상태 리셋
+      fn = FILENAME
+      sub(/.*\//, "", fn); sub(/\.md$/, "", fn); sub(/^[^-]*--/, "", fn)
+      wip_slug = fn
+      reset_state()
+    }
     /^### #?[0-9]/ {
-      in_block=1; in_impact=0; kind="feature"; explicit_kind=0; scan_lines=0
+      reset_state(); in_block=1
       match($0, /^### #?([0-9·]+)\./, m)
       task_id=m[1]
       gsub(/·/, "-", task_id)
-      # 헤더 자체에서 자동 추론
       header=tolower($0)
       if (header ~ /근본 수정|버그|오탐|fix:|hotfix/) kind="bug"
       next
@@ -47,14 +52,12 @@ for wip in docs/WIP/*.md; do
     /^### / && in_block { in_block=0; in_impact=0; next }
     /^---[[:space:]]*$/ && in_block { in_block=0; in_impact=0; next }
     in_block && !explicit_kind {
-      # 명시적 `> kind: X` 마커 우선 (헤더 추론 override)
       if ($0 ~ /^>[[:space:]]*kind:[[:space:]]*[a-z]+/) {
         match($0, /kind:[[:space:]]*([a-z]+)/, km)
         kind=km[1]
         explicit_kind=1
         next
       }
-      # 본문 초반 5줄에서 자동 추론 (헤더 매치 없을 때)
       if (kind == "feature" && scan_lines < 5 && $0 !~ /^[[:space:]]*$/) {
         body=tolower($0)
         if (body ~ /근본 수정|버그|오탐|fix:|hotfix|회귀/) kind="bug"
@@ -73,8 +76,8 @@ for wip in docs/WIP/*.md; do
       }
       if ($0 ~ /^[[:space:]]*$/ || $0 ~ /^\*\*[^영]/) in_impact=0
     }
-  ' "$wip" >> "$IMPACT_MAP"
-done
+  ' "${WIP_FILES[@]}" >> "$IMPACT_MAP"
+fi
 
 # ─────────────────────────────────────────────
 # 2. 유틸
