@@ -49,6 +49,63 @@ fail을 막는다.
 
 ---
 
+## v0.20.11 — harness-init/adopt/upgrade 세션 파일명 날짜 suffix 제거
+
+**호환성 변화 있음. 수동 액션 필요.**
+
+### 왜
+
+naming.md "날짜 suffix 전면 금지" (v0.16.0)가 harness-init/adopt/upgrade
+세션 파일엔 반영 안 됐던 잔재(#16). 실측 시뮬레이션(fixture 3 시나리오)
+결과 **단일 파일 + `## 변경 이력` 누적**이 모든 축(탐색·파일 수·SSOT
+원칙)에서 우위 확인. 결정 D 채택.
+
+### 자동 (harness-upgrade)
+
+- `harness-init/SKILL.md`: `project_kickoff_{YYMMDD}.md` → `project_kickoff.md`
+  + 날짜 suffix 금지 안내. 재실행 시 `## 변경 이력` 누적
+- `harness-adopt/SKILL.md`: `adopt-session_{YYMMDD}.md` → `hn_adopt_session.md`
+  + "파일명 정규화" 섹션의 날짜 접미사 추가 제안 **제거 제안**으로 역전
+- `harness-upgrade/SKILL.md`: `harness--migration_v{X}_{YYMMDD}.md` →
+  `harness--migration_followup.md` + 버전 섹션(`## v{X}`) 본문 누적
+- `implementation/SKILL.md`: `project_kickoff_*.md` → `project_kickoff.md` (glob 제거)
+- `MIGRATIONS.md` 본문 해당 안내 호환적 수정 (glob `project_kickoff*.md`)
+
+### 수동 액션 (사용자 필수)
+
+- [ ] **기존 `docs/guides/project_kickoff_{YYMMDD}.md` 있으면 rename**:
+  ```bash
+  # 가장 최근 파일을 통합 대상으로
+  git mv docs/guides/project_kickoff_260401.md docs/guides/project_kickoff.md
+  # 이전 파일들은 본문을 `## 변경 이력`으로 흡수 후 git rm
+  ```
+  과거 상태는 git log로 복구 가능.
+
+- [ ] **기존 `adopt-session_{YYMMDD}.md` 있으면 rename**:
+  ```bash
+  git mv docs/harness/adopt-session_260401.md docs/harness/hn_adopt_session.md
+  ```
+
+- [ ] **`harness--migration_v*_*.md` WIP 있으면 통합**:
+  ```bash
+  # 모든 버전 섹션을 단일 파일로 모음
+  git mv docs/WIP/harness--migration_v0_19_0_260422.md docs/WIP/harness--migration_followup.md
+  ```
+
+### 검증
+
+- `ls docs/guides/project_kickoff*.md` → `project_kickoff.md` + `_sample.md` 2개만
+- `ls docs/harness/*session*` → `hn_adopt_session.md`만 (있는 경우)
+- `ls docs/WIP/harness--migration*` → `harness--migration_followup.md`만
+
+### 회귀 위험
+
+- 기존 파일 그대로 두면 **신규 실행 시 두 파일 병존** (기존 날짜 suffix +
+  새 단일 파일). 검색성 저하. 수동 rename 필수
+- `project_kickoff_sample.md`는 그대로 유지 — "예제 문서" 표식 역할
+
+---
+
 ## v0.20.7 — promotion-log.md 폐기
 
 **호환성 변화 있음. 수동 액션 필요.**
@@ -1284,14 +1341,15 @@ ls docs/guides/hn_doc_search_protocol.md \
 
 - [ ] **프로젝트 CPS 문서 확인·작성**
 
-  `harness-init` 실행한 프로젝트면 `docs/guides/project_kickoff_*.md`가
-  이미 있음. **없으면** (또는 `status: sample`만 있으면) CPS 무너진 상태 —
+  `harness-init` 실행한 프로젝트면 `docs/guides/project_kickoff.md`가
+  이미 있음(v0.20.11 이전 하네스면 `project_kickoff_{YYMMDD}.md` glob).
+  **없으면** (또는 `status: sample`만 있으면) CPS 무너진 상태 —
   review의 9번 패턴·implementation Step 0 모두 제대로 작동 안 함.
 
   조치:
   ```bash
-  # CPS 확인
-  ls docs/guides/project_kickoff_*.md
+  # CPS 확인 (신·구 버전 모두 커버)
+  ls docs/guides/project_kickoff*.md
   # 없거나 sample만 있으면 /harness-init 다시 실행
   ```
 

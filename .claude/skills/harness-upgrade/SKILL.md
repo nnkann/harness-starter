@@ -454,8 +454,9 @@ MSYS_NO_PATHCONV=1 git show $UPSTREAM_REMOTE/main:docs/harness/MIGRATIONS.md > /
 ```
 
 선택 1이면 항목별로 사용자와 대화하며 채운다. 검증 명령까지 같이 실행.
-선택 2면 docs/WIP/에 `harness--migration_v{X}_{YYMMDD}.md` 자동 생성하여
-TODO로 추적 (다음 세션 SessionStart에서 노출됨).
+선택 2면 docs/WIP/에 `harness--migration_followup.md` 자동 생성·갱신하여
+TODO로 추적 (다음 세션 SessionStart에서 노출됨). 이미 있으면 새 버전 섹션을
+`## v{X}` 형태로 본문에 누적. 날짜 suffix 금지 (naming.md SSOT).
 
 `installed_from_ref`가 없거나 (CUR_VERSION이 unknown) MIGRATIONS.md를
 못 읽으면 전체 마이그레이션 가이드 위치만 안내하고 넘어간다.

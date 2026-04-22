@@ -186,9 +186,13 @@ flat / feature-based / layered / monorepo.
 
 모든 결정이 끝나면 두 가지를 한다.
 
-**1) 프로젝트 출범 문서 생성** — `docs/WIP/project_kickoff_{YYMMDD}.md`
+**1) 프로젝트 출범 문서 생성** — `docs/WIP/project_kickoff.md`
 
 이 문서는 **프로젝트의 시작점**이다. harness-init 대화에서 결정된 모든 것의 단일 기록지이자, 이후 모든 작업 문서의 발원지. 안내성 플레이스홀더가 아니라 **실제 결정으로 채워진 문서**여야 한다.
+
+> **날짜 suffix 금지 (naming.md SSOT)**. harness-init을 재실행해 스택을
+> 재정의해도 **같은 파일을 갱신**하고 `## 변경 이력` 섹션에 날짜·근거를
+> 누적한다. 과거 상태 복원은 `git log --follow docs/guides/project_kickoff.md`.
 
 ```markdown
 ---
@@ -314,7 +318,7 @@ title: [도메인명] 구현
 domain: [도메인명]
 tags: []
 relates-to:
-  - path: guides/project_kickoff_{YYMMDD}.md
+  - path: guides/project_kickoff.md
     rel: implements
 status: pending
 created: {YYYY-MM-DD}
