@@ -57,11 +57,11 @@ TARGET="${TARGET:-.}"
 # 프로파일별 스킬 목록
 case "$PROFILE" in
   minimal)
-    SKILLS="harness-init commit implementation harness-upgrade" ;;
+    SKILLS="harness-init harness-adopt harness-sync harness-upgrade commit implementation write-doc" ;;
   standard)
-    SKILLS="harness-init commit implementation harness-upgrade check-existing naming-convention" ;;
+    SKILLS="harness-init harness-adopt harness-sync harness-upgrade commit implementation write-doc check-existing naming-convention" ;;
   full)
-    SKILLS="harness-init commit implementation harness-upgrade check-existing naming-convention coding-convention eval advisor" ;;
+    SKILLS="harness-init harness-adopt harness-sync harness-upgrade commit implementation write-doc check-existing naming-convention coding-convention eval advisor" ;;
   *)
     echo -e "${RED}❌ 알 수 없는 프로파일: $PROFILE${NC}"
     echo "사용 가능: minimal | standard | full"
@@ -178,10 +178,10 @@ EOF
   BASE_REF=$(grep -o '"installed_from_ref"[[:space:]]*:[[:space:]]*"[^"]*"' "$META" 2>/dev/null | sed 's/.*"installed_from_ref"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
 
   case "${CUR_PROFILE:-minimal}" in
-    minimal)  SKILLS="harness-init commit implementation harness-upgrade" ;;
-    standard) SKILLS="harness-init commit implementation harness-upgrade check-existing naming-convention" ;;
-    full)     SKILLS="harness-init commit implementation harness-upgrade check-existing naming-convention coding-convention eval advisor" ;;
-    *)        SKILLS="harness-init commit implementation harness-upgrade" ;;
+    minimal)  SKILLS="harness-init harness-adopt harness-sync harness-upgrade commit implementation write-doc" ;;
+    standard) SKILLS="harness-init harness-adopt harness-sync harness-upgrade commit implementation write-doc check-existing naming-convention" ;;
+    full)     SKILLS="harness-init harness-adopt harness-sync harness-upgrade commit implementation write-doc check-existing naming-convention coding-convention eval advisor" ;;
+    *)        SKILLS="harness-init harness-adopt harness-sync harness-upgrade commit implementation write-doc" ;;
   esac
 
   # ─── remote 방식 vs 파일 복사 방식 분기 ───
@@ -250,7 +250,15 @@ EOF
     fi
   }
 
+  # 에이전트
+  echo "📁 .claude/agents/"
+  for f in "$SCRIPT_DIR/.claude/agents/"*; do
+    [ -f "$f" ] || continue
+    stage_or_copy "$f" "$TARGET/.claude/agents/$(basename "$f")"
+  done
+
   # 스크립트
+  echo ""
   echo "📁 .claude/scripts/"
   for f in "$SCRIPT_DIR/.claude/scripts/"*; do
     [ -f "$f" ] || continue
@@ -473,6 +481,14 @@ for skill in $SKILLS; do
   copy_if_new "$src" "$TARGET/.claude/skills/$skill/SKILL.md"
 done
 
+# .claude/agents/
+echo ""
+echo "📁 .claude/agents/"
+for f in "$SCRIPT_DIR/.claude/agents/"*; do
+  [ -f "$f" ] || continue
+  copy_if_new "$f" "$TARGET/.claude/agents/$(basename "$f")"
+done
+
 # .claude/scripts/
 echo ""
 echo "📁 .claude/scripts/"
@@ -519,6 +535,7 @@ if [ -f "$GI" ]; then
   grep -q '^\.claude/\.upgrade/$' "$GI" || echo '.claude/.upgrade/' >> "$GI"
   grep -q '^\.claude/scheduled_tasks\.lock$' "$GI" || echo '.claude/scheduled_tasks.lock' >> "$GI"
   grep -q '^\.claude/ts_errors\.log$' "$GI" || echo '.claude/ts_errors.log' >> "$GI"
+  grep -q '^\.claude/memory/session-\*$' "$GI" || echo '.claude/memory/session-*' >> "$GI"
 else
   cat > "$GI" <<'EOF'
 # 하네스 — 머신별/세션별 파일 제외
@@ -527,6 +544,7 @@ else
 .claude/.upgrade/
 .claude/scheduled_tasks.lock
 .claude/ts_errors.log
+.claude/memory/session-*
 EOF
   echo -e "  ${GREEN}✓ 생성${NC}: .gitignore"
   CREATED=$((CREATED + 1))
