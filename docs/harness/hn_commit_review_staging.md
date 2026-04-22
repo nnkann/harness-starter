@@ -18,8 +18,9 @@ updated: 2026-04-19
 
 ## 잔여 → 후속 WIP로 분리
 
-- 6단계(신호 정밀화)·7단계(5커밋 측정)·S1 오탐 보정·폭증 게이트 코드화
-  → `harness--hn_staging_followup.md`
+- 6단계(신호 정밀화)·7단계(5커밋 측정)·폭증 게이트 코드화
+  → `WIP/harness--hn_commit_process_audit.md` #13·#17
+  (S1 오탐 보정·S6 ≤5줄 skip 등 완료분은 git log 조회)
 
 # commit·review 단계화
 

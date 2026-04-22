@@ -128,7 +128,7 @@ v0.18.4 커밋 직후 사용자가 review 체감 속도에 불만 → 해결책 
 Claude가 새 WIP(`decisions--hn_review_staging_script_lite_path.md`)를
 즉시 생성. 사용자 지적: "기존 문서 SSOT 확인되는지 볼거야." 확인 결과
 이미 3개 SSOT(`hn_review_staging_rebalance` / `hn_review_tool_budget` /
-`hn_staging_followup`)가 해당 주제를 커버 중이었고 신규 WIP는 중복.
+`hn_commit_process_audit` #13)가 해당 주제를 커버 중이었고 신규 WIP는 중복.
 
 **사용자 발언**: "에휴...이럴 줄 알았다" — 재발 패턴 자인.
 

@@ -14,8 +14,8 @@ updated: 2026-04-19
   84ad413)이 흡수**:
   - Stage 0~3 분기로 단계 조건부 실행 일반화
   - Stage 1~3별 시간·tool 한도가 모델 선택과 같은 효과
-- §4 시간 리포팅은 **별도 후속 WIP로 분리** →
-  `harness--hn_staging_followup.md` 7단계(5커밋 측정)로 통합
+- §4 시간 리포팅은 **별도 후속으로 분리** →
+  `WIP/harness--hn_commit_process_audit.md` #13(5커밋 측정)으로 통합
 
 # 커밋 속도 최적화
 

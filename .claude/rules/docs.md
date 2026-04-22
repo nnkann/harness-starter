@@ -230,7 +230,7 @@ hit 0건만이 "새로 만들어도 된다"의 전제. hit 있으면 아래 두 
 
 한 파일이 여러 주제를 다루면 grep이 실패한다. 분할 기준:
 - 결정 근거가 독립적이고 서로 다른 문제를 다루면 **분할** (`hn_staging_governance.md`
-  + `hn_staging_followup.md`)
+  vs `hn_review_staging_rebalance.md`)
 - 같은 결정의 후속 실행·측정은 **본문 누적** (`## 변경 이력` 섹션)
 - 동일 주제 재결정은 같은 파일 갱신. 완전 superseded만 `archived/` + 새 파일
 
