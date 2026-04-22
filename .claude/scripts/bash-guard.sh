@@ -75,12 +75,17 @@ fi
 #
 # `git commit --help`·`git commit --dry-run`·`-h` 읽기 전용 호출은 통과.
 # ─────────────────────────────────────────────
-if [[ $COMMAND =~ ^[[:space:]]*git[[:space:]]+commit([[:space:]]|$) ]]; then
+# 선행 환경변수 할당(`FOO=bar ... git commit`)을 벗겨낸 실행 명령 본문 추출.
+# `^[[:space:]]*git` 매칭으로는 `HARNESS_X=1 git commit`이 블록 진입조차
+# 못 함 — 과거 버그 (모든 prefix가 의도 없이 통과). UNQ_COMMAND 기준 매칭.
+UNQ_COMMAND=$(echo "$COMMAND" | sed -E 's/^[[:space:]]*([A-Z_][A-Z0-9_]*=[^[:space:]]*[[:space:]]+)+//')
+
+if [[ $UNQ_COMMAND =~ ^git[[:space:]]+commit([[:space:]]|$) ]]; then
   # 읽기 전용 옵션은 통과
-  if [[ $COMMAND =~ (^|[[:space:]])(--help|--dry-run|-h)([[:space:]]|$) ]]; then
+  if [[ $UNQ_COMMAND =~ (^|[[:space:]])(--help|--dry-run|-h)([[:space:]]|$) ]]; then
     exit 0
   fi
-  # 이스케이프 해치 (HARNESS_DEV=1 단일)
+  # 이스케이프 해치 (HARNESS_DEV=1 단일). prefix는 원본 COMMAND에서 검사.
   if [[ $COMMAND =~ (^|[[:space:]])HARNESS_DEV=1([[:space:]]|$) ]]; then
     exit 0
   fi
