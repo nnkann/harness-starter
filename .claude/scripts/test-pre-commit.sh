@@ -34,14 +34,23 @@ cp "$SOURCE_REPO/.claude/rules/naming.md" .claude/rules/naming.md 2>/dev/null ||
 # $2: 검증할 stdout key (예: signals)
 # $3: 기대 패턴 (정규식, grep -E)
 # $4: 검증 모드 (must_match | must_not_match)
+# fixture 캐시: 같은 fixture에서 run_case 여러 번 호출되면 stdout 재사용.
+# reset() 호출 시 무효화. T1·T3·T18 같은 다중 key 검증에서 pre-check 중복
+# 실행 제거 — 스위트 체감 시간 큰 폭 절감.
+PRECHECK_CACHE=""
+
 run_case() {
   local name="$1"
   local key="$2"
   local pattern="$3"
   local mode="$4"
 
+  if [ -z "$PRECHECK_CACHE" ]; then
+    PRECHECK_CACHE=$(bash .claude/scripts/pre-commit-check.sh 2>/dev/null)
+  fi
+
   local actual
-  actual=$(bash .claude/scripts/pre-commit-check.sh 2>/dev/null | grep -E "^${key}:" | head -1)
+  actual=$(echo "$PRECHECK_CACHE" | grep -E "^${key}:" | head -1)
 
   local matched=0
   if echo "$actual" | grep -qE "$pattern"; then
@@ -68,6 +77,7 @@ run_case() {
 reset() {
   git reset HEAD . >/dev/null 2>&1
   git clean -fdq >/dev/null 2>&1
+  PRECHECK_CACHE=""  # fixture 바뀜 → 캐시 무효화
 }
 
 echo ""
