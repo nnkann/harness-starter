@@ -503,12 +503,29 @@ run_case "T28.1 docs 일반 → standard" "recommended_stage" "standard" must_ma
 # 자체가 사라졌다. 거대 커밋은 사용자가 스코프 분리한다.
 
 # T30: S5 메타 단독 (promotion-log.md만) → skip
+# promotion-log.md는 업스트림 전용 메타 — is_starter=true일 때만 S5로 분류.
+# 다운스트림 repo(is_starter=false)에서 test 돌리면 영구 fail하므로
+# fixture 안에서 HARNESS.json is_starter를 true로 임시 설정 후 원복.
 echo "[T30] 5줄 룰 #4 — promotion-log.md 단독 → skip"
 reset
-mkdir -p docs/harness
+mkdir -p docs/harness .claude
+# HARNESS.json 백업 + is_starter=true fixture 생성
+HARNESS_BACKUP=""
+if [ -f .claude/HARNESS.json ]; then
+  HARNESS_BACKUP=$(cat .claude/HARNESS.json)
+fi
+cat > .claude/HARNESS.json <<'EOF'
+{ "profile": "minimal", "is_starter": true, "version": "test" }
+EOF
 echo "# log" > docs/harness/promotion-log.md
 git add docs/harness/promotion-log.md
 run_case "T30.1 promotion-log 단독 → skip" "recommended_stage" "skip" must_match
+# HARNESS.json 원복
+if [ -n "$HARNESS_BACKUP" ]; then
+  echo "$HARNESS_BACKUP" > .claude/HARNESS.json
+else
+  rm -f .claude/HARNESS.json
+fi
 
 # T31: src/* + scripts/* 혼합 → deep (룰 1 우선)
 echo "[T31] 5줄 룰 #1 — src + scripts 혼합"

@@ -93,19 +93,16 @@ if [ ! -f ".claude/settings.json" ]; then
   add_warning "settings.json 없음"
 else
   # 핵심 hook 존재 확인
-  # v1.9.0+: no-verify·pre-commit-check 호출은 bash-guard.sh 안으로 통합됨
   for matcher in 'session-start.sh' 'bash-guard.sh'; do
     if ! grep -q "$matcher" .claude/settings.json; then
       add_warning "settings.json: '$matcher' 관련 hook 누락 가능"
     fi
   done
-  # no-verify·pre-commit 검증은 bash-guard.sh 내부에 있어야 함
+  # bash-guard.sh는 --no-verify 차단 책임. pre-commit-check 호출은
+  # commit 스킬이 직접 수행(매 Bash 호출마다 pre-check 돌면 성능 폭증).
   if [ -f ".claude/scripts/bash-guard.sh" ]; then
     if ! grep -q 'no-verify' .claude/scripts/bash-guard.sh; then
       add_warning "bash-guard.sh: --no-verify 차단 로직 누락"
-    fi
-    if ! grep -q 'pre-commit-check.sh' .claude/scripts/bash-guard.sh; then
-      add_warning "bash-guard.sh: pre-commit-check.sh 호출 누락"
     fi
   fi
 
