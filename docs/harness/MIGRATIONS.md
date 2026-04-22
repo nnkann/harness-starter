@@ -49,6 +49,80 @@ fail을 막는다.
 
 ---
 
+## v0.18.4 — 린터 ENOENT 패턴 정교화 (오탐·OS 커버리지 fix)
+
+### 자동 적용 (스킬이 처리)
+
+- `.claude/scripts/pre-commit-check.sh` 린터 단계 ENOENT 패턴 재작성
+  - **제거** (ESLint 내부 crash와 구분 불가): `No such file or directory`,
+    `Cannot find module`, `ENOENT`
+  - **추가** (OS 커버리지): zsh `command not found: X$`, Alpine
+    `exec: X: not found$`, Dash `sh: N: X: not found$`, pnpm
+    `ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL`
+- `.claude/scripts/test-pre-commit.sh` T33·T34 회귀 테스트 신설 (12 케이스)
+  - T33: 7개 shell 실종 형식 매칭 (Windows cmd · bash · zsh · sh ·
+    Alpine · Dash · pnpm)
+  - T34: 5개 crash·rule 위반 차단 유지 (import resolver ENOENT · 플러그인
+    missing · rule 위반 · node trace · syntax error)
+  - 패턴 SSOT는 `ENOENT_PATTERN` 변수로 pre-check과 동기화
+- `.claude/rules/no-speculation.md` "MIGRATIONS.md 회귀 위험 섹션 작성
+  원칙" 추가 — `겹치지 않음`·`영향 없음` 같은 근거 없는 단정 금지,
+  검증 범위 명시 의무
+
+### 왜
+
+v0.18.3 fix 이후 다운스트림 review 에이전트가 MIGRATIONS.md의 단정
+("실제 ESLint·Ruff 출력과 겹치지 않음")을 **역으로 검증**해 오탐과 OS
+커버리지 갭을 지적:
+
+- **오탐**: `No such file or directory`·`Cannot find module`·`ENOENT`는
+  ESLint `import/no-unresolved` crash와 플러그인 missing 에러에도 등장.
+  rule 위반이 warn으로 격하되는 오분류 위험
+- **갭**: Alpine Docker·Dash/POSIX sh·pnpm에서 쓰이는 실종 메시지 형식
+  미커버. CI/CD가 `node:alpine` 이미지를 쓰면 도구 실종이 차단으로 회귀
+
+실측 과정에서 **다운스트림 제안 A안의 zsh 형식도 T33.3이 FAIL로 잡음**.
+제안을 그대로 반영하지 않고 회귀 테스트로 검증한 것이 결과적으로 옳았음.
+
+### 수동 액션 (다운스트림)
+
+- [ ] **v0.18.3 이하 다운스트림은 즉시 upgrade 권장**
+
+  v0.18.3 패턴이 Alpine CI/CD에서 **매 커밋 차단** 회귀를 일으킬 수 있음.
+  v0.18.4로 해결.
+
+- [ ] **MIGRATIONS.md "회귀 위험" 단정 감사 (권장)**
+
+  로컬 하네스 문서에 `겹치지 않음`·`영향 없음` 단정이 있으면 근거 추가
+  또는 범위 명시로 교체. no-speculation.md 새 섹션 참조.
+
+### 검증
+
+upstream 격리 환경(Windows/Git Bash)에서 실측:
+
+```bash
+bash .claude/scripts/test-pre-commit.sh 2>&1 | tail -5
+# 통과 57 / 실패 0 — T33·T34 12 케이스 포함
+
+# 패턴 오탐 테스트 — 정상 ESLint crash는 차단 유지
+echo "Error: Cannot find module 'eslint-plugin-react'" \
+  | grep -qE "$ENOENT_PATTERN" && echo "❌ 오탐" || echo "✅ 차단 유지"
+```
+
+**검증 범위**: Windows/Git Bash에서 T33·T34 fixture 실측. Linux/macOS
+실기기 테스트는 미수행 — 패턴 자체는 shell prompt 고유 형식 기반이라
+OS 독립적일 것으로 **추정**하나 실측 아님.
+
+### 회귀 위험
+
+- **Windows/Git Bash 환경에서 T33·T34 통과 확인됨** — 다른 OS 미테스트.
+  Alpine/macOS/Linux 실환경 실측은 다운스트림이 보고하면 fixture 확장
+- **`Cannot find module` block 유지 결정** — 플러그인 missing을 warn으로
+  격하하면 다운스트림이 린트가 실제로 돌지 않는 걸 모름. 정책적으로
+  block. 플러그인 설치 안내를 더 명확히 하고 싶다면 별도 개선
+
+---
+
 ## v0.18.3 — 린터 도구 실종 구분 (T13.1 원인 확정)
 
 ### 자동 적용 (스킬이 처리)

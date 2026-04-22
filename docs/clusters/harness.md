@@ -53,6 +53,7 @@
 ### incidents/
 - [pipeline-design 규칙 업스트림 이식 원천 사례](../incidents/hn_pipeline_design_rule_origin.md) — tags: pipeline, rule-origin, incident, upstream-rule
 - [린터 도구 실종 — T13이 우연히 가시화한 환경 이슈](../incidents/hn_test_isolation_git_log_leak.md) — tags: testing, lint, env, diagnosis-discipline
+- [v0.18.3 린터 ENOENT 패턴 — 오탐·OS 커버리지 갭](../incidents/hn_lint_enoent_pattern_gaps.md) — tags: upstream-feedback, pre-commit-check, lint, enoent, false-positive, no-speculation
 - [review 에이전트가 staged diff 대신 직전 커밋을 분석한 사고](../incidents/hn_review_agent_wrong_diff.md) — tags: review-agent, agent-context, false-warning
 - [starter push 누락 + lint stdout 오염](../incidents/hn_starter_push_skipped.md) — tags: push, starter, downstream, propagation
 - [PreToolUse Bash -n 오탐 차단](../incidents/hn_bash_n_flag_overblock.md) — tags: hook, pre-tool-use, false-positive, bash

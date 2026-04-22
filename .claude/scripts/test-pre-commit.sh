@@ -661,6 +661,58 @@ git add .claude/rules/foo.md docs/guides/note.md src/foo.ts
 run_case "T32.1 rules+docs+src(non-export) → standard" "recommended_stage" "standard" must_match
 
 # ─────────────────────────────────────────────────
+# T33·T34. 린터 ENOENT 패턴 (v0.18.4, hn_lint_enoent_pattern_gaps.md)
+# pre-commit-check.sh 린터 단계의 패턴이 shell별 도구 실종 형식은 매칭
+# 하되 ESLint 내부 crash·rule 위반과는 겹치지 않는지 단위 검증.
+# ─────────────────────────────────────────────────
+
+# 패턴 SSOT — pre-commit-check.sh와 동일 유지.
+# 변경 시 양쪽 동기화 필수 (코드 SSOT 서더링).
+ENOENT_PATTERN="is not recognized as an internal or external command|: command not found$|command not found: [a-zA-Z0-9_./+-]+$|^exec: [^:]+: not found$|^sh: [0-9]+: [^:]+: not found$|ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL"
+
+# T33. 도구 실종 메시지 (shell별 형식) → 패턴 매칭 기대
+echo "[T33] 린터 도구 실종 warn 매칭 (shell별 형식)"
+check_match() {
+  local label="$1"
+  local fixture="$2"
+  if echo "$fixture" | grep -qE "$ENOENT_PATTERN"; then
+    echo "  [PASS] T33.$label '$fixture' → warn 매칭"
+    PASS=$((PASS + 1))
+  else
+    echo "  [FAIL] T33.$label '$fixture' → warn 미매칭 (shell 실종을 못 잡음)"
+    FAIL=$((FAIL + 1))
+    FAILED_CASES="${FAILED_CASES}\n  - T33.$label 실종 형식 미매칭"
+  fi
+}
+check_match "1 windows_cmd" "'eslint' is not recognized as an internal or external command"
+check_match "2 bash"        "bash: eslint: command not found"
+check_match "3 zsh"         "zsh: command not found: eslint"
+check_match "4 sh_plain"    "sh: eslint: command not found"
+check_match "5 alpine"      "exec: eslint: not found"
+check_match "6 dash_posix"  "sh: 5: eslint: not found"
+check_match "7 pnpm"        "ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed"
+
+# T34. ESLint 내부 crash·rule 위반 → 패턴 **미매칭** 기대 (차단 유지)
+echo "[T34] 오탐 방지 — ESLint crash·rule 위반은 차단 유지"
+check_no_match() {
+  local label="$1"
+  local fixture="$2"
+  if echo "$fixture" | grep -qE "$ENOENT_PATTERN"; then
+    echo "  [FAIL] T34.$label '$fixture' → warn으로 오탐 (차단 격하됨)"
+    FAIL=$((FAIL + 1))
+    FAILED_CASES="${FAILED_CASES}\n  - T34.$label ESLint crash 오탐"
+  else
+    echo "  [PASS] T34.$label '$fixture' → 차단 유지"
+    PASS=$((PASS + 1))
+  fi
+}
+check_no_match "1 import_resolver"  "Error: ENOENT: no such file or directory, open '/path/import.ts'"
+check_no_match "2 plugin_missing"   "Error: Cannot find module 'eslint-plugin-react'"
+check_no_match "3 rule_violation"   "  3:7  error  'x' is defined but never used  no-unused-vars"
+check_no_match "4 node_trace"       "    at Object.<anonymous> (/app/node_modules/eslint/lib/cli.js:123:5)"
+check_no_match "5 syntax_error"     "SyntaxError: Unexpected token '<' (1:0)"
+
+# ─────────────────────────────────────────────────
 # 결과
 # ─────────────────────────────────────────────────
 echo ""

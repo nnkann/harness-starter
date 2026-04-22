@@ -61,11 +61,29 @@ if [ -n "$LINT_CMD" ]; then
   LINT_OUTPUT=$($LINT_CMD 2>&1)
   LINT_EXIT=$?
   if [ "$LINT_EXIT" -ne 0 ]; then
-    # 도구 실종(ENOENT·node_modules 누락)과 실제 rule 위반을 구분.
-    # 실종 → warn + skip (환경 문제, 차단하면 매 commit 방해). rule 위반 → 차단.
-    # incident: hn_test_isolation_git_log_leak.md (v0.18.3에서 확정)
-    # 보수적 패턴만 매칭 — ESLint 자체 출력과 겹치지 않는 문자열.
-    if echo "$LINT_OUTPUT" | grep -qE "is not recognized as an internal or external command|command not found|No such file or directory|Cannot find module|ENOENT"; then
+    # 도구 실종(shell이 바이너리 자체를 못 찾음)과 실제 lint 실패(rule 위반·
+    # 플러그인 에러·crash)를 구분. 실종 → warn + skip (환경 문제, 커밋 계속).
+    # 실패 → 차단 (ERRORS++).
+    # incident: hn_test_isolation_git_log_leak.md (v0.18.3 원인 확정)
+    #         + hn_lint_enoent_pattern_gaps.md (v0.18.4 패턴 정교화)
+    #
+    # 패턴 설계 원칙: shell이 "명령을 찾지 못함"을 알리는 고유 형식만 매칭.
+    # ENOENT·"Cannot find module"·"No such file or directory"는 ESLint
+    # 내부 crash와 구분 불가라 제거 (v0.18.4).
+    #
+    # 지원 환경:
+    # - Windows cmd: `'X' is not recognized as an internal or external command`
+    # - bash/zsh/sh/dash: `X: command not found` (라인 끝 고정)
+    # - Alpine/BusyBox: `exec: X: not found`
+    # - Dash/POSIX sh: `sh: N: X: not found`
+    # - pnpm 고유: `ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL`
+    if echo "$LINT_OUTPUT" | grep -qE \
+"is not recognized as an internal or external command|\
+: command not found$|\
+command not found: [a-zA-Z0-9_./+-]+$|\
+^exec: [^:]+: not found$|\
+^sh: [0-9]+: [^:]+: not found$|\
+ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL"; then
       echo "⚠ 린터 도구 미설치 또는 PATH 누락. 린트 스킵 (커밋 계속)." >&2
       echo "   (실행: $LINT_CMD — node_modules 확인 또는 \`npm install\` 검토)" >&2
       echo "$LINT_OUTPUT" | tail -5 >&2
