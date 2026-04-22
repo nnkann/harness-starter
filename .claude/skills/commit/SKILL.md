@@ -412,7 +412,7 @@ bash .claude/scripts/split-commit.sh
 - 스크립트가 전체 staged를 비우고 **첫 그룹만 다시 stage**
 - `.claude/memory/split-plan.txt`에 남은 그룹 목록 저장
 - commit 스킬은 **첫 그룹만으로** Step 6·7·7.5·8(커밋)·9(푸시 제외) 수행
-  - 커밋 시 **`HARNESS_SPLIT_SUB=1 HARNESS_COMMIT_SKILL=1 HARNESS_DEV=1` prefix 필수**
+  - 커밋 시 **`HARNESS_SPLIT_SUB=1 HARNESS_DEV=1` prefix 필수**
   - sub-커밋은 pre-check 분리 판정 skip, 정상 review·커밋 흐름
 - 첫 sub-커밋 완료 후 **다시 `/commit` 호출** → split-commit.sh가 다음 그룹 stage
 - `split-plan.txt`가 비면 분리 종료
@@ -539,10 +539,13 @@ stage 결정 직후 한 줄로 알림:
 
 Conventional Commits 규약 준수 (feat:, fix:, refactor: 등).
 
-> **강제 경유 규약 (audit #8, 2026-04-22)**: `bash-guard.sh` 검증 4가
-> `git commit` 직접 호출을 차단한다. 커밋 스킬이 **반드시 `HARNESS_COMMIT_SKILL=1`
-> prefix를 앞에 붙여 실행**해야 통과. prefix 누락 시 bash-guard가 exit 2로
-> 차단 → "스킬 우회" 메시지. 긴급 시 `HARNESS_DEV=1`도 통과(기존 이스케이프).
+> **강제 경유 규약 (audit #8, 2026-04-22 / v0.20.5 업데이트)**: `bash-guard.sh`
+> 검증 4가 `git commit` 직접 호출을 차단한다. **반드시 `HARNESS_DEV=1`
+> prefix를 앞에 붙여 실행**해야 통과. prefix 누락 시 bash-guard가 exit 2.
+>
+> 과거 `HARNESS_COMMIT_SKILL=1` prefix가 별도 이스케이프로 존재했으나
+> v0.20.5에서 폐기. Claude가 스킬을 우회하고 수동으로 prefix 붙이는 경로
+> 원천 차단 목적. 이스케이프 경로는 `HARNESS_DEV=1` 단일.
 
 ### 기본 포맷
 
@@ -551,7 +554,7 @@ Conventional Commits 규약 준수 (feat:, fix:, refactor: 등).
 - 연관 문서 경로 (있으면)
 
 ```bash
-HARNESS_COMMIT_SKILL=1 git commit -m "feat: [제목]" -m "[본문]"
+HARNESS_DEV=1 git commit -m "feat: [제목]" -m "[본문]"
 ```
 
 ### 확장 포맷 (deep stage 또는 중요 결정 커밋)

@@ -49,6 +49,54 @@ fail을 막는다.
 
 ---
 
+## v0.20.5 — 커밋 이스케이프 단일화 (HARNESS_COMMIT_SKILL 폐기)
+
+**요약**: `git commit` 직접 호출 차단(audit #8)의 이스케이프가 기존
+`HARNESS_COMMIT_SKILL=1`·`HARNESS_DEV=1` 2개였으나 `HARNESS_DEV=1` 단일
+로 축소. `HARNESS_COMMIT_SKILL=1`은 더 이상 bash-guard를 통과시키지
+못한다 (exit 2 차단).
+
+### 배경
+
+Claude가 `HARNESS_COMMIT_SKILL=1 git commit`을 **수동으로 쓰는 경로**가
+commit 스킬 우회 창구가 됐다. prefix의 존재 이유는 "commit 스킬이 호출
+했다는 증거"였는데, Claude가 그 prefix를 직접 타이핑하면 bash-guard는
+구별할 방법 없이 통과시켰다. Claude의 자기 절제에 의존하는 메커니즘은
+규율이 되지 못한다는 판단.
+
+### 자동 (harness-upgrade)
+
+- `.claude/scripts/bash-guard.sh` 검증 4 — `HARNESS_(DEV|COMMIT_SKILL)`
+  정규식에서 `COMMIT_SKILL` 제거. `HARNESS_DEV=1` 단일 매칭
+- `.claude/scripts/split-commit.sh` 안내 문구 `HARNESS_SPLIT_SUB=1
+  HARNESS_DEV=1`로 축소
+- `.claude/scripts/test-bash-guard.sh` G2 케이스 expected 0 → 2 (의미
+  역전: 과거 "통과" → 현재 "차단")
+- `.claude/skills/commit/SKILL.md` 커밋 실행 문법 `HARNESS_DEV=1 git commit`
+
+### 수동 액션 (사용자 필수)
+
+- [ ] **자동화 스크립트·CI에서 `HARNESS_COMMIT_SKILL=1` 쓰는 곳 전수
+      검사**. 있으면 `HARNESS_DEV=1`로 교체. 다운스트림이 커스텀 커밋
+      스크립트를 갖고 있었다면 v0.20.5 업그레이드 직후 exit 2 발생
+
+### 검증
+
+- `bash .claude/scripts/test-bash-guard.sh` → 18/18 (G2 의미 역전 반영)
+- 다운스트림: `grep -r "HARNESS_COMMIT_SKILL" .` 으로 잔재 검색 후 교체
+
+### 회귀 위험
+
+- **이스케이프 하나 남음**: `HARNESS_DEV=1`. Claude가 이것도 수동으로
+  쓸 수 있어 완전 차단은 아님. "최소 수정" 목표에 따른 현실적 타협
+  — 사용자가 명시적으로 긴급 시에만 쓰는 경로로 유지. 근본 차단을
+  원하면 pre-commit hook으로 책임 이전 구조 재설계 필요 (별도 WIP)
+- **설계 버그는 별도 커밋(v0.20.6)**: 이 버전은 이스케이프 **정책**만
+  변경. bash-guard의 `^git commit` 매칭이 `HARNESS_X=1 git commit`
+  형태에서 블록 진입조차 못 하던 설계 버그는 다음 커밋에서 fix
+
+---
+
 ## v0.20.0 — 커밋 프로세스 감사 P2 반영 (audit #4·#8·#10·#17)
 
 ### 자동 적용 (스킬이 처리)
@@ -60,10 +108,11 @@ fail을 막는다.
 - `.claude/skills/commit/SKILL.md` Step 3: 기존 35줄 설명 → `bash .claude/
   scripts/harness-version-bump.sh` 호출 + 범프 기준 표만 유지
 - `.claude/scripts/bash-guard.sh` **검증 4 신설** (audit #8): `git commit`
-  직접 호출 차단. `HARNESS_COMMIT_SKILL=1` or `HARNESS_DEV=1` prefix 없으면
-  exit 2. `--help`·`--dry-run` 읽기 전용은 통과
+  직접 호출 차단. `HARNESS_DEV=1` prefix 없으면 exit 2. `--help`·`--dry-run`
+  읽기 전용은 통과 (v0.20.5 업데이트: `HARNESS_COMMIT_SKILL=1` 이스케이프
+  폐기, `HARNESS_DEV=1` 단일화)
 - `.claude/scripts/test-bash-guard.sh` G1~G5 5케이스 신설 (18/18 통과)
-- `.claude/skills/commit/SKILL.md` 커밋 실행 라인에 `HARNESS_COMMIT_SKILL=1`
+- `.claude/skills/commit/SKILL.md` 커밋 실행 라인에 `HARNESS_DEV=1`
   prefix 명시
 - `.claude/skills/docs-manager/` **삭제** (audit #10): 332줄 스킬 폐기
 - `.claude/scripts/docs-ops.sh` **신설** (audit #10): 5개 서브커맨드
@@ -98,9 +147,10 @@ fail을 막는다.
 
 ### 수동 액션 (사용자 필수)
 
-- [ ] **커밋 시 `HARNESS_COMMIT_SKILL=1` prefix 필수화**. 이전에 Bash
+- [ ] **커밋 시 `HARNESS_DEV=1` prefix 필수화**. 이전에 Bash
       `git commit`을 직접 호출하던 흐름은 bash-guard 검증 4로 차단됨.
-      이스케이프는 `HARNESS_DEV=1` (긴급 시에만)
+      (v0.20.5부터 이스케이프 `HARNESS_DEV=1` 단일 — 과거 `HARNESS_COMMIT_SKILL=1`
+      은 폐기)
 - [ ] **docs-manager 스킬을 직접 Skill tool로 호출하던 커스텀 흐름이
       있으면 `docs-ops.sh` 서브커맨드로 교체**. 서브커맨드 매핑:
   - `docs-manager --validate` → `bash .claude/scripts/docs-ops.sh validate`
@@ -128,8 +178,8 @@ fail을 막는다.
 ### 회귀 위험
 
 - **`git commit` 직접 호출이 전부 차단됨**. 자동화 스크립트·CI에서
-  prefix 없이 `git commit`을 호출하면 exit 2. 전부 `HARNESS_COMMIT_SKILL=1`
-  또는 `HARNESS_DEV=1` 추가 필요
+  prefix 없이 `git commit`을 호출하면 exit 2. `HARNESS_DEV=1` prefix
+  추가 필요 (v0.20.5 이후 단일 이스케이프)
 - docs-manager 스킬을 Skill tool로 명시 호출하던 흐름은 전부 깨짐.
   스킬이 존재하지 않음
 - S6 자동화로 docs-only ≤5줄 커밋이 skip됨. 이전에 standard였던

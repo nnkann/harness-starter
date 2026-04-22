@@ -67,19 +67,21 @@ fi
 #
 # 이유: pre-check·review·진척도 갱신·추적 라인이 모두 commit 스킬에 있음.
 #       Bash `git commit` 직접 호출은 이 방어선 전체를 우회.
-# 경유 표시: commit 스킬이 최종 커밋 시 `HARNESS_COMMIT_SKILL=1` prefix 세팅.
-# 이스케이프: `HARNESS_DEV=1` (기존 업스트림 push 가드와 동일 규약).
+# 이스케이프: `HARNESS_DEV=1` (사용자가 긴급 시 명시적으로 사용).
 #
-# `git commit --help`·`git commit -v` 읽기 전용 호출은 `COMMAND` 안에 해당
-# 옵션이 있으면 통과시킴 (도움말·dry-view는 커밋 생성 안 함).
+# 과거 `HARNESS_COMMIT_SKILL=1` 이스케이프가 있었으나 2026-04-22 폐기
+# (v0.20.5). Claude가 수동으로 prefix 붙여 스킬 우회하는 경로 원천 차단.
+# commit 스킬도 `HARNESS_DEV=1`을 사용 — 이스케이프 경로 단일화.
+#
+# `git commit --help`·`git commit --dry-run`·`-h` 읽기 전용 호출은 통과.
 # ─────────────────────────────────────────────
 if [[ $COMMAND =~ ^[[:space:]]*git[[:space:]]+commit([[:space:]]|$) ]]; then
   # 읽기 전용 옵션은 통과
   if [[ $COMMAND =~ (^|[[:space:]])(--help|--dry-run|-h)([[:space:]]|$) ]]; then
     exit 0
   fi
-  # 이스케이프 해치 (HARNESS_DEV=1 또는 HARNESS_COMMIT_SKILL=1 prefix)
-  if [[ $COMMAND =~ (^|[[:space:]])HARNESS_(DEV|COMMIT_SKILL)=1([[:space:]]|$) ]]; then
+  # 이스케이프 해치 (HARNESS_DEV=1 단일)
+  if [[ $COMMAND =~ (^|[[:space:]])HARNESS_DEV=1([[:space:]]|$) ]]; then
     exit 0
   fi
   # 그 외 git commit 직접 호출 → 차단
