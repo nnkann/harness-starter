@@ -1,76 +1,75 @@
 ---
-title: test-pre-commit.sh 스위트 성능 최적화
+title: pre-commit-check.sh 자체 성능 최적화
 domain: harness
-tags: [test, perf, infra]
+tags: [pre-check, perf, profiling]
 status: pending
 created: 2026-04-22
+updated: 2026-04-23
 ---
 
-# test-pre-commit.sh 스위트 성능 최적화
+# pre-commit-check.sh 자체 성능 최적화
 
-현재 전체 실행 시간 **2m31초** (Windows Git Bash, 업스트림 리포). 64 케이스.
-목표: 45~60초 수준으로 단축.
+test-pre-commit 스위트 2m31초는 **증상**. 근본 원인은 **pre-check 1회가
+1.2초**. 64번 순차 실행이라 이론 하한 ~77초.
 
-## 왜
+## 왜 병렬화가 답이 아닌가
 
-- 회귀 테스트를 자주 돌릴수록 품질 방어선이 강해지는데, 2m31초는 심리적
-  장벽이 됨 → 개발 중 스위트를 생략하게 됨
-- 실제 v0.20.1·0.20.2 커밋 과정에서 전체 스위트 돌릴 때마다 세션이
-  마비됨. 사용자 불만 실측 발생
+- 병렬화는 "64번 돌아야 하는 이유"를 피하는 우회. 증상 치료
+- 총 CPU 시간은 그대로, 워커별 tmp·결과 집계·격리 검증 부담만 추가
+- **근본 해결**: pre-check 1회를 1.2초 → 0.3초로 줄이면 스위트는 자동
+  으로 2m → 30초. 매 커밋 체감도 동반 개선
 
-## 현황 진단 (2026-04-22)
+## 목표
 
-### 비용 구조
+- **pre-check 1회 < 0.5초** (업스트림 리포 실측, Windows Git Bash)
+- 결과: 스위트 전체 1분 이하 자동 달성
 
-전체 2m31초 = `user 1m1초` + `sys 1m24초` + 대기. Windows `fork`·`fs`
-오버헤드가 `sys` 지배. 케이스당 평균 ~2.4초.
+## 접근
 
-지배적 비용:
-1. **T0 setup**: `git clone -q . "$TEST_DIR/repo"` (전체 repo 복사). 수 초
-2. **매 케이스 `reset()` + git add**: 64 × (git reset + git clean + git add)
-   = 파일 I/O 폭증
-3. **매 케이스 pre-check 1회**: 업스트림 실측 ~1.2초 × 64 ≈ 77초 이론 하한
+### 1. 프로파일링
 
-## 최적화 옵션
+```bash
+# bash -x 또는 EPOCHREALTIME 기반 측정
+PS4='+ $EPOCHREALTIME ' bash -x .claude/scripts/pre-commit-check.sh 2>prof.log
+# gap 큰 구간 top 10 추출
+```
 
-### A. 쉬운 것 (효과 큼, 위험 낮음)
+과거 v0.20.2 task-groups.sh 프로파일링 경험 참조: `for wip in ...; do awk`
+파일당 fork 패턴이 1.5초 차지. 동일 패턴이 pre-check 본체나 호출 스크
+립트(`task-groups.sh`·`docs-ops.sh`)에 더 있을 가능성.
 
-1. **clone 경량화 or 제거** — 전체 repo clone 대신 `git init + 필요 파일
-   cp` 또는 `--depth=1 --no-tags`. 예상 절감 10~20초
-2. **병렬 실행** — bash `&` + `wait` or `xargs -P 4`. pre-check 케이스
-   상호 독립. 워커별 tmp 디렉토리 분리 필요. 예상 절감 50%+ (2m → 1m)
-3. **reset() 최적화** — `git reset + git clean` 대신 `rm -rf work/*` +
-   최소 `git add`. 예상 절감 10~20%
+### 2. 의심 핫스팟 (프로파일링 전 가설)
 
-### B. 중간 (효과 큼, 위험 중간)
+- `task-groups.sh` 호출 — v0.20.2에서 awk fork 1.5→0.3초 개선했지만 여전히
+  0.3초 차지. 통합 awk로 1회 fork 수준까지 가능한가
+- `docs-ops.sh extract_abbrs` — awk로 naming.md 스캔. pre-check에서 호출
+  되는지 확인 필요
+- dead link 검사 Step 3.5 (v0.18.6 신설) — `grep -rn --include='*.md' ...
+  docs .claude` 가 전체 docs 스캔. staged 파일 없어도 매번 돈다면 낭비
+- STAGED_DIFF / STAGED_NUMSTAT / STAGED_NAME_STATUS 3회 git 호출 — 이미
+  v0.13.2에서 22→3회로 줄임. 더 줄일 여지 있나
+- S10 반복 카운트 `git log -5 --name-only` — 매번 git 호출
 
-4. **pre-check 자체 최적화** — 내부에 `task-groups.sh`·`docs-ops.sh` 호출
-   파이프라인 있음. 프로파일링으로 핫스팟 찾으면 20~30% 단축 가능성. 단
-   변경 범위 큼, 별도 audit 필요
+### 3. 구조적 후보
 
-### C. 어려움 (효과 불확실)
+- **"변경 없으면 건너뛰기"** — pre-check 전체를 STAGED_FILES 검사 전
+  early exit 할 수 있는 블록이 있는가
+- **캐싱** — v0.19.0에서 tree-hash 캐싱 폐기됐지만, 스위트 내부에서는
+  같은 repo 상태에서 64번 돌기에 case별 fixture 변경만 반영하면 됨. 단
+  pre-check 자체 캐싱보다 test 쪽 fixture 최적화가 안전
 
-5. **케이스 공유 fixture** — reset 없이 그룹 순차 실행. 격리성 깨질 위험
+## 진행 조건
 
-## 제안 진행 순서
+- **프로파일링 결과 없이 착수 금지**. no-speculation 원칙
+- 핫스팟 top 3가 명확해지면 각 fix 1커밋씩
 
-1. A-1 (clone 경량화) 먼저 — 변경 범위 작고 효과 명확
-2. A-2 (병렬화) — 효과 크지만 워커 격리 설계 필요. 단독 커밋
-3. 나머지는 측정 후 필요 시
+## 영향 파일 (프로파일링 후 결정)
 
-## 영향 파일
-
-- `.claude/scripts/test-pre-commit.sh`
+- 주: `.claude/scripts/pre-commit-check.sh`
+- 보조: `.claude/scripts/task-groups.sh`, `.claude/scripts/docs-ops.sh`
 
 ## 검증 기준
 
-- 전체 스위트 45~60초 수준 도달
-- 64/64 통과 유지
-- 병렬 시 case 순서 뒤섞여도 FAIL 없음 (격리성)
-
-## 관련
-
-- 배경: v0.20.2 커밋 과정 (task-groups.sh awk fork fix 중 사용자가 전체
-  스위트 2m39초 실행 관찰하고 불만 표명)
-- `docs/WIP/harness--hn_commit_process_audit.md` 실측 대기 #13/#16/#18
-  은 commit 스킬 성능이며 본 주제와 다름
+- pre-check 1회 < 0.5초 (업스트림 5회 측정 평균, 체감 아님)
+- 기능 회귀 0 (test-pre-commit 64/64 유지)
+- test-bash-guard 18/18 유지

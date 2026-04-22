@@ -180,44 +180,106 @@ match_wip_task() {
 }
 
 # ─────────────────────────────────────────────
-# 3. 1차 할당: wip:<slug>:<abbr>:<kind> 키 생성
+# 3. 1차 할당: 단일 awk로 전체 파일 처리 (파일당 fork 제거)
+#
+# awk에 4개 입력을 변수로 넘김:
+#   - STAGED: 처리 대상 경로 목록 (stdin)
+#   - RENAME_MAP: old→new 매핑 (-v 아닌 파일 경유 — ARGIND로 구분)
+#   - IMPACT_MAP: wip task → 영향 파일 매핑
+#   - ABBR_LIST: 도메인 약어 목록
+#
+# 단일 awk 호출로 기존 detect_abbr·is_meta_file·match_wip_task·rename_new_of
+# 4개 함수의 파일당 fork 패턴(~50ms × N)을 제거.
 # ─────────────────────────────────────────────
-while IFS= read -r f; do
-  [ -z "$f" ] && continue
+awk -v abbr_list="$ABBR_LIST" '
+  BEGIN {
+    FS="\t"
+    phase=0  # 0=rename map, 1=impact map, 2=staged
+    # 메타 파일 고정 패턴
+    meta_patterns[1] = "^\\.claude/HARNESS\\.json$"
+    meta_patterns[2] = "^docs/harness/MIGRATIONS\\.md$"
+    meta_patterns[3] = "^README\\.md$"
+    meta_patterns[4] = "^CHANGELOG\\.md$"
+    meta_patterns[5] = "^docs/clusters/.*\\.md$"
+    meta_n = 5
+  }
+  # 파일 구분 마커
+  $0 == "---RENAME---" { phase=1; next }
+  $0 == "---IMPACT---" { phase=2; next }
+  $0 == "---STAGED---" { phase=3; next }
 
-  # rename의 old 경로면 new 경로로 그룹 판정 위임 (같은 논리 단위 보존).
-  # 예: WIP/decisions--foo.md → decisions/foo.md 이동은 new 기준 그룹에 묶임.
-  judge_path="$f"
-  new_of=$(rename_new_of "$f")
-  if [ -n "$new_of" ]; then
-    judge_path="$new_of"
-  fi
+  phase == 1 && NF >= 2 { rename_map[$1] = $2; next }
+  phase == 2 && NF >= 4 {
+    # IMPACT_MAP 라인: wip_slug\ttask_id\tkind\tpattern
+    n = ++impact_n
+    impact_slug[n] = $1
+    impact_kind[n] = $3
+    impact_pattern[n] = $4
+    next
+  }
 
-  # 메타 파일 (판정 경로 기준)
-  if is_meta_file "$judge_path"; then
-    echo -e "meta:config\t${f}" >> "$RAW_ASSIGN"
-    continue
-  fi
+  phase == 3 {
+    f = $0
+    if (f == "") next
 
-  abbr=$(detect_abbr "$judge_path")
+    # 1. rename old면 new 경로로 판정 위임
+    judge = (f in rename_map) ? rename_map[f] : f
 
-  # WIP 본문 자체 (판정 경로 기준)
-  if [[ "$judge_path" == docs/WIP/*.md ]]; then
-    wip_bn=$(basename "$judge_path" .md)
-    wip_slug="${wip_bn#*--}"
-    echo -e "wip:${wip_slug}:${abbr}:feature\t${f}" >> "$RAW_ASSIGN"
-    continue
-  fi
+    # 2. 메타 파일 체크
+    for (i = 1; i <= meta_n; i++) {
+      if (judge ~ meta_patterns[i]) { print "meta:config\t" f; next }
+    }
 
-  # task 매칭 (판정 경로 기준)
-  if matched=$(match_wip_task "$judge_path"); then
-    slug=$(echo "$matched" | cut -f1)
-    kind=$(echo "$matched" | cut -f2)
-    echo -e "wip:${slug}:${abbr}:${kind}\t${f}" >> "$RAW_ASSIGN"
-  else
-    echo -e "path:기타:${abbr}:feature\t${f}" >> "$RAW_ASSIGN"
-  fi
-done <<< "$STAGED"
+    # 3. abbr 추출
+    bn = judge
+    sub(/.*\//, "", bn)         # basename
+    sub(/\.md$/, "", bn)
+    sub(/^[^-]*--/, "", bn)     # 라우팅 prefix 제거
+    abbr = "no-abbr"
+    if (abbr_list != "" && match(bn, "(^|[_-])(" abbr_list ")_") > 0) {
+      tmp = substr(bn, RSTART, RLENGTH)
+      sub(/^[_-]/, "", tmp)
+      sub(/_$/, "", tmp)
+      abbr = tmp
+    }
+
+    # 4. WIP 본문 자체
+    if (judge ~ /^docs\/WIP\/.*\.md$/) {
+      wip_slug = judge
+      sub(/.*\//, "", wip_slug)
+      sub(/\.md$/, "", wip_slug)
+      sub(/^[^-]*--/, "", wip_slug)
+      print "wip:" wip_slug ":" abbr ":feature\t" f
+      next
+    }
+
+    # 5. task 매칭 (정확 일치 우선, 그다음 basename 폴백)
+    best_slug = ""; best_kind = ""
+    fbn = judge; sub(/.*\//, "", fbn)
+    for (i = 1; i <= impact_n; i++) {
+      p = impact_pattern[i]
+      if (judge == p) {
+        print "wip:" impact_slug[i] ":" abbr ":" impact_kind[i] "\t" f
+        next
+      }
+      # */pattern 매칭
+      if (length(judge) > length(p) && substr(judge, length(judge) - length(p)) == "/" p) {
+        print "wip:" impact_slug[i] ":" abbr ":" impact_kind[i] "\t" f
+        next
+      }
+      # basename 폴백 (첫 매치만)
+      if (best_slug == "") {
+        pbn = p; sub(/.*\//, "", pbn)
+        if (fbn == pbn) { best_slug = impact_slug[i]; best_kind = impact_kind[i] }
+      }
+    }
+    if (best_slug != "") {
+      print "wip:" best_slug ":" abbr ":" best_kind "\t" f
+    } else {
+      print "path:기타:" abbr ":feature\t" f
+    }
+  }
+' <(echo "---RENAME---"; echo "$RENAME_MAP"; echo "---IMPACT---"; cat "$IMPACT_MAP"; echo "---STAGED---"; echo "$STAGED") >> "$RAW_ASSIGN"
 
 # ─────────────────────────────────────────────
 # 4. 메타 흡수: meta:config → 가장 큰 non-meta 그룹에 흡수
