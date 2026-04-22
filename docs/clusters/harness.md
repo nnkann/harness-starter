@@ -30,14 +30,12 @@
 - [외부 자료 조사 패턴 — Context7·공식 문서](../guides/hn_external_research_patterns.md) — tags: research, context7, external-docs, mcp
 
 ### harness/
-- [하네스 구멍 정리 + 리뷰 구조 재확정](../harness/hn_search_and_completion_gaps.md) — tags: search, ide-context, incident-doc, completion-gate, review-agent
 - [커밋 속도 최적화](../harness/hn_commit_perf_optimization.md) — tags: commit, performance, review-agent
 - [LLM 실수 방지 가드레일](../harness/hn_llm_mistake_guardrails.md) — tags: guardrails, self-correction, reliability, advisor-flow
 - [하네스 범용성 오염 방지](../harness/hn_generic_contamination_protection.md) — tags: harness-starter, contamination, generic
 - [commit·review 단계화](../harness/hn_commit_review_staging.md) — tags: commit, review, performance, staging, cost
 - [범용성 오염 방지 후속 (단순화로 흡수)](../harness/hn_contamination_followup.md) — tags: contamination, review, write-doc
 - [commit Step 2 후속 — symptom-keywords + completed 차단](../harness/hn_commit_step2_partial_completion.md) — tags: commit, write-doc, completion-gate
-- [review staging 후속 — S1 오탐 보정 + S6 완화](../harness/hn_staging_followup.md) — tags: staging, review, performance, measurement
 - [LLM 가드레일 후속 — 허위 후속 감지](../harness/hn_guardrails_followup.md) — tags: guardrails, advisor, review, commit
 - [staging 잔여 — S8·5커밋 측정·폭증 게이트](../harness/hn_staging_remaining.md) — tags: staging, review, measurement
 - [하네스 단순화 P0 — 마찰 회수 6단계](../harness/hn_simplification.md) — tags: simplification, friction, rollback, hook-strength

@@ -34,6 +34,13 @@
 write-doc 스킬을 사용하라. docs/에 직접 파일을 만들지 마라.
 </important>
 
+<important if="docs/ 하위에 새 문서·WIP 파일을 만들려 할 때 (스킬 발동 여부 무관)">
+먼저 `.claude/rules/docs.md` "## SSOT 우선 + 분리 판단" 섹션을 읽어라.
+3단계 탐색 의무: cluster 스캔 → 키워드 grep → 후보 본문 Read. hit이
+있으면 **기본은 기존 문서 갱신** (완료 문서는 WIP로 재개). 새 파일은
+분리 근거가 있을 때만. 동격 선택지로 사용자에게 떠넘기지 마라.
+</important>
+
 <important if="기존 코드 수정 중 새 함수를 만들려 할 때">
 check-existing 스킬로 같은 도메인에 유사 함수가 있는지 먼저 확인하라.
 </important>

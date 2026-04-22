@@ -49,6 +49,78 @@ fail을 막는다.
 
 ---
 
+## v0.18.5 — SSOT 선행 탐색 3층 방어 구조화
+
+### 자동 적용 (스킬이 처리)
+
+- `CLAUDE.md` `<important if="docs/ 하위에 새 문서·WIP 파일을 만들려
+  할 때 (스킬 발동 여부 무관)">` 블록 추가 — 경로 불문 트리거
+- `.claude/rules/docs.md` "## SSOT 우선 + 분리 판단" 섹션 확장:
+  - **3단계 탐색** 절차 의무화: cluster 스캔 → 키워드 grep → 후보 본문 Read
+  - **실패 모드 체크리스트** 5개: cluster만 봄 / 제목만 봄 / 동격 선택지
+    제시 / completed라고 건너뜀 / 일단 새 WIP 쓰고 병합
+  - "기본값은 기존 SSOT 갱신" 명시
+- `.claude/skills/write-doc/SKILL.md` Step 2 재작성 — docs.md 참조 +
+  분기표 + 완료 문서 재개 경로 (중복 서술 제거)
+- `.claude/skills/implementation/SKILL.md` Step 0.8에 3단계 탐색·실패
+  모드 체크리스트 명시 인용 (이미 docs.md 참조하던 위치에 보강)
+
+### 왜
+
+v0.18.4 커밋 직후 같은 세션에서 Claude가 기존 SSOT 3건이 이미 해당
+주제를 커버 중인 상태에서 중복 WIP를 즉흥 생성. 사용자 지적으로 재발
+패턴 자인.
+
+원인 분석:
+- **write-doc SKILL.md Step 2 부실**: cluster 1회 스캔만, 본문 Read 없음
+- **CLAUDE.md 트리거 부재**: 스킬 발동하지 않는 "즉흥적 Write" 경로
+  (논의 중 그냥 파일 생성) 미커버
+- **docs.md 규정 자체는 정합하나 스킬 절차가 규정을 인용 안 함**
+
+3층 방어 구조:
+
+| 층 | 위치 | 역할 |
+|---|------|------|
+| 1 | `CLAUDE.md` `<important if>` | 경로 불문 트리거 — Write tool 호출 전 |
+| 2 | `.claude/rules/docs.md` | 규정 SSOT — 절차·체크리스트·완료 재개 경로 |
+| 3 | 스킬 SKILL.md | 스킬 진입점 — docs.md 참조 + 분기 흐름 |
+
+원칙: **절차는 한 곳에만** (docs.md). 스킬·CLAUDE.md는 참조·트리거만.
+
+### 수동 액션 (다운스트림)
+
+- [ ] **업그레이드 후 기존 쓰기 흐름 점검 (권장)**
+
+  다운스트림이 CLAUDE.md를 커스터마이징했으면 새 `<important if>` 블록이
+  병합되는지 확인. `harness-upgrade` 스킬이 처리하지만 수동 확인 권장.
+
+- [ ] **다음 문서 생성 시 3단계 탐색이 실제로 돌아가는지 관찰**
+
+  수정의 실효성은 실측으로 확인. 다음 5건의 문서/WIP 생성에서 Claude가
+  cluster·grep·본문 Read 3단계를 밟는지, SSOT 후보를 놓치지 않는지 관찰.
+
+### 검증
+
+- 업스트림에서 본 커밋 자체가 새 절차를 실측 (기존 SSOT `hn_search_and_completion_gaps`
+  재개해 Part E append, 신규 WIP 생성 안 함)
+- 완료 문서 재개 경로 (`git mv` → status in-progress) 실동작 확인
+- write-doc·implementation 스킬의 docs.md 참조 링크 정합성 (Grep 확인)
+
+**검증 범위**: 본 커밋의 자기 적용 흐름만. 다음 5건 실측은 다운스트림·
+업스트림 누적 관찰 필요 (`hn_search_and_completion_gaps.md` Part E 실행
+계획 6번).
+
+### 회귀 위험
+
+- **docs.md "SSOT 우선 + 분리 판단" 섹션 확장** — 기존 두 질문은 유지,
+  3단계 탐색·체크리스트가 **선행 절차로 추가**. 기존 호출자(write-doc
+  Step 2·implementation Step 0.8)가 두 질문만 인용하던 경우 새 절차를
+  놓칠 가능성 → 이번 커밋에서 두 스킬 모두 명시 인용으로 보강함
+- **실효성은 실측 필요** — 규정·스킬 정합성은 확보했으나 Claude가 실제로
+  준수하는지는 "다음 5건" 관찰에 달림. 규정만으로 재발 방지 보장 없음
+
+---
+
 ## v0.18.4 — 린터 ENOENT 패턴 정교화 (오탐·OS 커버리지 fix)
 
 ### 자동 적용 (스킬이 처리)

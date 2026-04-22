@@ -1,0 +1,272 @@
+---
+title: 하네스 구멍 정리 + 리뷰 구조 재확정
+domain: harness
+tags: [search, ide-context, incident-doc, completion-gate, review-agent]
+status: in-progress
+created: 2026-04-18
+updated: 2026-04-22
+---
+
+## 상태
+
+- **2026-04-19 완료분**: Part A·B는 반영됨. Part A 후속은 `harness--hn_commit_step2_partial_completion.md`로 분기됨.
+- **2026-04-22 재개**: Part E 신설 — write-doc·implementation 스킬의 **SSOT 선행 탐색 구멍** (본 세션 v0.18.4 커밋 직후 발견).
+
+## ✅ 완료 (2026-04-19)
+
+- Part A: 검색·문서 규칙 4종 모두 rules에 반영 (커밋 08bdfdc)
+- Part B: 리뷰 구조 hook → Agent tool 직접 호출로 복원 (v1.3.1, 11fe9f2,
+  fd66269)
+- Part B 후속: review가 staged diff 우회 호출하던 사고 재발 방지 (fd66269)
+- 남은 Part A 후속(write-doc symptom-keywords·commit completed 미결 차단)은
+  별도 WIP로 분리 → `harness--hn_commit_step2_partial_completion.md`
+- Part C(다운스트림 전파)는 본 레포 범위 외, harness-upgrade 흐름이 처리
+
+# 하네스 구멍 정리 + 리뷰 구조 재확정
+
+## Part A: 검색·문서 규칙 (반영 완료, 커밋 08bdfdc)
+
+| 구멍 | 내용 | 상태 |
+|------|------|------|
+| 1. IDE 컨텍스트 오신뢰 | `<ide_opened_file>` 경로는 존재 확인 후 사용 | ✅ rules 반영 |
+| 2. incident symptom-keywords 누락 | incidents/ 전용 필드 추가 | ✅ rules 반영 (스킬 수정 남음) |
+| 3. completed 미결 묻힘 | 본문 미결 패턴 시 WIP 분리 강제 | ✅ rules 반영 (스킬 수정 남음) |
+| 4. 검색 실패 escalation 부재 | 3단계 검색 + docs-lookup 위임 | ✅ rules 반영 |
+
+### 남은 후속 (별도 WIP)
+
+- write-doc 스킬: incident 생성 시 `symptom-keywords` 재질의
+- commit 스킬: completed 전환 시 본문 미결 패턴 차단
+
+## Part B: 리뷰 구조 — hook 포기, Agent tool 복원
+
+### 확정된 결론
+
+**리뷰는 hook이 아니라 commit 스킬 내부에서 Agent tool로 review 에이전트를 직접
+호출하는 구조로 간다.** 이 구조는 공식 Claude Agent SDK가 보장하는 경로이고,
+실제로 이 세션에서 호출 테스트로 정상 발화·응답 확인.
+
+이전 "hook 기반 리뷰" 설계(v0.9.2에서 도입)는 이틀간 hook 미로를 만든 원인.
+되돌린다.
+
+### 검증된 팩트
+
+| 항목 | 결과 | 근거 |
+|------|------|------|
+| Agent tool로 review 에이전트 호출 | ✅ 정상 발화·응답 | 이 세션 실제 호출, JSON 응답 수신 |
+| review 에이전트가 Bash/Read/Glob/Grep 사용 | ✅ 작동 | review.md의 tools 필드에 정의, 호출 시 실행 확인 |
+| prompt type hook은 single-turn, 도구 불가 | ❌ 리뷰 부적합 | 공식 문서 |
+| prompt hook `$ARGUMENTS`에는 tool_input.command만 | diff 없음 | 직접 테스트 |
+| command hook → prompt hook 간 데이터 전달 경로 | ❌ 없음 | 직접 테스트 |
+| agent type hook은 PostToolUse 용으로 설계 | PreToolUse에서 부적합 | 공식 SDK 문서 |
+
+### 설계 방향
+
+```
+commit 스킬 실행 (strict 모드 또는 --strict)
+  ↓
+  작업 잔여물 정리, 계획 문서 완료 처리
+  ↓
+  Agent tool 호출 (subagent_type: "review", prompt: diff + 맥락)
+  ↓
+  review 에이전트가 스스로:
+    - Bash로 git diff --cached 확인
+    - 3관점(회귀/계약/스코프) 검증
+    - JSON 반환 {"ok": true/false, "block": bool, "warnings": [...]}
+  ↓
+  block: true면 차단, warnings만 있으면 커밋 메시지에 반영 후 진행
+  ↓
+  git commit + push
+```
+
+**PreToolUse hook은 기본 안전장치만 유지**: `pre-commit-check.sh` (린터, TODO/FIXME
+검사, --no-verify 차단). 리뷰 로직은 전부 스킬 내부로.
+
+### 반영 범위
+
+| 파일 | 변경 |
+|------|------|
+| `.claude/skills/commit/SKILL.md` | "리뷰는 hook이 처리한다" 섹션 → "strict 모드면 Agent tool로 review 호출" 섹션 교체 |
+| `.claude/settings.json` | 변경 없음 (이미 hook 제거됨, 커밋 1d165a3) |
+| `.claude/agents/review.md` | 변경 없음 (이미 존재) |
+
+## Part C: 다운스트림 전파 (별도 작업, 이 레포 범위 외)
+
+하네스 스타터의 변경이 다운스트림 프로젝트에 반영되려면 harness-upgrade
+경로로 전파 필요. 이 WIP는 harness-starter 범용 문서이므로 다운스트림 프로젝트
+고유 고유명사는 기록하지 않는다.
+
+## 우선순위
+
+| 우선순위 | 항목 | 범위 |
+|---------|------|------|
+| P0 | commit 스킬 SKILL.md에 Agent tool 호출 단계 추가 | 이 레포, 이 세션에서 |
+| P1 | write-doc 스킬 symptom-keywords 재질의 | 별도 WIP |
+| P1 | commit 스킬 completed 전환 시 본문 미결 패턴 차단 | 별도 WIP |
+| P2 | 이 WIP 승격 시 "이번 세션" 표현 날짜로 구체화 | 승격 시점 |
+
+## 파생 WIP
+
+- `harness--hook_flow_efficiency_260418.md` — hook 전체 흐름 효율성 검토
+  (PreToolUse/PostToolUse 등 전체 감사). 원칙: 하네스가 걸리적거리면 실패
+  프로젝트, 항상 도움을 주는 느낌이어야 함.
+
+---
+
+## Part E: 스킬의 SSOT 선행 탐색 구멍 (2026-04-22 재개, v0.18.4 발화)
+
+### 발견 경로
+
+v0.18.4 커밋 직후 사용자가 review 체감 속도에 불만 → 해결책 논의 중
+Claude가 새 WIP(`decisions--hn_review_staging_script_lite_path.md`)를
+즉시 생성. 사용자 지적: "기존 문서 SSOT 확인되는지 볼거야." 확인 결과
+이미 3개 SSOT(`hn_review_staging_rebalance` / `hn_review_tool_budget` /
+`hn_staging_followup`)가 해당 주제를 커버 중이었고 신규 WIP는 중복.
+
+**사용자 발언**: "에휴...이럴 줄 알았다" — 재발 패턴 자인.
+
+### 구멍 1 — write-doc SKILL.md Step 2 부실 (✅ 본 세션 1차 수정)
+
+#### 증상
+
+- Step 2 "관련 문서 탐색"이 `clusters/{domain}.md` 한 번 스캔으로 끝
+- 같은 주제 기존 문서 식별 기준이 모호 (제목만 보면 miss)
+- 사용자 질의가 "새로 만들까요, 갱신할까요?" 동격 선택지 — docs.md
+  원칙("있으면 거기를 갱신")을 스킬이 기본값으로 반영 안 함
+- 완료 문서 재개 경로(`completed → WIP`) 언급 없음
+- docs.md "## SSOT 우선 + 분리 판단"의 두 질문이 스킬 절차에 미인용
+
+#### docs.md SSOT와 스킬 정렬 gap (수정 전)
+
+| docs.md가 요구 | SKILL.md가 강제 |
+|---|---|
+| "SSOT가 이미 있는가?" 강제 질의 | cluster 1회 스캔만 |
+| "분리가 정말 필요한가?" 판단 기준 | 없음 |
+| 완료 문서 재개 경로 | 없음 |
+| SSOT 있으면 갱신이 디폴트 | 선택지 동격 제시 |
+
+#### 수정 (2026-04-22)
+
+`.claude/skills/write-doc/SKILL.md` Step 2 전면 재작성:
+
+- **2.1 3단계 탐색** 의무화: cluster → 키워드 grep → 후보 본문 Read
+- **2.2 docs.md 2질문 강제 적용**: SSOT 존재 질문 + 분리 필요성 질문.
+  질의 템플릿에 "기본은 기존 문서 갱신" 명시
+- **2.3 완료 문서 재개 경로**: `git mv` 명령 포함
+- **2.4 실패 모드 체크리스트** 5개: cluster만 봄·제목만 봄·동격 선택지
+  제시·completed라고 건너뜀·일단 새 WIP 쓰고 병합
+
+#### 남은 검증
+
+- [ ] 다음 문서 생성 시 실측 — 수정된 Step 2가 실제로 SSOT 후보 포착하는지
+- [ ] 사용자 질의 템플릿 문구가 혼란 안 주는지
+- [ ] commit 스킬이 본 수정과 충돌 없는지 (완료 문서 재개 후 재커밋
+  흐름이 실제로 작동하는가)
+
+### 구멍 2 — implementation 스킬에도 동일 구멍 (🔲 미착수)
+
+#### 가설
+
+write-doc이 "코드 작업 없는 문서 생성"이라면 implementation은 "코드 +
+문서"를 함께 만든다. WIP 문서 생성도 implementation 경로. 동일한 SSOT
+선행 탐색 원칙이 강제되는지 점검 필요.
+
+관련 SSOT: `docs/harness/hn_implementation_router.md` (라우터·추적자 역할
+재정의). 이 문서가 WIP 생성의 SSOT 탐색 책임을 명시하는지, 아니면
+write-doc로 위임하는지 확인해야 함.
+
+#### 점검 항목
+
+- [ ] `.claude/skills/implementation/SKILL.md`의 WIP 생성 단계에서
+      SSOT 선행 탐색 강제 여부
+- [ ] 강제 안 하면 write-doc Step 2와 동일 구조 도입 (또는 write-doc에
+      위임 명시)
+- [ ] 코드+문서 동시 작업 시 "기존 SSOT 있으면 재개" 경로가 명시되는지
+      — 이게 빠지면 implementation이 매번 새 WIP 만들어 SSOT 분열
+
+#### 예상 수정 범위
+
+- `.claude/skills/implementation/SKILL.md` (아마 Step 1 "문서 생성"
+  부근)
+- 또는 write-doc Step 2를 `common/` 섹션으로 추출해 양쪽이 참조
+
+### 구멍 3 — docs.md 규정 자체는 정합 (🔲 재점검만)
+
+docs.md "## SSOT 우선 + 분리 판단" 섹션은 이번 케이스에 정확히 맞는
+규정을 이미 가지고 있었음. 문제는 **스킬 절차가 이 규정을 인용하지
+않음**. 규정 자체 재작성은 불필요.
+
+다만 "completed 문서 재개 경로"가 docs.md 중간에 한 문장으로 있어서
+발견하기 어려움. 강조 필요 여부 재검토 (선택).
+
+### 실행 계획
+
+1. ✅ 본 WIP 재개 + Part E 기록 (2026-04-22)
+2. ✅ `.claude/skills/write-doc/SKILL.md` Step 2 재작성 (2026-04-22)
+3. ✅ `.claude/rules/docs.md` "SSOT 우선 + 분리 판단" 섹션에 3단계 탐색·
+   실패 모드 체크리스트·기본값 명문화 (규정 SSOT)
+4. ✅ `CLAUDE.md`에 `<important if="docs/ 하위에 새 문서·WIP 파일을 만들려
+   할 때 (스킬 발동 여부 무관)">` 블록 추가 — 경로 불문 강제
+5. ✅ `.claude/skills/implementation/SKILL.md` Step 0.8에 3단계 탐색 명시 인용
+6. 🔲 다음 실측 5건 — 수정된 규정·스킬이 SSOT 포착하는지 관찰
+7. 🔲 실측 결과 기록 후 본 WIP → `docs/harness/` 재이동 + completed
+
+### 구멍 4 — dead link 검사가 pre-check이 아닌 bulk 가드에만 있음 (🔲 미착수, v0.18.5 review 과정에서 발견)
+
+#### 발견 경로
+
+v0.18.5 커밋 review deep 중 **verdict: block** — `docs/clusters/harness.md`에
+이동된 파일 2건의 dead link. review 에이전트가 발견. 사용자 지적:
+> "dead link는 pre-check에서 걸러야 하는게 아닌가?"
+
+#### 현 상태
+
+- `bulk-commit-guards.sh` 가드 4b에만 dead link 검사 존재 (`--bulk` 경로)
+- `pre-commit-check.sh`에는 dead link 검사 없음
+- 일반 커밋 경로에서 dead link는 review(비싼 LLM)가 잡거나 못 잡음
+
+#### 문제
+
+- **설계 원칙 위반**: staging.md "정적은 pre-check, 의미는 review"와 불일치
+- **비용**: review deep(30초+, 토큰 수만) 대신 pre-check(수 초, 정규식 + 파일
+  존재 체크)이 잡아야 할 영역
+- **커버리지**: dead link는 파일 이동·삭제가 있는 **모든** 커밋에서 발생 가능.
+  `--bulk` 한정은 실제 리스크 대비 좁음
+
+#### 설계 스케치 (다음 작업)
+
+- bulk-commit-guards.sh 가드 4b 로직 재사용 (fork 최적화된 버전으로)
+- pre-check에 dead link 검사 추가 — 변경된 파일 + 영향받는 참조만 O(변경 규모)
+- 전수 검사는 `--bulk`에서만, 증분 검사는 일반 경로에서
+- review prompt에서 "구조적 dead link 검증"을 빼고 의미론에만 집중
+
+#### 선행 조건
+
+- 이전 세션의 bulk-commit-guards.sh 퍼포먼스 수정(본 세션 사용자가 시작했다가 중단)
+  작업과 연계. dead link 검사 로직 최적화본이 먼저 정립돼야 pre-check에 이식 가능
+
+### 수정 아키텍처 (3층 방어)
+
+| 층 | 위치 | 역할 |
+|---|------|------|
+| 1 | `CLAUDE.md` `<important if>` | 경로 불문 트리거 — Write tool로 docs 파일 만들기 전 |
+| 2 | `.claude/rules/docs.md` | 규정 SSOT — 3단계 탐색·두 질문·실패 모드·완료 재개 경로 |
+| 3 | 스킬 SKILL.md (write-doc Step 2, implementation Step 0.8) | 스킬 진입점 — docs.md 참조 강제 + 분기 흐름 |
+
+원칙:
+- **절차는 한 곳에만** (docs.md). 스킬은 참조·분기만.
+- **CLAUDE.md는 짧은 트리거**. 상세 절차 반복 금지.
+- 스킬이 발동하지 않는 경로(즉흥적 Write)는 CLAUDE.md가 잡음.
+
+### 관련 (상류 SSOT)
+
+- `.claude/rules/docs.md` "## SSOT 우선 + 분리 판단" — 규정 SSOT
+- `docs/harness/hn_implementation_router.md` — implementation 역할 재정의
+- `docs/decisions/hn_doc_naming.md` — write-doc Step 1·3 개정 이력
+- `docs/harness/hn_commit_step2_partial_completion.md` — 동종 gap 선례
+  (symptom-keywords 재질의·completed 미결 차단)
+
+### 발화 커밋
+
+`f597b77` (v0.18.4) — fix(lint): ENOENT 패턴 정교화. 직접 관련 없지만
+커밋 직후 체감 속도 논의 → SSOT 분산 발견 → 본 Part E 신설 경로.
