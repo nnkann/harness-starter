@@ -1,75 +1,99 @@
 ---
-title: pre-commit-check.sh 자체 성능 최적화
+title: test-pre-commit 스위트 성능 — 잔여 구조 재설계
 domain: harness
-tags: [pre-check, perf, profiling]
+tags: [pre-check, test, perf, structure]
 status: pending
 created: 2026-04-22
 updated: 2026-04-23
 ---
 
-# pre-commit-check.sh 자체 성능 최적화
+# test-pre-commit 스위트 성능 — 잔여 구조 재설계
 
-test-pre-commit 스위트 2m31초는 **증상**. 근본 원인은 **pre-check 1회가
-1.2초**. 64번 순차 실행이라 이론 하한 ~77초.
+2026-04-23 세션에서 단순 최적화(-40%)를 달성했으나, 남은 구간은 구조
+재설계 없이는 의미 있는 개선이 어렵다. 본 WIP는 **다음 착수 조건과
+방향만** 기록. 즉시 작업 대상 아님.
 
-## 왜 병렬화가 답이 아닌가
+## 현재 실측 (2026-04-23 기준)
 
-- 병렬화는 "64번 돌아야 하는 이유"를 피하는 우회. 증상 치료
-- 총 CPU 시간은 그대로, 워커별 tmp·결과 집계·격리 검증 부담만 추가
-- **근본 해결**: pre-check 1회를 1.2초 → 0.3초로 줄이면 스위트는 자동
-  으로 2m → 30초. 매 커밋 체감도 동반 개선
+- **스위트 전체**: 91초 (date 명령 측정, Windows Git Bash 업스트림 repo)
+- **pre-check 호출**: 42회 (run_case 50 - 캐시 히트 5 + 특수 2)
+- **호출당 평균**: 2129ms (tmp clone 환경, 업스트림 리포 내 직접 실행의 ~2배)
 
-## 목표
+**시간 분해**:
+| 구간 | 비중 |
+|------|------|
+| pre-check 42회 실행 | ~90초 (99%) |
+| reset / fixture 셋업 / 로그 출력 | ~1초 |
 
-- **pre-check 1회 < 0.5초** (업스트림 리포 실측, Windows Git Bash)
-- 결과: 스위트 전체 1분 이하 자동 달성
+→ 스위트 시간의 99%가 pre-check 실행. 나머지 구간 최적화는 측정 noise
+수준.
 
-## 접근
+## 이번 세션 처리 완료 (2026-04-23)
 
-### 1. 프로파일링
+| 버전 | 내용 | 실측 |
+|------|------|------|
+| v0.20.8 | task-groups 할당 루프 awk 통합 (파일당 fork 제거) | 151s → 124s |
+| v0.20.9 | test-pre-commit fixture 캐시 (다중 key run_case 재실행 제거) | 124s → 98s |
+| v0.20.10 | tmp → 리포 내 sandbox 디렉토리 | 98s → 91s |
 
-```bash
-# bash -x 또는 EPOCHREALTIME 기반 측정
-PS4='+ $EPOCHREALTIME ' bash -x .claude/scripts/pre-commit-check.sh 2>prof.log
-# gap 큰 구간 top 10 추출
-```
+**합계 -60초 (-40%)**. git history 조회: `git log --grep "(v0\.20\.(8\|9\|10))"`
 
-과거 v0.20.2 task-groups.sh 프로파일링 경험 참조: `for wip in ...; do awk`
-파일당 fork 패턴이 1.5초 차지. 동일 패턴이 pre-check 본체나 호출 스크
-립트(`task-groups.sh`·`docs-ops.sh`)에 더 있을 가능성.
+## 롤백 (효과 없거나 diminishing)
 
-### 2. 의심 핫스팟 (프로파일링 전 가설)
+- **pre-check NAME_STATUS 3 awk → 1 awk 통합**: 측정상 차이 없음
+- **메타 흡수 2 awk → 1 awk NR==FNR 트릭**: 측정상 차이 없음
+- **DOC_DOMAINS xargs 통합 + 등급 매핑 case 패턴**: 스위트 91초→91초
+  (개별 pre-check은 noise 수준). 복잡도만 증가
 
-- `task-groups.sh` 호출 — v0.20.2에서 awk fork 1.5→0.3초 개선했지만 여전히
-  0.3초 차지. 통합 awk로 1회 fork 수준까지 가능한가
-- `docs-ops.sh extract_abbrs` — awk로 naming.md 스캔. pre-check에서 호출
-  되는지 확인 필요
-- dead link 검사 Step 3.5 (v0.18.6 신설) — `grep -rn --include='*.md' ...
-  docs .claude` 가 전체 docs 스캔. staged 파일 없어도 매번 돈다면 낭비
-- STAGED_DIFF / STAGED_NUMSTAT / STAGED_NAME_STATUS 3회 git 호출 — 이미
-  v0.13.2에서 22→3회로 줄임. 더 줄일 여지 있나
-- S10 반복 카운트 `git log -5 --name-only` — 매번 git 호출
+공통 원인: pre-check 1회 2.1초 중 **고정 오버헤드**(bash 시작·git 3회 호출·
+lint 감지)가 큼. 내부 awk·grep 호출 한두 개 줄여도 총합에서 묻힘.
 
-### 3. 구조적 후보
+## 남은 방향 (구조 재설계 필요)
 
-- **"변경 없으면 건너뛰기"** — pre-check 전체를 STAGED_FILES 검사 전
-  early exit 할 수 있는 블록이 있는가
-- **캐싱** — v0.19.0에서 tree-hash 캐싱 폐기됐지만, 스위트 내부에서는
-  같은 repo 상태에서 64번 돌기에 case별 fixture 변경만 반영하면 됨. 단
-  pre-check 자체 캐싱보다 test 쪽 fixture 최적화가 안전
+### 1. 공유 fixture — 가장 효과 큰 방향
 
-## 진행 조건
+현재 reset × 45 = pre-check × 45. **T 케이스 여러 개가 같은 fixture를
+공유하면 pre-check 1회만 실행**하고 여러 key 검증 가능.
 
-- **프로파일링 결과 없이 착수 금지**. no-speculation 원칙
-- 핫스팟 top 3가 명확해지면 각 fix 1커밋씩
+- 예: T5~T10 모두 "S8 export 검출" 테스트 → 각자 fixture 만들지 말고 한
+  fixture에서 여러 케이스 검증
+- pre-check 호출 42 → ~15회까지 감소 가능
+- **예상**: 91초 → 40~50초
 
-## 영향 파일 (프로파일링 후 결정)
+**위험**: 테스트 간 의존성 생김, fixture 설계 난이도 상승. 실측 실패 시
+격리 회복 어려움.
 
-- 주: `.claude/scripts/pre-commit-check.sh`
-- 보조: `.claude/scripts/task-groups.sh`, `.claude/scripts/docs-ops.sh`
+### 2. pre-check 자체 "테스트 모드" — diminishing 아님
+
+pre-check 내부에 `TEST_MODE=1` 같은 환경변수 → lint 호출 skip, CLAUDE.md
+파싱 skip, 외부 자료 조회 skip. 회귀 검증에 필요 없는 부분만 제거.
+
+- **예상 절감**: pre-check 1회 2.1초 → 1.2초 수준
+- **위험**: "테스트 때만 다른 경로" = 실제 환경 검증 못 함. pre-check
+  자체 변경 시 테스트 모드와 실 모드 모두 확인 필요
+
+### 3. 병렬화
+
+이전에 사용자가 지적한 대로 증상 우회. 단, 공유 fixture와 결합하면
+의미 있을 수 있음 (격리된 독립 그룹만 병렬).
+
+## 착수 조건
+
+- 스위트 시간이 **체감 장벽**이 될 때만. 현재 91초는 개발 중 1~2회 돌릴
+  만한 수준
+- 프로파일링 재실행으로 2.1초가 여전히 유효한지 확인 (환경·OS·fs 변경
+  가능성)
+- 공유 fixture 재설계는 **전체 T 케이스 맵 작성** 선행 — 어느 T끼리 묶일
+  수 있나
+
+## 영향 파일
+
+- 주: `.claude/scripts/test-pre-commit.sh` (구조)
+- 보조: `.claude/scripts/pre-commit-check.sh` (TEST_MODE 옵션)
 
 ## 검증 기준
 
-- pre-check 1회 < 0.5초 (업스트림 5회 측정 평균, 체감 아님)
-- 기능 회귀 0 (test-pre-commit 64/64 유지)
+- 스위트 < 60초 (목표)
+- 회귀 64/64 유지
 - test-bash-guard 18/18 유지
+- 격리성: 단일 T 케이스 실패 시 다른 케이스로 전파 없음
