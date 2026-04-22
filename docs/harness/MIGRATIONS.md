@@ -49,6 +49,81 @@ fail을 막는다.
 
 ---
 
+## v0.20.7 — promotion-log.md 폐기
+
+**호환성 변화 있음. 수동 액션 필요.**
+
+### 왜
+
+`docs/harness/promotion-log.md`는 매 커밋마다 Claude가 수동으로 row를
+append해야 하는 관리 비용이 높은 파일이었다. commit 메시지 제목의
+`(v0.X.Y)` 패턴이 이미 버전 이력 SSOT 역할을 하므로, 수동 요약 파일은
+SSOT 원칙(코드에서 읽을 수 있는 것은 memory에 저장하지 않는다, `git log`
+로 알 수 있는 것은 중복 저장하지 않는다)에 반한다.
+
+### 자동 (harness-upgrade)
+
+- `docs/harness/promotion-log.md` — upstream에서 삭제됨. 3-way merge 모드
+  (`installed_from_ref` 유효)에서는 "삭제 제안"으로 표시
+- `docs/archived/promotion-log-2026q2-early.md` — 동일
+- `.claude/scripts/pre-commit-check.sh` — `IS_STARTER` 변수 제거 (orphan),
+  S5 awk 두 분기 → 단일 regex, S10 REPEAT_EXEMPT_REGEX에서 promotion-log
+  경로 제거
+- `.claude/scripts/task-groups.sh` — `is_meta_file()` case에서 제거
+- `.claude/scripts/harness-version-bump.sh` — 주석 수정
+- `.claude/scripts/test-pre-commit.sh` — T30을 `HARNESS.json 단독 → skip`
+  으로 대체 (S5 skip 검증 공백 방지)
+- `.claude/rules/memory.md`·`staging.md` — promotion-log 언급 제거
+- `.claude/skills/commit/SKILL.md` — Step 3 버전 범프 절차에서 promotion-log
+  갱신 단계 삭제, 메타 자동 병합 목록에서 제거
+- `h-setup.sh` — 이식 시 promotion-log 복사 줄 제거
+- `docs/clusters/harness.md` — 전역 마스터 · archived · 관계 맵 7줄 제거
+- 7개 결정·하네스 문서 frontmatter — `relates-to.path: harness/promotion-log.md`
+  블록 제거
+
+### 수동 액션 (사용자 필수)
+
+- [ ] **`docs/harness/promotion-log.md` 존재하면 삭제**:
+  ```bash
+  git rm docs/harness/promotion-log.md
+  git rm docs/archived/promotion-log-*.md  # (있는 경우)
+  ```
+  `h-setup.sh`의 `copy_if_new`는 기존 파일을 덮어쓰지 않으므로 업그레이드
+  후에도 다운스트림 리포에 고아로 남을 수 있다. 수동 삭제 필요.
+
+- [ ] **two-way 모드 upgrade인 경우**: `installed_from_ref`가 없어 "삭제
+  제안"이 뜨지 않는다. 위 수동 삭제로 대응.
+
+- [ ] **버전 이력 회고 방법 전환**:
+  - 이전: `docs/harness/promotion-log.md` 열기
+  - 이후: `git log --oneline --grep "(v0\."` 또는 MIGRATIONS.md
+  - commit 메시지 제목에 반드시 `(v0.X.Y)` 포함 — 이것이 새 SSOT
+
+- [ ] **자동화 스크립트가 promotion-log.md를 읽던 경우** 전수 검사:
+  ```bash
+  grep -rn "promotion-log" . --include='*.sh' --include='*.md' --include='*.js'
+  ```
+  hit 있으면 git log 기반으로 전환.
+
+### 검증
+
+- `bash .claude/scripts/test-pre-commit.sh` → 64/64 (T30 대체 케이스 통과)
+- `bash .claude/scripts/pre-commit-check.sh` — promotion-log 관련 dead link
+  감지 0건
+
+### 회귀 위험
+
+- **T30 케이스 재정의**: 기존 `promotion-log 단독 → skip`이 `HARNESS.json
+  단독 → skip`으로 대체됨. 다운스트림이 test 결과를 참조하는 외부 스크립트
+  가 있으면 T30 fixture 이름 변경 확인 필요
+- **IS_STARTER 변수 제거**: `pre-commit-check.sh`에서 orphan 제거. 다운
+  스트림이 이 변수를 참조하는 커스텀 확장이 있었다면 깨짐. 본 업스트림
+  에서는 사용 0 확인
+- **git log 규율 의존**: 회고가 commit 메시지 품질에 의존. `(v0.X.Y)`
+  패턴 누락 시 이력 추적 공백 발생. commit 스킬 Step 3가 규칙화
+
+---
+
 ## v0.20.5 — 커밋 이스케이프 단일화 (HARNESS_COMMIT_SKILL 폐기)
 
 **요약**: `git commit` 직접 호출 차단(audit #8)의 이스케이프가 기존
