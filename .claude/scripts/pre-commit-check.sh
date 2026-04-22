@@ -722,6 +722,62 @@ if [ "${TOTAL_FILES:-0}" -gt 30 ] || [ "${ADDED_LINES:-0}" -gt 1500 ] \
   echo "  권장: 스코프를 나눠 작은 커밋 여러 개로 분리. 논리 단위별로 staging." >&2
 fi
 
+# ─────────────────────────────────────────────
+# 커밋 분리 판정 (audit #18 — 글로벌 원칙, 1회 판정)
+# 규칙:
+#   1. HARNESS_SPLIT_SUB=1 → 판정 블록 스킵 (이미 분리된 sub-커밋)
+#   2. 그룹화 축 (첫 매치):
+#      - naming.md "경로 → 도메인 매핑" (다운스트림)
+#      - docs/ 하위는 **파일 1개 = 그룹 1개** (각 문서가 독립 task)
+#      - .claude/skills/{N}/** → `skill:{N}` (각 스킬별 task)
+#      - .claude/scripts/** → `scripts`
+#      - .claude/agents/** → `agents`
+#      - .claude/rules/** → `rules`
+#      - .claude/hooks/** → `hooks`
+#      - .claude/HARNESS.json / .claude/settings.json / CLAUDE.md / README.md
+#        → `config`
+#      - 나머지 → `misc`
+#   3. 그룹 수 1 → 분리 불필요
+#   4. 그룹 수 2+ → split 권장
+# ─────────────────────────────────────────────
+SPLIT_PLAN=0
+SPLIT_ACTION="single"
+
+if [ "${HARNESS_SPLIT_SUB:-0}" = "1" ]; then
+  SPLIT_PLAN=1
+  SPLIT_ACTION="sub"
+elif [ "${TOTAL_FILES:-0}" -gt 0 ]; then
+  # 각 파일을 그룹에 할당 (tab-separated: group\tfile)
+  GROUP_ASSIGN=$(echo "$STAGED_FILES" | awk '
+    {
+      f=$0
+      if (f ~ /^docs\//) {
+        # docs 하위는 파일별 독립 그룹
+        g="doc:" f
+      } else if (match(f, /^\.claude\/skills\/[^\/]+\//)) {
+        sub(/\/[^\/]*$/, "", f)
+        g="skill:" f
+      } else if (f ~ /^\.claude\/scripts\//)  g="scripts"
+      else if (f ~ /^\.claude\/agents\//)    g="agents"
+      else if (f ~ /^\.claude\/rules\//)     g="rules"
+      else if (f ~ /^\.claude\/hooks\//)     g="hooks"
+      else if (f == ".claude/HARNESS.json")  g="config"
+      else if (f == ".claude/settings.json") g="config"
+      else if (f == "CLAUDE.md")             g="config"
+      else if (f == "README.md")             g="config"
+      else                                   g="misc"
+      printf "%s\t%s\n", g, $0
+    }
+  ')
+  # 유니크 그룹 수
+  SPLIT_PLAN=$(echo "$GROUP_ASSIGN" | awk -F'\t' '{print $1}' | sort -u | wc -l)
+  if [ "$SPLIT_PLAN" -ge 2 ]; then
+    SPLIT_ACTION="split"
+  else
+    SPLIT_ACTION="single"
+  fi
+fi
+
 # 통과 시 stdout 요약 (commit 스킬이 캡처해서 review prompt에 주입)
 echo "pre_check_passed: true"
 echo "already_verified: ${ALREADY_VERIFIED}"
@@ -734,3 +790,48 @@ echo "multi_domain: ${MULTI_DOMAIN}"
 echo "repeat_count: max=${REPEAT_MAX}"
 echo "recommended_stage: ${RECOMMENDED_STAGE}"
 echo "s1_level: ${S1_LEVEL}"
+echo "split_plan: ${SPLIT_PLAN}"
+echo "split_action_recommended: ${SPLIT_ACTION}"
+
+# 그룹 상세 (split 권장 시만 출력, stdout 비대화 방지)
+if [ "$SPLIT_ACTION" = "split" ] && [ -n "$GROUP_ASSIGN" ]; then
+  # 그룹 순서 고정: scripts → agents → skills → hooks → rules → config → docs → misc
+  echo "$GROUP_ASSIGN" | awk -F'\t' '
+    BEGIN {
+      # 우선순위 부여
+      prio["scripts"]=1; prio["agents"]=2; prio["rules"]=3; prio["hooks"]=4
+      prio["config"]=5; prio["misc"]=99
+    }
+    {
+      g=$1; f=$2
+      if (!($1 in order)) { order[$1]=NR }
+      group_files[g]=group_files[g] (group_files[g]?",":"") f
+    }
+    END {
+      # 우선순위 정해진 것은 정렬, 그 외는 첫 등장 순서
+      n=0
+      for (g in group_files) {
+        keys[++n]=g
+      }
+      # 버블 정렬 (작은 데이터)
+      for (i=1; i<=n; i++) {
+        for (j=i+1; j<=n; j++) {
+          pi=(keys[i] in prio)?prio[keys[i]]:(10+order[keys[i]])
+          pj=(keys[j] in prio)?prio[keys[j]]:(10+order[keys[j]])
+          # skill:X 계열은 agents 뒤, rules 앞 (우선순위 2.5 효과)
+          if (keys[i] ~ /^skill:/) pi=2.5
+          if (keys[j] ~ /^skill:/) pj=2.5
+          # doc:X 계열은 config 뒤 (우선순위 5.5)
+          if (keys[i] ~ /^doc:/) pi=5.5
+          if (keys[j] ~ /^doc:/) pj=5.5
+          if (pi > pj) { t=keys[i]; keys[i]=keys[j]; keys[j]=t }
+        }
+      }
+      for (i=1; i<=n; i++) {
+        g=keys[i]
+        printf "split_group_%d_name: %s\n", i, g
+        printf "split_group_%d_files: %s\n", i, group_files[g]
+      }
+    }
+  '
+fi
