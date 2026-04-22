@@ -47,6 +47,7 @@
 - [정보 흐름 누수 해소 Phase 3 — 정성 평가 종결](../harness/hn_info_flow_leak_phase3.md) — tags: audit, information-flow, measurement, phase3
 - [rules → docs 참조 화이트리스트 — 동적 탐색으로 대체](../harness/hn_review_whitelist_autodetect.md) — tags: review, harness-upgrade, whitelist, dead-link, dynamic-resolution
 - [docs/INDEX.md 폐기 — 관리 드리프트 SSOT 제거](../harness/hn_index_md_removal.md) — tags: docs, ssot, simplification, index-removal
+- [업스트림 전용 로직·기록 전수 감사](../harness/hn_upstream_only_audit.md) — tags: harness-starter, upstream-only, downstream, contamination, audit
 
 ### incidents/
 - [pipeline-design 규칙 업스트림 이식 원천 사례](../incidents/hn_pipeline_design_rule_origin.md) — tags: pipeline, rule-origin, incident, upstream-rule

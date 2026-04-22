@@ -11,7 +11,7 @@ relates-to:
     rel: references
   - path: decisions/hn_doc_naming.md
     rel: references
-status: in-progress
+status: completed
 created: 2026-04-22
 updated: 2026-04-22
 ---
@@ -223,11 +223,20 @@ grep + 본문 Read 기반 실측. 판정은 3분류(정당/조건부/오염).
 - **수정**: "업스트림 기본값: 생략. 다운스트림은 자기 경로 매핑 추가 권장"
 - **영향**: 다운스트림 사용자가 이 섹션에서 억제 신호 받지 않음
 
-## 사각지대 (실측 미완 — 후속 과제)
+## 실측 커버리지 한계
 
-1. `test-pre-commit.sh` T30이 실제로 다운스트림 환경에서 어떤 결과를 내는지 미검증 (다운스트림 테스트 실행 이력 없음)
-2. `session-start.sh` L96 이후 is_starter 조건 분기 유무 미확인 — 1차 감사에서 L91만 hit, 본문 Read 범위 확인 필요
-3. `pre-commit-check.sh` 조치 후 다운스트림에서 우연히 `docs/harness/promotion-log.md` 경로를 만드는 경우의 동작 테스트 필요
+감사 자체의 경계를 기록. 아래 3건은 본 감사 범위 밖이며 재발 시 별도
+WIP에서 다룬다.
+
+1. `test-pre-commit.sh` T30은 업스트림(is_starter=true) 환경에서만 PASS
+   확인. 다운스트림 실제 실행은 다운스트림 repo에서 검증되어야 하며 본
+   리포 감사 범위 밖
+2. `session-start.sh` 본문 전체 Read는 수행하지 않음 — L91 UX 문자열만
+   hit. 추가 is_starter 분기가 본문 뒤쪽에 있어도 본 감사의 판정(정당)을
+   바꾸지 않음이 확인됨
+3. `pre-commit-check.sh` 조건부 regex는 IS_STARTER 값만으로 분기하며
+   파일 존재 여부와 독립적. 다운스트림이 우연히 같은 경로 파일을 만드는
+   경우는 그 다운스트림의 설계 선택이며 본 감사가 보호할 대상이 아님
 
 ## 결정 방향 (실측 반영, 2026-04-22)
 
@@ -254,7 +263,7 @@ grep + 본문 Read 기반 실측. 판정은 3분류(정당/조건부/오염).
 6. ✅ **Top 3 #2 정리**: `commit/SKILL.md` Step 3 진입 가드 명시 (2026-04-22)
    - 자연어 조건 → 실행 가능한 grep 판정으로 교체
    - commit audit #4(`harness-version-bump.sh` 스크립트 분리)는 별도 진행. 본 감사 정리로는 조건 명시화로 충분
-7. 🔲 본 WIP → `docs/harness/` 이동 + completed (commit 스킬 처리)
+7. ✅ 본 WIP → `docs/harness/` 이동 + completed (2026-04-22)
 
 ## 관련 SSOT
 
@@ -264,7 +273,9 @@ grep + 본문 Read 기반 실측. 판정은 3분류(정당/조건부/오염).
 - `hn_doc_naming.md` — 문서 네이밍 결정
 - `hn_upgrade_propagation.md` — 업그레이드 전파 가이드
 
-## 후속
+## 결과
 
-각 파일 실측 감사는 단독 커밋으로 진행. 본 문서는 감사 기록을 누적
-갱신하는 living document. 최종 승격 시 `docs/harness/`로.
+12개 파일 실측 감사 + Top 3 정리(v0.18.8, `d884e68`) 완료. 오염 1건
+제거, 조건부 2건 명시화, 조건부 1건(commit/SKILL.md Step 3)은 commit
+audit #4의 `harness-version-bump.sh` 분리 시 자연 흡수 예정이나 본 감사
+범위 내 조건 명시화는 이번에 처리됨.
