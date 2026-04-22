@@ -535,6 +535,7 @@ if [ -f "$GI" ]; then
   grep -q '^\.claude/scheduled_tasks\.lock$' "$GI" || echo '.claude/scheduled_tasks.lock' >> "$GI"
   grep -q '^\.claude/ts_errors\.log$' "$GI" || echo '.claude/ts_errors.log' >> "$GI"
   grep -q '^\.claude/memory/session-\*$' "$GI" || echo '.claude/memory/session-*' >> "$GI"
+  grep -q '^\.claude/\.test-sandbox/$' "$GI" || echo '.claude/.test-sandbox/' >> "$GI"
 else
   cat > "$GI" <<'EOF'
 # 하네스 — 머신별/세션별 파일 제외
@@ -544,6 +545,7 @@ else
 .claude/scheduled_tasks.lock
 .claude/ts_errors.log
 .claude/memory/session-*
+.claude/.test-sandbox/
 EOF
   echo -e "  ${GREEN}✓ 생성${NC}: .gitignore"
   CREATED=$((CREATED + 1))

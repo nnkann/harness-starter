@@ -5,18 +5,32 @@
 #
 # 사용: bash .claude/scripts/test-pre-commit.sh
 # 종료 코드: 0=전부 통과, 1=하나라도 실패
+#
+# 성능 (v0.20.10): tmp 디렉토리(`mktemp -d -t ...`) → 리포 내
+# `.claude/.test-sandbox/` 사용. Windows Git Bash에서 tmp 디렉토리의 fs
+# 오버헤드가 리포 내 디렉토리보다 2배 느려 pre-check 1회가 1.2초 → 2.3초
+# 로 증폭됐던 것을 제거. 실측 sandbox 경로는 sandbox가 `.gitignore`됨.
 
 set -u
 SOURCE_REPO="$(pwd)"
-TEST_DIR=$(mktemp -d -t harness-pretest-XXXXXX)
+# 리포 내 sandbox 사용 — tmp 디렉토리 fs 오버헤드 회피
+SANDBOX_BASE="$SOURCE_REPO/.claude/.test-sandbox"
+# 충돌 방지: PID + 에포크
+TEST_DIR="$SANDBOX_BASE/run_$$_$(date +%s)"
 PASS=0
 FAIL=0
 FAILED_CASES=""
 
 cleanup() {
+  # 현재 디렉토리가 삭제될 TEST_DIR 안이면 먼저 이동 (Windows fs error 방지)
+  cd "$SOURCE_REPO" 2>/dev/null || true
   rm -rf "$TEST_DIR"
+  # sandbox base가 비었으면 같이 정리
+  rmdir "$SANDBOX_BASE" 2>/dev/null || true
 }
 trap cleanup EXIT
+
+mkdir -p "$TEST_DIR"
 
 # clone
 git clone -q "$SOURCE_REPO" "$TEST_DIR/repo" 2>/dev/null
