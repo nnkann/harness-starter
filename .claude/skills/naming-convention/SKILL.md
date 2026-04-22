@@ -137,18 +137,23 @@ packages/
 
 ### 계획 문서 (docs/WIP/)
 
-패턴: `{대상폴더}--{작업내용}_{YYMMDD}.md`
+**SSOT**: `.claude/rules/naming.md` "파일명 — WIP". 요약:
+
+패턴: `{대상폴더}--{abbr}_{slug}.md`
 - `{대상폴더}--`: 완료 시 이동할 docs/ 하위 폴더명. `--`는 라우팅 구분자.
-- 작업내용: snake_case, 간결하게
-- YYMMDD: 생성 날짜
+- `abbr`: naming.md "도메인 약어" 표의 값 (도메인당 1개)
+- `slug`: snake_case 의미명. 주제 자체 (세분화는 `tags:` 프론트매터)
+- **날짜 suffix 전면 금지**. 발생 시점은 프론트매터 `created` + git history
 - 이동 시 `{대상폴더}--` 접두사가 제거된다.
 
 유효한 접두사: `decisions--`, `guides--`, `incidents--`, `harness--`
 
 예시 (WIP → 이동 후):
-- `decisions--auth_stack_decision_260330.md` → `docs/decisions/auth_stack_decision_260330.md`
-- `guides--payment_api_260330.md` → `docs/guides/payment_api_260330.md`
-- `incidents--token_refresh_fix_260330.md` → `docs/incidents/token_refresh_fix_260330.md`
+- `decisions--hn_auth_stack.md` → `docs/decisions/hn_auth_stack.md`
+- `guides--hn_payment_api.md` → `docs/guides/hn_payment_api.md`
+- `incidents--hn_token_refresh.md` → `docs/incidents/hn_token_refresh.md`
+
+전역 마스터 문서(도메인 횡단)는 abbr 생략: `{대상폴더}--{slug}.md`.
 
 ### 파일명/클래스/함수/메소드
 

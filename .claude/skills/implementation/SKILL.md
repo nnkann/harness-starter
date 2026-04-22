@@ -154,18 +154,27 @@ SSOT 문서의 `## 메모`에 기록.
 
 분리 필요 시 docs/WIP/에 문서를 만든다.
 
-파일명: `{대상폴더}--{작업내용}_{YYMMDD}.md`
-- 대상폴더: 완료 시 이동할 docs/ 하위 폴더명 (decisions, guides, incidents, harness)
-- `--`: 대상폴더와 작업내용을 구분하는 구분자 (언더스코어와 혼동 방지)
-- 작업내용: snake_case, 간결하게
-- YYMMDD: 생성 날짜
+**파일명** (SSOT: `.claude/rules/naming.md` "파일명 — WIP"):
 
-이동 시 `{대상폴더}--` 접두사는 제거된다. WIP에서만 쓰이는 라우팅 태그다.
+```
+{대상폴더}--{abbr}_{slug}.md              모든 대상 폴더
+```
+
+- `{대상폴더}--`: WIP 라우팅 태그 (decisions / guides / incidents / harness).
+  commit 시 docs-manager가 제거하고 본 폴더로 이동
+- `abbr`: naming.md "도메인 약어" 표의 값 (도메인당 1개)
+- `slug`: snake_case 의미명. 주제 자체 (세분화는 `tags:` 프론트매터로)
+- **날짜 suffix 전면 금지** (incidents 포함). 발생 시점은 프론트매터
+  `created` + git history가 담당. 같은 주제는 같은 파일 갱신 (`## 변경 이력`
+  섹션 누적)
 
 예시 (WIP → 이동 후):
-- `decisions--auth_stack_decision_260330.md` → `docs/decisions/auth_stack_decision_260330.md`
-- `incidents--token_refresh_fix_260330.md` → `docs/incidents/token_refresh_fix_260330.md`
-- `guides--payment_api_260330.md` → `docs/guides/payment_api_260330.md`
+- `decisions--hn_auth_stack.md` → `docs/decisions/hn_auth_stack.md`
+- `incidents--hn_token_refresh.md` → `docs/incidents/hn_token_refresh.md`
+- `guides--hn_payment_api.md` → `docs/guides/hn_payment_api.md`
+
+전역 마스터 문서(도메인 횡단)는 abbr 생략: `{대상폴더}--{slug}.md`.
+예: `guides--project_kickoff.md`.
 
 문서 구조:
 ```markdown

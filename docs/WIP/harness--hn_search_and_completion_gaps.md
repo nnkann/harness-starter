@@ -163,9 +163,61 @@ Claude가 새 WIP(`decisions--hn_review_staging_script_lite_path.md`)를
 - [ ] commit 스킬이 본 수정과 충돌 없는지 (완료 문서 재개 후 재커밋
   흐름이 실제로 작동하는가)
 
-### 구멍 2 — implementation 스킬에도 동일 구멍 (🔲 미착수)
+### 구멍 2 — implementation·관련 스킬의 날짜 suffix 드리프트 (✅ 부분 처리, v0.18.7)
 
-#### 가설
+#### 진단
+
+v0.18.5 커밋 review 참고 사항에서 언급: `implementation/SKILL.md` Step 1
+(diff 라인 157) `파일명: {대상폴더}--{작업내용}_{YYMMDD}.md` — naming.md
+"날짜 suffix 전면 금지" 규칙과 드리프트.
+
+전수 조사 결과 6개 스킬 파일에 같은 패턴:
+- `implementation/SKILL.md` Step 1
+- `naming-convention/SKILL.md` 계획 문서 섹션
+- `commit/SKILL.md` Step 2.3 이동 시 파일명 규칙
+- `docs-manager/SKILL.md` Step 2.5 완료 재개 + 라인 317 예시
+- `harness-init/SKILL.md` `project_kickoff_{YYMMDD}.md`·`guides--{도메인명}_{YYMMDD}.md`
+- `harness-adopt/SKILL.md` `adopt-session_{YYMMDD}.md`
+- `harness-upgrade/SKILL.md` `migration_v{X}_{YYMMDD}.md`
+
+#### 처리 (v0.18.7)
+
+**단순 예시 교체 — 완료**:
+- implementation Step 1 → SSOT 참조 + `{abbr}_{slug}` 형식
+- naming-convention 계획 문서 섹션 → naming.md 참조 + 예시 `hn_auth_stack` 등
+- commit Step 2.3 → `{abbr}_{slug}` + "날짜 suffix 전면 금지" 명시
+- docs-manager Step 2.5·317 예시 → `{abbr}_{slug}`
+
+**깊은 판단 필요 — 미처리**:
+
+harness-init/adopt/upgrade의 세션·마이그레이션 파일은 "같은 주제 반복"
+원칙(naming.md)과 충돌 가능. 각 세션·각 버전이 **독립 리포트 가치**를
+가지는 특수 케이스:
+
+- `project_kickoff_{YYMMDD}.md`: 프로젝트 개시 시점 1회만. 단일 파일
+  `project_kickoff.md`로 충분? 아니면 여러 번 재실행 가능?
+- `adopt-session_{YYMMDD}.md`: 이식 세션마다 독립 결정. 재개·재적용 가능.
+  세션당 1파일 vs 누적 1파일?
+- `migration_v{X}_{YYMMDD}.md`: `{X}`가 버전이라 이미 분리 키. 날짜까지
+  붙일 필요?
+
+**판단 옵션**:
+- A. 같은 주제 1파일 + `## 변경 이력` 섹션 (naming.md 원칙 유지)
+- B. naming.md에 "세션 리포트·시점 기록" 예외 조항 추가
+- C. `session_{N}` 같은 순차 번호로 대체 (날짜 대신 세션 ID)
+
+이 3개 스킬은 실제로 잘 안 쓰이는 초기 플로우라 **다음 실측(harness-adopt
+실행 사례) 기다린 뒤 결정** — 지금 선제 변경은 추측 수정 위험.
+
+### 구멍 2b — (완료) implementation SSOT 선행 탐색 가설 (v0.18.5에서 해소)
+
+v0.18.5 처리 과정에서 확인: implementation Step 0.8이 이미 docs.md 참조
+구조로 3단계 탐색·실패 모드 체크리스트 인용 보강 완료. 본 가설은 실제
+gap이 아니었고, 규정 인용의 **명시성** 부족이었음. v0.18.5 수정으로 해소.
+
+본문은 아래 보관 (다음에 비슷한 가설 세울 때 참고).
+
+#### 가설 (2026-04-22 기록, 검증 결과 무효)
 
 write-doc이 "코드 작업 없는 문서 생성"이라면 implementation은 "코드 +
 문서"를 함께 만든다. WIP 문서 생성도 implementation 경로. 동일한 SSOT

@@ -349,9 +349,10 @@ status 변경·이동은 **사용자가 명시 요청한 경우에만** 수행.
 
 #### 2.3. 이동 시 파일명 규칙
 
-파일명 형식: `{대상폴더}--{작업내용}_{YYMMDD}.md`
+파일명 형식: `{대상폴더}--{abbr}_{slug}.md` (SSOT: `.claude/rules/naming.md` "파일명 — WIP")
 
 `--` 앞의 접두사로 이동 대상을 결정하고, **이동 시 접두사(`{대상폴더}--`)를 제거**한다.
+**날짜 suffix 전면 금지** — 발생 시점은 프론트매터 `created` + git history.
 
 | 접두사 | 이동 대상 | 이동 후 파일명 |
 |--------|----------|---------------|
@@ -361,7 +362,7 @@ status 변경·이동은 **사용자가 명시 요청한 경우에만** 수행.
 | `harness--` | docs/harness/ | 접두사 제거 |
 | 접두사 없음 또는 판단 불가 | 사용자에게 질문 | — |
 
-예시: `docs/WIP/decisions--api_design_260416.md` → `docs/decisions/api_design_260416.md`
+예시: `docs/WIP/decisions--hn_api_design.md` → `docs/decisions/hn_api_design.md`
 
 #### 2.4. 차단 조건 (docs.md 규칙)
 

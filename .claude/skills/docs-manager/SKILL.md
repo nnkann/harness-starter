@@ -214,7 +214,7 @@ SSOT 우선 원칙(`rules/docs.md` "## SSOT 우선 + 분리 판단")에 따라,
 이미 completed로 이동된 문서에 후속 실행 결과를 기록해야 할 때 새 WIP를
 복제하지 말고 원본을 **되돌린다**:
 
-1. `git mv docs/{폴더}/<파일명>_{YYMMDD}.md docs/WIP/{원래접두사}--<파일명>_{YYMMDD}.md`
+1. `git mv docs/{폴더}/{abbr}_{slug}.md docs/WIP/{원래접두사}--{abbr}_{slug}.md`
 2. 프론트매터 `status: completed` → `in-progress`
 3. 호출자가 후속 실행 → 완료 시 Step 2(이동) 재호출
 
@@ -314,7 +314,7 @@ CPS 문서(`docs/guides/project_kickoff_*.md`)를 갱신한다:
 ## 문서 이동 완료
 
 이동됨:
-  WIP/decisions--api_design_260416.md → decisions/api_design_260416.md
+  WIP/decisions--hn_api_design.md → decisions/hn_api_design.md
 
 갱신됨:
   - 프론트매터: status → completed, updated → 2026-04-19
