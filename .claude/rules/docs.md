@@ -57,6 +57,25 @@ updated: 2026-04-16             # 선택
 - **rel**: 6종만. 새 타입은 스펙 문서 추가 후 사용
 - **폴더 = 성격, domain = 의미** (이중 분류)
 
+### WIP task 블록 `kind:` 마커 (선택, 커밋 분리용)
+
+WIP 문서 내 각 task 블록(`### N.` 또는 `### #N.` 헤더)의 바로 다음 줄에
+다음 한 줄 선언을 추가할 수 있다. 없으면 기본 `feature`.
+
+```markdown
+### 12. pre-check relates-to 확장
+> kind: bug
+
+**현 상태**: ...
+```
+
+- **kind 값**: `bug`·`feature`·`refactor`·`docs`·`chore`
+- 용도: `task-groups.sh`가 staged 파일을 WIP 단위로 묶은 뒤, kind 별로
+  서브 그룹화. `bug`는 별도 커밋으로 분리되어 나중에 `git log --grep=fix`
+  로 추적 용이
+- audit·decisions 문서 내 task 전부에 마커를 붙일 필요는 없음. 성격이
+  명확히 다른 task에만 선택적으로 부착
+
 ### incidents/ 전용
 
 ```yaml
