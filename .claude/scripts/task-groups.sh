@@ -16,8 +16,47 @@
 
 set -e
 
-STAGED=$(git diff --cached --name-only 2>/dev/null)
-[ -z "$STAGED" ] && exit 0
+# name-status -M25로 rename 감지 확대 (기본 50% → 25% 유사도).
+# WIP → completed 이동 시 본문이 갱신되어 유사도 낮아도 같은 논리 단위.
+# STAGED는 "처리 대상 경로 전체" — R 라인은 old/new 둘 다 포함해야 그룹
+# 할당 루프가 둘을 모두 같은 키에 매핑 가능.
+NAME_STATUS=$(git diff --cached --name-status -M25 2>/dev/null)
+[ -z "$NAME_STATUS" ] && exit 0
+
+STAGED=$(echo "$NAME_STATUS" | awk -F'\t' '
+  /^R[0-9]+\t/ { print $2; print $3; next }
+  /^[ACDMT]\t/ { print $2 }
+')
+
+# rename pair 매핑 (R 라인 + WIP 라우팅 폴백)
+# 1단계: git이 R로 인식한 쌍
+RENAME_MAP=$(echo "$NAME_STATUS" | awk -F'\t' '
+  /^R[0-9]+\t/ { print $2 "\t" $3 }
+')
+# 2단계: WIP 라우팅 폴백 — `docs/WIP/<folder>--<base>.md` 삭제 +
+# `docs/<folder>/<base>.md` 추가 쌍은 확정적 WIP 이동 패턴. git이 rename
+# 감지 실패해도(유사도 25% 미만) 본 휴리스틱이 같은 그룹으로 묶는다.
+# 오탐 위험 없음 — 라우팅 태그가 경로 구조를 고유하게 만든다.
+WIP_MOVE_MAP=$(echo "$NAME_STATUS" | awk -F'\t' '
+  /^D\tdocs\/WIP\// {
+    bn=$2; sub(/^docs\/WIP\//, "", bn)
+    if (match(bn, /^([a-z]+)--(.+\.md)$/, m)) {
+      dels[m[1] "/" m[2]] = $2
+    }
+    next
+  }
+  /^A\tdocs\// {
+    rel=$2; sub(/^docs\//, "", rel)
+    if (rel in dels) print dels[rel] "\t" $2
+  }
+')
+RENAME_MAP="${RENAME_MAP}${RENAME_MAP:+$'\n'}${WIP_MOVE_MAP}"
+
+rename_new_of() {
+  local old="$1"
+  [ -z "$RENAME_MAP" ] && return
+  echo "$RENAME_MAP" | awk -F'\t' -v o="$old" '$1 == o { print $2; exit }'
+}
 
 # ─────────────────────────────────────────────
 # 1. WIP 본문에서 (task, kind, 영향 파일) 추출
@@ -146,25 +185,32 @@ match_wip_task() {
 while IFS= read -r f; do
   [ -z "$f" ] && continue
 
-  # 메타 파일
-  if is_meta_file "$f"; then
+  # rename의 old 경로면 new 경로로 그룹 판정 위임 (같은 논리 단위 보존).
+  # 예: WIP/decisions--foo.md → decisions/foo.md 이동은 new 기준 그룹에 묶임.
+  judge_path="$f"
+  new_of=$(rename_new_of "$f")
+  if [ -n "$new_of" ]; then
+    judge_path="$new_of"
+  fi
+
+  # 메타 파일 (판정 경로 기준)
+  if is_meta_file "$judge_path"; then
     echo -e "meta:config\t${f}" >> "$RAW_ASSIGN"
     continue
   fi
 
-  abbr=$(detect_abbr "$f")
+  abbr=$(detect_abbr "$judge_path")
 
-  # WIP 본문 자체
-  if [[ "$f" == docs/WIP/*.md ]]; then
-    wip_bn=$(basename "$f" .md)
+  # WIP 본문 자체 (판정 경로 기준)
+  if [[ "$judge_path" == docs/WIP/*.md ]]; then
+    wip_bn=$(basename "$judge_path" .md)
     wip_slug="${wip_bn#*--}"
-    # WIP 본문 자체의 kind는 feature (WIP은 여러 task를 담는 컨테이너)
     echo -e "wip:${wip_slug}:${abbr}:feature\t${f}" >> "$RAW_ASSIGN"
     continue
   fi
 
-  # task 매칭
-  if matched=$(match_wip_task "$f"); then
+  # task 매칭 (판정 경로 기준)
+  if matched=$(match_wip_task "$judge_path"); then
     slug=$(echo "$matched" | cut -f1)
     kind=$(echo "$matched" | cut -f2)
     echo -e "wip:${slug}:${abbr}:${kind}\t${f}" >> "$RAW_ASSIGN"
