@@ -2,7 +2,7 @@
 title: test-pre-commit 스위트 성능 — 잔여 구조 재설계
 domain: harness
 tags: [pre-check, test, perf, structure]
-status: pending
+status: completed
 created: 2026-04-22
 updated: 2026-04-23
 ---

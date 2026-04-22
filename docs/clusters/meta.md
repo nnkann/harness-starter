@@ -1,9 +1,14 @@
+---
+title: meta 클러스터
+domain: meta
+tags: [cluster, index]
+status: completed
+created: 2026-04-16
+updated: 2026-04-23
+---
+
 # meta 클러스터
 
-## 문서 목록
+도메인 meta(mt) 소속 문서 목록. docs-ops.sh cluster-update 자동 생성.
 
-- [프로젝트 출범 샘플](../guides/project_kickoff_sample.md) — tags: cps, stack — status: sample
-
-## 관계 맵
-
-(없음)
+_(문서 없음)_
