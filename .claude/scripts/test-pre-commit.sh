@@ -603,7 +603,7 @@ check_no_match "4 node_trace"       "    at Object.<anonymous> (/app/node_module
 check_no_match "5 syntax_error"     "SyntaxError: Unexpected token '<' (1:0)"
 
 # ─────────────────────────────────────────────────
-# T35. dead link 증분 감지 (v0.18.6, hn_search_and_completion_gaps Part E 구멍 4)
+# T35. dead link 증분 감지 (v0.18.6)
 # pre-check이 이번 커밋이 유발한 dead link를 잡아 차단하는지 검증.
 # ─────────────────────────────────────────────────
 reset

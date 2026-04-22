@@ -142,7 +142,6 @@ if [ -n "$test_outside" ]; then
 fi
 
 # 3.5. dead link 증분 검사 (v0.18.6)
-# incident: hn_search_and_completion_gaps Part E 구멍 4
 # 원칙: pre-check은 정적 검사. dead link는 구조적 정합성이라 pre-check 영역.
 #
 # 검사 범위 (증분):
