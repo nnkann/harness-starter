@@ -502,30 +502,18 @@ run_case "T28.1 docs 일반 → standard" "recommended_stage" "standard" must_ma
 # T29: (2026-04-22 삭제) 과거 "docs rename ≥20 → bulk" 룰 폐기. bulk 스테이지
 # 자체가 사라졌다. 거대 커밋은 사용자가 스코프 분리한다.
 
-# T30: S5 메타 단독 (promotion-log.md만) → skip
-# promotion-log.md는 업스트림 전용 메타 — is_starter=true일 때만 S5로 분류.
-# 다운스트림 repo(is_starter=false)에서 test 돌리면 영구 fail하므로
-# fixture 안에서 HARNESS.json is_starter를 true로 임시 설정 후 원복.
-echo "[T30] 5줄 룰 #4 — promotion-log.md 단독 → skip"
+# T30: S5 메타 단독 (HARNESS.json만) → skip
+# promotion-log.md 폐기(v0.20.7) 이후 S5 메타 skip 검증을 HARNESS.json 단독
+# 변경으로 대체. is_starter 분기 없이 공통 regex가 적용됨.
+echo "[T30] 5줄 룰 #4 — HARNESS.json 단독 → skip"
 reset
-mkdir -p docs/harness .claude
-# HARNESS.json 백업 + is_starter=true fixture 생성
-HARNESS_BACKUP=""
-if [ -f .claude/HARNESS.json ]; then
-  HARNESS_BACKUP=$(cat .claude/HARNESS.json)
-fi
+mkdir -p .claude
+# staged에 포함될 HARNESS.json 변경 생성 (기존 파일 유지 + 변경점 추가)
 cat > .claude/HARNESS.json <<'EOF'
 { "profile": "minimal", "is_starter": true, "version": "test" }
 EOF
-echo "# log" > docs/harness/promotion-log.md
-git add docs/harness/promotion-log.md
-run_case "T30.1 promotion-log 단독 → skip" "recommended_stage" "skip" must_match
-# HARNESS.json 원복
-if [ -n "$HARNESS_BACKUP" ]; then
-  echo "$HARNESS_BACKUP" > .claude/HARNESS.json
-else
-  rm -f .claude/HARNESS.json
-fi
+git add .claude/HARNESS.json
+run_case "T30.1 HARNESS.json 단독 → skip" "recommended_stage" "skip" must_match
 
 # T31: src/* + scripts/* 혼합 → deep (룰 1 우선)
 echo "[T31] 5줄 룰 #1 — src + scripts 혼합"

@@ -19,14 +19,6 @@ ERRORS=0
 ALREADY_VERIFIED="lint todo_fixme test_location wip_cleanup"
 RISK_FACTORS_SUMMARY=""
 
-# 업스트림(harness-starter) 여부 — promotion-log.md 같은 업스트림 전용
-# 경로를 면제 regex에 포함할지 결정. 다운스트림은 is_starter=false라
-# 이 경로가 존재하지 않으므로 면제 필요 없음.
-IS_STARTER=0
-if [ -f ".claude/HARNESS.json" ] && grep -q '"is_starter"[[:space:]]*:[[:space:]]*true' ".claude/HARNESS.json" 2>/dev/null; then
-  IS_STARTER=1
-fi
-
 # 2. 린터 검사 (CLAUDE.md의 패키지 매니저 설정을 읽어서 동적 결정)
 LINT_CMD=""
 PKG_MGR=""
@@ -379,11 +371,7 @@ fi
 # staging.md S10 신호와 review가 참고. 사용자 가시 메시지는 출력하지 않음.
 # 면제 파일: 버전 범프·이력 갱신처럼 매 커밋마다 같이 변경되는 정상 패턴
 REPEAT_RANGE=5
-if [ "$IS_STARTER" = "1" ]; then
-  REPEAT_EXEMPT_REGEX='^(\.claude/HARNESS\.json|docs/harness/promotion-log\.md|docs/clusters/.*\.md)$'
-else
-  REPEAT_EXEMPT_REGEX='^(\.claude/HARNESS\.json|docs/clusters/.*\.md)$'
-fi
+REPEAT_EXEMPT_REGEX='^(\.claude/HARNESS\.json|docs/clusters/.*\.md)$'
 
 RECENT_FILES=$(git log -${REPEAT_RANGE} --name-only --format= 2>/dev/null | grep -v '^$' | sort)
 REPEAT_WARN_HIT=""
@@ -456,7 +444,7 @@ has_sig() { [ -n "${SIG_SET[$1]:-}" ]; }
 # lock·meta·doc은 상호 배타 (앞선 매치에서 next로 빠짐 → 이중 카운트 방지).
 # S11·S14·S15·S1·S2는 다른 카테고리와 공존 가능하므로 존재 플래그만.
 read -r S1_FILE_HIT S2_HIT LOCK_COUNT META_COUNT DOC_COUNT S11_HIT S14_HIT S15_HIT <<EOF
-$(echo "$STAGED_FILES" | awk -v is_starter="$IS_STARTER" '
+$(echo "$STAGED_FILES" | awk '
   {
     # S1 파일명: 테스트·docs·예제·helper/utils 면제
     if (tolower($0) ~ /auth|token|secret|key|credential|password|\.env/ \
@@ -472,9 +460,8 @@ $(echo "$STAGED_FILES" | awk -v is_starter="$IS_STARTER" '
   }
   # 상호 배타 카테고리 (lock > meta > doc 우선순위)
   /^(package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb|uv\.lock|Cargo\.lock|go\.sum|composer\.lock|Gemfile\.lock)$/ { lock++; next }
-  # S5 메타: 업스트림 전용 promotion-log는 is_starter=1일 때만 포함
-  is_starter == 1 && /^(\.claude\/HARNESS\.json|docs\/harness\/promotion-log\.md|docs\/clusters\/.*\.md|\.claude\/memory\/.*\.md|CHANGELOG\.md)$/ { meta++; next }
-  is_starter != 1 && /^(\.claude\/HARNESS\.json|docs\/clusters\/.*\.md|\.claude\/memory\/.*\.md|CHANGELOG\.md)$/ { meta++; next }
+  # S5 메타: HARNESS.json·clusters·memory·CHANGELOG (is_starter 무관)
+  /^(\.claude\/HARNESS\.json|docs\/clusters\/.*\.md|\.claude\/memory\/.*\.md|CHANGELOG\.md)$/ { meta++; next }
   /^(docs\/|.*\.md$)/ { doc++; next }
   END {
     printf "%d %d %d %d %d %d %d %d",

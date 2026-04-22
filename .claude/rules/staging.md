@@ -23,7 +23,7 @@
 | S2 | 핵심설정 — `CLAUDE.md`, `.claude/{settings.json,rules,scripts,hooks}`, `Dockerfile*`, `.github/workflows/*` |
 | S3 | 신규 파일만 (전부 `A`) |
 | S4 | lock 파일만 |
-| S5 | 면제 메타만 — `HARNESS.json`, `promotion-log.md`, `clusters/*`, `memory/*`, `CHANGELOG.md` |
+| S5 | 면제 메타만 — `HARNESS.json`, `clusters/*`, `memory/*`, `CHANGELOG.md` |
 | S6 | 문서만 — `docs/**`, 루트 `*.md` (README/CHANGELOG 제외) |
 | S7 | 일반 코드 (위 어디에도 안 속함) |
 | S8 | 공유 모듈 — export 추가/제거, 공개 시그니처 변경 |

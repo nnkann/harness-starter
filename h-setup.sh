@@ -515,7 +515,6 @@ for dir in WIP decisions guides incidents harness archived clusters; do
     SKIPPED=$((SKIPPED + 1))
   fi
 done
-copy_if_new "$SCRIPT_DIR/docs/harness/promotion-log.md" "$TARGET/docs/harness/promotion-log.md"
 
 # .gitkeep
 for dir in WIP decisions guides incidents archived; do

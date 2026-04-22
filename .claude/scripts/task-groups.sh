@@ -150,7 +150,7 @@ detect_abbr() {
 
 is_meta_file() {
   case "$1" in
-    .claude/HARNESS.json|docs/harness/promotion-log.md|docs/harness/MIGRATIONS.md|README.md|CHANGELOG.md) return 0 ;;
+    .claude/HARNESS.json|docs/harness/MIGRATIONS.md|README.md|CHANGELOG.md) return 0 ;;
     docs/clusters/*.md) return 0 ;;
     *) return 1 ;;
   esac

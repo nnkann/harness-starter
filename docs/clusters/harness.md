@@ -3,7 +3,6 @@
 ## 문서 목록
 
 ### 전역 마스터 (프로젝트 전역)
-- [승격/강등 이력](../harness/promotion-log.md) — tags: promotion, rule-change
 - [다운스트림 마이그레이션 가이드](../harness/MIGRATIONS.md) — tags: migration, upgrade, downstream
 - [harness-starter CPS](../guides/project_kickoff.md) — tags: cps, meta, starter
 
@@ -64,21 +63,14 @@
 ### archived/
 - [(abandoned) advisor 통합](../archived/advisor_integration_260419.md) — staging 신호와 70% 겹쳐 자체 규칙 위반
 - [(abandoned) hook 흐름 감사](../archived/hook_flow_efficiency_260418.md) — 이번 세션 중 의도 80% 자연 달성, 남은 자동화는 단순화와 충돌
-- [(archived) 승격/강등 이력 2026 Q2 초반](../archived/promotion-log-2026q2-early.md) — promotion-log B+D 압축 전 원본, 2026-04-08~20 구간 152행 보존
 
 ## 관계 맵
 
-- hn_improvement --references--> promotion-log
-- hn_upgrade --extends--> promotion-log
 - hn_upgrade_propagation --implements--> hn_upgrade
 - hn_gap_analysis --references--> hn_upgrade
-- hn_remote_upgrade_strategy --references--> promotion-log
 - hn_commit_perf_optimization --references--> hn_commit_review_staging
 - hn_llm_mistake_guardrails --references--> hn_commit_review_staging
-- hn_staging_governance --references--> promotion-log
-- hn_rules_metadata --references--> promotion-log
 - hn_doc_search_protocol --extends--> (rules/docs.md)
-- hn_info_flow_leak_audit --references--> promotion-log
 - hn_implementation_router --references--> hn_info_flow_leak_audit
 - hn_skill_agent_role_audit --extends--> hn_implementation_router
 - hn_commit_review_handoff --implements--> hn_skill_agent_role_audit
@@ -92,7 +84,6 @@
 - hn_downstream_name_leak --references--> hn_matcher_false_block
 - hn_downstream_name_leak --extends--> hn_generic_contamination_protection
 - hn_info_flow_leak_phase3 --caused-by--> hn_info_flow_leak_audit
-- hn_review_whitelist_autodetect --references--> promotion-log
 - hn_index_md_removal --extends--> hn_simplification
 - hn_doc_naming --references--> hn_memory
 - hn_doc_naming --extends--> hn_index_md_removal

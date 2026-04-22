@@ -136,7 +136,6 @@ updated: 2026-04-14
 ## 도메인별
 
 ### harness
-- [승격/강등 이력](../harness/promotion-log.md) — tags: promotion, rule-change
 - [업그레이드 계획](hn_upgrade.md) — tags: memory, hook, skill
 - [업그레이드 전파](../guides/hn_upgrade_propagation.md) — tags: upgrade, script
 - [적합성 분석](hn_gap_analysis.md) — tags: gap-analysis, verification

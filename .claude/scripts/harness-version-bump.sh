@@ -2,7 +2,7 @@
 # 하네스 스타터 전용 버전 체크·안내 (audit #4, 2026-04-22).
 #
 # 역할: 이번 커밋이 minor/patch 범프가 필요한지 판단하는 **안내만** 출력.
-# 실제 HARNESS.json·promotion-log.md 수정은 Claude/사용자가 수동으로 수행.
+# 실제 HARNESS.json 수정은 Claude/사용자가 수동으로 수행.
 #
 # 설계 원칙:
 # - 다운스트림(is_starter=false 또는 파일 없음)은 즉시 exit 0 + 메시지 없음
