@@ -713,6 +713,90 @@ check_no_match "4 node_trace"       "    at Object.<anonymous> (/app/node_module
 check_no_match "5 syntax_error"     "SyntaxError: Unexpected token '<' (1:0)"
 
 # ─────────────────────────────────────────────────
+# T35. dead link 증분 감지 (v0.18.6, hn_search_and_completion_gaps Part E 구멍 4)
+# pre-check이 이번 커밋이 유발한 dead link를 잡아 차단하는지 검증.
+# ─────────────────────────────────────────────────
+reset
+
+# T35.1: 삭제된 md를 가리키는 기존 cluster 링크 → 차단 (pre_check_passed: false)
+mkdir -p docs/test_cluster docs/test_target
+cat > docs/test_target/hn_dummy.md <<'EOF'
+---
+title: dummy
+domain: harness
+tags: []
+status: completed
+created: 2026-04-22
+---
+# dummy
+EOF
+cat > docs/test_cluster/harness.md <<'EOF'
+---
+title: harness cluster
+domain: harness
+tags: []
+status: completed
+created: 2026-04-22
+---
+# harness cluster
+- [dummy](../test_target/hn_dummy.md)
+EOF
+git add docs/test_target/hn_dummy.md docs/test_cluster/harness.md
+git commit -q -m "prep T35 baseline" 2>/dev/null
+
+# 이제 dummy 파일 삭제 스테이징. cluster는 여전히 옛 경로 유지.
+git rm -q docs/test_target/hn_dummy.md 2>/dev/null
+run_case "T35.1 dummy 삭제 + cluster dead link → 차단" "pre_check_passed" "false" must_match
+
+reset
+
+# T35.2: 새로 추가한 md의 링크 대상이 없으면 차단
+mkdir -p docs/test_cluster2
+cat > docs/test_cluster2/broken.md <<'EOF'
+---
+title: broken link doc
+domain: harness
+tags: []
+status: in-progress
+created: 2026-04-22
+---
+# broken link
+- [없는 파일](../test_target/hn_nonexistent.md)
+EOF
+git add docs/test_cluster2/broken.md
+run_case "T35.2 새 md + 없는 링크 → 차단" "pre_check_passed" "false" must_match
+
+reset
+
+# T35.3: 링크 대상이 같은 커밋에 staged로 추가되면 통과
+mkdir -p docs/test_cluster3 docs/test_target3
+cat > docs/test_target3/hn_new.md <<'EOF'
+---
+title: new target
+domain: harness
+tags: []
+status: in-progress
+created: 2026-04-22
+---
+# new
+EOF
+cat > docs/test_cluster3/linker.md <<'EOF'
+---
+title: linker
+domain: harness
+tags: []
+status: in-progress
+created: 2026-04-22
+---
+# linker
+- [new](../test_target3/hn_new.md)
+EOF
+git add docs/test_target3/hn_new.md docs/test_cluster3/linker.md
+run_case "T35.3 링크 대상도 같이 staged → 통과" "pre_check_passed" "true" must_match
+
+reset
+
+# ─────────────────────────────────────────────────
 # 결과
 # ─────────────────────────────────────────────────
 echo ""

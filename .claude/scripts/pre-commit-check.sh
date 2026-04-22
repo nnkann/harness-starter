@@ -149,6 +149,112 @@ if [ -n "$test_outside" ]; then
   ERRORS=$((ERRORS + 1))
 fi
 
+# 3.5. dead link 증분 검사 (v0.18.6)
+# incident: hn_search_and_completion_gaps Part E 구멍 4
+# 원칙: pre-check은 정적 검사. dead link는 구조적 정합성이라 pre-check 영역.
+#
+# 검사 범위 (증분 — 전수 아님):
+#   A. 삭제·rename된 파일을 가리키는 기존 md 링크 (cluster·relates-to 등)
+#   B. 추가·수정된 md 파일 안의 새 링크 대상이 실제로 존재하는지
+#
+# 전수 검사는 bulk-commit-guards.sh 4b 담당. 여기는 이번 커밋이 유발한
+# dead link만 감지 → O(변경 규모).
+DEAD_LINKS_FOUND=""
+
+# A. 삭제·rename된 파일 목록 (name-status에서 D 또는 R의 원본 경로)
+#    rename은 "R<score>\told\tnew" 형식. 원본(old)이 없어진 경로.
+DELETED_OR_MOVED=$(echo "$STAGED_NAME_STATUS" | awk '
+  $1 == "D"         { print $2 }
+  $1 ~ /^R/ && NF>=3 { print $2 }
+' | grep -E '\.md$' 2>/dev/null)
+
+if [ -n "$DELETED_OR_MOVED" ]; then
+  # 이 파일들을 가리키는 기존 md 링크 grep (docs/**, .claude/** md만)
+  # 검사 대상: 저장소 내 현존하는 md (삭제된 파일 자체는 이미 없음)
+  while IFS= read -r removed; do
+    [ -z "$removed" ] && continue
+    # 링크 패턴: 상대 경로 또는 docs/ 절대. 끝에 ) 또는 # 붙음.
+    # basename만 쓴 느슨한 검사 (오탐 여지는 있지만 증분 검사라 수용 가능)
+    removed_base=$(basename "$removed")
+    # --include로 md만. staged에서 삭제된 파일은 grep 대상 아님 (이미 FS에 없음)
+    HITS=$(grep -rn --include='*.md' -E "\]\([^)]*${removed_base}[^)]*\)" docs .claude 2>/dev/null)
+    if [ -n "$HITS" ]; then
+      while IFS= read -r hit; do
+        # 형식: path:lineno:matched_line
+        src=$(echo "$hit" | cut -d: -f1)
+        # 해당 소스 파일이 이번 커밋에서 삭제·수정됐으면 스킵 (같이 정리됐을 것)
+        if echo "$STAGED_FILES" | grep -qFx "$src"; then
+          # 수정된 소스라도 링크가 살아있으면 dead — 하지만 이 경우는 아래 B가 잡음
+          continue
+        fi
+        DEAD_LINKS_FOUND="${DEAD_LINKS_FOUND}\n   $hit"
+      done <<< "$HITS"
+    fi
+  done <<< "$DELETED_OR_MOVED"
+fi
+
+# B. 추가·수정된 md 파일의 새 링크 대상 존재 검증
+#    staged diff에서 추가된 라인(+)의 md 링크만 추출.
+#    수정된 md만 대상. 전수 grep 아님.
+MODIFIED_MD=$(echo "$STAGED_FILES" | grep -E '\.md$' 2>/dev/null)
+if [ -n "$MODIFIED_MD" ]; then
+  # 추가된 라인에서 md 링크 추출 (format: src\tlink_path)
+  # awk로 diff 헤더 추적 + 추가 라인(+)에서 ](path.md) 패턴만
+  # 중요: 현재 diff 대상 파일이 md일 때만 링크 추출. 코드 파일(.sh·.ts 등)
+  # 안의 `](path.md)` 같은 정규식 예시·문자열은 링크 아님 → 오탐 방지.
+  LINK_PAIRS=$(echo "$STAGED_DIFF_U0" | awk '
+    /^diff --git / {
+      path=$NF; sub(/^b\//, "", path)
+      is_md = (path ~ /\.md$/)
+      next
+    }
+    /^\+\+\+/ || /^---/ { next }
+    is_md && /^\+/ {
+      line=$0
+      # 백틱 안의 매칭은 링크 아님 (인라인 코드 · 코드 예시). 휴리스틱으로
+      # 백틱으로 감싸인 구간을 먼저 제거 후 남은 텍스트에서 링크 추출.
+      # 완벽한 md 파서 아님 — 한 줄 안에서만 처리. 실측 오탐의 대부분 케이스
+      # ("`](path.md)`"·"`](abbr.md)`" 같은 설명용 예시) 해소.
+      gsub(/`[^`]*`/, "", line)
+      while (match(line, /\]\(([^)]+\.md)([)#][^)]*)?\)/, m)) {
+        link=m[1]
+        # 외부·앵커만 skip
+        if (link !~ /^https?:\/\// && link !~ /^mailto:/) {
+          printf "%s\t%s\n", path, link
+        }
+        line=substr(line, RSTART+RLENGTH)
+      }
+    }
+  ')
+
+  if [ -n "$LINK_PAIRS" ]; then
+    while IFS=$'\t' read -r src link; do
+      [ -z "$src" ] || [ -z "$link" ] && continue
+      # 경로 해석
+      case "$link" in
+        docs/*) resolved="$link" ;;
+        /*) continue ;;  # 절대 경로는 저장소 밖, skip
+        *) resolved="$(dirname "$src")/$link" ;;
+      esac
+      # 정규화: ./ 제거, a/b/../ → a/
+      resolved=$(echo "$resolved" | sed -e 's|/\./|/|g' -e ':a' -e 's|[^/]*/\.\./||' -e 'ta' -e 's|^\./||')
+      # 앵커 분리
+      resolved_path="${resolved%%#*}"
+      # 존재 확인 (staged add된 파일도 고려 — staging 영역이므로 FS에 있음)
+      if [ ! -f "$resolved_path" ]; then
+        DEAD_LINKS_FOUND="${DEAD_LINKS_FOUND}\n   $src → $link (resolved: $resolved_path, 파일 없음)"
+      fi
+    done <<< "$LINK_PAIRS"
+  fi
+fi
+
+if [ -n "$DEAD_LINKS_FOUND" ]; then
+  echo "❌ dead link 감지 (이번 커밋이 유발):" >&2
+  echo -e "$DEAD_LINKS_FOUND" >&2
+  echo "   대응: 링크를 수정하거나, 이동된 파일의 새 경로로 갱신" >&2
+  ERRORS=$((ERRORS + 1))
+fi
+
 # 4. docs/WIP/에 completed/abandoned 파일이 남아있는지
 if [ -d "docs/WIP" ]; then
   # 프론트매터 또는 인라인 status에서 completed/abandoned 감지

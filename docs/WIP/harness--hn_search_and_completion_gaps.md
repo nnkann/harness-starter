@@ -208,10 +208,12 @@ docs.md "## SSOT 우선 + 분리 판단" 섹션은 이번 케이스에 정확히
 4. ✅ `CLAUDE.md`에 `<important if="docs/ 하위에 새 문서·WIP 파일을 만들려
    할 때 (스킬 발동 여부 무관)">` 블록 추가 — 경로 불문 강제
 5. ✅ `.claude/skills/implementation/SKILL.md` Step 0.8에 3단계 탐색 명시 인용
-6. 🔲 다음 실측 5건 — 수정된 규정·스킬이 SSOT 포착하는지 관찰
-7. 🔲 실측 결과 기록 후 본 WIP → `docs/harness/` 재이동 + completed
+6. ✅ `.claude/scripts/pre-commit-check.sh` Step 3.5 dead link 증분 검사
+   추가 + T35 회귀 테스트 3케이스 (v0.18.6)
+7. 🔲 다음 실측 5건 — 수정된 규정·스킬이 SSOT 포착하는지 관찰
+8. 🔲 실측 결과 기록 후 본 WIP → `docs/harness/` 재이동 + completed
 
-### 구멍 4 — dead link 검사가 pre-check이 아닌 bulk 가드에만 있음 (🔲 미착수, v0.18.5 review 과정에서 발견)
+### 구멍 4 — dead link 검사가 pre-check이 아닌 bulk 가드에만 있음 (✅ v0.18.6 처리)
 
 #### 발견 경로
 
@@ -244,6 +246,34 @@ v0.18.5 커밋 review deep 중 **verdict: block** — `docs/clusters/harness.md`
 
 - 이전 세션의 bulk-commit-guards.sh 퍼포먼스 수정(본 세션 사용자가 시작했다가 중단)
   작업과 연계. dead link 검사 로직 최적화본이 먼저 정립돼야 pre-check에 이식 가능
+
+#### 처리 (v0.18.6, 2026-04-22)
+
+`.claude/scripts/pre-commit-check.sh`에 Step 3.5 dead link 증분 검사 추가:
+
+- **검사 A**: 이번 커밋에서 삭제·rename된 md 파일을 가리키는 **기존 md 링크**
+  (cluster·relates-to 등). `STAGED_NAME_STATUS`에서 `D`·`R` 추출 → basename으로
+  `grep -rn --include='*.md' docs .claude` → 소스 파일이 같은 커밋에 포함되면 skip.
+- **검사 B**: 이번 커밋에서 **추가·수정된 md의 새 링크** 대상이 실제로 존재하는지.
+  `STAGED_DIFF_U0`의 `+` 라인에서 `](path.md)` 패턴만 awk로 추출 → 경로 정규화
+  (`./`·`../` 해소) → `test -f`로 존재 확인. staged add된 파일도 FS에 있으므로 커버.
+- **증분 검사 원칙**: 전수 검사는 `bulk-commit-guards.sh` 4b 담당 유지 (거대
+  일괄 변경 전용). pre-check은 **이번 커밋이 유발한** dead link만. O(변경 규모).
+
+회귀 테스트 `T35` 3케이스 신설 (`test-pre-commit.sh`):
+- T35.1: 파일 삭제 + cluster 옛 경로 유지 → 차단 ✅
+- T35.2: 새 md의 링크가 없는 파일 가리킴 → 차단 ✅
+- T35.3: 링크 대상도 같이 staged 추가 → 통과 ✅
+
+**결과**: 60/60 통과. v0.18.5 커밋에서 review가 deep으로 30초 걸려 잡은
+dead link를 이제 pre-check이 수 초에 잡는다.
+
+**한계 (의도적)**:
+- 검사 A는 **basename 기반 느슨한 매칭**. 다른 폴더에 같은 이름의 md가
+  있으면 오탐 가능성. 엄밀한 경로 매칭은 비용 크고, 증분 검사의 취지는
+  빠른 1차 방어라 수용.
+- 앵커(`#section`)만 있는 링크는 검사 안 함 (파일 존재만 확인).
+- 외부 링크(`http://`·`https://`)는 skip.
 
 ### 수정 아키텍처 (3층 방어)
 
