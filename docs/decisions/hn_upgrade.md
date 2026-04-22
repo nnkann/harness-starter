@@ -2,9 +2,6 @@
 title: Harness-Starter 업그레이드 계획
 domain: harness
 tags: [memory, hook, skill, upgrade]
-relates-to:
-  - path: harness/promotion-log.md
-    rel: extends
 status: completed
 created: 2026-04-10
 ---

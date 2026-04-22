@@ -2,9 +2,6 @@
 title: Remote 기반 하네스 업그레이드 전략
 domain: harness
 tags: [upgrade, git-remote, merge]
-relates-to:
-  - path: harness/promotion-log.md
-    rel: references
 status: completed
 created: 2026-04-16
 updated: 2026-04-16

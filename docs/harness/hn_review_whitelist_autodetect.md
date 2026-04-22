@@ -2,9 +2,6 @@
 title: rules → docs 참조 화이트리스트 — 동적 탐색으로 대체
 domain: harness
 tags: [review, harness-upgrade, whitelist, dead-link, dynamic-resolution]
-relates-to:
-  - path: harness/promotion-log.md
-    rel: references
 status: completed
 created: 2026-04-20
 updated: 2026-04-20

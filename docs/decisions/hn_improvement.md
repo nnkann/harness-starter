@@ -2,9 +2,6 @@
 title: 하네스 스타터 개선 계획
 domain: harness
 tags: [improvement, profile, sync]
-relates-to:
-  - path: harness/promotion-log.md
-    rel: references
 status: completed
 created: 2026-04-08
 ---

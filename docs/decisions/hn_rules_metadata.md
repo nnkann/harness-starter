@@ -2,9 +2,6 @@
 title: Rules 파일 다이어트 — 분리한 메타·배경·자동 감지 상세
 domain: harness
 tags: [rules, governance, refactor]
-relates-to:
-  - path: harness/promotion-log.md
-    rel: references
 status: completed
 created: 2026-04-20
 ---

@@ -990,7 +990,7 @@ bash .claude/scripts/pre-commit-check.sh 2>&1 | grep "대규모 변경"
 **업스트림 파일 rename (40개 + cluster + 결정문)**:
 - `docs/decisions/*` 10개: 날짜 suffix 제거 + `hn_` abbr 부착
 - `docs/guides/*` 6개: 동일 (전역 마스터 2개는 abbr 없음)
-- `docs/harness/*` 19개: 동일 (`MIGRATIONS.md`·`promotion-log.md`는 전역 마스터)
+- `docs/harness/*` 19개: 동일 (`MIGRATIONS.md`는 전역 마스터)
 - `docs/incidents/*` 6개: 날짜 suffix 제거 + `hn_` abbr 부착
 - `docs/clusters/harness.md` 재생성 (신 파일명 기준 + 폴더별 분류)
 - 본문 참조 173건 전수 치환 (마크다운 링크·relates-to·rules 본문)
@@ -1492,4 +1492,4 @@ done
 ## v0.6.0 이전
 
 기록 없음. v0.6.0이 본 마이그레이션 가이드 도입 시점. 이전 버전은
-`docs/harness/promotion-log.md`의 변경 항목을 참조.
+`git log --oneline --grep "(v0\."` 또는 `git log --all --oneline` 참조.
