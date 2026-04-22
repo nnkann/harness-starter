@@ -5,14 +5,13 @@
 # - stderr: 사용자 노출용 에러/경고 메시지
 # - stdout: commit 스킬이 review 에이전트에 전달할 요약 (key: value 라인)
 #
-# 모드:
-# - (기본): 전체 검사 + stdout 요약 출력
-# - --lint-only: 린터만 빠르게 검사 (commit 스킬 Step 0 조기 종료용).
-#                TODO·test 위치·WIP 잔여·signals 모두 건너뜀. stdout 요약도 없음.
-LINT_ONLY=0
-if [ "$1" = "--lint-only" ]; then
-  LINT_ONLY=1
-fi
+# 단일 실행 경로 (audit #1, 2026-04-22): 린트 + 전체 검사 1회로 통합.
+# --lint-only 모드는 폐기 (Step 0 조기 종료 이점 미미 실측).
+#
+# stderr 정책 (audit #14, 2026-04-22):
+# - 기본: 실패·위험·경고만 출력 (차단 ❌·위험 ⚡·잔여 ⚠·린트 실패 등)
+# - 정상 상태 알림(연속 수정 카운트 등)은 출력하지 않음 (주석으로만 기록)
+# - 정보성 메시지(HARNESS_EXPAND 통과 등)는 VERBOSE=1일 때만 출력
 
 ERRORS=0
 
@@ -104,17 +103,10 @@ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL"; then
   fi
 fi
 
-# --lint-only 모드는 린터 결과만 반환하고 즉시 종료 (Step 0 조기 종료용)
-if [ "$LINT_ONLY" -eq 1 ]; then
-  [ "$ERRORS" -gt 0 ] && exit 2
-  exit 0
-fi
-
 # ─────────────────────────────────────────────
 # git diff 캐시 (22회 → 3회)
 # Windows에서 git 프로세스 부팅이 호출당 ~30ms. 아래 3개만 실제 git 호출,
 # 이후 모든 블록은 변수 재사용. staged 상태는 스크립트 실행 중 변하지 않음.
-# --lint-only는 이 지점 전에 종료하므로 린트 실패 시 git 호출 발생 안 함.
 # ─────────────────────────────────────────────
 STAGED_NAME_STATUS=$(git diff --cached --name-status 2>/dev/null)
 STAGED_NUMSTAT=$(git diff --cached --numstat 2>/dev/null)
@@ -176,27 +168,44 @@ DELETED_OR_MOVED=$(echo "$STAGED_NAME_STATUS" | awk '
 ' | grep -E '\.md$' 2>/dev/null)
 
 if [ -n "$DELETED_OR_MOVED" ]; then
-  # 이 파일들을 가리키는 기존 md 링크 grep (docs/**, .claude/** md만)
-  # 검사 대상: 저장소 내 현존하는 md (삭제된 파일 자체는 이미 없음)
+  # 이 파일들을 가리키는 기존 md 링크 grep (docs/**, .claude/** md만).
+  # basename으로 1차 후보 수집 후, 각 매치 링크의 **경로를 해석해
+  # 실제 삭제된 파일과 일치할 때만 dead 판정** (audit #12 후속, 과탐 방지).
   while IFS= read -r removed; do
     [ -z "$removed" ] && continue
-    # 링크 패턴: 상대 경로 또는 docs/ 절대. 끝에 ) 또는 # 붙음.
-    # basename만 쓴 느슨한 검사 (오탐 여지는 있지만 증분 검사라 수용 가능)
     removed_base=$(basename "$removed")
-    # --include로 md만. staged에서 삭제된 파일은 grep 대상 아님 (이미 FS에 없음)
+    # 1차 후보: basename만 매치
     HITS=$(grep -rn --include='*.md' -E "\]\([^)]*${removed_base}[^)]*\)" docs .claude 2>/dev/null)
-    if [ -n "$HITS" ]; then
-      while IFS= read -r hit; do
-        # 형식: path:lineno:matched_line
-        src=$(echo "$hit" | cut -d: -f1)
-        # 해당 소스 파일이 이번 커밋에서 삭제·수정됐으면 스킵 (같이 정리됐을 것)
-        if echo "$STAGED_FILES" | grep -qFx "$src"; then
-          # 수정된 소스라도 링크가 살아있으면 dead — 하지만 이 경우는 아래 B가 잡음
-          continue
+    [ -z "$HITS" ] && continue
+    while IFS= read -r hit; do
+      # 형식: path:lineno:matched_line
+      src=$(echo "$hit" | cut -d: -f1)
+      # 해당 소스 파일이 이번 커밋에서 삭제·수정됐으면 스킵 (같이 정리됐을 것)
+      if echo "$STAGED_FILES" | grep -qFx "$src"; then
+        continue
+      fi
+      # 2차: 매치된 링크의 실제 경로를 파싱해 `removed`와 일치하는지 확인
+      # hit 라인에서 ](path) 형태 모두 추출 후 각 경로를 src 기준 해석
+      matched_line=$(echo "$hit" | cut -d: -f3-)
+      # md 링크 path 추출 (앵커·쿼리 제거)
+      while IFS= read -r link; do
+        [ -z "$link" ] && continue
+        link_clean="${link%%#*}"  # 앵커 제거
+        link_clean="${link_clean%% *}"  # 공백 제거 방어
+        # 경로 해석
+        case "$link_clean" in
+          /*) continue ;;  # 절대 경로 skip
+          http*|mailto:*) continue ;;
+          *) resolved="$(dirname "$src")/$link_clean" ;;
+        esac
+        resolved=$(echo "$resolved" | sed -e 's|/\./|/|g' -e ':a' -e 's|[^/]*/\.\./||' -e 'ta' -e 's|^\./||')
+        # 해석된 경로가 삭제된 경로와 일치할 때만 dead
+        if [ "$resolved" = "$removed" ]; then
+          DEAD_LINKS_FOUND="${DEAD_LINKS_FOUND}\n   $hit"
+          break  # 한 줄에 여러 링크 있어도 한 번만 보고
         fi
-        DEAD_LINKS_FOUND="${DEAD_LINKS_FOUND}\n   $hit"
-      done <<< "$HITS"
-    fi
+      done < <(echo "$matched_line" | grep -oE '\]\([^)]+\)' | sed -E 's/^\]\(|\)$//g')
+    done <<< "$HITS"
   done <<< "$DELETED_OR_MOVED"
 fi
 
@@ -255,6 +264,56 @@ if [ -n "$MODIFIED_MD" ]; then
   fi
 fi
 
+# C. frontmatter `relates-to.path` dead link (audit #12, T36)
+#    B와 달리 diff 라인이 아닌 staged 파일의 현재 frontmatter 전체를 검사.
+#    이유: relates-to는 frontmatter 상단에 있어 수정 안 한 커밋에서도 기존
+#    relates-to가 dead일 수 있음 — 이번 커밋이 대상 파일을 삭제/rename했다면.
+#    하지만 증분 원칙 유지: 이번 커밋에서 추가/수정된 md만 검사.
+if [ -n "$MODIFIED_MD" ]; then
+  while IFS= read -r md_src; do
+    [ -z "$md_src" ] && continue
+    [ ! -f "$md_src" ] && continue
+    # frontmatter 블록만 추출: 첫 `---` ~ 두 번째 `---` 사이
+    FM=$(awk 'BEGIN{n=0} /^---[[:space:]]*$/{n++; next} n==1{print} n>=2{exit}' "$md_src")
+    [ -z "$FM" ] && continue
+    # relates-to 섹션 안의 `- path: ...` 라인만 추출 (멀티라인 YAML 리스트)
+    # 간단 파서: `relates-to:` 뒤 들여쓴 블록만. 다른 top-key 만나면 종료.
+    RT_PATHS=$(echo "$FM" | awk '
+      /^relates-to:[[:space:]]*$/ { in_rt=1; next }
+      in_rt && /^[^[:space:]]/ { in_rt=0 }
+      in_rt && /^[[:space:]]+-[[:space:]]+path:[[:space:]]*/ {
+        sub(/^[[:space:]]+-[[:space:]]+path:[[:space:]]*/, "")
+        gsub(/^["'"'"']|["'"'"']$/, "")
+        sub(/[[:space:]]*#.*$/, "")  # 인라인 주석 제거
+        if (length($0)>0) print
+      }
+    ')
+    [ -z "$RT_PATHS" ] && continue
+    while IFS= read -r rt_path; do
+      [ -z "$rt_path" ] && continue
+      # 경로 해석: rules/docs.md 규칙에 따라 **docs/ 루트 기준 상대 경로**
+      # (예: `relates-to: harness/hn_X.md` → `docs/harness/hn_X.md`).
+      # `../`로 시작하는 명시적 상대경로는 md 파일 기준으로 해석 (다운스트림
+      # 호환성 — 일부 기존 파일이 `../harness/...` 형식 사용).
+      case "$rt_path" in
+        /*) continue ;;
+        ../*|./*)
+          resolved="$(dirname "$md_src")/$rt_path"
+          ;;
+        *)
+          # docs/ 루트 기준 (규칙 원본)
+          resolved="docs/$rt_path"
+          ;;
+      esac
+      resolved=$(echo "$resolved" | sed -e 's|/\./|/|g' -e ':a' -e 's|[^/]*/\.\./||' -e 'ta' -e 's|^\./||')
+      resolved_path="${resolved%%#*}"
+      if [ ! -f "$resolved_path" ]; then
+        DEAD_LINKS_FOUND="${DEAD_LINKS_FOUND}\n   $md_src frontmatter relates-to: $rt_path (resolved: $resolved_path, 파일 없음)"
+      fi
+    done <<< "$RT_PATHS"
+  done <<< "$MODIFIED_MD"
+fi
+
 if [ -n "$DEAD_LINKS_FOUND" ]; then
   echo "❌ dead link 감지 (이번 커밋이 유발):" >&2
   echo -e "$DEAD_LINKS_FOUND" >&2
@@ -274,55 +333,46 @@ if [ -d "docs/WIP" ]; then
   fi
 fi
 
-# 5. 위험도 기반 리뷰 게이트 (light 모드일 때만)
-HARNESS_LEVEL=""
-if [ -f "CLAUDE.md" ]; then
-  HARNESS_LEVEL=$(grep -m1 '하네스 강도:' CLAUDE.md 2>/dev/null | sed 's/.*하네스 강도:[[:space:]]*//' | tr -d ' ')
+# 5. 위험도 수집 (audit #2·9, 2026-04-22 — 모드 조건 제거).
+# staging이 stage를 결정하지만, review prompt의 우선순위 가중치는
+# risk_factors가 담당. 모드 불문 항상 수집.
+RISK_REASONS=""
+
+# 5a. 변경 파일 수 5개 이상 (TOTAL_FILES 사전 계산 재사용)
+if [ "$TOTAL_FILES" -ge 5 ]; then
+  RISK_REASONS="${RISK_REASONS}\n   - 변경 파일 ${TOTAL_FILES}개 (≥5)"
 fi
 
-if [ "$HARNESS_LEVEL" = "light" ]; then
-  RISK_REASONS=""
+# 5b. 삭제 라인 50줄 이상 (DELETED_LINES_TOTAL 사전 계산 재사용)
+if [ "$DELETED_LINES_TOTAL" -ge 50 ]; then
+  RISK_REASONS="${RISK_REASONS}\n   - 삭제 ${DELETED_LINES_TOTAL}줄 (≥50)"
+fi
 
-  # 5a. 변경 파일 수 5개 이상 (TOTAL_FILES 사전 계산 재사용)
-  if [ "$TOTAL_FILES" -ge 5 ]; then
-    RISK_REASONS="${RISK_REASONS}\n   - 변경 파일 ${TOTAL_FILES}개 (≥5)"
-  fi
+# 5c. 핵심 설정 파일 변경
+if echo "$STAGED_FILES" | grep -qE '^(CLAUDE\.md|\.claude/settings\.json|\.claude/rules/|\.claude/scripts/)'; then
+  RISK_REASONS="${RISK_REASONS}\n   - 핵심 설정 파일 변경"
+fi
 
-  # 5b. 삭제 라인 50줄 이상 (DELETED_LINES_TOTAL 사전 계산 재사용)
-  if [ "$DELETED_LINES_TOTAL" -ge 50 ]; then
-    RISK_REASONS="${RISK_REASONS}\n   - 삭제 ${DELETED_LINES_TOTAL}줄 (≥50)"
-  fi
+# 5d. 보안 관련 패턴 (파일명 우선, 없으면 diff 본문)
+if echo "$STAGED_FILES" | grep -qiE 'auth|token|secret|key|credential|password' \
+   || echo "$STAGED_DIFF_U0" | grep -qiE '^\+.*(auth|token|secret|key|credential|password)'; then
+  RISK_REASONS="${RISK_REASONS}\n   - 보안 관련 패턴 감지"
+fi
 
-  # 5c. 핵심 설정 파일 변경
-  if echo "$STAGED_FILES" | grep -qE '^(CLAUDE\.md|\.claude/settings\.json|\.claude/rules/|\.claude/scripts/)'; then
-    RISK_REASONS="${RISK_REASONS}\n   - 핵심 설정 파일 변경"
-  fi
+# 5e. 인프라/배포 파일
+if echo "$STAGED_FILES" | grep -qiE '(Dockerfile|docker-compose|\.github/workflows/|\.gitlab-ci|deploy)'; then
+  RISK_REASONS="${RISK_REASONS}\n   - 인프라/배포 파일 변경"
+fi
 
-  # 5d. 보안 관련 패턴 (파일명 우선, 없으면 diff 본문)
-  if echo "$STAGED_FILES" | grep -qiE 'auth|token|secret|key|credential|password' \
-     || echo "$STAGED_DIFF_U0" | grep -qiE '^\+.*(auth|token|secret|key|credential|password)'; then
-    RISK_REASONS="${RISK_REASONS}\n   - 보안 관련 패턴 감지"
-  fi
+# 5f. 단일 파일에서 추가+삭제 동시 30줄 이상 (numstat 재사용)
+COMPLEX=$(echo "$STAGED_NUMSTAT" | awk '$1+0 >= 30 && $2+0 >= 30 {print $3; exit}')
+if [ -n "$COMPLEX" ]; then
+  RISK_REASONS="${RISK_REASONS}\n   - 구조적 수정 감지: ${COMPLEX}"
+fi
 
-  # 5e. 인프라/배포 파일
-  if echo "$STAGED_FILES" | grep -qiE '(Dockerfile|docker-compose|\.github/workflows/|\.gitlab-ci|deploy)'; then
-    RISK_REASONS="${RISK_REASONS}\n   - 인프라/배포 파일 변경"
-  fi
-
-  # 5f. 단일 파일에서 추가+삭제 동시 30줄 이상 (numstat 재사용)
-  COMPLEX=$(echo "$STAGED_NUMSTAT" | awk '$1+0 >= 30 && $2+0 >= 30 {print $3; exit}')
-  if [ -n "$COMPLEX" ]; then
-    RISK_REASONS="${RISK_REASONS}\n   - 구조적 수정 감지: ${COMPLEX}"
-  fi
-
-  if [ -n "$RISK_REASONS" ]; then
-    echo "" >&2
-    echo "⚡ 위험도 감지 — 리뷰 에이전트가 자동 실행됩니다:" >&2
-    echo -e "$RISK_REASONS" >&2
-    echo "" >&2
-    # review 전달용: 한 줄로 압축 (개행 → '; ')
-    RISK_FACTORS_SUMMARY=$(echo -e "$RISK_REASONS" | sed 's/^[[:space:]]*-[[:space:]]*//' | grep -v '^$' | paste -sd';' -)
-  fi
+if [ -n "$RISK_REASONS" ]; then
+  # review 전달용: 한 줄로 압축 (개행 → '; ')
+  RISK_FACTORS_SUMMARY=$(echo -e "$RISK_REASONS" | sed 's/^[[:space:]]*-[[:space:]]*//' | grep -v '^$' | paste -sd';' -)
 fi
 
 # 6. 같은 파일 연속 수정 카운트 (정보용 — 차단·경고 없음)
@@ -365,7 +415,7 @@ while IFS= read -r f; do
     # COMMIT_EDITMSG 방식은 PreToolUse 시점에 직전 커밋 메시지라 쓸 수 없음
     # (incident matcher_false_block_and_readme_overwrite 인근 — review 지적).
     if [ "$HARNESS_EXPAND" = "1" ]; then
-      echo "   (HARNESS_EXPAND=1 감지 — 통과)" >&2
+      [ -n "$VERBOSE" ] && echo "   (HARNESS_EXPAND=1 감지 — 통과)" >&2
     else
       ERRORS=$((ERRORS + 1))
     fi
@@ -577,35 +627,8 @@ fi
 # 셸 정규식은 한글 형태소·문맥 판단 불가 → LLM이 staged diff로 직접 판단.
 # is_starter 정보는 commit 스킬이 review prompt의 "전제 컨텍스트"에 주입한다.
 
-# 9. test-strategist 자동 호출 신호 (self-verify.md 트리거)
-# 새 함수·새 모듈·시그니처 변경이 staged에 포함되면 commit 스킬이 review와
-# 병렬로 test-strategist를 호출한다.
-NEEDS_TEST_STRATEGIST="false"
-TEST_TARGETS=""
-
-# 9a. 신규 코드 파일 (테스트 파일 자체는 제외)
-NEW_CODE_FILES=$(echo "$STAGED_NAME_STATUS" | awk '$1=="A" {print $2}' | \
-  grep -E '\.(ts|tsx|js|jsx|py|go|rs|java|rb)$' | \
-  grep -vE '\.(test|spec)\.|/tests?/|/__tests__/' | head -5)
-
-# 9b. 새 함수·메소드·클래스 라인 추가 (휴리스틱)
-# NEW_FUNC_LINES_FULL: 정보 흐름 누수 #2 해소용 — test-strategist prompt에
-# 인라인 박을 함수 추가 줄 전체 (최대 20줄, 길어지면 truncated 표시).
-# 보고서: docs/WIP/harness--hn_info_flow_leak_audit.md
-NEW_FUNC_LINES_FULL=$(echo "$STAGED_DIFF_U0" | \
-  grep -E '^\+[[:space:]]*(export[[:space:]]+)?(async[[:space:]]+)?(function|def|class|func)[[:space:]]+[a-zA-Z_]' | head -20)
-NEW_FUNC_LINES=$(echo "$NEW_FUNC_LINES_FULL" | head -1)  # 호환성: 기존 감지용 (1줄)
-NEW_FUNC_FILES=""
-if [ -n "$NEW_FUNC_LINES" ]; then
-  NEW_FUNC_FILES=$(echo "$STAGED_FILES" | \
-    grep -E '\.(ts|tsx|js|jsx|py|go|rs|java|rb)$' | \
-    grep -vE '\.(test|spec)\.|/tests?/|/__tests__/' | head -5)
-fi
-
-if [ -n "$NEW_CODE_FILES" ] || [ -n "$NEW_FUNC_FILES" ]; then
-  NEEDS_TEST_STRATEGIST="true"
-  TEST_TARGETS=$(printf "%s\n%s\n" "$NEW_CODE_FILES" "$NEW_FUNC_FILES" | grep -v '^$' | sort -u | paste -sd',' -)
-fi
+# 9. (제거) test-strategist 신호 — audit #7/#15 2026-04-22 폐기.
+# 114초 실측 대비 효용 부족으로 에이전트·호출 로직·pre-check 신호 전부 제거.
 
 # Stage 결정 (v0.17.0 — 5줄 룰, SSOT: .claude/rules/staging.md)
 # 경로 기반 이진 판정. 신호 값(S1~S15)은 review prompt용으로 여전히 유지.
@@ -630,13 +653,21 @@ if [ -z "$RECOMMENDED_STAGE" ]; then
   fi
 fi
 
-# 룰 3: skip 조건 (메타·lock 단독, WIP cleanup)
+# 룰 3: skip 조건 (메타·lock 단독, WIP cleanup, 문서 ≤5줄)
 if [ -z "$RECOMMENDED_STAGE" ]; then
   # S5 단독 (메타 파일만)
   if has_sig S5 && ! (has_sig S7 || has_sig S2 || has_sig S8 || has_sig S14); then
     RECOMMENDED_STAGE="skip"
   # S4 단독 (lock 파일만, S7 미동반)
   elif has_sig S4 && ! has_sig S7; then
+    RECOMMENDED_STAGE="skip"
+  # S6 단독 + ≤5줄 (문서 경미 수정) — audit #17, 2026-04-22.
+  # staging.md "C. 완화"의 자동화. 코드·메타·설정 동반이면 제외.
+  # `.claude/skills/`·`.claude/agents/`는 md지만 동작 규약 정의라 예외 —
+  # 1줄 수정이라도 standard 이상 유지.
+  elif has_sig S6 && [ "$TOTAL_LINES" -le 5 ] \
+       && ! (has_sig S7 || has_sig S2 || has_sig S8 || has_sig S14 || has_sig S11) \
+       && ! echo "$STAGED_FILES" | grep -qE '^\.claude/(skills|agents)/'; then
     RECOMMENDED_STAGE="skip"
   fi
 fi
@@ -676,12 +707,7 @@ if [ $ERRORS -gt 0 ]; then
   echo "multi_domain: ${MULTI_DOMAIN}"
   echo "repeat_count: max=${REPEAT_MAX}"
   echo "recommended_stage: ${RECOMMENDED_STAGE}"
-  echo "needs_test_strategist: ${NEEDS_TEST_STRATEGIST}"
-  echo "test_targets: ${TEST_TARGETS}"
   echo "s1_level: ${S1_LEVEL}"
-  # new_func_lines_b64: 멀티라인이라 base64 인코딩. commit 스킬이 base64 -d로
-  # 복원해 test-strategist prompt에 인라인 박음 (정보 흐름 누수 #2 해소).
-  echo "new_func_lines_b64: $(printf '%s' "$NEW_FUNC_LINES_FULL" | base64 -w0 2>/dev/null || printf '%s' "$NEW_FUNC_LINES_FULL" | base64 | tr -d '\n')"
   exit 2
 fi
 
@@ -707,8 +733,4 @@ echo "domain_grades: ${DOMAIN_GRADES}"
 echo "multi_domain: ${MULTI_DOMAIN}"
 echo "repeat_count: max=${REPEAT_MAX}"
 echo "recommended_stage: ${RECOMMENDED_STAGE}"
-echo "needs_test_strategist: ${NEEDS_TEST_STRATEGIST}"
-echo "test_targets: ${TEST_TARGETS}"
 echo "s1_level: ${S1_LEVEL}"
-# 누수 #2 해소 (위 차단 블록과 동일)
-echo "new_func_lines_b64: $(printf '%s' "$NEW_FUNC_LINES_FULL" | base64 -w0 2>/dev/null || printf '%s' "$NEW_FUNC_LINES_FULL" | base64 | tr -d '\n')"

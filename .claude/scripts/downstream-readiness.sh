@@ -140,7 +140,7 @@ fi
 if [ ! -f ".claude/scripts/pre-commit-check.sh" ]; then
   add_issue "pre-commit-check.sh 없음"
 else
-  for key in 'signals:' 'recommended_stage:' 's1_level:' 'needs_test_strategist:'; do
+  for key in 'signals:' 'recommended_stage:' 's1_level:'; do
     if ! grep -q "echo \"$key" .claude/scripts/pre-commit-check.sh; then
       add_warning "pre-commit-check.sh: '$key' stdout 누락 — 구버전 가능성"
     fi

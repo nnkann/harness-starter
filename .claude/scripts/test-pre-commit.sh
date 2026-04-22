@@ -216,32 +216,7 @@ EOF
 git add src/internal.go
 run_case "T10.1 Go func handler → S8 hit 없음" "signals" "S8" must_not_match
 
-# ─────────────────────────────────────────────────
-# T11. needs_test_strategist — 신규 ts + export 함수
-# ─────────────────────────────────────────────────
-echo "[T11] needs_test_strategist — 신규 코드 + 함수"
-reset
-mkdir -p src
-cat > src/feature.ts <<EOF
-export function calculate(x: number): number {
-  return x * 2;
-}
-EOF
-git add src/feature.ts
-run_case "T11.1 신규 ts + 함수 → needs_test_strategist=true" "needs_test_strategist" "true" must_match
-run_case "T11.2 test_targets 비어있지 않음" "test_targets" "feature\.ts" must_match
-
-# ─────────────────────────────────────────────────
-# T12. needs_test_strategist — 신규 .test.ts (테스트는 면제)
-# ─────────────────────────────────────────────────
-echo "[T12] needs_test_strategist — 신규 .test.ts 면제"
-reset
-mkdir -p tests
-cat > tests/foo.test.ts <<EOF
-export function setup() { return 1; }
-EOF
-git add tests/foo.test.ts
-run_case "T12.1 신규 .test.ts → needs_test_strategist=false" "needs_test_strategist" "false" must_match
+# T11·T12 제거 (audit #7/#15, 2026-04-22) — needs_test_strategist 신호 폐기.
 
 # ─────────────────────────────────────────────────
 # T13. 연속 수정 — 차단·경고 없음 (정보만)
@@ -453,59 +428,7 @@ else
   FAILED_CASES="${FAILED_CASES}\n  - T19.1 성능 회귀"
 fi
 
-# ─────────────────────────────────────────────────
-# T20. tree-hash 캐시 재사용 (memory 재설계 2차, v0.15.0)
-# commit 스킬 Step 5 블록의 동작 검증: 같은 staged 상태에서 두 번째
-# 호출은 저장된 snapshot을 재사용해야 함 (git diff --cached 재호출 0회).
-# ─────────────────────────────────────────────────
-echo "[T20] tree-hash 캐시 재사용"
-reset
-mkdir -p .claude/memory src
-echo "export const foo = 1" > src/foo.ts
-git add src/foo.ts
-
-# 1차: 캐시 miss → 생성
-TREE1=$(git write-tree)
-git diff --cached > .claude/memory/session-staged-diff.txt
-bash .claude/scripts/pre-commit-check.sh > .claude/memory/session-pre-check.txt 2>&1
-echo "$TREE1" > .claude/memory/session-tree-hash.txt
-
-SIZE1=$(wc -c < .claude/memory/session-staged-diff.txt)
-HASH1=$(cat .claude/memory/session-tree-hash.txt)
-
-# 2차: 같은 staged → tree 일치 → 재사용 가능
-TREE2=$(git write-tree)
-if [ "$TREE1" = "$TREE2" ]; then
-  echo "  [PASS] T20.1 동일 staged → tree-hash 일치"
-  PASS=$((PASS + 1))
-else
-  echo "  [FAIL] T20.1 동일 staged인데 tree-hash 불일치 ($TREE1 vs $TREE2)"
-  FAIL=$((FAIL + 1))
-  FAILED_CASES="${FAILED_CASES}\n  - T20.1 tree-hash 동일성"
-fi
-
-# staged 변경 → tree 변경 확인
-echo "export const bar = 2" > src/bar.ts
-git add src/bar.ts
-TREE3=$(git write-tree)
-if [ "$TREE1" != "$TREE3" ]; then
-  echo "  [PASS] T20.2 staged 변경 → tree-hash 변경"
-  PASS=$((PASS + 1))
-else
-  echo "  [FAIL] T20.2 staged 변경됐는데 tree-hash 불변"
-  FAIL=$((FAIL + 1))
-  FAILED_CASES="${FAILED_CASES}\n  - T20.2 tree-hash 민감성"
-fi
-
-# 저장된 snapshot 파일이 모두 비어있지 않음 (write 확인)
-if [ "$SIZE1" -gt 0 ] && [ -s .claude/memory/session-pre-check.txt ] && [ -n "$HASH1" ]; then
-  echo "  [PASS] T20.3 snapshot 3파일 모두 생성"
-  PASS=$((PASS + 1))
-else
-  echo "  [FAIL] T20.3 snapshot 일부 누락 (diff=$SIZE1, hash=$HASH1)"
-  FAIL=$((FAIL + 1))
-  FAILED_CASES="${FAILED_CASES}\n  - T20.3 snapshot 생성"
-fi
+# T20 제거 (audit #5, 2026-04-22) — tree-hash 캐싱 자체가 폐기됨.
 
 # ─────────────────────────────────────────────────
 # T21~T32. 5줄 룰 회귀 (v0.17.0, staging.md 5줄 룰)
@@ -571,7 +494,6 @@ cat > CLAUDE.md <<'EOF'
 - 한국어.
 
 ## 환경
-- 하네스 강도: strict
 - 패키지 매니저:
 EOF
 git add CLAUDE.md
@@ -772,6 +694,338 @@ created: 2026-04-22
 EOF
 git add docs/test_target3/hn_new.md docs/test_cluster3/linker.md
 run_case "T35.3 링크 대상도 같이 staged → 통과" "pre_check_passed" "true" must_match
+
+reset
+
+# ─────────────────────────────────────────────────
+# T36. frontmatter relates-to.path dead link (audit #12)
+# pre-check이 frontmatter의 relates-to.path dead link를 잡아 차단하는지 검증.
+# ─────────────────────────────────────────────────
+
+# T36.1: relates-to.path가 존재 파일 → 통과
+mkdir -p docs/t36_target docs/t36_src
+cat > docs/t36_target/hn_existing.md <<'EOF'
+---
+title: existing target
+domain: harness
+tags: []
+status: completed
+created: 2026-04-22
+---
+# existing
+EOF
+cat > docs/t36_src/hn_refer.md <<'EOF'
+---
+title: refer
+domain: harness
+tags: []
+relates-to:
+  - path: ../t36_target/hn_existing.md
+    rel: extends
+status: in-progress
+created: 2026-04-22
+---
+# refer
+EOF
+git add docs/t36_target/hn_existing.md docs/t36_src/hn_refer.md
+run_case "T36.1 relates-to 존재 파일 → 통과" "pre_check_passed" "true" must_match
+
+reset
+
+# T36.2: relates-to.path가 미존재 파일 → 차단
+mkdir -p docs/t36b
+cat > docs/t36b/hn_broken_rt.md <<'EOF'
+---
+title: broken relates-to
+domain: harness
+tags: []
+relates-to:
+  - path: ../nowhere/hn_ghost.md
+    rel: references
+status: in-progress
+created: 2026-04-22
+---
+# broken rt
+EOF
+git add docs/t36b/hn_broken_rt.md
+run_case "T36.2 relates-to 미존재 파일 → 차단" "pre_check_passed" "false" must_match
+
+reset
+
+# T36.3: relates-to.path 앵커 포함 → 파일 존재하면 통과
+mkdir -p docs/t36c_target docs/t36c_src
+cat > docs/t36c_target/hn_anchor_target.md <<'EOF'
+---
+title: anchor target
+domain: harness
+tags: []
+status: completed
+created: 2026-04-22
+---
+# anchor target
+## section
+EOF
+cat > docs/t36c_src/hn_anchor_refer.md <<'EOF'
+---
+title: anchor refer
+domain: harness
+tags: []
+relates-to:
+  - path: ../t36c_target/hn_anchor_target.md#section
+    rel: references
+status: in-progress
+created: 2026-04-22
+---
+# anchor refer
+EOF
+git add docs/t36c_target/hn_anchor_target.md docs/t36c_src/hn_anchor_refer.md
+run_case "T36.3 relates-to 앵커 포함 + 파일 존재 → 통과" "pre_check_passed" "true" must_match
+
+reset
+
+# T36.4: 대상 md도 같은 커밋에 staged → 통과 (오탐 방지)
+mkdir -p docs/t36d_src docs/t36d_target
+cat > docs/t36d_target/hn_staged.md <<'EOF'
+---
+title: staged target
+domain: harness
+tags: []
+status: in-progress
+created: 2026-04-22
+---
+# staged target
+EOF
+cat > docs/t36d_src/hn_staged_refer.md <<'EOF'
+---
+title: staged refer
+domain: harness
+tags: []
+relates-to:
+  - path: ../t36d_target/hn_staged.md
+    rel: references
+status: in-progress
+created: 2026-04-22
+---
+# staged refer
+EOF
+git add docs/t36d_target/hn_staged.md docs/t36d_src/hn_staged_refer.md
+run_case "T36.4 relates-to 대상도 같이 staged → 통과" "pre_check_passed" "true" must_match
+
+reset
+
+# T36.5: 멀티 항목 relates-to — 한 항목이 dead이면 차단
+mkdir -p docs/t36e_target docs/t36e_src
+cat > docs/t36e_target/hn_ok.md <<'EOF'
+---
+title: ok
+domain: harness
+tags: []
+status: completed
+created: 2026-04-22
+---
+# ok
+EOF
+cat > docs/t36e_src/hn_multi.md <<'EOF'
+---
+title: multi
+domain: harness
+tags: []
+relates-to:
+  - path: ../t36e_target/hn_ok.md
+    rel: extends
+  - path: ../t36e_target/hn_missing.md
+    rel: references
+status: in-progress
+created: 2026-04-22
+---
+# multi
+EOF
+git add docs/t36e_target/hn_ok.md docs/t36e_src/hn_multi.md
+run_case "T36.5 relates-to 멀티 항목 중 1건 dead → 차단" "pre_check_passed" "false" must_match
+
+reset
+
+# T36.6: rel만 있고 path 없음 → skip (파싱 오류 회피, 통과)
+mkdir -p docs/t36f
+cat > docs/t36f/hn_norelatespath.md <<'EOF'
+---
+title: no relates path
+domain: harness
+tags: []
+relates-to:
+  - rel: references
+status: in-progress
+created: 2026-04-22
+---
+# no path
+EOF
+git add docs/t36f/hn_norelatespath.md
+run_case "T36.6 path 없는 relates-to 항목 → skip/통과" "pre_check_passed" "true" must_match
+
+reset
+
+# T36.7: relates-to docs/ 루트 기준 상대 경로 (rules/docs.md 원본 규칙)
+mkdir -p docs/t36g_target docs/t36g_src
+cat > docs/t36g_target/hn_rootabs.md <<'EOF'
+---
+title: root abs target
+domain: harness
+tags: []
+status: completed
+created: 2026-04-22
+---
+# root abs
+EOF
+cat > docs/t36g_src/hn_rootabs_refer.md <<'EOF'
+---
+title: root abs refer
+domain: harness
+tags: []
+relates-to:
+  - path: t36g_target/hn_rootabs.md
+    rel: extends
+status: in-progress
+created: 2026-04-22
+---
+# refer
+EOF
+git add docs/t36g_target/hn_rootabs.md docs/t36g_src/hn_rootabs_refer.md
+run_case "T36.7 relates-to docs/ 루트 기준 경로 → 통과" "pre_check_passed" "true" must_match
+
+reset
+
+# T36.8: relates-to docs/ 루트 기준 + 미존재 → 차단
+mkdir -p docs/t36h
+cat > docs/t36h/hn_rootabs_broken.md <<'EOF'
+---
+title: root abs broken
+domain: harness
+tags: []
+relates-to:
+  - path: nowhere/hn_ghost.md
+    rel: references
+status: in-progress
+created: 2026-04-22
+---
+# broken
+EOF
+git add docs/t36h/hn_rootabs_broken.md
+run_case "T36.8 relates-to docs/ 루트 기준 미존재 → 차단" "pre_check_passed" "false" must_match
+
+reset
+
+# ─────────────────────────────────────────────────
+# T38. 검사 A 경로 해석 정밀화 (근본 수정 2026-04-22)
+# basename grep 후보 중 실제 링크 경로가 삭제 경로와 일치할 때만 dead.
+# ─────────────────────────────────────────────────
+
+# T38.1: 같은 basename 다른 경로 → 오탐 없음
+mkdir -p docs/t38a_a docs/t38a_b
+cat > docs/t38a_a/hn_sibling.md <<'EOF'
+---
+title: a sibling
+domain: harness
+tags: []
+status: completed
+created: 2026-04-22
+---
+# A
+EOF
+cat > docs/t38a_b/hn_sibling.md <<'EOF'
+---
+title: b sibling
+domain: harness
+tags: []
+status: completed
+created: 2026-04-22
+---
+# B
+EOF
+cat > docs/t38a_a/hn_ref_to_a.md <<'EOF'
+---
+title: ref to a
+domain: harness
+tags: []
+status: completed
+created: 2026-04-22
+---
+# ref
+- [A](./hn_sibling.md)
+EOF
+git add docs/t38a_a/hn_sibling.md docs/t38a_b/hn_sibling.md docs/t38a_a/hn_ref_to_a.md
+git commit -q -m "prep T38 baseline" 2>/dev/null
+
+# 이제 b의 sibling만 삭제 — a의 ref는 **유지되어야** (오탐 방지)
+git rm -q docs/t38a_b/hn_sibling.md 2>/dev/null
+run_case "T38.1 같은 basename 다른 경로 → 오탐 없음 (통과)" "pre_check_passed" "true" must_match
+
+reset
+
+# ─────────────────────────────────────────────────
+# T37. S6 단독 + ≤5줄 → Stage 0 자동화 (audit #17)
+# staging.md "C. 완화"의 자동화. 문서 경미 수정은 skip.
+# ─────────────────────────────────────────────────
+
+# T37.1: docs/에서 1줄 수정 → skip
+mkdir -p docs/guides
+cat > docs/guides/hn_probe.md <<'EOF'
+---
+title: probe
+domain: harness
+tags: []
+status: completed
+created: 2026-04-22
+---
+# probe
+기존 내용.
+EOF
+git add docs/guides/hn_probe.md
+git commit -q -m "prep T37 baseline" 2>/dev/null
+
+# 1줄만 추가
+echo "추가 한 줄." >> docs/guides/hn_probe.md
+git add docs/guides/hn_probe.md
+run_case "T37.1 docs 1줄 수정 → skip" "recommended_stage" "skip" must_match
+
+reset
+
+# T37.2: docs/에서 10줄 수정 → standard (S6 ≤5줄 조건 미충족)
+mkdir -p docs/guides
+cat > docs/guides/hn_probe2.md <<'EOF'
+---
+title: probe2
+domain: harness
+tags: []
+status: completed
+created: 2026-04-22
+---
+# probe2
+EOF
+git add docs/guides/hn_probe2.md
+git commit -q -m "prep T37.2 baseline" 2>/dev/null
+
+# 10줄 추가
+for i in $(seq 1 10); do echo "줄 ${i}" >> docs/guides/hn_probe2.md; done
+git add docs/guides/hn_probe2.md
+run_case "T37.2 docs 10줄 수정 → standard (≤5줄 아님)" "recommended_stage" "standard" must_match
+
+reset
+
+# T37.3: docs + 코드 동반 → standard (단독 아님)
+mkdir -p docs/guides src
+cat > docs/guides/hn_probe3.md <<'EOF'
+---
+title: probe3
+domain: harness
+tags: []
+status: completed
+created: 2026-04-22
+---
+# probe3
+EOF
+echo "export const foo = 1" > src/foo.ts
+git add docs/guides/hn_probe3.md src/foo.ts
+run_case "T37.3 docs 1줄 + 코드 동반 → deep/standard (skip 아님)" "recommended_stage" "skip" must_not_match
 
 reset
 

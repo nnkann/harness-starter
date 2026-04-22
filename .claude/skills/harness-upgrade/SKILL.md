@@ -400,18 +400,15 @@ v0.7.0에서 단일 `bash-guard.sh`로 통합됨 → 구 매처는 찌꺼기.
 ### Step 9. docs/ 정합성 검증
 
 업그레이드로 docs/ 관련 규칙(docs.md, 폴더 구조, 프론트매터 스펙)이 변경되었을 수 있다.
-**docs-manager 스킬을 호출**하여:
-- 프론트매터 검증 (새 필수 필드 추가 등)
-- clusters/ 정합성 확인
-- relates-to 경로 유효성 확인
+`.claude/scripts/docs-ops.sh`로 검증:
 
-호출 시 전달 규약 (누수 #3 해소):
-- `trigger`: "harness-upgrade Step 9 — Step 4·5·6에서 docs/ 파일 변경됨"
-- `intent`: `validate` (기본) 또는 `update-index` (Step 5/6에서 신규 파일 이식 시)
-- `scope: focused`, `files`: Step 4·5·6에서 변경/신규/이동된 docs 파일 목록
-  (각 파일에 action·domain·status 명시)
-- `context.prior_steps`: "Step 4 자동 덮어쓰기 N개, Step 5 3-way merge M개,
-  Step 6 신규 이식 K개 완료. 본 Step 9는 정합성 검증·INDEX 갱신만"
+```bash
+bash .claude/scripts/docs-ops.sh validate           # 프론트매터·약어 검증
+bash .claude/scripts/docs-ops.sh verify-relates     # relates-to 경로 유효성
+bash .claude/scripts/docs-ops.sh cluster-update     # clusters/ 자동 재생성
+```
+
+(audit #10, 2026-04-22: docs-manager 스킬 폐기 후 `docs-ops.sh`로 이관)
 - 업그레이드가 docs/ 규칙 자체를 바꿔 전수 검증이 필요하다고 판단되면
   `scope: full` + `intent: full-refresh`로 명시 (드문 경우)
 

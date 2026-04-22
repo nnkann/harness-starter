@@ -2,7 +2,7 @@
 name: advisor
 description: >-
   멀티 에이전트 판단 엔진 스킬. PM(orchestrator) 에이전트가 specialist 풀
-  (researcher/codebase-analyst/risk-analyst/threat-analyst/performance-analyst/test-strategist)
+  (researcher/codebase-analyst/risk-analyst/threat-analyst/performance-analyst)
   에서 필요한 것만 골라 병렬 호출하고, 의사결정 프레임 라이브러리
   (Weighted Matrix·Pre-mortem·Trade-off·Expected Value·ADR·Reversibility)로
   판단 경로·충돌 해소·뒤집힐 조건을 명시한다.

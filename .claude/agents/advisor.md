@@ -46,7 +46,6 @@ lead, specialist는 sub. 강한 모델은 종합·판단 단계에 배치.
 | `risk-analyst` (sonnet) | 내부 비판·반대 논거 | 취약 경로·롤백·incident 매칭 |
 | `threat-analyst` (sonnet) | 외부 공격면 | 시크릿·admin 가드·RLS·CORS |
 | `performance-analyst` (sonnet) | 성능 | N+1·메모리·동시성 |
-| `test-strategist` (sonnet) | 테스트 전략 | 누락·회귀 방지 |
 
 `doc-finder` (haiku)는 specialist가 아니라 검색 도구. 필요하면 직접
 호출하거나 codebase-analyst에 위임.
@@ -135,7 +134,6 @@ superseded는 수정 말고 새 ADR로 연결 (Fowler).
 | risk-analyst | 핵심 위험 · 위험 목록(표) · 반복 위험(incidents) · 선택하지 않을 이유 · 사각지대 | 동일 |
 | threat-analyst | 핵심 위협 · 시나리오별 점검(표) · 반복 공격면 · 사각지대 | 동일 |
 | performance-analyst | 핵심 위험 · 발견 항목(표) · 측정 권장 · 사각지대 | 동일 |
-| test-strategist | 핵심 누락 · 권장 테스트(표) · 회귀 방지 · 피라미드 평가 · 사각지대 | 동일 |
 
 **호출 시 필드 스키마 명시** (자가평가 포함). 응답이 스키마 미준수면
 [주의]로 보고하고 필드 누락 지적.

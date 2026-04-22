@@ -48,20 +48,22 @@
 
 ## 동적 snapshot (`session-*.txt`)
 
-commit → review → 재commit 사이클에서 diff·pre-check 결과 재사용.
+commit 스킬이 hook·외부 도구에 전달할 필요가 있을 때만 쓰는 1개 파일.
+commit 내부 경로는 Bash 변수 재사용 (파일 I/O 대기 없음).
 
 | 파일 | 내용 | write | read |
 |------|------|-------|------|
-| `session-staged-diff.txt` | `git diff --cached` | commit Step 5 직전 | Step 6·7에서 Read |
-| `session-pre-check.txt` | pre-check stdout 14 keys | Step 5 직후 | Step 7 review prompt |
-| `session-tree-hash.txt` | `git write-tree` 결과 | Step 5 직전 | 캐시 유효성 판정 |
+| `session-pre-check.txt` | pre-check stdout (recommended_stage 등) | Step 5 직후 background (`&`) | git hook이 커밋 메시지에 주입할 때 |
 
-**확장 금지**: 3개 외 추가 원할 시 `hn_memory.md` 수정 후 재합의.
+**폐기 (audit #5, 2026-04-22)**:
+- `session-staged-diff.txt`: Bash 변수 `STAGED_DIFF`로 대체
+- `session-tree-hash.txt`: tree-hash 캐싱 자체 폐기 (I/O 대기 무의미)
+
+**확장 금지**: 1개 외 추가 원할 시 `hn_memory.md` 수정 후 재합의.
 
 **라이프사이클**:
 - commit 성공 → 스킬 끝에서 `rm -f .claude/memory/session-*.txt`
-- commit 실패 → 유지. 재시도 시 tree-hash 일치하면 재사용
-- tree-hash 불일치 → 즉시 폐기 후 재생성 (stale 원천 차단)
+- commit 실패·재시도 → pre-check 재실행이 기본. 파일은 hook용 참조만
 
 ## 트리거 3개 (확정)
 

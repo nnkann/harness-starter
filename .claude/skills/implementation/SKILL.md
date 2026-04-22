@@ -20,7 +20,7 @@ description: >-
 1. 트리거 시점 판단 — "지금이 작업 시작 시점"
 2. 라우팅 — 작업에 어떤 specialist가 필요한가
 3. WIP 문서 관리 — 작업 추적 단위
-4. CPS 매핑 — 작업 ↔ Problem 연결 (갱신은 docs-manager/write-doc)
+4. CPS 매핑 — 작업 ↔ Problem 연결 (갱신은 `docs-ops.sh` 또는 write-doc)
 5. 실행 흐름 조율 — Step 진행·escalate·완료 신호
 
 ## 위임 대상 (여기서 하지 않는 것)
@@ -33,10 +33,9 @@ description: >-
 | 접근법 비교·권고 종합 | advisor |
 | 위험·반대 논거 | risk-analyst |
 | 성능 분석 | performance-analyst |
-| 테스트 전략 | test-strategist |
 | 중복 함수 확인 | check-existing 스킬 |
 | 커밋 전 검증 | review (커밋 시점) |
-| 문서 정합성 | docs-manager |
+| 문서 정합성 | `.claude/scripts/docs-ops.sh` |
 
 **판단·분석·검증 로직을 이 문서에 박지 마라.** 라우터는 라우팅만 한다.
 
@@ -161,7 +160,7 @@ SSOT 문서의 `## 메모`에 기록.
 ```
 
 - `{대상폴더}--`: WIP 라우팅 태그 (decisions / guides / incidents / harness).
-  commit 시 docs-manager가 제거하고 본 폴더로 이동
+  commit 시 `docs-ops.sh move`가 제거하고 본 폴더로 이동
 - `abbr`: naming.md "도메인 약어" 표의 값 (도메인당 1개)
 - `slug`: snake_case 의미명. 주제 자체 (세분화는 `tags:` 프론트매터로)
 - **날짜 suffix 전면 금지** (incidents 포함). 발생 시점은 프론트매터
@@ -220,7 +219,6 @@ created: {YYYY-MM-DD}
    - 기존 패턴 영향 의심 → codebase-analyst
    - 위험 결정 직전 → risk-analyst
    - 성능 민감 변경 → performance-analyst
-   - 테스트 전략 공백 → test-strategist
 3. **단위마다 self-verify** — 린터/구문 기본, 필요 시 `.claude/scripts/pre-commit-check.sh`
 4. **단위 완료 시 WIP 갱신** — `## 결정 사항` / `## 메모`에 기록. specialist
    응답은 **원문 보존** (요약 금지 — 근거 유실). 핸드오프 계약의 Preserve·

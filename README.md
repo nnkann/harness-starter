@@ -42,7 +42,7 @@ CLAUDE.md                        에이전트 루트 인스트럭션 (≤30줄)
 ├── settings.json                hooks 정의 (단일 bash-guard.sh로 통합)
 ├── HARNESS.json                 하네스 메타 (버전, 프로파일, is_starter, installed_from_ref)
 ├── rules/                       자동 로드 규칙 (12개)
-│   ├── self-verify.md           [상시] 작업 중 자기 검증 + test-strategist·pipeline-design 체크리스트 연계
+│   ├── self-verify.md           [상시] 작업 중 자기 검증 + pipeline-design 체크리스트 연계
 │   ├── coding.md                [상시] 코딩 컨벤션 (플레이스홀더)
 │   ├── naming.md                [paths] 네이밍 + 도메인 등급 + cluster 자동 매핑
 │   ├── docs.md                  [상시] 문서 구조 + 프론트매터 + 탐색 규칙 + completed 차단 키워드
@@ -64,7 +64,6 @@ CLAUDE.md                        에이전트 루트 인스트럭션 (≤30줄)
 │   ├── eval/                    건강 검진 (--quick/--harness/--surface/--deep)
 │   ├── advisor/                 멀티 에이전트 판단 엔진 (specialist 풀 + 의사결정 프레임)
 │   ├── check-existing/          기존 코드 중복 확인
-│   ├── docs-manager/            docs/ 정합성 + 프론트매터 + clusters + completed 차단 게이트
 │   ├── write-doc/               문서 단독 생성 (incidents symptom-keywords 강제)
 │   ├── naming-convention/       네이밍 + 도메인 등급 설정
 │   └── coding-convention/       코딩 컨벤션 설정
@@ -75,7 +74,6 @@ CLAUDE.md                        에이전트 루트 인스트럭션 (≤30줄)
 │   ├── researcher.md            외부 자료 조사 (sonnet)
 │   ├── risk-analyst.md          비판자·devil's advocate (sonnet)
 │   ├── performance-analyst.md   성능·N+1·동시성 (sonnet)
-│   ├── test-strategist.md       테스트 전략·누락 분석 (sonnet)
 │   ├── threat-analyst.md        외부 위협 분석 (public repo·번들·RLS bypass, sonnet)
 │   └── review.md                커밋 전 diff 단위 검증 (2축 + 회귀 알파 + 조기 중단, sonnet)
 └── scripts/                     hook 스크립트 + 회귀 테스트 (11개)
@@ -86,10 +84,12 @@ CLAUDE.md                        에이전트 루트 인스트럭션 (≤30줄)
     ├── write-guard.sh           Write 가드
     ├── bash-guard.sh            Bash 단일 hook (jq 토큰 파싱 — 공식 권장 패턴)
     ├── validate-settings.sh     settings.json schema 검증
-    ├── pre-commit-check.sh      커밋 전 정적 검사 + staging 신호 감지 (14 keys stdout, --lint-only 모드, dead link 증분)
+    ├── pre-commit-check.sh      커밋 전 정적 검사 + staging 신호 감지 (dead link 증분, frontmatter relates-to 검증, S6 ≤5줄 skip)
     ├── downstream-readiness.sh  다운스트림 자가 진단 (silent fail 6항목)
-    ├── test-pre-commit.sh       회귀 테스트 (59 케이스, 5줄 룰 T21~T32 + 린터 ENOENT T33·T34 + dead link T35 포함)
-    └── test-bash-guard.sh       회귀 테스트 (14 케이스, 공식 hook JSON 입력)
+    ├── docs-ops.sh              docs/ 관리 스크립트 (validate/move/reopen/cluster-update/verify-relates)
+    ├── harness-version-bump.sh  업스트림 버전 범프 제안 (is_starter 가드 내장)
+    ├── test-pre-commit.sh       회귀 테스트 (62 케이스, 5줄 룰·ENOENT·dead link T35·T36·S6 T37 포함)
+    └── test-bash-guard.sh       회귀 테스트 (18 케이스, 강제 경유 G1~G5 포함)
 scripts/                         유틸 스크립트 (하네스 외부)
 └── install-secret-scan-hook.sh  pre-commit 시크릿 스캔 훅 설치 (gitleaks 우선, grep 폴백)
 docs/
@@ -191,7 +191,7 @@ CPS 문서는 `docs/guides/project_kickoff_YYMMDD.md`에 저장된다. `docs/gui
 
 폴더는 문서의 **성격** (왜/어떻게/무엇이 깨졌나), `domain`은 문서의 **의미**를 담당. 이중 분류.
 
-`completed` 전환 차단 키워드: `TODO`, `FIXME`, `후속`, `미결`, `미결정`, `추후`, `나중에`, `별도로`. docs-manager가 본문에서 자동 검사 (회고 섹션은 면제).
+`completed` 전환 차단 키워드: `TODO`, `FIXME`, `후속`, `미결`, `미결정`, `추후`, `나중에`, `별도로`. `docs-ops.sh move`가 본문에서 자동 검사 (회고 섹션은 면제).
 
 ## Review 자동 단계화
 

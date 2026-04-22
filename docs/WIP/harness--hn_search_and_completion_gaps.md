@@ -2,6 +2,9 @@
 title: 하네스 구멍 정리 + 리뷰 구조 재확정
 domain: harness
 tags: [search, ide-context, incident-doc, completion-gate, review-agent]
+relates-to:
+  - path: WIP/harness--hn_commit_process_audit.md
+    rel: references
 status: in-progress
 created: 2026-04-18
 updated: 2026-04-22
@@ -11,6 +14,10 @@ updated: 2026-04-22
 
 - **2026-04-19 완료분**: Part A·B는 반영됨. Part A 후속은 `harness--hn_commit_step2_partial_completion.md`로 분기됨.
 - **2026-04-22 재개**: Part E 신설 — write-doc·implementation 스킬의 **SSOT 선행 탐색 구멍** (본 세션 v0.18.4 커밋 직후 발견).
+- **2026-04-22 SSOT 이관**: 미결 항목의 결정·추적은 상위 감사 문서
+  `WIP/harness--hn_commit_process_audit.md`가 담당. 본 문서는 이력 기록으로 유지.
+  - Part E 구멍 5 (commit 스킬 우회) → audit 항목 #8
+  - Part E 구멍 2 잔여 (harness-init/adopt/upgrade 세션 파일명) → audit 항목 #16
 
 ## ✅ 완료 (2026-04-19)
 
@@ -188,77 +195,27 @@ v0.18.5 커밋 review 참고 사항에서 언급: `implementation/SKILL.md` Step
 - commit Step 2.3 → `{abbr}_{slug}` + "날짜 suffix 전면 금지" 명시
 - docs-manager Step 2.5·317 예시 → `{abbr}_{slug}`
 
-**깊은 판단 필요 — 미처리**:
+**깊은 판단 필요 — 미처리**: → **audit #16으로 이관**
+(`WIP/harness--hn_commit_process_audit.md` 항목 16). harness-init/adopt/
+upgrade 세션 파일명 규칙 결정은 거기서 추적.
 
-harness-init/adopt/upgrade의 세션·마이그레이션 파일은 "같은 주제 반복"
-원칙(naming.md)과 충돌 가능. 각 세션·각 버전이 **독립 리포트 가치**를
-가지는 특수 케이스:
+### 구멍 5 — commit 스킬 우회 가능 (→ audit #8로 이관)
 
-- `project_kickoff_{YYMMDD}.md`: 프로젝트 개시 시점 1회만. 단일 파일
-  `project_kickoff.md`로 충분? 아니면 여러 번 재실행 가능?
-- `adopt-session_{YYMMDD}.md`: 이식 세션마다 독립 결정. 재개·재적용 가능.
-  세션당 1파일 vs 누적 1파일?
-- `migration_v{X}_{YYMMDD}.md`: `{X}`가 버전이라 이미 분리 키. 날짜까지
-  붙일 필요?
+v0.18.7 발견. 증상·구조적 원인·해결 방향은 **`WIP/harness--hn_commit_process_audit.md`
+항목 #8 (커밋 발화 강제 경유 — bash-guard 차단 + 환경변수 표시)** 으로
+이관. 본 문서는 발견 시점 이력만 남김.
 
-**판단 옵션**:
-- A. 같은 주제 1파일 + `## 변경 이력` 섹션 (naming.md 원칙 유지)
-- B. naming.md에 "세션 리포트·시점 기록" 예외 조항 추가
-- C. `session_{N}` 같은 순차 번호로 대체 (날짜 대신 세션 ID)
+**발견 경로 요약**: v0.18.4~v0.18.7 중 스킬 호출은 v0.18.4·v0.18.5 뿐.
+v0.18.6·v0.18.7은 수동 절차 + Bash `git commit`. `git pre-commit` hook은
+`HARNESS_DEV=1` 체크만 수행 — pre-check·review 방어선 전체 우회 가능.
 
-이 3개 스킬은 실제로 잘 안 쓰이는 초기 플로우라 **다음 실측(harness-adopt
-실행 사례) 기다린 뒤 결정** — 지금 선제 변경은 추측 수정 위험.
+**구조적 동형** (Part E 구멍 1·4와 같은 패턴):
 
-### 구멍 5 — commit 스킬 우회 가능 (🔲 기록만, v0.18.7 발견)
-
-#### 증상
-
-v0.18.7 커밋 시 사용자 관찰: "커밋 스킬도 이제 패스하네". 실측 확인:
-- `git pre-commit` hook은 `HARNESS_DEV=1` 체크만. pre-check·review 미호출
-- commit 스킬을 거치지 않고 `HARNESS_DEV=1 git commit` 직접 호출하면 안전장치 통째로 우회
-- v0.18.4~v0.18.7에서 제가 스킬 호출한 건 v0.18.4·v0.18.5 뿐. v0.18.6·v0.18.7은 수동 절차 + Bash `git commit`
-- 이번 케이스는 제가 **스킬 절차를 수동으로 따라 돌렸기 때문에** 결과적으로 pre-check·review 모두 실행됨. 하지만 **규약 위반**
-
-#### 구조적 원인 (Part E 구멍 1·4와 동형)
-
-| 구멍 | 우회 대상 | 우회 경로 | 3층 방어 필요 위치 |
-|------|----------|----------|-------------------|
-| 1 (v0.18.5) | SSOT 선행 탐색 | Write로 즉흥 문서 생성 | CLAUDE.md `<important if>` |
-| 4 (v0.18.6) | dead link 감지 | review만 돌다 block | pre-check Step 3.5 |
-| **5** (v0.18.7) | **pre-check·review 전체** | **Bash `git commit` 직접** | **git hook + CLAUDE.md** |
-
-hook이 `HARNESS_DEV=1`만 체크하는 구조는 **"하네스 개발 보호" 1차 목적**
-에만 충실하고, **pre-check·review 방어선은 commit 스킬에만** 있음.
-Claude가 스킬을 건너뛰면 전부 miss.
-
-#### 해결 방향 (기록 — 다음 작업)
-
-3층 방어 패턴 재사용:
-
-1. **CLAUDE.md** `<important if="커밋·푸시 실행 전">` 추가 — "commit 스킬
-   또는 스킬 절차(pre-check·review)를 거쳐야 함. Bash `git commit` 직접
-   호출 금지"
-2. **git pre-commit hook 강화** — `HARNESS_DEV=1` 체크 유지 + pre-check
-   호출 추가. 이중 실행 문제(스킬 Step 5에서 이미 pre-check)는 tree-hash
-   캐시로 완화 가능 (이미 구현됨). 또는 환경변수로 "스킬 경유 완료" 표시
-3. **commit 스킬 SKILL.md** — 이미 절차 있음 (변경 불필요)
-
-#### 판단 필요 (실측 대기)
-
-- hook에서 pre-check 재실행 시 **2회 돌아감** (스킬에서 1회 + hook에서 1회).
-  tree-hash 캐시가 있어도 overhead 있음. 사용자 체감 속도 악화 가능성.
-- 아니면 hook이 "commit 스킬 경유 여부"를 감지하는 환경변수 (`HARNESS_COMMIT_SKILL=1`)
-  로 우회 허용 + 그것이 없으면 pre-check 강제
-- 선택지 A/B/C 실측 필요. 지금 선제 수정은 추측 수정 위험
-
-#### 지금 이 커밋(v0.18.7)은 유효한가?
-
-- 제가 수동으로 스킬 Step 0(lint)·Step 5(pre-check)·Step 7(review deep)
-  전부 돌림. dead link·pre-check pass·review pass 확인
-- 규약 위반은 **절차 경로** (스킬 호출 대신 수동 실행). 결과물 자체는 정상
-- 기록상 이후 이런 케이스 재발 시 "스킬 안 거친 커밋" 추적 어려움.
-  `🔍 review: deep | signals: ...` 로그 라인은 스킬이 넣는데 Bash 직접
-  커밋 시 누락될 수 있음. 이번엔 내가 수동으로 넣었지만 Claude가 놓칠 위험
+| 구멍 | 우회 대상 | 방어 위치 |
+|------|----------|-----------|
+| 1 (v0.18.5) | SSOT 선행 탐색 | CLAUDE.md `<important if>` |
+| 4 (v0.18.6) | dead link 감지 | pre-check Step 3.5 |
+| 5 (v0.18.7) | pre-check·review 전체 | bash-guard + 환경변수 (audit #8) |
 
 ### 구멍 2b — (완료) implementation SSOT 선행 탐색 가설 (v0.18.5에서 해소)
 

@@ -49,6 +49,178 @@ fail을 막는다.
 
 ---
 
+## v0.20.0 — 커밋 프로세스 감사 P2 반영 (audit #4·#8·#10·#17)
+
+### 자동 적용 (스킬이 처리)
+
+- `.claude/scripts/harness-version-bump.sh` **신설** (audit #4): 하네스
+  스타터 전용 버전 체크 스크립트. is_starter 가드 내장 — 다운스트림은
+  즉시 exit 0. staged 변경 분석해 `version_bump: minor|patch|none` 출력
+  (안내만, 실제 범프는 Claude/사용자 수동)
+- `.claude/skills/commit/SKILL.md` Step 3: 기존 35줄 설명 → `bash .claude/
+  scripts/harness-version-bump.sh` 호출 + 범프 기준 표만 유지
+- `.claude/scripts/bash-guard.sh` **검증 4 신설** (audit #8): `git commit`
+  직접 호출 차단. `HARNESS_COMMIT_SKILL=1` or `HARNESS_DEV=1` prefix 없으면
+  exit 2. `--help`·`--dry-run` 읽기 전용은 통과
+- `.claude/scripts/test-bash-guard.sh` G1~G5 5케이스 신설 (18/18 통과)
+- `.claude/skills/commit/SKILL.md` 커밋 실행 라인에 `HARNESS_COMMIT_SKILL=1`
+  prefix 명시
+- `.claude/skills/docs-manager/` **삭제** (audit #10): 332줄 스킬 폐기
+- `.claude/scripts/docs-ops.sh` **신설** (audit #10): 5개 서브커맨드
+  - `validate`: 프론트매터·약어 검증
+  - `move <wip-file>`: WIP 접두사 기반 이동 + status=completed +
+    차단 키워드 검사
+  - `reopen <completed-file>`: 완료 문서를 WIP로 되돌림 + status=in-progress
+  - `cluster-update`: naming.md 약어 표 기반 `docs/clusters/*.md` 자동 재생성
+  - `verify-relates`: 전수 relates-to.path 정합성 검사
+- `.claude/HARNESS.json` `skills` 목록에서 `docs-manager` 제거
+- 호출자 모두 포인터 교체:
+  - `.claude/skills/commit/SKILL.md` Step 2
+  - `.claude/skills/implementation/SKILL.md`
+  - `.claude/skills/harness-init/SKILL.md` Step 7
+  - `.claude/skills/harness-adopt/SKILL.md` Step 5g
+  - `.claude/skills/harness-upgrade/SKILL.md` Step 9
+  - `.claude/agents/review.md` 주석
+  - `.claude/agents/doc-finder.md` SKIP 섹션
+  - `.claude/rules/naming.md` / `.claude/rules/docs.md`
+- `.claude/scripts/pre-commit-check.sh` 룰 3 S6 자동화 (audit #17):
+  "S6 단독 + TOTAL_LINES ≤5 → skip". 단 `.claude/skills/`·`agents/`
+  경로는 예외 (1줄 수정도 동작 규약 변경 가능, standard 유지)
+- `.claude/scripts/pre-commit-check.sh` dead link 검사 2종 **근본 수정**
+  (v0.20.0 커밋 실측으로 발견):
+  - 검사 A: basename grep 결과를 **경로 해석 후 실제 삭제 경로와 일치**
+    할 때만 dead 판정 (이전: basename 일치만으로 dead → 같은 이름 다른
+    경로 md 오탐)
+  - 검사 C: `rules/docs.md` 원본 규칙(`docs/` 루트 기준)에 맞춰 해석
+    (이전: `dirname(file)/rt_path` → WIP 파일 기준 해석 오류)
+- `.claude/scripts/test-pre-commit.sh` T36.7·T36.8·T37(3건)·T38.1 추가
+  (65/65 통과)
+
+### 수동 액션 (사용자 필수)
+
+- [ ] **커밋 시 `HARNESS_COMMIT_SKILL=1` prefix 필수화**. 이전에 Bash
+      `git commit`을 직접 호출하던 흐름은 bash-guard 검증 4로 차단됨.
+      이스케이프는 `HARNESS_DEV=1` (긴급 시에만)
+- [ ] **docs-manager 스킬을 직접 Skill tool로 호출하던 커스텀 흐름이
+      있으면 `docs-ops.sh` 서브커맨드로 교체**. 서브커맨드 매핑:
+  - `docs-manager --validate` → `bash .claude/scripts/docs-ops.sh validate`
+  - `docs-manager --move` → `bash .claude/scripts/docs-ops.sh move <file>`
+  - `docs-manager --reopen` → `bash .claude/scripts/docs-ops.sh reopen <file>`
+  - `docs-manager` cluster 갱신 → `bash .claude/scripts/docs-ops.sh cluster-update`
+  - `docs-manager` 관계 검증 → `bash .claude/scripts/docs-ops.sh verify-relates`
+- [ ] 기존 `docs/clusters/*.md`에 frontmatter가 없으면 `docs-ops.sh
+      cluster-update` 한 번 실행해 재생성 (validate가 "title 누락"
+      경고할 것)
+- [ ] 다운스트림 CPS 로직이 docs-manager Step 6에 의존했다면 implementation·
+      write-doc 상위 흐름에서 처리됐는지 확인 (audit #10 재정의 — CPS는
+      스크립트화된 반영만 담당)
+
+### 검증
+
+- `bash .claude/scripts/test-pre-commit.sh` → 62/62 통과
+- `bash .claude/scripts/test-bash-guard.sh` → 18/18 통과
+- `bash .claude/scripts/docs-ops.sh validate` → 기존 docs/ 규칙 위반
+  감지 (clusters frontmatter 누락 등)
+- `bash .claude/scripts/docs-ops.sh verify-relates` → 기존 relates-to
+  경로 오류 보고 (실측상 60+건 존재 — 별도 정리 대상)
+- `grep -r "docs-manager" .claude/` → 폐기 안내 주석 외 0 hit
+
+### 회귀 위험
+
+- **`git commit` 직접 호출이 전부 차단됨**. 자동화 스크립트·CI에서
+  prefix 없이 `git commit`을 호출하면 exit 2. 전부 `HARNESS_COMMIT_SKILL=1`
+  또는 `HARNESS_DEV=1` 추가 필요
+- docs-manager 스킬을 Skill tool로 명시 호출하던 흐름은 전부 깨짐.
+  스킬이 존재하지 않음
+- S6 자동화로 docs-only ≤5줄 커밋이 skip됨. 이전에 standard였던
+  경미 문서 수정은 review 호출 없이 바로 커밋. `.claude/skills/`·
+  `agents/` 제외 조건은 upstream 격리 T37.3으로 검증됨
+- docs-ops.sh 스크립트는 Windows Git Bash 환경에서 개발됨. Linux/macOS
+  sed 호환성은 `-i.bak` 패턴으로 방어했으나 미테스트
+- 실측 사례: 기존 `docs/clusters/harness.md`·`meta.md`에 frontmatter
+  없음 → validate 오류. cluster-update로 재생성 권장
+
+---
+
+## v0.19.0 — 커밋 프로세스 감사 반영 (audit #1·#3·#5·#6·#7·#12·#14·#15·#2·9)
+
+### 자동 적용 (스킬이 처리)
+
+- `.claude/scripts/pre-commit-check.sh`
+  - `--lint-only` 모드 제거 (audit #1). 린트+전체 검사 1회로 통합
+  - 검사 C 신설 (audit #12): frontmatter `relates-to.path` dead link
+    증분 검사. `awk`로 frontmatter 블록 추출 후 멀티라인 YAML 리스트
+    순회. 앵커·missing path 처리 T35와 동형
+  - test-strategist stdout key 제거 (audit #7·#15): `needs_test_strategist`
+    ·`test_targets`·`new_func_lines_b64` 3개 key 전부 폐기
+  - `HARNESS_LEVEL` 파싱 제거 (audit #2·9): 위험도 수집 블록은 유지하되
+    light 모드 조건 해제. `risk_factors`는 staging 자동 판정과 무관하게
+    review prompt 우선순위 가중치로 계속 사용
+  - stderr 정책 (audit #14): 실패·위험·경고만 출력. `HARNESS_EXPAND`
+    통과 알림은 `VERBOSE=1` 가드
+- `.claude/scripts/test-pre-commit.sh` T11·T12·T20 제거, T36 6케이스 신설
+- `.claude/scripts/downstream-readiness.sh` `needs_test_strategist:` 검사 제거
+- `.claude/agents/test-strategist.md` 삭제 (audit #15 — 114초 실측 대비
+  효용 부족)
+- `.claude/skills/commit/SKILL.md`
+  - Step 0 린트 조기 체크 제거 (audit #1). 린트는 Step 5에서만
+  - "메타 파일 본문 박기" 섹션 전체 삭제 (audit #6). review가 Read로
+    직접 조회하는 편이 정확
+  - light/strict 모드 섹션 전면 제거 (audit #2·9). `--light`·`--strict`
+    플래그 제거. staging 자동 판정 + `--quick`/`--deep`/`--no-review`만
+    유지
+  - test-strategist 병렬 호출 섹션 삭제 (audit #7)
+  - Step 2 "진척도 자동 갱신" → Step 7.5 (review pass 직후, `git commit`
+    직전)로 재배치 (audit #3)
+  - Step 5 tree-hash 캐시 분기 삭제 (audit #5). Bash 변수 중심 + 필요
+    시 background 파일 기록
+- `.claude/skills/implementation/SKILL.md` test-strategist 참조 2곳 제거
+- `.claude/skills/harness-init/SKILL.md` 하네스 강도 선택 단계 제거
+- `.claude/skills/advisor/SKILL.md` / `.claude/agents/advisor.md`
+  specialist 풀에서 test-strategist 삭제
+- `.claude/rules/self-verify.md` test-strategist 연계 섹션 → Claude 직접
+  판단 원칙으로 교체
+- `.claude/rules/memory.md` 동적 snapshot 3개 → `session-pre-check.txt`
+  1개로 축소 (audit #5)
+- `.claude/agents/review.md` strict 언급 → `--deep`으로 수정
+
+### 수동 액션 (사용자 필수)
+
+- [ ] **CLAUDE.md**에서 `- 하네스 강도: light|strict` 줄 제거
+      (`## 환경` 섹션). harness-upgrade가 자동 제거하지 않음 — 다운스트림
+      내용 보존 원칙
+- [ ] **`/commit --light`·`/commit --strict` 사용 중단**. 대신
+      `/commit`(자동) / `/commit --quick` / `/commit --deep` /
+      `/commit --no-review` 사용
+- [ ] `.claude/memory/session-staged-diff.txt`·`session-tree-hash.txt`
+      남아 있으면 삭제: `rm -f .claude/memory/session-staged-diff.txt
+      .claude/memory/session-tree-hash.txt`
+- [ ] test-strategist를 직접 호출하던 커스텀 hook·스킬 있으면 제거
+- [ ] commit 메시지 템플릿에 "light 모드"·"strict 모드" 용어 있으면 삭제.
+      `recommended_stage`(skip/micro/standard/deep) 기준으로 재작성
+
+### 검증
+
+- `bash .claude/scripts/test-pre-commit.sh` → 59/59 통과
+- `bash .claude/scripts/test-bash-guard.sh` → 13/13 통과
+- `grep -r "하네스 강도" .claude/ CLAUDE.md` → 0 hit
+- `grep -r "test-strategist\|--light\|--strict" .claude/ CLAUDE.md` →
+  폐기 안내(주석·MIGRATIONS) 외 0 hit
+
+### 회귀 위험
+
+- **`/commit --light`·`--strict` 플래그 사용 중이던 스크립트·문서는
+  깨짐**. 플래그 자체가 제거되어 커밋 스킬이 무시. 대체 플래그로 교체
+  필요
+- `needs_test_strategist`·`test_targets`·`new_func_lines_b64` stdout key
+  파싱하던 커스텀 도구는 값을 못 받음. 해당 도구 수정 필요
+- tree-hash 캐시 재사용하던 외부 도구 있으면 재commit 시 매번 pre-check
+  재실행 (설계 의도)
+- upstream 격리 환경(Windows/Git Bash)에서 T36 6케이스 + 기존 T35 회귀
+  확인 완료. 다른 OS/패키지 매니저 미테스트
+
+---
+
 ## v0.18.6 — dead link 검사 pre-check 이식 (증분)
 
 ### 자동 적용 (스킬이 처리)

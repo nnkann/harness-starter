@@ -48,7 +48,6 @@ profile: <HARNESS.json의 profile>
 `## 환경` 섹션을 읽어 key-value 추출:
 
 ```
-- 하네스 강도: strict
 - 패키지 매니저: pnpm
 - 빌드/실행 명령어: pnpm dev
 - 배포 방식: vercel

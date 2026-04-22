@@ -54,7 +54,16 @@ run_case "A7 awk script (no -n)" "awk 1 file" 0
 
 echo ""
 echo "[메시지 안 -n — 공식 권장은 통과시키는 것이 안전]"
-run_case "M1 git commit -m 'fix -n bug'" "git commit -m 'fix -n bug'" 0
+# M1은 audit #8로 커밋 prefix가 없으면 차단으로 바뀜. prefix 붙여 검증.
+run_case "M1 prefix+git commit -m 'fix -n bug'" "HARNESS_COMMIT_SKILL=1 git commit -m 'fix -n bug'" 0
+
+echo ""
+echo "[audit #8 — git commit 강제 경유]"
+run_case "G1 git commit 직접 (prefix 없음) → 차단" "git commit -m 'x'" 2
+run_case "G2 HARNESS_COMMIT_SKILL=1 git commit → 통과" "HARNESS_COMMIT_SKILL=1 git commit -m 'x'" 0
+run_case "G3 HARNESS_DEV=1 git commit (이스케이프) → 통과" "HARNESS_DEV=1 git commit -m 'x'" 0
+run_case "G4 git commit --help → 통과 (읽기 전용)" "git commit --help" 0
+run_case "G5 git commit --dry-run → 통과" "git commit --dry-run" 0
 
 echo ""
 echo "=== 결과 ==="
