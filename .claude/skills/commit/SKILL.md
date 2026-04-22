@@ -55,7 +55,6 @@ prompt를 조립할 수 있다면 설계 오류 (Anthropic Agent Skills 권장).
 | `/commit --no-review` | 리뷰 에이전트 스킵 (커밋 메시지에 `[skip-review]` 태그 포함). |
 | `/commit --quick` | review stage 1(micro) 강제. 자동 분류 무시. |
 | `/commit --deep` | review stage 3(deep) 강제. 자동 분류 무시. |
-| `/commit --bulk` | 거대 일괄 변경. review 건너뛰고 **정량 가드 4종** (`bulk-commit-guards.sh`)으로 대체. 가드 실패 시 즉시 차단. 사용처: 파일 30+ or diff 1500줄+ 일괄 rename·본문 일괄 치환 등. |
 
 ## 모드 결정 규칙
 
@@ -508,18 +507,16 @@ pre-check stdout의 `recommended_stage` 값에 따라 분기. `--no-review`/
 #### Stage 결정 우선순위
 
 ```
-1. --bulk      → Stage bulk 강제 (review 대신 정량 가드)
-2. --no-review → Stage 0 (skip), 메시지에 [skip-review] 태그
-3. --quick     → Stage 1 (micro) 강제
-4. --deep      → Stage 3 (deep) 강제
-5. recommended_stage (pre-check 결과)
+1. --no-review → Stage 0 (skip), 메시지에 [skip-review] 태그
+2. --quick     → Stage 1 (micro) 강제
+3. --deep      → Stage 3 (deep) 강제
+4. recommended_stage (pre-check 결과)
 ```
 
-**충돌 처리**: 둘 이상 동시 입력 시 **번호가 낮은 쪽이 우선** (staging.md
-룰 F "다른 플래그·신호 모두 무시" 규정과 일치). 예: `--bulk --no-review`
-→ `--bulk` 이김 (1번). `--quick --deep` → `--quick` 이김 (3번 vs 4번).
-사용자에게 충돌 사실 1줄 알림:
-> 🔧 플래그 충돌: --bulk와 --no-review 동시 입력 → --bulk 우선 (우선순위 1 < 2)
+**충돌 처리**: 둘 이상 동시 입력 시 **번호가 낮은 쪽이 우선**. 예:
+`--no-review --deep` → `--no-review` 이김 (1번). `--quick --deep` →
+`--quick` 이김 (2번 vs 3번). 사용자에게 충돌 사실 1줄 알림:
+> 🔧 플래그 충돌: --no-review와 --deep 동시 입력 → --no-review 우선 (우선순위 1 < 3)
 
 #### Stage별 행동
 
@@ -540,26 +537,10 @@ pre-check stdout의 `recommended_stage` 값에 따라 분기. `--no-review`/
 - review 호출, prompt에 `recommended_stage: deep` 명시
 - S1·S2·S8·S9(critical)·S14 hit 또는 사용자 `--deep`
 
-**Stage bulk** — 거대 일괄 변경 (파일 30+ or diff 1500줄+):
-- 사용자 `--bulk` 명시로만 활성 (자동 분류 없음)
-- review 호출 안 함. **정량 가드 4종**이 대체
-- 실행: `bash .claude/scripts/bulk-commit-guards.sh`
-- 가드 전부 통과해야 커밋 허용. 하나라도 실패 시 stderr 원인·대응책
-  출력 + exit 2 → **커밋 차단 (우회 불가)**
-- 커밋 메시지에 `[bulk]` 태그 + `🔍 review: skip-bulk | signals: <...> |
-  domains: <...>` 한 줄 강제
-- test-strategist 자동 호출 스킵 (가드에 포함 안 됨. 필요하면 사용자가
-  별도 `/commit` without `--bulk`로 재검증)
-
-배경: review maxTurns 6 상한이 거대 diff에서 verdict 미출력을 유발
-(incident `hn_review_maxturns_verdict_miss`). 정량 가드가 review 영역을
-일부 대체:
-- 테스트 3종 = 회귀 검증
-- dead link 0 + 날짜 suffix 0 = 파일명·참조 정합성
-- downstream-readiness = 다운스트림 영향 확인
-
-review가 잡는 "의도 일관성"(예: 결정문과 스킬 문구 불일치)은 가드가 못
-잡음 → 거대 변경 전 사람이 설계 단계에서 확보해야 한다.
+**거대 커밋 정책** — 파일 30+ 또는 diff 1500줄+이면 pre-check이 stderr에
+"스코프 분리 권장" 경고 출력. 자동 분기·우회 플래그 없음. 사용자가
+커밋을 논리 단위로 쪼개 여러 개로 분리한다. 배경: `staging.md` "거대
+커밋 정책" 섹션 + incident `hn_review_maxturns_verdict_miss` 참조.
 
 #### 호출 시점·선행 조건
 

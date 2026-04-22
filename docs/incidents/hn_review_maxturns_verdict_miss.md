@@ -1,7 +1,7 @@
 ---
 title: review 에이전트 maxTurns 소진 시 verdict 누락
 domain: harness
-tags: [review, maxturns, bulk-commit, agent-spec, incident]
+tags: [review, maxturns, agent-spec, incident]
 symptom-keywords:
   - review verdict 누락
   - agentId 리턴 중단
@@ -13,7 +13,7 @@ relates-to:
     rel: caused-by
 status: completed
 created: 2026-04-21
-updated: 2026-04-21
+updated: 2026-04-22
 ---
 
 # review 에이전트 maxTurns 소진 시 verdict 누락
@@ -61,44 +61,53 @@ review는 **diff 단위 회귀·계약·스코프 검증** 도구 (staging.md). 
 
 ## 해결
 
-### 즉시 (본 커밋 이후)
+### 2026-04-22 재해석 (현재 유효)
 
-1. `--bulk` 플래그 신설 — 거대 업그레이드 시 review 건너뛰되 **정량
-   가드로 대체**. 가드 실패 시 즉시 차단
-2. 가드 항목 (전부 통과해야 커밋 허용):
-   - 테스트 3종 (test-pre-commit / test-bash-guard / downstream-readiness)
-   - dead link 0 (docs·rules·skills 내 마크다운 링크)
-   - 날짜 suffix 잔재 0 (`_YYMMDD\.md$` archived 제외)
-   - 변경 파일이 실제로 존재 (rename 누락 감지)
-3. `--bulk` 사용 시 커밋 메시지에 `[bulk]` 태그 + `🔍 review: skip-bulk`
-   로그 강제
+거대 커밋은 **스코프를 나눠 작은 커밋 여러 개로 분리**한다. 스크립트
+우회 경로를 만들지 않는다.
 
-### 자동 감지 (경고만, 강제 안 함)
+- pre-check이 `files > 30 or diff_lines > 1500` 감지 시 stderr에 "스코프
+  분리 권장" 경고. 자동 분기·우회 플래그 없음. 사용자가 판단
+- review maxTurns 예산 문제는 `docs/decisions/hn_review_tool_budget.md`
+  의 조기 중단·알파 발동 설계에서 해결. review 자체가 거대 diff에 견디도록
 
-pre-check이 `files > 30 or diff_lines > 1500` 이면 stderr에
-"대규모 변경 감지. `/commit --bulk` 고려하세요" 한 줄 출력. 자동 적용은
-안 함 (오탐 시 실제로 review 필요한 커밋이 skip될 위험).
+### 과거 해법 (v0.16.1~v0.18.7 — 2026-04-22 폐기)
 
-### 이후 재발 시
+v0.16.1에서 `--bulk` 플래그 + 정량 가드 4종 도입. 2026-04-22 폐기:
 
-가드가 실패하면 에러 메시지에 **어느 가드가 왜 실패했는지 + 대응책**
-명시. 사용자가 원인 확인 후 수정 → 재시도.
+- 가드 4종 중 거대 커밋 특유 위험을 잡는 건 dead link 하나뿐이었고,
+  그건 pre-check Step 3.5(v0.18.6)에 이미 이식됨
+- 나머지 3종(테스트 스위트·downstream-readiness·날짜 suffix)은 거대
+  여부와 무관한 일상 정합성. bulk 전용일 이유 없음. bulk 가드 실행이
+  Windows Git Bash에서 1분+ 걸리는 원인이기도 했음
+- "review maxTurns 터지니까 우회"는 거대 커밋을 정당화하는 역방향 설계.
+  답은 커밋을 쪼개는 것
+
+관련 변경 (2026-04-22):
+- `.claude/rules/staging.md` — bulk 스테이지·룰 3(docs rename ≥30% → bulk)·
+  룰 F(--bulk 강제) 제거
+- `.claude/skills/commit/SKILL.md` — --bulk 플래그·Stage bulk 섹션 제거
+- `.claude/scripts/pre-commit-check.sh` — bulk 판정 분기 제거, 거대 변경
+  경고 메시지를 "스코프 분리 권장"으로 재작성
+- `.claude/scripts/bulk-commit-guards.sh` 파일 삭제
+- `.claude/scripts/test-pre-commit.sh` T29(docs rename → bulk) 케이스 제거
 
 ## 재발 방지
 
-- `.claude/rules/staging.md` — `--bulk` Stage 추가 (Stage 0 skip과 별개.
-  verdict 대신 guards 통과 기록)
-- `.claude/skills/commit/SKILL.md` — Step 7에 `--bulk` 분기 + 가드 실행
-  로직
-- `.claude/scripts/bulk-commit-guards.sh` 신설 — 가드 4종 통합 실행
-- `.claude/scripts/pre-commit-check.sh` — 대규모 감지 경고 추가
-
-상세는 `docs/decisions/hn_doc_naming.md` 참조 (본 incident의 원인 커밋)
-및 `docs/harness/MIGRATIONS.md` v0.16.1 섹션.
+- `docs/decisions/hn_review_tool_budget.md` — review 에이전트 조기 중단·
+  알파 발동 설계로 거대 diff에서도 verdict 출력 의무 준수
+- 거대 커밋 자체를 안 만드는 습관 — pre-check 경고가 체감 신호
 
 ## 메모
 
 본 incident는 사용자가 "거대 업그레이드는 review 패스가 맞지 않냐"고
 지적하며 발견. Claude가 처음에 "maxTurns 상한 접근은 정상 paused"라고
 변명한 것은 틀렸음 (스펙상 중단 시에도 verdict 출력 의무). 사용자 지적
-정당. 본 문서는 그 합리화를 취소하고 실제 원인을 기록한다.
+정당.
+
+**2026-04-22 재해석**: 당시 해법(`--bulk` + 정량 가드)도 근본적으로 오판
+이었음. 거대 커밋의 답은 **분리**이지 우회 경로가 아니다. 가드 4종 중
+3종이 거대 여부 무관한 정합성 검사였고, bulk 전용일 이유가 없었으며,
+가드 자체가 수십 초~수 분 걸려 존재 의의를 무너뜨렸다. 사용자가 "이따위
+설계", "커밋을 나눠서 하면 훨씬 낫다"고 지적하며 폐기 결정. 원인 진단
+(§원인)은 여전히 유효, 해법(§해결)만 재해석.

@@ -593,29 +593,8 @@ EOF
 git add docs/guides/note.md
 run_case "T28.1 docs 일반 → standard" "recommended_stage" "standard" must_match
 
-# T29: docs rename ≥20 파일 → bulk
-echo "[T29] 5줄 룰 #3 — docs 대량 rename → bulk"
-reset
-mkdir -p docs/decisions
-# 25개 파일 생성 + 커밋
-for i in $(seq 1 25); do
-  cat > docs/decisions/hn_orig_${i}.md <<EOF
----
-title: 원본 ${i}
-domain: harness
-status: completed
-created: 2026-04-21
----
-본문 ${i}.
-EOF
-  git add docs/decisions/hn_orig_${i}.md
-done
-HARNESS_DEV=1 git -c commit.gpgsign=false commit -q -m "T29 prep" 2>/dev/null
-# rename 시뮬레이션 (git mv)
-for i in $(seq 1 25); do
-  git mv docs/decisions/hn_orig_${i}.md docs/decisions/hn_renamed_${i}.md 2>/dev/null
-done
-run_case "T29.1 docs rename 25개 → bulk" "recommended_stage" "bulk" must_match
+# T29: (2026-04-22 삭제) 과거 "docs rename ≥20 → bulk" 룰 폐기. bulk 스테이지
+# 자체가 사라졌다. 거대 커밋은 사용자가 스코프 분리한다.
 
 # T30: S5 메타 단독 (promotion-log.md만) → skip
 echo "[T30] 5줄 룰 #4 — promotion-log.md 단독 → skip"

@@ -58,7 +58,7 @@ fail을 막는다.
     기반 grep, 같은 커밋에 포함된 소스 파일은 skip
   - **검사 B**: 추가·수정된 md의 새 링크 대상 존재 검증. staged diff의
     `+` 라인에서 `](path.md)` 패턴만 awk로 추출 → 경로 정규화 → `test -f`
-  - 증분 검사 (O(변경 규모)). 전수 검사는 `bulk-commit-guards.sh` 4b 유지
+  - 증분 검사 (O(변경 규모)). (과거 전수 검사는 `bulk-commit-guards.sh` 4b에 있었으나 bulk 스테이지 자체가 2026-04-22 폐기됨)
 - `.claude/scripts/test-pre-commit.sh` T35 회귀 테스트 3케이스 추가
   - T35.1: 파일 삭제 + cluster 옛 경로 유지 → 차단 기대
   - T35.2: 새 md의 링크가 없는 파일 가리킴 → 차단 기대
@@ -74,7 +74,7 @@ v0.18.5 커밋 review deep이 `docs/clusters/harness.md`의 dead link 2건을
 설계 원칙 위반이 발견됨:
 - staging.md: "정적 검사는 pre-check, 의미는 review"
 - dead link는 구조적 정합성 (파일 존재 여부) → 정적 검사 영역
-- 현재 bulk-commit-guards.sh 4b에만 있음 → `--bulk` 경로만 커버. 일반
+- (v0.18.6 시점) bulk-commit-guards.sh 4b에만 있음 → `--bulk` 경로만 커버. 일반
   커밋은 비싼 LLM review에 의존
 - review deep(30초+, 58k tokens)이 떠맡던 일을 pre-check(수 초)이 대신
   → 사용자 체감 속도 개선 + 설계 정합성 복구
@@ -108,8 +108,9 @@ bash .claude/scripts/test-pre-commit.sh 2>&1 | tail -5
   "잘못된 dead link" 경고 가능. 다운스트림에서 실측 관찰 필요. 엄밀 경로
   매칭은 비용 크고, 1차 방어 취지라 수용
 - **증분 검사의 miss** — 이번 커밋이 직접 건드리지 않은 기존 dead link는
-  감지 안 함 (전수는 bulk 가드 담당). 기존 dead link가 누적된 레포에선
-  `bash .claude/scripts/bulk-commit-guards.sh` 수동 실행으로 일괄 점검 권장
+  감지 안 함. 기존 dead link가 누적된 레포에선 한 번 전수 점검 권장
+  (수동으로 `grep -rE '\]\([^)]*\.md[^)]*\)' docs .claude` 후 `test -f`
+  등으로 확인).
 
 ---
 

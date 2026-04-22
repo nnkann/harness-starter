@@ -153,12 +153,11 @@ fi
 # incident: hn_search_and_completion_gaps Part E 구멍 4
 # 원칙: pre-check은 정적 검사. dead link는 구조적 정합성이라 pre-check 영역.
 #
-# 검사 범위 (증분 — 전수 아님):
+# 검사 범위 (증분):
 #   A. 삭제·rename된 파일을 가리키는 기존 md 링크 (cluster·relates-to 등)
 #   B. 추가·수정된 md 파일 안의 새 링크 대상이 실제로 존재하는지
 #
-# 전수 검사는 bulk-commit-guards.sh 4b 담당. 여기는 이번 커밋이 유발한
-# dead link만 감지 → O(변경 규모).
+# 이번 커밋이 유발한 dead link만 감지 → O(변경 규모).
 DEAD_LINKS_FOUND=""
 
 # A. 삭제·rename된 파일 목록 (name-status에서 D 또는 R의 원본 경로)
@@ -597,12 +596,11 @@ fi
 # Stage 결정 (v0.17.0 — 5줄 룰, SSOT: .claude/rules/staging.md)
 # 경로 기반 이진 판정. 신호 값(S1~S15)은 review prompt용으로 여전히 유지.
 #
-# 룰 1~5 첫 매칭:
+# 룰 1~4 첫 매칭 (2026-04-22 — bulk 스테이지 폐기):
 #   1. 업스트림 위험 경로 (.claude/scripts|agents|hooks|settings.json) → deep
 #   2. S1 line-confirmed OR S14 OR S8                                  → deep
-#   3. docs/** 대량 rename OR 파일 ≥20                                 → bulk
-#   4. S5 OR S4 OR WIP cleanup 단독                                    → skip
-#   5. 나머지                                                          → standard
+#   3. S5 OR S4 OR WIP cleanup 단독                                    → skip
+#   4. 나머지                                                          → standard
 
 RECOMMENDED_STAGE=""
 
@@ -618,25 +616,7 @@ if [ -z "$RECOMMENDED_STAGE" ]; then
   fi
 fi
 
-# 룰 3: docs 대량 변경 → bulk (자동)
-# docs rename ≥30% (전체 staged의 30% 이상이 docs rename) OR 파일 ≥20
-if [ -z "$RECOMMENDED_STAGE" ]; then
-  DOC_RENAME_COUNT=$(echo "$STAGED_NAME_STATUS" | awk '$1 ~ /^R/ && $NF ~ /^docs\// {c++} END{print c+0}')
-  if [ "$TOTAL_FILES" -ge 20 ]; then
-    RENAME_RATIO_HIT=""
-    if [ "$DOC_RENAME_COUNT" -gt 0 ]; then
-      # 정수 산술: rename*100 / total ≥ 30 ⇔ rename*10 ≥ total*3
-      if [ $((DOC_RENAME_COUNT * 10)) -ge $((TOTAL_FILES * 3)) ]; then
-        RENAME_RATIO_HIT="yes"
-      fi
-    fi
-    if [ -n "$RENAME_RATIO_HIT" ] || [ "$TOTAL_FILES" -ge 20 ]; then
-      RECOMMENDED_STAGE="bulk"
-    fi
-  fi
-fi
-
-# 룰 4: skip 조건 (메타·lock 단독, WIP cleanup)
+# 룰 3: skip 조건 (메타·lock 단독, WIP cleanup)
 if [ -z "$RECOMMENDED_STAGE" ]; then
   # S5 단독 (메타 파일만)
   if has_sig S5 && ! (has_sig S7 || has_sig S2 || has_sig S8 || has_sig S14); then
@@ -693,12 +673,13 @@ fi
 
 # 거대 변경 감지 → stderr 경고 (강제 아님, 사용자 선택)
 # incident `hn_review_maxturns_verdict_miss`: review maxTurns(6) 상한이
-# 거대 diff에서 verdict 미출력 유발. --bulk 제안으로 우회 경로 안내.
+# 거대 diff에서 verdict 미출력 유발. --bulk 우회 경로는 2026-04-22 폐기.
+# 답은 스코프 분리.
 if [ "${TOTAL_FILES:-0}" -gt 30 ] || [ "${ADDED_LINES:-0}" -gt 1500 ] \
    || [ "${DELETED_LINES_TOTAL:-0}" -gt 1500 ]; then
   echo "⚠ 대규모 변경 감지 (files=${TOTAL_FILES}, +${ADDED_LINES}, -${DELETED_LINES_TOTAL})." >&2
-  echo "  review maxTurns 한계로 verdict 신뢰도 저하 가능. \`/commit --bulk\` 고려." >&2
-  echo "  (--bulk: review 대신 정량 가드 4종으로 대체. SSOT: .claude/rules/staging.md)" >&2
+  echo "  review maxTurns 한계로 verdict 신뢰도 저하 + 검토 피로 누적 가능." >&2
+  echo "  권장: 스코프를 나눠 작은 커밋 여러 개로 분리. 논리 단위별로 staging." >&2
 fi
 
 # 통과 시 stdout 요약 (commit 스킬이 캡처해서 review prompt에 주입)

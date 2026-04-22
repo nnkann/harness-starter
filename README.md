@@ -60,7 +60,7 @@ CLAUDE.md                        에이전트 루트 인스트럭션 (≤30줄)
 │   ├── harness-sync/            클론 후 환경 동기화
 │   ├── harness-upgrade/         하네스 업그레이드 (3-way merge + MIGRATIONS.md 안내)
 │   ├── implementation/          작업 문서 라이프사이클
-│   ├── commit/                  커밋 + Review (light/strict, stage 자동 분기, --bulk, starter push 보호)
+│   ├── commit/                  커밋 + Review (light/strict, stage 자동 분기, starter push 보호)
 │   ├── eval/                    건강 검진 (--quick/--harness/--surface/--deep)
 │   ├── advisor/                 멀티 에이전트 판단 엔진 (specialist 풀 + 의사결정 프레임)
 │   ├── check-existing/          기존 코드 중복 확인
@@ -78,7 +78,7 @@ CLAUDE.md                        에이전트 루트 인스트럭션 (≤30줄)
 │   ├── test-strategist.md       테스트 전략·누락 분석 (sonnet)
 │   ├── threat-analyst.md        외부 위협 분석 (public repo·번들·RLS bypass, sonnet)
 │   └── review.md                커밋 전 diff 단위 검증 (2축 + 회귀 알파 + 조기 중단, sonnet)
-└── scripts/                     hook 스크립트 + 회귀 테스트 (12개)
+└── scripts/                     hook 스크립트 + 회귀 테스트 (11개)
     ├── session-start.sh         SessionStart hook
     ├── stop-guard.sh            Stop hook
     ├── post-compact-guard.sh    PostCompact hook
@@ -86,10 +86,9 @@ CLAUDE.md                        에이전트 루트 인스트럭션 (≤30줄)
     ├── write-guard.sh           Write 가드
     ├── bash-guard.sh            Bash 단일 hook (jq 토큰 파싱 — 공식 권장 패턴)
     ├── validate-settings.sh     settings.json schema 검증
-    ├── pre-commit-check.sh      커밋 전 정적 검사 + staging 신호 감지 (14 keys stdout, --lint-only 모드)
-    ├── bulk-commit-guards.sh    /commit --bulk 정량 가드 4종 (거대 변경 review 대체)
+    ├── pre-commit-check.sh      커밋 전 정적 검사 + staging 신호 감지 (14 keys stdout, --lint-only 모드, dead link 증분)
     ├── downstream-readiness.sh  다운스트림 자가 진단 (silent fail 6항목)
-    ├── test-pre-commit.sh       회귀 테스트 (57 케이스, 5줄 룰 T21~T32 + 린터 ENOENT T33·T34 포함)
+    ├── test-pre-commit.sh       회귀 테스트 (59 케이스, 5줄 룰 T21~T32 + 린터 ENOENT T33·T34 + dead link T35 포함)
     └── test-bash-guard.sh       회귀 테스트 (14 케이스, 공식 hook JSON 입력)
 scripts/                         유틸 스크립트 (하네스 외부)
 └── install-secret-scan-hook.sh  pre-commit 시크릿 스캔 훅 설치 (gitleaks 우선, grep 폴백)
@@ -201,9 +200,8 @@ CPS 문서는 `docs/guides/project_kickoff_YYMMDD.md`에 저장된다. `docs/gui
 ```
 1. .claude/scripts|agents|hooks|settings.json  → deep
 2. S1 line-confirmed OR S14 OR S8              → deep
-3. docs/** rename ≥30% OR 파일 ≥20             → bulk
-4. S5 OR S4 단독                               → skip
-5. 나머지                                      → standard
+3. S5 OR S4 단독                               → skip
+4. 나머지                                      → standard
 ```
 
 | Stage | 시간 | 적용 |
@@ -212,9 +210,10 @@ CPS 문서는 `docs/guides/project_kickoff_YYMMDD.md`에 저장된다. `docs/gui
 | 1 (micro) | 15~25초 | `--quick` 명시 시만 (자동 판정에서는 사용 안 함) |
 | 2 (standard) | 30~60초 | 일반 코드·문서·rules·skills (기본) |
 | 3 (deep) | 90~180초 | 업스트림 위험 경로·시크릿 라인·DB 마이그레이션·export 변경 |
-| bulk | 20~40초 | 거대 일괄 변경 — review 대신 정량 가드 4종 |
 
-review 에이전트는 **계약·스코프 2축** 기본 검사 + **회귀 알파(S7·S8 hit 시만)**. 13개 신호별 알파는 발동 조건 충족 시에만 실행. 조기 중단 모든 stage 허용 (필수 단계 완료 후 의심점 없으면 종료). 수동 오버라이드: `--quick` / `--deep` / `--bulk` / `--no-review`.
+review 에이전트는 **계약·스코프 2축** 기본 검사 + **회귀 알파(S7·S8 hit 시만)**. 13개 신호별 알파는 발동 조건 충족 시에만 실행. 조기 중단 모든 stage 허용 (필수 단계 완료 후 의심점 없으면 종료). 수동 오버라이드: `--quick` / `--deep` / `--no-review`.
+
+거대 커밋은 스코프를 나눠 작은 커밋 여러 개로 분리한다 (pre-check이 파일 30+ 또는 diff 1500줄+ 시 stderr 경고). 과거 `--bulk` 플래그는 v0.18.8에서 폐기.
 
 다운스트림은 `naming.md`의 "도메인 등급" 섹션에 critical/normal/meta 분류 필요. 자세한 안내는 `docs/harness/MIGRATIONS.md`.
 
@@ -296,9 +295,9 @@ v0.18.1 fix로 T13.1 미해결 → 가설 철회·TEST_DEBUG=1 옵트인 훅 추
 - 다중 도메인 격상(룰 A) 폐기 — 5줄 룰이 커버
 - 회귀 테스트 T21~T32 (12 케이스) + clone 시 로컬 스크립트 cp 보정
 
-### v0.16.1 (2026-04-20) — `/commit --bulk` 플래그
+### v0.16.1 (2026-04-20) — `/commit --bulk` 플래그 (2026-04-22 폐기)
 
-거대 일괄 변경(파일 30+·diff 1500줄+) 시 review(maxTurns 6) 대신 정량 가드 4종으로 대체. `test-pre-commit`·`test-bash-guard`·`downstream-readiness`·파일명/참조 정합성. 가드 실패 시 즉시 차단(우회 불가).
+거대 일괄 변경 시 review 대신 정량 가드 4종으로 대체하는 플래그였으나, 2026-04-22 설계 오류로 판단하고 폐기. 가드 4종 중 거대 커밋 특유 위험을 잡는 건 dead link 하나뿐이었고 그건 pre-check Step 3.5(v0.18.6)에 이식됨. 거대 커밋은 스코프 분리가 답.
 
 ### v0.16.0 (2026-04-20) — 문서 네이밍 전면 개편
 

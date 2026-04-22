@@ -43,26 +43,24 @@
 | 1 micro | 15~25초, 1~2 calls | hit 신호 매핑 카테고리만 |
 | 2 standard | 30~60초, 3~5 calls | hit 카테고리 + 3관점 |
 | 3 deep | 90~180초, 10+ calls | hit 카테고리 전체 + 3관점 + 호출자 grep |
-| bulk | 20~40초 | review 호출 안 함. **정량 가드 4종**이 대체 |
 
-**bulk 전용 규칙**:
-- 사용자 명시 `--bulk`로만 활성 (자동 분류 없음)
-- 거대 일괄 변경(파일 30+ or diff 1500줄+) 시 review maxTurns(6) 한계로
-  verdict 신뢰도 저하 → 정량 가드가 더 확실 (incident:
-  `hn_review_maxturns_verdict_miss`)
-- **가드 실패는 즉시 차단**. review의 warn/block과 달리 우회 없음
-- 커밋 메시지에 `[bulk]` 태그 + `🔍 review: skip-bulk` 로그 강제
+**거대 커밋 정책** (2026-04-22 재설계):
 
-**bulk 가드 항목 (SSOT: `.claude/scripts/bulk-commit-guards.sh`)**:
-1. `test-pre-commit.sh` 전체 통과
-2. `test-bash-guard.sh` 전체 통과
-3. `downstream-readiness.sh` 누락 0 + 경고 허용
-4. 파일명·참조 정합성:
-   - 날짜 suffix 잔재 0 (archived 제외)
-   - dead link 0 (docs·rules·skills md 내 마크다운 링크)
+거대 커밋(파일 30+ 또는 diff 1500줄+)은 **스코프를 나눠 작은 커밋 여러
+개로 분리**한다. 이전에 존재하던 `--bulk` 플래그(정량 가드 4종으로 review
+대체)는 폐기:
 
-가드는 전부 통과해야 커밋 허용. 하나라도 실패 시 stderr에 원인·대응책
-출력 후 exit 2.
+- 정량 가드 4종 중 거대 커밋 특유 위험을 잡는 건 dead link 하나뿐이었고,
+  그건 pre-check Step 3.5(v0.18.6)에 이미 이식됨
+- 나머지 3종(test 스위트·downstream-readiness·날짜 suffix)은 거대 여부
+  와 무관한 일상 정합성. bulk 전용일 이유 없음
+- "review maxTurns 터지니까 우회"는 거대 커밋을 정당화하는 역방향 설계
+  — 답은 커밋을 쪼개는 것. review 예산 문제는 `hn_review_tool_budget`에서 해결
+- 관련 incident: `hn_review_maxturns_verdict_miss.md` (원인 진단 유효,
+  해법만 재해석)
+
+pre-check이 거대 변경 감지 시 **stderr로 "스코프 분리 권장" 경고만** 출력.
+강제 분기 없음. 사용자가 판단.
 
 ## Stage 결정
 
@@ -75,10 +73,12 @@
 1. .claude/scripts/** OR .claude/agents/** OR .claude/hooks/**
    OR .claude/settings.json 건드림                              → deep
 2. S1 line-confirmed OR S14 OR S8(export 시그니처 변경)         → deep
-3. docs/** rename ≥30% OR 파일 수 ≥20                           → bulk
-4. S5(메타 단독) OR S4(lock 단독) OR WIP cleanup 단독           → skip
-5. (나머지 — 업스트림 외 경로·일반 코드·문서·rules·skills)      → standard
+3. S5(메타 단독) OR S4(lock 단독) OR WIP cleanup 단독           → skip
+4. (나머지 — 업스트림 외 경로·일반 코드·문서·rules·skills)      → standard
 ```
+
+v0.17.0 룰 3(docs rename ≥30% → bulk)은 폐기됨 (2026-04-22). bulk 스테이지
+자체가 사라졌다.
 
 **설계 철학**:
 - **경로 기반 이진 판정**. 줄 수·파일 수 임계 없음 (ec85c790: 13줄 수정이
@@ -103,8 +103,7 @@ B. S10 2회               → +1 격상 (skip→standard 포함)
 C. S10 3회               → deep 강제
 D. --quick               → micro 강제 (격상 무시)
 E. --deep                → deep 강제
-F. --bulk                → bulk 강제 (다른 플래그·신호 모두 무시)
-G. --no-review           → skip 강제
+F. --no-review           → skip 강제
 ```
 
 **룰 A 폐기** (다중 도메인 격상): 5줄 룰이 경로 기반이라 이미 "업스트림
