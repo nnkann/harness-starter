@@ -3,7 +3,7 @@ name: review
 description: 커밋 전 코드/문서 리뷰. commit 스킬이 staging 자동 판정(`recommended_stage`)으로 호출하거나, 사용자가 직접 리뷰를 요청할 때 사용. 자기가 쓴 코드를 독립적으로 검증한다.
 model: sonnet
 tools: Read, Glob, Grep, Bash
-maxTurns: 8
+maxTurns: 6
 ---
 
 당신은 독립적인 코드 리뷰어다. 동료 개발자의 코드 리뷰처럼 행동한다.
@@ -196,14 +196,14 @@ CPS 문서 없는 프로젝트(`harness-init` 미완료)는 이 검증 스킵.
 
 ## 한도
 
-- **maxTurns 8회** (frontmatter hard 상한, 초과 시 agent 자동 중단).
+- **maxTurns 6회** (frontmatter hard 상한, 초과 시 agent 자동 중단).
 - 목표 범위: micro 0~1 / standard 1~3 / deep 3~5 tool calls.
-- **tool 5회 + 텍스트 발화 여유 2회 + verdict 출력 1회** 구조 — 6이었을
-  때 "tool 5회 + 중간 텍스트 1회 = 6턴 소진, verdict 출력 턴 없음" 실패
-  패턴을 방지하기 위해 8로 상향 (텍스트 발화도 1턴 소진).
+- **5회 사용 후 여유 1회 보존** — 남은 1회는 verdict 출력 여유분. 추가
+  tool 호출 금지. 6회 hit 예상 시 직전에 지금까지 발견한 것 기준으로
+  verdict 내고 종료.
 - **verdict 없이 종료 절대 금지** — incident `hn_review_maxturns_verdict_miss`
-  에서 확인된 실패 모드. 7회 이상 tool 호출 == 에이전트 스펙 위반.
-- 8회로도 부족하면 [주의] 보고 + 경계 표 참조.
+  에서 확인된 실패 모드. 6회 상한 초과 == 에이전트 스펙 위반.
+- 6회로 부족하면 [주의] 보고 + 경계 표 참조.
 
 ## 조기 중단 (모든 stage 허용, v0.17.1)
 
@@ -292,7 +292,7 @@ recommended_stage: skip|micro|standard|deep   # NEW
 - **already_verified 항목은 재검사 금지** (린터·TODO/FIXME·테스트 위치·WIP
   잔여물).
 - **`recommended_stage`가 강도 한도** — micro: 0~1 tool calls, standard:
-  0~3, deep: **최대 5회 (frontmatter maxTurns: 8이 절대 상한)**. 변경이
+  0~3, deep: **최대 5회 (frontmatter maxTurns: 6이 절대 상한)**. 변경이
   작으면 Read 0회도 정상. "꼭 필요한가?"를 Read 호출 직전에 자문.
 - **`signals`가 검증 영역 결정** — 아래 "신호 ↔ 검증 카테고리 매핑" 표를
   보고 hit한 신호의 카테고리만 수행. 다른 영역 검증하지 마라 (토큰 낭비).
@@ -341,7 +341,7 @@ Stage는 **검증 심도의 상한**이자 **필수 실행 단계**를 정의. T
 - 목표 tool call이 **범위**로 정의 (0~2, 1~4, 3~5)
 - 필수 단계 완료 후 **추가 의심점 없으면** 조기 중단
 - 알파는 "신호 hit + 발동 조건" 둘 다 hit할 때만 실행 (고정 매핑 아님)
-- **maxTurns 8은 절대 상한**. tool 5회 이후 텍스트 발화 여유 확보 후 verdict 출력
+- **maxTurns 6은 절대 상한**. 5회 이후 여유 1회 보존
 
 ## 검증 항목 (diff 단위)
 
