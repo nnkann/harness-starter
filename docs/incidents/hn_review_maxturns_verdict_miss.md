@@ -98,6 +98,26 @@ v0.16.1에서 `--bulk` 플래그 + 정량 가드 4종 도입. 2026-04-22 폐기:
   알파 발동 설계로 거대 diff에서도 verdict 출력 의무 준수
 - 거대 커밋 자체를 안 만드는 습관 — pre-check 경고가 체감 신호
 
+## 2026-04-23 다운스트림 재발 — 입력 비대 + 출력 토큰 한도가 원인
+
+**증상**: diff 소규모(+26줄, 6파일)인데 tool_uses 1회 + 53,942 토큰 후
+verdict 없이 종료. 같은 세션의 다른 review 호출도 52,316 / 52,138 — 모두
+50k+ 토큰으로 구조적으로 동일.
+
+**원인**: maxTurns 소진이 아님 (turns 1~2밖에 사용 안 함). 실제 원인:
+- **입력 비대**: commit 스킬이 pre-check stdout 14 keys 전체를 review
+  prompt에 박는데, 이 중 4개(`pre_check_passed`·`split_plan`·
+  `split_action_recommended`·`prior_session_files`)는 review가 쓰지 않는
+  commit 내부용 신호. SKILL.md 전체 시스템 프롬프트 + staged diff +
+  전제 컨텍스트 + 불필요 keys 합산 → 매 호출 구조적 50k+ 토큰
+- **출력 토큰 한도 도달**: 입력이 비대하면 남은 출력 예산이 줄어듦.
+  tool 1회 + 긴 서술 중 출력 상한 도달 → 텍스트가 verdict 출력 전에 잘림
+
+**수정 (v0.20.15)**: commit/SKILL.md — review prompt에 review가 실제로
+쓰는 10 keys만 박도록 명시. 4개 내부용 keys 제외.
+
+**maxTurns 8 상향(v0.20.14)은 원인 오진으로 revert (95c02e8).**
+
 ## 메모
 
 본 incident는 사용자가 "거대 업그레이드는 review 패스가 맞지 않냐"고
