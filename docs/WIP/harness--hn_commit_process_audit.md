@@ -1,7 +1,7 @@
 ---
-title: 커밋 프로세스 감사 — 전체 판정 완료 (2026-04-23)
+title: 커밋 프로세스 감사 — #18 false-negative 축 보강
 domain: harness
-tags: [commit, review, pre-check, audit, staging]
+tags: [commit, review, pre-check, audit, staging, split]
 relates-to:
   - path: harness/hn_commit_perf_optimization.md
     rel: extends
@@ -11,7 +11,9 @@ relates-to:
     rel: references
   - path: harness/hn_commit_review_staging.md
     rel: extends
-status: completed
+  - path: harness/hn_info_flow_leak_audit.md
+    rel: extends
+status: in-progress
 created: 2026-04-22
 updated: 2026-04-23
 ---
@@ -126,15 +128,17 @@ SSOT 원칙 실측. **A 압도적 우위**:
 
 ---
 
-### #18. 커밋 분리 자동화 — **결론: 현 구조 유지 (2026-04-23)**
+### #18. 커밋 분리 자동화 — **현 구조 유지 + 시간 축 경고 추가 (2026-04-23)**
 
-#### 현 구현 (v0.20.4)
+#### 현 구현 (v0.20.4 → v0.21.0 보강)
 
 - `task-groups.sh` — staged 파일을 task × abbr × kind 3축으로 그룹화
 - `split-commit.sh` — 첫 그룹만 staged, 나머지는 `split-plan.txt`에 저장
 - pre-check이 `split_action_recommended: split|single|sub` stdout 출력
 - commit 스킬 Step 5.5가 `split` 값 받으면 `split-commit.sh` 호출 제안
 - **사용자가 최종 판단** (single 강행 가능)
+- **신규 (v0.21.0)**: `prior_session_files` 신호 — 이전 세션 잔여물이
+  staged에 섞였을 가능성 경고. 자동 분리 아님 (아래 false-negative 축 참조)
 
 #### 왜 완전 자동 분리 아님
 
@@ -148,6 +152,29 @@ SSOT 원칙 실측. **A 압도적 우위**:
 **판정: 현 구조(판정 제안 + 사용자 최종 판단)가 맞음**. 완전 자동화는
 오히려 마찰 증가.
 
+#### false-negative 축: 시간 축 누락 (2026-04-23 다운스트림 실측 보고)
+
+3축(task × abbr × kind) 그룹화가 **시간 축(이전 세션 잔여 vs 현재 작업)**을
+잡지 못한다. abbr/kind가 동일하면 이전 세션 잔여물과 현재 작업이 같은 그룹으로
+묶여 `split=single` 출력.
+
+**실측 근거**: 다운스트림에서 사용자 명시 개입 2회로 교정. SessionStart hook이
+이미 unstaged를 보고하는데 그 신호가 split 입력에 활용되지 않음 (information flow
+leak, `hn_info_flow_leak_audit.md` 누수 #10).
+
+**대응 (경고 수준 채택, 자동 분리 아님)**:
+- `session-start.sh`: SessionStart 시점 unstaged 목록을
+  `.claude/memory/session-start-unstaged.txt`에 저장
+- `pre-commit-check.sh`: staged와 교집합을 계산해 `prior_session_files` 신호 출력
+- `commit/SKILL.md` Step 1: 신호 있으면 사용자에게 1줄 환기, 판단은 사용자
+
+**task-groups.sh 미수정**: #18 false-positive(과쪼개기) 판정 유지. 시간 축을
+그룹화 알고리즘에 넣으면 세션을 이어서 작업한 케이스에서 과쪼개기 재발.
+
+**뒤집힐 조건**:
+1. prior 경고가 2주에 1회 미만으로 무용지물이면 A·B·C 전부 기각
+2. 경고 무시 학습 발생 시 자동 분리(B 강화) 재검토
+
 #### 남은 실험 여지 (트리거 대기)
 
 - **D (hunk 분리)**: `git add -p` 식 같은 파일 내 독립 주제 분리. 지금
@@ -160,6 +187,7 @@ SSOT 원칙 실측. **A 압도적 우위**:
 - `decisions/hn_review_tool_budget.md` (조기 중단)
 - `incidents/hn_review_maxturns_verdict_miss.md` (bulk 폐기 근거)
 - `harness/hn_commit_perf_optimization.md` (stage별 시간)
+- `harness/hn_info_flow_leak_audit.md` 누수 #10 (prior_session 신호 배경)
 
 ---
 
