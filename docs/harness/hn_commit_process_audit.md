@@ -13,7 +13,7 @@ relates-to:
     rel: extends
   - path: harness/hn_info_flow_leak_audit.md
     rel: extends
-status: in-progress
+status: completed
 created: 2026-04-22
 updated: 2026-04-23
 ---
