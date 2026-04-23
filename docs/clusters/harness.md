@@ -52,6 +52,7 @@ updated: 2026-04-23
 - [test-pre-commit 스위트 성능 — 잔여 구조 재설계](../harness/hn_test_suite_perf.md)
 - [업스트림 전용 로직·기록 전수 감사 — 다운스트림 전파 파일 청소](../harness/hn_upstream_only_audit.md)
 - [PreToolUse Bash -n 오탐으로 정당한 명령 차단](../incidents/hn_bash_n_flag_overblock.md)
+- [docs-ops.sh cluster-update 성능 저하 — extract_abbrs() 반복 호출](../incidents/hn_docs_ops_cluster_update_perf.md)
 - [archived/promotion-log에 다운스트림 제품명 유출 — review 발견](../incidents/hn_downstream_name_leak.md)
 - [v0.18.3 린터 ENOENT 패턴 — 오탐 가능성·OS 커버리지 갭](../incidents/hn_lint_enoent_pattern_gaps.md)
 - [광역 매처 오탐으로 무관한 명령 차단 + harness-upgrade가 README 덮어쓸 위험](../incidents/hn_matcher_false_block.md)

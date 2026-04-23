@@ -46,13 +46,15 @@ extract_abbrs() {
 }
 
 # 파일명에서 abbr 추출 (첫 매치 정책, 라우팅/불투명 prefix 통과)
+# ABBR_PATTERN 환경변수가 설정돼 있으면 extract_abbrs() 재호출 없이 재사용.
+# cmd_cluster_update() 같은 대량 호출 경로에서 I/O 반복 제거용.
 detect_abbr() {
   local filename="$1"
   local basename="${filename##*/}"
   basename="${basename%.md}"
   # 라우팅 접두사 (`decisions--` 등) 제거
   basename="${basename#*--}"
-  local abbrs=$(extract_abbrs | tr '\n' '|' | sed 's/|$//')
+  local abbrs="${ABBR_PATTERN:-$(extract_abbrs | tr '\n' '|' | sed 's/|$//')}"
   [ -z "$abbrs" ] && return 1
   echo "$basename" | grep -oE "(^|[_-])(${abbrs})_" | head -1 \
     | sed -E "s/^[_-]?(${abbrs})_\$/\1/"
@@ -258,6 +260,9 @@ cmd_cluster_update() {
   mkdir -p docs/clusters
   local abbrs=$(extract_abbrs)
   [ -z "$abbrs" ] && { echo "❌ naming.md 약어 표 비어있음" >&2; exit 1; }
+  # detect_abbr()이 매번 extract_abbrs()를 재호출하지 않도록 패턴을 미리 계산해 export.
+  # 337파일 × 17약어 환경에서 I/O 호출 5,729회 → 1회로 감소.
+  export ABBR_PATTERN=$(echo "$abbrs" | tr '\n' '|' | sed 's/|$//')
 
   local updated=0
   while IFS= read -r abbr; do
