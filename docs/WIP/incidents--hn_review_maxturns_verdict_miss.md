@@ -11,7 +11,7 @@ symptom-keywords:
 relates-to:
   - path: decisions/hn_doc_naming.md
     rel: caused-by
-status: completed
+status: in-progress
 created: 2026-04-21
 updated: 2026-04-22
 ---
@@ -113,10 +113,34 @@ verdict 없이 종료. 같은 세션의 다른 review 호출도 52,316 / 52,138 
 - **출력 토큰 한도 도달**: 입력이 비대하면 남은 출력 예산이 줄어듦.
   tool 1회 + 긴 서술 중 출력 상한 도달 → 텍스트가 verdict 출력 전에 잘림
 
-**수정 (v0.20.15)**: commit/SKILL.md — review prompt에 review가 실제로
+**1차 수정 (v0.20.15)**: commit/SKILL.md — review prompt에 review가 실제로
 쓰는 10 keys만 박도록 명시. 4개 내부용 keys 제외.
 
 **maxTurns 8 상향(v0.20.14)은 원인 오진으로 revert (95c02e8).**
+
+### 추가 발견 — 입력 비대의 구조적 원인 2가지 (2026-04-23)
+
+**발견 1: split 시 동적 키 누출**
+
+`split_action_recommended: split`일 때 pre-check stdout에 `split_group_N_name`,
+`split_group_N_files` 등 동적 키가 추가 출력된다. commit 스킬이
+`PRE_CHECK_OUTPUT` 전체를 변수에 보관하므로, split 커밋에서는 이 동적 키들도
+review prompt에 함께 박힌다. v0.20.15 수정(4개 내부용 제외)으로도 차단되지
+않는다 — bash 필터링이 없고 텍스트 지시만 있기 때문.
+
+**발견 2: review.md:240 소비 계약 드리프트**
+
+`review.md:240`에 `## pre-check 결과 — commit 스킬 정상 호출 시 항상 포함
+(4줄 key:value)` 라고 남아있다. 실제로는 10 keys(+split 시 동적 키)가
+전달되는데 "4줄"이라는 구버전 표현이 남아 스펙과 실제 불일치. Claude가 이
+줄만 읽으면 4 keys만 박아도 된다고 오해하거나, 역으로 14 keys를 "다 박으면
+되겠다"고 판단할 수 있다.
+
+**구조적 근본 원인**: review prompt 입력 계약이 commit/SKILL.md(보내는 쪽)와
+review.md(받는 쪽)에 분산 기술돼 있고, 두 문서 간 동기화 메커니즘이 없다.
+한쪽이 갱신되면 다른 쪽이 드리프트한다. 상세 분석 및 대책:
+`docs/decisions/hn_review_tool_budget.md` "## review prompt 입력 계약 구조화"
+섹션 참조.
 
 ## 메모
 

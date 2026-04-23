@@ -7,7 +7,7 @@ relates-to:
     rel: references
   - path: incidents/hn_review_maxturns_verdict_miss.md
     rel: caused-by
-status: completed
+status: in-progress
 created: 2026-04-21
 updated: 2026-04-21
 ---
@@ -255,3 +255,72 @@ deep:
   정리" 요청으로 본 문서 작성
 - 다음 세션에서 staging.md 재조정(v0.17.0) → review.md 재설계(v0.17.1)
   순으로 진행
+
+## review prompt 입력 계약 구조화 (2026-04-23)
+
+### 발견 배경
+
+다운스트림에서 review verdict 누락 재발. 원인 추적 결과 "입력 비대 +
+출력 토큰 한도 도달"로 확정 (상세: `docs/incidents/hn_review_maxturns_verdict_miss.md`
+"2026-04-23 다운스트림 재발" 섹션). 입력 비대의 구조적 원인을 분석한 결과
+두 가지 추가 결함 발견.
+
+### 발견 1: split 시 동적 키 누출
+
+`split_action_recommended: split`일 때 pre-check stdout에 `split_group_N_name`,
+`split_group_N_files` 동적 키가 추가 출력된다. commit 스킬이
+`PRE_CHECK_OUTPUT` 전체 변수를 보관하므로, split 커밋에서는 이 키들도
+review prompt에 함께 박힌다.
+
+v0.20.15 수정(4개 내부용 명시 제외)으로도 이 경로는 차단되지 않는다 — bash
+필터링이 없고 텍스트 지시만 있기 때문. 따라서 split 커밋에서는 여전히 불필요
+한 그룹 상세 정보(파일 목록 등)가 review에 들어간다.
+
+### 발견 2: review.md 소비 계약 드리프트
+
+`review.md:240`의 `(4줄 key:value)` 표현이 실제 10 keys 전달과 불일치.
+구버전 표현이 남아 있는 문서 드리프트.
+
+더 근본적 문제: review prompt 입력 계약이 **두 파일에 분산**돼 있다.
+- `commit/SKILL.md` — "무엇을 어떻게 박는가" (보내는 쪽)
+- `review.md` — "어떤 블록을 기대하는가" (받는 쪽)
+
+두 문서 사이에 동기화 메커니즘이 없다. 한쪽이 갱신되면 다른 쪽이
+드리프트한다. pre-check에 새 key가 추가될 때마다 수동으로 두 곳을 동시
+갱신해야 하는 부담이 있으며, 이번처럼 한 곳만 갱신하면 계약이 깨진다.
+
+### 대책
+
+**즉시 (텍스트 강화):**
+1. review.md:240 "(4줄 key:value)" → "(10 keys — commit/SKILL.md 입력 계약
+   섹션이 SSOT)" 로 수정. 숫자를 박지 않고 SSOT 포인터로 대체
+2. commit/SKILL.md 입력 계약 섹션에 "split 시 동적 키(split_group_N_*)도
+   포함하지 마라" 명시 추가
+
+**구조적 (bash 필터링):**
+3. commit 스킬의 review prompt 조립 시 `PRE_CHECK_OUTPUT` 전체를 박는 대신
+   허용목록(allowlist) grep으로 10 keys만 추출해 변수에 별도 저장:
+   ```bash
+   REVIEW_PRECHECK=$(echo "$PRE_CHECK_OUTPUT" | grep -E \
+     "^(already_verified|risk_factors|diff_stats|signals|domains|\
+   domain_grades|multi_domain|repeat_count|recommended_stage|s1_level):")
+   ```
+   이렇게 하면 pre-check에 key가 추가돼도 명시적 허용 전에는 review에
+   들어가지 않는다.
+
+**SSOT 단일화:**
+4. review prompt 입력 계약의 SSOT를 `commit/SKILL.md` "## 호출 방법 →
+   Agent tool 호출 → prompt 블록" 섹션으로 확정. review.md는 "어떤 블록이
+   오는지"만 기술하고 key 목록은 commit/SKILL.md를 참조하도록 연결.
+
+### 우선순위
+
+| 대책 | 비용 | 효과 | 우선순위 |
+|------|------|------|---------|
+| 1. review.md:240 드리프트 수정 | 1줄 | 오해 방지 | 즉시 |
+| 2. split 동적 키 명시 | 2줄 | 누출 방지 | 즉시 |
+| 3. bash 필터링 도입 | 5줄 | 구조적 차단 | 다음 커밋 |
+| 4. SSOT 단일화 | 문서 재작성 | 드리프트 근절 | 중기 |
+
+대책 1·2는 문서 수정만이므로 즉시 반영. 3은 다음 commit/SKILL.md 수정
+시 함께. 4는 commit-review 핸드오프 계약 재정비 시 포함.
