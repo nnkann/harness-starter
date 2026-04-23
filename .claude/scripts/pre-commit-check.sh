@@ -747,6 +747,20 @@ elif [ "${TOTAL_FILES:-0}" -gt 0 ] && [ -x .claude/scripts/task-groups.sh ]; the
   fi
 fi
 
+# prior_session_files: 세션 시작 시점 unstaged 파일 중 현재 staged와 교집합.
+# 이전 세션 잔여물이 staged에 섞였을 가능성 신호. 자동 분리 아님 — 경고용.
+PRIOR_FILES="none"
+if [ -f ".claude/memory/session-start-unstaged.txt" ]; then
+  STAGED_LIST=$(git diff --cached --name-only 2>/dev/null)
+  if [ -n "$STAGED_LIST" ]; then
+    PRIOR_FILES=$(comm -12 \
+      <(sort .claude/memory/session-start-unstaged.txt 2>/dev/null) \
+      <(echo "$STAGED_LIST" | sort) \
+      | tr '\n' ',' | sed 's/,$//')
+    [ -z "$PRIOR_FILES" ] && PRIOR_FILES="none"
+  fi
+fi
+
 # 통과 시 stdout 요약 (commit 스킬이 캡처해서 review prompt에 주입)
 echo "pre_check_passed: true"
 echo "already_verified: ${ALREADY_VERIFIED}"
@@ -761,6 +775,7 @@ echo "recommended_stage: ${RECOMMENDED_STAGE}"
 echo "s1_level: ${S1_LEVEL}"
 echo "split_plan: ${SPLIT_PLAN}"
 echo "split_action_recommended: ${SPLIT_ACTION}"
+echo "prior_session_files: ${PRIOR_FILES}"
 
 # 그룹 상세 (split 권장 시만 출력, stdout 비대화 방지)
 if [ "$SPLIT_ACTION" = "split" ] && [ -n "$GROUP_ASSIGN" ]; then

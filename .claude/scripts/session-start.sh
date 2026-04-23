@@ -25,6 +25,9 @@ if git rev-parse --is-inside-work-tree &>/dev/null; then
     [ -n "$staged" ] && echo "    [staged]" && echo "$staged" | tail -1 | sed 's/^/    /'
     [ -n "$changes" ] && echo "    [unstaged]" && echo "$changes" | tail -1 | sed 's/^/    /'
   fi
+  # prior-session 신호용 — pre-commit-check이 이전 세션 잔여물 식별에 사용.
+  # 다음 SessionStart에서 덮어쓰기. gitignore: session-*.txt 커버.
+  git diff --name-only > .claude/memory/session-start-unstaged.txt 2>/dev/null || true
 fi
 
 # 2. docs/WIP/ 진행 중 작업 확인
