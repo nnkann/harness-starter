@@ -607,7 +607,7 @@ fi
 push 성공 직후 session-* 파일 제거:
 
 ```bash
-rm -f .claude/memory/session-*.txt
+rm -f .claude/memory/session-*.txt .claude/memory/split-plan.txt
 ```
 
 라이프사이클: 재commit 시 pre-check 재실행이 기본. hook 전달용 파일만
