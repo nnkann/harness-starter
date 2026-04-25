@@ -1042,6 +1042,74 @@ run_case "T37.3 docs 1줄 + 코드 동반 → deep/standard (skip 아님)" "reco
 
 reset
 
+# T39. 이동 커밋 → skip (WIP→완료 이동 + cluster 갱신 패턴)
+# ─────────────────────────────────────────────────
+
+# T39.1: docs rename 단독 → skip
+mkdir -p docs/WIP docs/incidents
+cat > docs/WIP/incidents--hn_move_probe.md <<'EOF'
+---
+title: move probe
+domain: harness
+tags: []
+status: completed
+created: 2026-04-25
+---
+# move probe
+EOF
+git add docs/WIP/incidents--hn_move_probe.md
+git commit -q -m "prep T39.1 baseline" 2>/dev/null
+
+git mv docs/WIP/incidents--hn_move_probe.md docs/incidents/hn_move_probe.md
+git add docs/incidents/hn_move_probe.md
+run_case "T39.1 docs rename 단독 → skip" "recommended_stage" "skip" must_match
+
+reset
+
+# T39.2: docs rename + clusters M 동반 → skip (이동 커밋 전형 패턴)
+mkdir -p docs/WIP docs/incidents
+cat > docs/WIP/incidents--hn_move_probe2.md <<'EOF'
+---
+title: move probe2
+domain: harness
+tags: []
+status: completed
+created: 2026-04-25
+---
+# move probe2
+EOF
+git add docs/WIP/incidents--hn_move_probe2.md
+git commit -q -m "prep T39.2 baseline" 2>/dev/null
+
+git mv docs/WIP/incidents--hn_move_probe2.md docs/incidents/hn_move_probe2.md
+echo "- [move probe2](../incidents/hn_move_probe2.md)" >> docs/clusters/harness.md
+git add docs/incidents/hn_move_probe2.md docs/clusters/harness.md
+run_case "T39.2 docs rename + cluster M → skip" "recommended_stage" "skip" must_match
+
+reset
+
+# T39.3: docs rename + 코드 파일 M 동반 → skip 아님 (코드 변경 포함)
+mkdir -p docs/WIP docs/incidents .claude/scripts
+cat > docs/WIP/incidents--hn_move_probe3.md <<'EOF'
+---
+title: move probe3
+domain: harness
+tags: []
+status: completed
+created: 2026-04-25
+---
+# move probe3
+EOF
+git add docs/WIP/incidents--hn_move_probe3.md
+git commit -q -m "prep T39.3 baseline" 2>/dev/null
+
+git mv docs/WIP/incidents--hn_move_probe3.md docs/incidents/hn_move_probe3.md
+echo "# change" >> .claude/scripts/pre-commit-check.sh
+git add docs/incidents/hn_move_probe3.md .claude/scripts/pre-commit-check.sh
+run_case "T39.3 docs rename + 코드 M → skip 아님" "recommended_stage" "skip" must_not_match
+
+reset
+
 # ─────────────────────────────────────────────────
 # 결과
 # ─────────────────────────────────────────────────

@@ -639,10 +639,18 @@ if [ -z "$RECOMMENDED_STAGE" ]; then
   fi
 fi
 
-# 룰 3: skip 조건 (메타·lock 단독, WIP 단독, 문서 ≤5줄)
+# 룰 3: skip 조건 (메타·lock 단독, WIP 단독, 문서 ≤5줄, 이동 커밋)
 if [ -z "$RECOMMENDED_STAGE" ]; then
+  # 이동 커밋: staged 전체가 R(rename, docs/ 내부) + S5(clusters/meta M) 조합만
+  # — WIP→완료 이동 + cluster 갱신 패턴. 내용 변경 없음, review 실익 없음.
+  RENAME_COUNT=$(echo "$STAGED_NAME_STATUS" | grep -c '^R')
+  NON_MOVE=$(echo "$STAGED_NAME_STATUS" | grep -v '^R' | grep -v '^M' | wc -l | tr -d ' ')
+  M_FILES=$(echo "$STAGED_NAME_STATUS" | grep '^M' | awk '{print $2}')
+  M_NON_META=$(echo "$M_FILES" | grep -vE '^(docs/clusters/|\.claude/HARNESS\.json|\.claude/memory/|CHANGELOG\.md)' | grep -c .)
+  if [ "$RENAME_COUNT" -gt 0 ] && [ "$NON_MOVE" -eq 0 ] && [ "$M_NON_META" -eq 0 ]; then
+    RECOMMENDED_STAGE="skip"
   # S5 단독 (메타 파일만)
-  if has_sig S5 && ! (has_sig S7 || has_sig S2 || has_sig S8 || has_sig S14); then
+  elif has_sig S5 && ! (has_sig S7 || has_sig S2 || has_sig S8 || has_sig S14); then
     RECOMMENDED_STAGE="skip"
   # S4 단독 (lock 파일만, S7 미동반)
   elif has_sig S4 && ! has_sig S7; then
