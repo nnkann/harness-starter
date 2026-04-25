@@ -49,6 +49,60 @@ fail을 막는다.
 
 ---
 
+## v0.22 — bash 스크립트 전면 Python 전환 + 래퍼 완전 제거
+
+### 변경 내용
+
+핵심 스크립트 5개가 bash → Python으로 완전 전환되고, `.sh` 래퍼 파일이
+모두 삭제됐다. 모든 호출자는 `python3 *.py`를 직접 실행한다.
+
+| 삭제된 .sh | 대체 .py | 비고 |
+|-----------|----------|------|
+| `pre-commit-check.sh` | `pre_commit_check.py` | v0.20.21에서 전환 |
+| `docs-ops.sh` | `docs_ops.py` | v0.21.2에서 전환 |
+| `task-groups.sh` | `task_groups.py` | v0.22.0에서 전환 |
+| `harness-version-bump.sh` | `harness_version_bump.py` | v0.22.0에서 전환 |
+| `test-pre-commit.sh` | `test_pre_commit.py` | pytest 기반 재작성 |
+
+**성능 실측** (Windows Git Bash 업스트림 리포):
+
+| 항목 | 전 (bash) | 후 (Python) |
+|------|-----------|------------|
+| pre-check 1회 | ~1,953ms | ~310ms (-84%) |
+| pytest 스위트 51케이스 | 91~111초 (bash 68케이스) | 9초 (-90%) |
+| subprocess fork | ~74개 | 9개 (-88%) |
+
+### 자동 (harness-upgrade)
+
+- 삭제: `.claude/scripts/pre-commit-check.sh`, `docs-ops.sh`, `task-groups.sh`,
+  `harness-version-bump.sh`, `test-pre-commit.sh`
+- 추가: `.claude/scripts/pre_commit_check.py`, `docs_ops.py`, `task_groups.py`,
+  `harness_version_bump.py`, `test_pre_commit.py`
+- 수정: `split-commit.sh`, `downstream-readiness.sh`, `commit/SKILL.md`
+
+### 수동 액션 (사용자 필수)
+
+- [ ] **Python 3.8 이상 PATH 확인** (v0.21부터 필수, 이미 확인했으면 스킵):
+  ```bash
+  python3 --version
+  ```
+  없으면: https://python.org/downloads
+  Windows Git Bash: `~/.bashrc`에 `alias python3=python` 추가
+
+- [ ] **구 .sh 파일을 직접 호출하던 커스텀 스크립트·hook 있으면 업데이트**:
+  ```bash
+  # 예: bash .claude/scripts/pre-commit-check.sh
+  # →   python3 .claude/scripts/pre_commit_check.py
+  ```
+
+### 회귀 위험
+
+- Python 미설치 시 `git commit`이 즉시 실패 (pre_commit_check.py 실행 불가)
+- Windows Python 설치 후 Git Bash에서 `python3` 명령이 PATH에 없을 수 있음 → alias 필요
+- 업스트림 격리 환경(Windows/Git Bash)에서 관찰된 범위 내에서는 동작 검증됨. Linux/macOS 미테스트.
+
+---
+
 ## v0.20.11 — harness-init/adopt/upgrade 세션 파일명 날짜 suffix 제거
 
 **호환성 변화 있음. 수동 액션 필요.**

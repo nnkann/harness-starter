@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """
-harness-version-bump.sh Python 재작성.
-
-역할: staged 변경 분석 → minor/patch/none 범프 타입 제안 출력.
+staged 변경 분석 → minor/patch/none 범프 타입 제안 출력.
       실제 HARNESS.json 수정은 Claude/사용자가 수행.
 
 버전 자리수 규칙: patch 0~9 (10이상→minor 올림), minor 0~99

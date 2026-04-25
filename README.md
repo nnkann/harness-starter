@@ -84,13 +84,13 @@ CLAUDE.md                        에이전트 루트 인스트럭션 (≤30줄)
     ├── write-guard.sh           Write 가드
     ├── bash-guard.sh            Bash 단일 hook (jq 토큰 파싱 + git commit 직접 호출 차단)
     ├── validate-settings.sh     settings.json schema 검증
-    ├── pre-commit-check.sh      커밋 전 정적 검사 + staging 신호 감지 (dead link 증분, frontmatter relates-to 검증, S6 ≤5줄 skip)
+    ├── pre_commit_check.py      커밋 전 정적 검사 + staging 신호 감지 (dead link 증분, frontmatter relates-to 검증, S6 ≤5줄 skip)
     ├── downstream-readiness.sh  다운스트림 자가 진단 (silent fail 6항목)
-    ├── docs-ops.sh              docs/ 관리 (validate/move/reopen/cluster-update/verify-relates — docs-manager 스킬 대체)
-    ├── harness-version-bump.sh  업스트림 버전 범프 제안 (is_starter 가드 내장)
-    ├── task-groups.sh           staged 파일을 WIP task × abbr × kind로 그룹화 (분리 판정)
-    ├── split-commit.sh          커밋 분리 실행 (task-groups.sh 기반)
-    ├── test-pre-commit.sh       회귀 테스트 (65 케이스, 5줄 룰·ENOENT·dead link T35·T36·S6 T37 포함)
+    ├── docs_ops.py              docs/ 관리 (validate/move/reopen/cluster-update/verify-relates)
+    ├── harness_version_bump.py  업스트림 버전 범프 제안 (is_starter 가드 내장)
+    ├── task_groups.py           staged 파일을 WIP task × abbr × kind로 그룹화 (분리 판정)
+    ├── split-commit.sh          커밋 분리 실행 (task_groups.py 기반)
+    ├── test_pre_commit.py       회귀 테스트 (51 케이스, pytest — 단위+통합)
     └── test-bash-guard.sh       회귀 테스트 (18 케이스, 강제 경유 G1~G5 포함)
 scripts/                         유틸 스크립트 (하네스 외부)
 └── install-secret-scan-hook.sh  pre-commit 시크릿 스캔 훅 설치 (gitleaks 우선, grep 폴백)
@@ -158,8 +158,8 @@ docs/
   /harness-upgrade       스테이징된 파일을 대화형 병합.
 
 업그레이드 후 검증:
-  bash .claude/scripts/test-pre-commit.sh    # 65/65 기대
-  bash .claude/scripts/test-bash-guard.sh    # 18/18 기대
+  pytest .claude/scripts/test_pre_commit.py  # 51/51 기대
+  bash .claude/scripts/test-bash-guard.sh   # 18/18 기대
   bash .claude/scripts/downstream-readiness.sh  # 0 누락 기대
 ```
 

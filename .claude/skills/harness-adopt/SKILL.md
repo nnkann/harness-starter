@@ -22,7 +22,7 @@ harness-init이 **빈 프로젝트 초기화**라면, harness-adopt는 **기존 
 
 | 영역 | 위임 |
 |------|------|
-| 문서 이동·clusters 갱신 실행 | `.claude/scripts/docs-ops.sh` |
+| 문서 이동·clusters 갱신 실행 | `.claude/scripts/docs_ops.py` |
 | 새 문서 본문 신규 작성 | write-doc (adopt 흐름에선 비해당) |
 | CPS 수집 대화·스택 결정 | harness-init (Step 7 완료 후 연쇄) |
 | 기존 결정·가이드 검색 | doc-finder (기존 docs 탐색 시) |
@@ -40,7 +40,7 @@ harness-init이 **빈 프로젝트 초기화**라면, harness-adopt는 **기존 
 | 축 | 내용 |
 |----|------|
 | Pass (사용자→나) | 기존 프로젝트 루트 · 이식 의도 · 기존 하네스 유무 · 단계별 승인 응답 |
-| Pass (나→`docs-ops.sh`) | `cluster-update` / `validate` / `verify-relates` 서브커맨드 |
+| Pass (나→`docs_ops.py`) | `cluster-update` / `validate` / `verify-relates` 서브커맨드 |
 | Pass (나→harness-init) | 기존 스택 추출 결과 · 기존 도메인 목록 · 기존 CLAUDE.md 스냅샷 |
 | Preserve | 기존 파일 원본 백업 경로 · 이식 전 상태 스냅샷 · 사용자 승인받은 도메인 목록(추론값 그대로 확정 금지) · 기존 README/CLAUDE.md 본문 |
 | Signal risk | ⛔ README/CLAUDE.md 덮어쓰기·기존 `.claude/` 파손 위험 · ⚠️ 도메인 추론 자신감 낮음·3-way 병합 충돌 다수 · 🔍 단계별 사용자 승인 이력 |
@@ -176,7 +176,7 @@ Step 2부터 순서대로 진행합니다.
   + PostCompact: post-compact-guard.sh
   + PostToolUse(Write|Edit): auto-format.sh
   + PreToolUse(git commit --no-verify): 차단 hook
-  + PreToolUse(git commit): pre-commit-check.sh + 테스트 커버리지 에이전트
+  + PreToolUse(git commit): pre_commit_check.py + 테스트 커버리지 에이전트
   + PreToolUse(Write): write-guard.sh
 
 ⚠️ 충돌:
@@ -419,10 +419,10 @@ updated: 2026-04-10     ← git log에서 추출한 최근 수정 날짜
 재분류·프론트매터 추가가 끝나면:
 
 ```bash
-bash .claude/scripts/docs-ops.sh cluster-update
+bash .claude/scripts/docs_ops.py cluster-update
 ```
 
-docs-ops.sh가 naming.md 약어 표 + docs/ 하위 md를 전수 스캔해
+docs_ops.py가 naming.md 약어 표 + docs/ 하위 md를 전수 스캔해
 `docs/clusters/{domain}.md`를 자동 생성.
 
 ---

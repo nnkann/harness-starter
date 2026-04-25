@@ -244,7 +244,7 @@ created: {YYYY-MM-DD}
 (프로젝트 진행 중 주요 결정 변화를 간단히 기록)
 ```
 
-이 문서 생성 직후 `.claude/scripts/docs-ops.sh cluster-update`를 실행해
+이 문서 생성 직후 `.claude/scripts/docs_ops.py cluster-update`를 실행해
 docs/clusters/{domain}.md를 초기 생성한다 (doc-ops.sh가 naming.md 약어
 표 + docs/ 하위 md를 스캔해 cluster 자동 생성).
 

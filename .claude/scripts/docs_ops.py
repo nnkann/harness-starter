@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 """
-docs-ops.sh Python 재작성.
-
 서브커맨드:
   validate                     프론트매터·약어 검증
   move <wip-file>              WIP 접두사로 대상 폴더 이동 + status=completed

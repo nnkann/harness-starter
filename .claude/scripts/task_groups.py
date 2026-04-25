@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 """
-task-groups.sh Python 재작성.
-
 staged 파일을 task × abbr × kind 3축으로 그룹화 (audit #18).
 
 그룹 키 형식:

@@ -2,7 +2,7 @@
 title: test-pre-commit 스위트 성능 — 잔여 구조 재설계
 domain: harness
 tags: [pre-check, test, perf, structure]
-status: in-progress
+status: completed
 created: 2026-04-22
 updated: 2026-04-25
 ---
@@ -465,8 +465,54 @@ git clone·sandbox·reset 전부 제거. `python3` 시작 1회 76ms + 로직 0ms
 단위 테스트만으로 달성 가능한 최저 시간은 아님. 단위 테스트 68케이스만
 기준으로는 ~6초 예상. pytest 전환 시 추가 단축 가능.
 
+## 2026-04-25 (D) 전체 Python 전환 + 래퍼 정리 완료
+
+### 최종 전환 범위 (당초 계획 변경)
+
+재설계 당시 "bash-guard·docs-ops·task-groups 등은 그대로 유지"로 결정했으나,
+pre-check Python 전환 성공 후 나머지 스크립트도 동일 오버헤드 구조임이 확인돼 전면 전환으로 확대.
+
+| 파일 | 전환 내용 |
+|------|----------|
+| `pre-commit-check.sh` | 삭제 (py 직접 호출로 대체) |
+| `docs-ops.sh` | 삭제 → `docs_ops.py` (477줄→540줄) |
+| `task-groups.sh` | 삭제 → `task_groups.py` (300줄→259줄) |
+| `harness-version-bump.sh` | 삭제 → `harness_version_bump.py` (97줄→113줄) |
+| `test-pre-commit.sh` | 삭제 → `test_pre_commit.py` 완성 (907줄→715줄, 68→51케이스) |
+
+호출자 업데이트: `split-commit.sh`·`pre_commit_check.py` 내부·`downstream-readiness.sh`·`commit/SKILL.md`.
+
+### 최종 실측 (2026-04-25)
+
+| 항목 | 재설계 전 (bash) | 최종 (Python 직접) |
+|------|----------------|-------------------|
+| pre-check 1회 | ~1,953ms (순수 bash) / ~850ms (awk 최적화) | **~310ms** |
+| pytest 스위트 51케이스 | 91~111초 (bash, 68케이스) | **9초** |
+| subprocess fork 수 | ~74개 (git/grep/awk/sed 혼재) | **9개** (git 전용) |
+| 임시파일 | 2개 (mktemp) | **0개** |
+
+### 코드 구조 개선
+
+| 항목 | 구 bash | Python |
+|------|---------|--------|
+| 멀티 입력 전달 | awk sentinel 패턴 (`---STAGED---`) | dict/list 직접 |
+| 중간 저장 | mktemp + trap EXIT | 메모리 변수 |
+| 데이터 구조 | string 조작 + awk 연관 배열 | `dict[str, list[tuple]]` |
+| 테스트 격리 | git clone sandbox + reset×47 | `TEST_MODE=1` + env var 주입 |
+
+### 래퍼 제거 이유
+
+처음에는 `.sh` 래퍼(exec python3 ...)를 유지했으나:
+- 호출자가 `.sh`를 찾아야 해서 참조 그래프가 sh/py 혼재
+- `downstream-readiness.sh`·`commit/SKILL.md` 등 문서도 `.sh` 경로를 지칭
+- 래퍼 한 겹은 시간 이득 없고 오염 경로만 늘림
+
+→ 모든 호출자를 `python3 *.py`로 직접 변경 후 `.sh` 5개 전부 삭제.
+
 ## 영향 파일
 
-- 주: `.claude/scripts/test-pre-commit.sh` (구조) ✅ → `test_pre_commit.py`로 전환 예정
-- 보조: `.claude/scripts/pre-commit-check.sh` (입력 주입 폴백·TEST_MODE, fork 최소화) ✅ → py 래퍼로 교체 예정
-- 신규: `.claude/scripts/pre_commit_check.py`
+**삭제**: `.claude/scripts/pre-commit-check.sh`, `docs-ops.sh`, `task-groups.sh`, `harness-version-bump.sh`, `test-pre-commit.sh`
+
+**신규/대체**: `.claude/scripts/pre_commit_check.py`, `docs_ops.py`, `task_groups.py`, `harness_version_bump.py`, `test_pre_commit.py`
+
+**수정**: `.claude/scripts/split-commit.sh`, `.claude/scripts/downstream-readiness.sh`, `.claude/skills/commit/SKILL.md`

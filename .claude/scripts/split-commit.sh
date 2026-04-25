@@ -32,7 +32,7 @@
 set -e
 
 # 1. pre-check 실행
-PRE_OUT=$(bash .claude/scripts/pre-commit-check.sh 2>/dev/null)
+PRE_OUT=$(python3 "$(dirname "$0")/pre_commit_check.py" 2>/dev/null)
 PRE_EXIT=$?
 if [ "$PRE_EXIT" -ne 0 ]; then
   echo "❌ pre-check 실패. 먼저 해결하라." >&2

@@ -238,7 +238,7 @@ MSYS_NO_PATHCONV=1 git show <upstream_ref>:<파일경로> > <파일경로>
 📦 자동 덮어쓰기 (스크립트/인프라)
 
   .claude/scripts/session-start.sh
-  .claude/scripts/pre-commit-check.sh
+  .claude/scripts/pre_commit_check.py
   h-setup.sh
 
 적용할까요? [Y/n]
@@ -400,15 +400,15 @@ v0.7.0에서 단일 `bash-guard.sh`로 통합됨 → 구 매처는 찌꺼기.
 ### Step 9. docs/ 정합성 검증
 
 업그레이드로 docs/ 관련 규칙(docs.md, 폴더 구조, 프론트매터 스펙)이 변경되었을 수 있다.
-`.claude/scripts/docs-ops.sh`로 검증:
+`.claude/scripts/docs_ops.py`로 검증:
 
 ```bash
-bash .claude/scripts/docs-ops.sh validate           # 프론트매터·약어 검증
-bash .claude/scripts/docs-ops.sh verify-relates     # relates-to 경로 유효성
-bash .claude/scripts/docs-ops.sh cluster-update     # clusters/ 자동 재생성
+bash .claude/scripts/docs_ops.py validate           # 프론트매터·약어 검증
+bash .claude/scripts/docs_ops.py verify-relates     # relates-to 경로 유효성
+bash .claude/scripts/docs_ops.py cluster-update     # clusters/ 자동 재생성
 ```
 
-(audit #10, 2026-04-22: docs-manager 스킬 폐기 후 `docs-ops.sh`로 이관)
+(audit #10, 2026-04-22: docs-manager 스킬 폐기 후 `docs_ops.py`로 이관)
 - 업그레이드가 docs/ 규칙 자체를 바꿔 전수 검증이 필요하다고 판단되면
   `scope: full` + `intent: full-refresh`로 명시 (드문 경우)
 

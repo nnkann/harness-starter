@@ -132,14 +132,14 @@ if [ ! -f ".claude/scripts/bash-guard.sh" ]; then
 fi
 
 # ─────────────────────────────────────────────
-# 4. pre-commit-check.sh 핵심 신호 출력 확인
+# 4. pre_commit_check.py 핵심 신호 출력 확인
 # ─────────────────────────────────────────────
-if [ ! -f ".claude/scripts/pre-commit-check.sh" ]; then
-  add_issue "pre-commit-check.sh 없음"
+if [ ! -f ".claude/scripts/pre_commit_check.py" ]; then
+  add_issue "pre_commit_check.py 없음"
 else
   for key in 'signals:' 'recommended_stage:' 's1_level:'; do
-    if ! grep -q "echo \"$key" .claude/scripts/pre-commit-check.sh; then
-      add_warning "pre-commit-check.sh: '$key' stdout 누락 — 구버전 가능성"
+    if ! grep -q "\"$key" .claude/scripts/pre_commit_check.py; then
+      add_warning "pre_commit_check.py: '$key' stdout 누락 — 구버전 가능성"
     fi
   done
 fi
@@ -160,7 +160,7 @@ fi
 # ─────────────────────────────────────────────
 # 6. 회귀 테스트 스크립트 존재
 # ─────────────────────────────────────────────
-for s in test-pre-commit.sh test-bash-guard.sh; do
+for s in test_pre_commit.py test-bash-guard.sh; do
   if [ ! -f ".claude/scripts/$s" ]; then
     add_warning "$s 없음 — 회귀 검증 불가"
   fi

@@ -24,7 +24,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).parent.parent.parent  # harness-starter/
 PY_SCRIPT = REPO_ROOT / ".claude" / "scripts" / "pre_commit_check.py"
-SH_WRAPPER = REPO_ROOT / ".claude" / "scripts" / "pre-commit-check.sh"
+
 
 
 def run_check(
@@ -407,7 +407,7 @@ def _git(args: list[str], cwd: Path, **kwargs) -> subprocess.CompletedProcess:
 def _run_precheck(repo: Path) -> dict[str, str]:
     # 상대경로 사용 — Windows Git Bash는 절대경로(C:\...)를 인식 못 함
     r = subprocess.run(
-        ["bash", ".claude/scripts/pre-commit-check.sh"],
+        [sys.executable, ".claude/scripts/pre_commit_check.py"],
         cwd=repo, capture_output=True, text=True,
     )
     out: dict[str, str] = {}
@@ -444,7 +444,7 @@ def integ_repo(tmp_path_factory):
     subprocess.run(["git", "clone", "-q", str(REPO_ROOT), str(repo)],
                    capture_output=True, check=True)
     # 미커밋 최신 파일 덮어쓰기
-    for name in ("pre-commit-check.sh", "pre_commit_check.py"):
+    for name in ("pre_commit_check.py",):
         src = REPO_ROOT / ".claude" / "scripts" / name
         dst = repo / ".claude" / "scripts" / name
         if src.exists():
@@ -472,7 +472,7 @@ class TestIntegS10:
         _git(["add", str(f)], repo)
 
         r = subprocess.run(
-            ["bash", ".claude/scripts/pre-commit-check.sh"],
+            [sys.executable, ".claude/scripts/pre_commit_check.py"],
             cwd=repo, capture_output=True, text=True,
         )
         assert r.returncode == 0, "T13.1: 3회 연속 수정 차단 안 됨 (exit 0)"

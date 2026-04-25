@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-pre-commit 검사 — pre-commit-check.sh의 Python 재작성.
+pre-commit 검사.
 
 출력 채널:
   stdout: commit 스킬이 파싱하는 key:value 요약 (스키마 변경 금지)
@@ -761,8 +761,8 @@ group_assign: dict[str, list[str]] = {}
 if HARNESS_SPLIT_SUB:
     split_plan   = 1
     split_action = "sub"
-elif not TEST_MODE and total_files > 0 and Path(".claude/scripts/task-groups.sh").exists():
-    tg = run(["bash", ".claude/scripts/task-groups.sh"])
+elif not TEST_MODE and total_files > 0 and Path(".claude/scripts/task_groups.py").exists():
+    tg = run([sys.executable, str(Path(__file__).parent / "task_groups.py")])
     if tg:
         for line in tg.splitlines():
             parts = line.split("\t")
