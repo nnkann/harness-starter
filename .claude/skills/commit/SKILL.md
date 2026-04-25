@@ -437,6 +437,9 @@ bash .claude/scripts/split-commit.sh
 - commit 스킬은 **첫 그룹만으로** Step 6·7·7.5·8(커밋)·9(푸시 제외) 수행
   - 커밋 시 **`HARNESS_SPLIT_SUB=1 HARNESS_DEV=1` prefix 필수**
   - sub-커밋은 pre-check 분리 판정 skip, 정상 review·커밋 흐름
+  - sub-커밋의 recommended_stage는 그룹 staged 파일만으로 자동 재판정된다
+    (split 후 staged = 그룹 파일만이므로 pre-check이 그룹 신호만 감지).
+    문서 이동 단독 그룹은 standard 이하, harness critical 변경 그룹은 deep.
 - 첫 sub-커밋 완료 후 **다시 `/commit` 호출** → split-commit.sh가 다음 그룹 stage
 - `split-plan.txt`가 비면 분리 종료
 

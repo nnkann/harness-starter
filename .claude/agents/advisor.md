@@ -46,6 +46,7 @@ lead, specialist는 sub. 강한 모델은 종합·판단 단계에 배치.
 | `risk-analyst` (sonnet) | 내부 비판·반대 논거 | 취약 경로·롤백·incident 매칭 |
 | `threat-analyst` (sonnet) | 외부 공격면 | 시크릿·admin 가드·RLS·CORS |
 | `performance-analyst` (sonnet) | 성능 | N+1·메모리·동시성 |
+| `debug-specialist` (sonnet) | 에러·테스트 실패·예상 외 동작 디버그 | 구현 중 1회 실패 후 |
 
 `doc-finder` (haiku)는 specialist가 아니라 검색 도구. 필요하면 직접
 호출하거나 codebase-analyst에 위임.
