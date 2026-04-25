@@ -2,9 +2,9 @@
 title: test-pre-commit 스위트 성능 — 잔여 구조 재설계
 domain: harness
 tags: [pre-check, test, perf, structure]
-status: completed
+status: in-progress
 created: 2026-04-22
-updated: 2026-04-23
+updated: 2026-04-25
 ---
 
 # test-pre-commit 스위트 성능 — 잔여 구조 재설계
@@ -79,12 +79,37 @@ pre-check 내부에 `TEST_MODE=1` 같은 환경변수 → lint 호출 skip, CLAU
 
 ## 착수 조건
 
-- 스위트 시간이 **체감 장벽**이 될 때만. 현재 91초는 개발 중 1~2회 돌릴
-  만한 수준
+- ~~스위트 시간이 **체감 장벽**이 될 때만. 현재 91초는 개발 중 1~2회 돌릴
+  만한 수준~~ **→ 2026-04-25 체감 장벽 도달 확인. 케이스 67개로 증가 후
+  사용자 "신경질 난다" 지적. 착수 조건 충족.**
 - 프로파일링 재실행으로 2.1초가 여전히 유효한지 확인 (환경·OS·fs 변경
   가능성)
 - 공유 fixture 재설계는 **전체 T 케이스 맵 작성** 선행 — 어느 T끼리 묶일
   수 있나
+
+## 2026-04-25 재분석 (케이스 67개 기준)
+
+performance-analyst 에이전트 실측:
+
+| 항목 | 값 |
+|------|-----|
+| pre-check 실행 횟수 | ~44회 (reset → 캐시 미스) |
+| no-staged 1회 | 1,356ms |
+| staged 있을 때 1회 | 1,985ms (+task-groups.sh 629ms) |
+| **추정 합계** | **68,000~94,000ms (1분 8초~1분 34초)** |
+| git commit prep | 11회 × 300ms = 3,300ms |
+| git clone sandbox | 990ms (고정) |
+| reset() 47회 | ~2,350ms |
+
+**핵심**: 스위트 시간의 99%가 pre-check 반복 실행 — 2023-04-23 분석과 동일.
+T39 케이스 3개 추가로 ~44회로 증가 (이전 42회).
+
+**신규 발견**: `task-groups.sh`가 staged 있을 때마다 호출됨 (+629ms/회).
+테스트 환경에서 `HARNESS_SPLIT_SUB=1` 또는 별도 환경변수로 스킵 가능 여부
+검토 필요.
+
+**Windows Defender 개입** 가능성: bash fork + 파일 쓰기마다 50~200ms 추가.
+측정값이 이를 이미 포함한 수치인지 환경 확인 필요.
 
 ## 영향 파일
 
