@@ -7,8 +7,9 @@ relates-to:
     rel: references
   - path: harness/hn_commit_review_staging.md
     rel: extends
-status: in-progress
+status: completed
 created: 2026-04-25
+updated: 2026-04-25
 ---
 
 # split 커밋 sub-group review stage 재판정

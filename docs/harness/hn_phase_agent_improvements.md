@@ -7,8 +7,9 @@ relates-to:
     rel: extends
   - path: harness/hn_implementation_router.md
     rel: extends
-status: in-progress
+status: completed
 created: 2026-04-25
+updated: 2026-04-25
 ---
 
 # Phase 구조 보강 — WIP AC 섹션 + Phase 6원칙 + escalate 에이전트 트리거 + WIP 실행 순서
@@ -94,7 +95,7 @@ AC 실행 규칙:
 
 **`Acceptance Criteria` 원칙**:
 - 추상 서술 금지. `python3 -m pytest tests/`, "린터 에러 0" 같은 실행·확인 가능 형태.
-- PR 연동: 이번 스코프 밖. 커밋 메시지 AC 달성 기록 방식 추후 별도 논의.
+- PR 연동: 이번 스코프 밖. 커밋 메시지 AC 달성 기록 방식은 별도 WIP로 분리.
 
 **영향 파일**:
 - `.claude/skills/implementation/SKILL.md` (Step 1 문서 구조 + Step 2.5 self-verify 연동)
@@ -266,6 +267,9 @@ AC 미달성 시 escalate 흐름:
   `implementation/SKILL.md` L255 반영. 테스트 51/51 통과.
 - [완료] 작업 4: Step 0.9 신설 — 여러 WIP 간 실행 순서 결정 (Step 0.8 직후).
   `implementation/SKILL.md` L165 반영. 테스트 51/51 통과.
+- [완료] 작업 5: escalate 흐름 보강 — debug-specialist 1회 즉시 트리거, advisor 전환,
+  "3회 규칙" → 에이전트 위임 사이클 3회로 재정의. `implementation/SKILL.md`
+  `## 실패·escalate 흐름` 섹션 교체. 테스트 51/51 통과.
 - AC 실행 주체: Claude가 각 Phase 완료 직후 직접 실행. 미통과 시 완료 선언 금지.
 - doc-finder fast scan: tool calls 3회 이내 강제. 파일명·태그 Grep만.
   `doc-finder.md` 이미 반영 완료.
