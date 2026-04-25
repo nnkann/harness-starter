@@ -202,6 +202,26 @@ def _extract_body(text: str) -> str:
     return "\n".join(body_lines)
 
 
+def _rewrite_relates_to(old_rel: str, new_rel: str, skip: Path) -> list[Path]:
+    """docs/**/*.md 전체에서 relates-to.path == old_rel 인 항목을 new_rel 로 갱신.
+    skip 파일(이동된 파일 자신)은 제외. 갱신된 파일 경로 목록 반환."""
+    pat = re.compile(
+        r"(^[ \t]*-[ \t]+path:[ \t]+)" + re.escape(old_rel) + r"([ \t]*$)",
+        re.MULTILINE,
+    )
+    rewritten: list[Path] = []
+    for md in DOCS_DIR.rglob("*.md"):
+        if md.resolve() == skip.resolve():
+            continue
+        text = md.read_text(encoding="utf-8", errors="ignore")
+        new_text, n = pat.subn(rf"\g<1>{new_rel}\2", text)
+        if n:
+            md.write_text(new_text, encoding="utf-8")
+            subprocess.run(["git", "add", str(md)], capture_output=True)
+            rewritten.append(md)
+    return rewritten
+
+
 def cmd_move(src_str: str) -> int:
     if not src_str:
         print("사용법: docs-ops.py move <wip-file>", file=sys.stderr); return 1
@@ -259,9 +279,18 @@ def cmd_move(src_str: str) -> int:
     write_frontmatter_field(dest, "status", "completed")
     write_frontmatter_field(dest, "updated", today)
 
+    # 역참조 갱신: 다른 문서의 relates-to.path가 이동 전 경로를 가리키면 새 경로로 갱신
+    old_rel = str(src).replace("\\", "/").removeprefix("docs/")   # e.g. WIP/harness--hn_foo.md
+    new_rel = str(dest).replace("\\", "/").removeprefix("docs/")  # e.g. harness/hn_foo.md
+    rewritten = _rewrite_relates_to(old_rel, new_rel, skip=dest)
+
     print("## 문서 이동 완료\n")
     print(f"이동됨: {src} → {dest}")
     print(f"갱신됨: status=completed, updated={today}")
+    if rewritten:
+        print(f"relates_to_rewritten: {len(rewritten)}개 파일 ({', '.join(str(p) for p in rewritten)})")
+    else:
+        print("relates_to_rewritten: 0")
     return 0
 
 

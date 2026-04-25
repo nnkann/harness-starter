@@ -39,6 +39,7 @@ updated: 2026-04-25
 - [commit Step 2 후속 — write-doc symptom-keywords 재질의 + completed 미결 차단 자동화](../harness/hn_commit_step2_partial_completion.md)
 - [범용성 오염 방지 후속 — review 검증 항목 + 스킬 질의](../harness/hn_contamination_followup.md)
 - [debug-specialist 에이전트 신설 — 막힐 때 자동 위임처 확보](../harness/hn_debug_specialist.md)
+- [docs_ops.py move 시 relates-to 역참조 자동 갱신](../harness/hn_docs_ops_relates_to_rewrite.md)
 - [eval 4관점 advisor 이관 + specialist 품질 보강 (threat-analyst 신설·산출물 점수·업계 탑 인물)](../harness/hn_eval_advisor_migration.md)
 - [하네스 범용성 오염 방지 — 다운스트림 고유명사 유입 차단](../harness/hn_generic_contamination_protection.md)
 - [LLM 실수 방지 가드레일 후속 — review needs_advisor·허위 후속 감지·commit advisor 통합](../harness/hn_guardrails_followup.md)
