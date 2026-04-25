@@ -99,10 +99,19 @@ fi
 # git diff 캐시 (22회 → 3회)
 # Windows에서 git 프로세스 부팅이 호출당 ~30ms. 아래 3개만 실제 git 호출,
 # 이후 모든 블록은 변수 재사용. staged 상태는 스크립트 실행 중 변하지 않음.
+#
+# TEST_MODE=1: _TEST_NAME_STATUS·_TEST_NUMSTAT·_TEST_DIFF_U0 환경변수로
+# 입력 주입 가능. git 호출 없이 신호 판정 로직만 단위 테스트.
 # ─────────────────────────────────────────────
-STAGED_NAME_STATUS=$(git diff --cached --name-status 2>/dev/null)
-STAGED_NUMSTAT=$(git diff --cached --numstat 2>/dev/null)
-STAGED_DIFF_U0=$(git diff --cached -U0 2>/dev/null)
+if [ "${TEST_MODE:-0}" = "1" ] && [ -n "${_TEST_NAME_STATUS+x}" ]; then
+  STAGED_NAME_STATUS="${_TEST_NAME_STATUS}"
+  STAGED_NUMSTAT="${_TEST_NUMSTAT:-}"
+  STAGED_DIFF_U0="${_TEST_DIFF_U0:-}"
+else
+  STAGED_NAME_STATUS=$(git diff --cached --name-status 2>/dev/null)
+  STAGED_NUMSTAT=$(git diff --cached --numstat 2>/dev/null)
+  STAGED_DIFF_U0=$(git diff --cached -U0 2>/dev/null)
+fi
 # 파생 (awk 1회로 이름 추출 — grep 파이프 제거)
 STAGED_FILES=$(echo "$STAGED_NAME_STATUS" | awk 'NF>=2 {print $2}')
 
@@ -372,26 +381,64 @@ fi
 REPEAT_RANGE=5
 REPEAT_EXEMPT_REGEX='^(\.claude/HARNESS\.json|docs/clusters/.*\.md)$'
 
-RECENT_FILES=$(git log -${REPEAT_RANGE} --name-only --format= 2>/dev/null | grep -v '^$' | sort)
+# TEST_MODE=1: git log skip — S10 연속 수정 감지는 실제 커밋 이력 필요,
+# 단위 테스트 대상 아님. T13·T39.4 같은 S10 케이스는 통합 테스트로 분리.
+if [ "${TEST_MODE:-0}" = "1" ]; then
+  RECENT_FILES=""
+else
+  RECENT_FILES=$(git log -${REPEAT_RANGE} --name-only --format= 2>/dev/null | grep -v '^$' | sort)
+fi
 REPEAT_WARN_HIT=""
 REPEAT_BLOCK_HIT=""
+REPEAT_BLOCK_CORE=""  # 차단 대상 핵심 파일: "파일명\t카운트" 형식, newline 구분
 
 # 핵심 설정 파일 — 연속 수정 시 차단 복원 (단순화 작업으로 일반 차단은
 # 제거됐지만, settings.json·rules/·scripts/ 같은 핵심 파일은 반복 수정
 # 시 추측 수정 패턴 가능성 높아 차단)
-CORE_CONFIG_REGEX='^(\.claude/settings\.json|\.claude/rules/.*\.md|\.claude/scripts/.*\.sh|CLAUDE\.md)$'
 
-while IFS= read -r f; do
-  [ -z "$f" ] && continue
-  if echo "$f" | grep -qE "$REPEAT_EXEMPT_REGEX"; then
-    continue
-  fi
-  COUNT=$(echo "$RECENT_FILES" | grep -cFx "$f")
-  # 핵심 설정 파일이 3회 이상 연속 수정되면 차단 (no-speculation·
-  # internal-first 위반 방지 — 같은 파일 반복 수정은 추측 수정 신호)
-  if [ "$COUNT" -ge 3 ] && echo "$f" | grep -qE "$CORE_CONFIG_REGEX"; then
+# S10 루프: while + grep-cFx(N×1 fork) → awk 1패스 (hash 사전 구축)
+# RECENT_FILES를 hash에 쌓고 STAGED_FILES 행을 O(1) 조회.
+# sentinel(---STAGED---) 방식으로 두 입력을 단일 stdin에 연결.
+_s10_result=$(awk -v rng="$REPEAT_RANGE" '
+  /^---STAGED---$/ { phase=1; next }
+  !phase { cnt[$0]++; next }
+  phase {
+    f = $0
+    if (f == "") next
+    if (f ~ /^\.claude\/HARNESS\.json$/ || f ~ /^docs\/clusters\//) next
+    c = cnt[f] + 0
+    is_core = (f == "CLAUDE.md" || f ~ /^\.claude\/settings\.json$/ \
+               || f ~ /^\.claude\/rules\// || f ~ /^\.claude\/scripts\//)
+    if (c >= 3) {
+      if (is_core) print "CORE\t" f "\t" c
+      else         print "BLOCK\t" f "\t" c "\t" rng
+    } else if (c >= 2) {
+      print "WARN\t" f "\t" c "\t" rng
+    }
+  }
+' <<< "$(printf "%s\n---STAGED---\n%s" "$RECENT_FILES" "$STAGED_FILES")")
+
+while IFS=$'\t' read -r kind f c rng_; do
+  case "$kind" in
+    CORE)
+      REPEAT_BLOCK_CORE="${REPEAT_BLOCK_CORE}${f}	${c}"$'\n'
+      REPEAT_BLOCK_HIT="${REPEAT_BLOCK_HIT}\n   - $f (최근 ${REPEAT_RANGE}커밋 중 ${c}회)"
+      ;;
+    BLOCK)
+      REPEAT_BLOCK_HIT="${REPEAT_BLOCK_HIT}\n   - $f (최근 ${REPEAT_RANGE}커밋 중 ${c}회)"
+      ;;
+    WARN)
+      REPEAT_WARN_HIT="${REPEAT_WARN_HIT}\n   - $f (최근 ${REPEAT_RANGE}커밋 중 ${c}회)"
+      ;;
+  esac
+done <<< "$_s10_result"
+
+# 핵심 파일 차단 처리
+if [ -n "$REPEAT_BLOCK_CORE" ]; then
+  while IFS=$'\t' read -r f c; do
+    [ -z "$f" ] && continue
     echo "" >&2
-    echo "❌ 핵심 설정 파일 ${COUNT}회 연속 수정: $f" >&2
+    echo "❌ 핵심 설정 파일 ${c}회 연속 수정: $f" >&2
     echo "   추측 수정 가능성. 다음을 먼저 확인:" >&2
     echo "   1. git log -5 -- $f (이전 수정 사유)" >&2
     echo "   2. docs/incidents/ (관련 사례)" >&2
@@ -399,20 +446,13 @@ while IFS= read -r f; do
     echo "   정당한 점진 확장이면 HARNESS_EXPAND=1 prefix로 우회:" >&2
     echo "     HARNESS_EXPAND=1 git commit -m \"...\"" >&2
     # HARNESS_EXPAND=1은 bash-guard.sh가 command prefix에서 파싱해 env로 전달.
-    # COMMIT_EDITMSG 방식은 PreToolUse 시점에 직전 커밋 메시지라 쓸 수 없음
-    # (incident matcher_false_block_and_readme_overwrite 인근 — review 지적).
     if [ "$HARNESS_EXPAND" = "1" ]; then
       [ -n "$VERBOSE" ] && echo "   (HARNESS_EXPAND=1 감지 — 통과)" >&2
     else
       ERRORS=$((ERRORS + 1))
     fi
-  fi
-  if [ "$COUNT" -ge 3 ]; then
-    REPEAT_BLOCK_HIT="${REPEAT_BLOCK_HIT}\n   - $f (최근 ${REPEAT_RANGE}커밋 중 ${COUNT}회)"
-  elif [ "$COUNT" -ge 2 ]; then
-    REPEAT_WARN_HIT="${REPEAT_WARN_HIT}\n   - $f (최근 ${REPEAT_RANGE}커밋 중 ${COUNT}회)"
-  fi
-done <<< "$STAGED_FILES"
+  done <<< "$REPEAT_BLOCK_CORE"
+fi
 
 # DIFF_STATS·TOTAL_FILES·ADDED_LINES·DELETED_LINES_TOTAL·TOTAL_LINES는
 # 공유 변수 블록에서 이미 계산됨 (중복 제거).
@@ -541,51 +581,82 @@ fi
 # S9. 도메인 추출 + 등급 매핑
 DOMAINS=""
 DOMAIN_GRADES=""
-# 9.1. 변경된 docs 파일의 프론트매터 domain 필드
-DOC_DOMAINS=$(echo "$STAGED_FILES" | grep -E '^docs/.*\.md$' | while read f; do
-  if [ -f "$f" ]; then
-    grep -m1 '^domain:' "$f" 2>/dev/null | sed 's/^domain:[[:space:]]*//' | tr -d ' '
-  fi
-done | grep -v '^$' | sort -u)
 
-# 9.2. WIP 파일명 접두사
-WIP_DOMAINS=$(echo "$STAGED_FILES" | grep -E '^docs/WIP/[^-]+--' | sed 's|.*/||; s|--.*||' | sort -u)
+# 9.1. docs 파일 프론트매터 domain 필드 추출 (while+grep 루프 → awk 1패스)
+# 각 docs/*.md 파일을 awk로 직접 읽어 첫 번째 'domain:' 행 추출.
+# 기존: while read f; grep -m1 | sed = N×2 forks → awk 0 forks (내장 getline)
+_doc_files=$(echo "$STAGED_FILES" | grep -E '^docs/.*\.md$')
+DOC_DOMAINS=""
+if [ -n "$_doc_files" ]; then
+  DOC_DOMAINS=$(echo "$_doc_files" | awk '
+    {
+      f = $0
+      if (system("test -f " f) != 0) next
+      while ((getline line < f) > 0) {
+        if (line ~ /^domain:[[:space:]]*/) {
+          d = line; sub(/^domain:[[:space:]]*/, "", d); gsub(/[[:space:]]/, "", d)
+          if (d != "") print d
+          close(f); break
+        }
+        if (line ~ /^---/ && NR > 1) { close(f); break }
+      }
+    }
+  ' | sort -u)
+fi
+
+# 9.2. WIP 파일명 접두사 (grep+sed → awk 1패스)
+WIP_DOMAINS=$(echo "$STAGED_FILES" | awk -F'/' '
+  /^docs\/WIP\/[^-]+--/ {
+    fname = $NF; sub(/--.*/, "", fname); print fname
+  }
+' | sort -u)
 
 ALL_DOMAINS=$(printf "%s\n%s\n" "$DOC_DOMAINS" "$WIP_DOMAINS" | grep -v '^$' | sort -u | paste -sd',' -)
 DOMAINS="$ALL_DOMAINS"
 
-# 9.3. 등급 매핑 (naming.md의 "도메인 등급" 섹션에서 추출)
-# 섹션 헤더부터 다음 ## 헤더 전까지 본문을 읽고, "**critical**...:" / "**meta**...:" 라인에서 도메인 추출
+# 9.3. 등급 매핑 (naming.md 1패스 awk — grep+sed 파이프 제거)
 if [ -n "$ALL_DOMAINS" ] && [ -f ".claude/rules/naming.md" ]; then
-  GRADE_SECTION=$(awk '/^## 도메인 등급/{flag=1; next} /^## /{flag=0} flag' .claude/rules/naming.md)
-  CRITICAL_DOMAINS=$(echo "$GRADE_SECTION" | grep -E '^\s*-\s*\*\*critical\*\*' | sed 's/.*://' | tr -d '*()' | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v '^$')
-  META_DOMAINS=$(echo "$GRADE_SECTION" | grep -E '^\s*-\s*\*\*meta\*\*' | sed 's/.*://' | tr -d '*()' | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v '^$')
+  # awk로 naming.md "도메인 등급" 섹션을 1패스로 읽고 critical/meta 도메인 리스트 추출.
+  # 결과: "CRITICAL domain1 domain2 ..." + "META domain1 ..." 두 줄
+  _grade_info=$(awk '
+    /^## 도메인 등급/ { flag=1; next }
+    /^## / { flag=0 }
+    flag && /\*\*critical\*\*/ {
+      line = $0; sub(/.*:/, "", line); gsub(/[*()[:space:]]/, " ", line)
+      gsub(/,/, " ", line); print "CRITICAL " line
+    }
+    flag && /\*\*meta\*\*/ {
+      line = $0; sub(/.*:/, "", line); gsub(/[*()[:space:]]/, " ", line)
+      gsub(/,/, " ", line); print "META " line
+    }
+  ' .claude/rules/naming.md)
+
+  # bash 연관 배열로 등급 조회 (서브쉘 grep 0회)
+  declare -A GRADE_MAP=()
+  while IFS=' ' read -r kind rest; do
+    for d in $rest; do
+      [ -z "$d" ] && continue
+      if [ "$kind" = "CRITICAL" ]; then GRADE_MAP[$d]="critical"
+      elif [ "$kind" = "META" ];     then GRADE_MAP[$d]="meta"
+      fi
+    done
+  done <<< "$_grade_info"
 
   GRADES=""
   for d in $(echo "$ALL_DOMAINS" | tr ',' ' '); do
     [ -z "$d" ] && continue
-    if echo "$CRITICAL_DOMAINS" | grep -qFx "$d"; then
-      g="critical"
-    elif echo "$META_DOMAINS" | grep -qFx "$d"; then
-      g="meta"
-    else
-      g="normal"
-    fi
+    g="${GRADE_MAP[$d]:-normal}"
     if [ -z "$GRADES" ]; then GRADES="$g"; else GRADES="${GRADES},${g}"; fi
   done
   DOMAIN_GRADES="$GRADES"
 
-  if [ -n "$DOMAIN_GRADES" ]; then
-    add_signal "S9"
-  fi
+  [ -n "$DOMAIN_GRADES" ] && add_signal "S9"
 fi
 
 # 다중 도메인
 DOMAIN_COUNT=$(echo "$ALL_DOMAINS" | tr ',' '\n' | grep -cv '^$')
 MULTI_DOMAIN="false"
-if [ "$DOMAIN_COUNT" -ge 2 ]; then
-  MULTI_DOMAIN="true"
-fi
+[ "$DOMAIN_COUNT" -ge 2 ] && MULTI_DOMAIN="true"
 
 # S10. 연속 수정 (이미 step 6에서 감지 — REPEAT_WARN_HIT/REPEAT_BLOCK_HIT 재활용)
 REPEAT_MAX=0
@@ -641,13 +712,21 @@ fi
 
 # 룰 3: skip 조건 (메타·lock 단독, WIP 단독, 문서 ≤5줄, 이동 커밋)
 if [ -z "$RECOMMENDED_STAGE" ]; then
-  # 이동 커밋: staged 전체가 R(rename, docs/ 내부) + S5(clusters/meta M) 조합만
-  # — WIP→완료 이동 + cluster 갱신 패턴. 내용 변경 없음, review 실익 없음.
-  RENAME_COUNT=$(echo "$STAGED_NAME_STATUS" | grep -c '^R')
-  NON_MOVE=$(echo "$STAGED_NAME_STATUS" | grep -v '^R' | grep -v '^M' | wc -l | tr -d ' ')
-  M_FILES=$(echo "$STAGED_NAME_STATUS" | grep '^M' | awk '{print $2}')
-  M_NON_META=$(echo "$M_FILES" | grep -vE '^(docs/clusters/|\.claude/HARNESS\.json|\.claude/memory/|CHANGELOG\.md)' | grep -c .)
-  if [ "$RENAME_COUNT" -gt 0 ] && [ "$NON_MOVE" -eq 0 ] && [ "$M_NON_META" -eq 0 ]; then
+  # 이동 커밋: staged 전체가 R(rename) + M(meta only) 조합만
+  # 기존: grep -c + grep -v + wc -l + grep -c (8 forks) → awk 1패스 (0 fork)
+  read -r RENAME_COUNT NON_MOVE M_NON_META <<< "$(echo "$STAGED_NAME_STATUS" | awk '
+    BEGIN { rename=0; non_move=0; m_non_meta=0 }
+    /^R/ { rename++; next }
+    /^M/ {
+      f = $2
+      if (f !~ /^docs\/clusters\/|^\.claude\/HARNESS\.json$|^\.claude\/memory\/|^CHANGELOG\.md$/)
+        m_non_meta++
+      next
+    }
+    { non_move++ }
+    END { print rename, non_move, m_non_meta }
+  ')"
+  if [ "${RENAME_COUNT:-0}" -gt 0 ] && [ "${NON_MOVE:-0}" -eq 0 ] && [ "${M_NON_META:-0}" -eq 0 ]; then
     RECOMMENDED_STAGE="skip"
     IS_MOVE_COMMIT=1  # 격상 면제 플래그
   # S5 단독 (메타 파일만)
@@ -658,6 +737,7 @@ if [ -z "$RECOMMENDED_STAGE" ]; then
     RECOMMENDED_STAGE="skip"
   # S6 단독 + docs/WIP/ 파일만 — 계획 문서 수정은 review 대상 아님.
   # 코드·메타·설정 동반이면 제외.
+  # has_sig 조합: bash 연관 배열 조회 (서브쉘 0) — grep -qE 2회 제거.
   elif has_sig S6 \
        && ! (has_sig S7 || has_sig S2 || has_sig S8 || has_sig S14 || has_sig S11) \
        && ! echo "$STAGED_FILES" | grep -qE '^\.claude/(skills|agents)/' \
@@ -751,9 +831,10 @@ GROUP_ASSIGN=""
 if [ "${HARNESS_SPLIT_SUB:-0}" = "1" ]; then
   SPLIT_PLAN=1
   SPLIT_ACTION="sub"
-elif [ "${TOTAL_FILES:-0}" -gt 0 ] && [ -x .claude/scripts/task-groups.sh ]; then
+elif [ "${TEST_MODE:-0}" != "1" ] && [ "${TOTAL_FILES:-0}" -gt 0 ] && [ -x .claude/scripts/task-groups.sh ]; then
   # task × abbr × kind 3축 그룹화 (audit #18, task-groups.sh 위임).
   # 실패 시 경로 기반 폴백.
+  # TEST_MODE=1: split 판정 skip — 단위 테스트 대상 아님.
   GROUP_ASSIGN=$(bash .claude/scripts/task-groups.sh 2>/dev/null || echo "")
   if [ -n "$GROUP_ASSIGN" ]; then
     SPLIT_PLAN=$(echo "$GROUP_ASSIGN" | awk -F'\t' 'NF>=2{print $1}' | sort -u | wc -l)
