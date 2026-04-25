@@ -276,16 +276,14 @@ prompt에 다음 형태 블록이 있으면:
 
 ```
 ## pre-check 결과
-pre_check_passed: true
 already_verified: lint todo_fixme test_location wip_cleanup
 risk_factors: <세미콜론 구분 위험 요인>
-diff_stats: files=N,+A,-D
-signals: S1,S2,...                      # NEW
-domains: harness,docs                   # NEW
-domain_grades: critical,meta            # NEW
-multi_domain: true|false                # NEW
-repeat_count: max=N                     # NEW
-recommended_stage: skip|micro|standard|deep   # NEW
+signals: S1,S2,...
+domains: harness,docs
+domain_grades: critical,meta
+multi_domain: true|false
+recommended_stage: skip|micro|standard|deep
+s1_level: line-confirmed|file-only|
 ```
 
 행동 규칙:
