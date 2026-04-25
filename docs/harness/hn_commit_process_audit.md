@@ -202,7 +202,7 @@ git log --oneline --grep "(v0\.(19|20)\."
 
 - **#1** 린터 2회 → Step 5 통합 (v0.19.0)
 - **#2·9** light/strict 모드 폐기, `--quick`/`--deep`/`--no-review` 단일화 (v0.19.0)
-- **#3** 진척도 갱신 Step 2 → Step 7.5 재배치 (v0.19.0)
+- **#3** 진척도 갱신 Step 2 → Step 7.5 **재배치(문서 위치)만** (v0.19.0) — ⚠️ bash 구현 없음 확정 (2026-04-25 실측). `hn_wip_completion_gap.md` 결함 B 참조
 - **#4** `harness-version-bump.sh` 신설 (v0.20.0)
 - **#5** session 캐시 3→1, tree-hash 캐싱 폐기 (v0.19.0)
 - **#6** 메타 파일 본문 박기 섹션 삭제 (v0.19.0)
