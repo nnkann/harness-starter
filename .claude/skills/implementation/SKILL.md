@@ -188,9 +188,23 @@ created: {YYYY-MM-DD}
 
 # {작업 제목}
 
+## 사전 준비
+- 읽을 문서: (경로 목록 또는 "없음")
+- 이전 산출물: (이전 Phase 결과물 또는 "없음")
+
 ## 목표
 - 이 작업에서 결정하거나 만들 것
 - CPS 연결: Problem #{번호} (있으면)
+
+## 작업 목록
+### 1. {Phase 제목}
+> kind: feature|bug|refactor|docs|chore
+
+**사전 준비**: ...
+**영향 파일**: ...
+**Acceptance Criteria**:
+- [ ] {실행 가능한 커맨드 또는 직접 확인 가능한 조건}
+  예: `python3 -m pytest tests/`, "린터 에러 0", "파일 존재 확인"
 
 ## 결정 사항
 (작업하면서 채움)
@@ -201,6 +215,8 @@ created: {YYYY-MM-DD}
 
 - domain은 naming.md "도메인 목록 > 확정"에서 선택. 없으면 사용자에게 확인.
 - relates-to는 작업 중 관련 문서가 명확해지면 채운다.
+- `## 사전 준비`는 비어도 되지만 "없음"으로 명시 (묵시적 생략 금지).
+- `Acceptance Criteria`는 추상 서술 금지. 테스트 스위트가 있으면 반드시 포함.
 
 문서가 먼저 존재해야 작업을 시작한다.
 
@@ -219,7 +235,11 @@ created: {YYYY-MM-DD}
    - 기존 패턴 영향 의심 → codebase-analyst
    - 위험 결정 직전 → risk-analyst
    - 성능 민감 변경 → performance-analyst
-3. **단위마다 self-verify** — 린터/구문 기본, 필요 시 `.claude/scripts/pre_commit_check.py`
+3. **Phase(작업 단위) 완료 직후 AC 실행** — WIP의 `Acceptance Criteria` 항목을
+   Claude가 직접 실행해서 확인한다.
+   - 커맨드면 Bash 실행, 사람 확인 조건이면 결과를 사용자에게 제시
+   - **AC 미통과 → "완료" 선언 금지.** 즉시 원인 파악 후 재수정
+   - 테스트 스위트(`pytest`, `test_pre_commit.py` 등)가 있으면 **반드시 실행**
 4. **단위 완료 시 WIP 갱신** — `## 결정 사항` / `## 메모`에 기록. specialist
    응답은 **원문 보존** (요약 금지 — 근거 유실). 핸드오프 계약의 Preserve·
    Record 축 준수.
