@@ -58,9 +58,40 @@ if [ "$BUMP_TYPE" = "none" ]; then
   fi
 fi
 
-# 4. 결과 출력 (commit 스킬이 사용자에게 중계)
+# 4. 결과 출력 + 다음 버전 제안 (commit 스킬이 사용자에게 중계)
+# 버전 자리수 규칙: patch 0~9 (10 이상이면 minor 올림), minor 0~99
 CURRENT_VERSION=$(grep -oE '"version"[[:space:]]*:[[:space:]]*"[^"]+"' .claude/HARNESS.json 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+
+NEXT_VERSION=""
+if [ -n "$CURRENT_VERSION" ] && [ "$BUMP_TYPE" != "none" ]; then
+  MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
+  MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
+  PATCH=$(echo "$CURRENT_VERSION" | cut -d. -f3)
+  if [ "$BUMP_TYPE" = "patch" ]; then
+    NEW_PATCH=$((PATCH + 1))
+    if [ "$NEW_PATCH" -ge 10 ]; then
+      # patch 10 이상 → minor 올림
+      NEW_MINOR=$((MINOR + 1))
+      if [ "$NEW_MINOR" -ge 100 ]; then
+        NEXT_VERSION="$((MAJOR + 1)).0.0"
+      else
+        NEXT_VERSION="${MAJOR}.${NEW_MINOR}.0"
+      fi
+    else
+      NEXT_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
+    fi
+  elif [ "$BUMP_TYPE" = "minor" ]; then
+    NEW_MINOR=$((MINOR + 1))
+    if [ "$NEW_MINOR" -ge 100 ]; then
+      NEXT_VERSION="$((MAJOR + 1)).0.0"
+    else
+      NEXT_VERSION="${MAJOR}.${NEW_MINOR}.0"
+    fi
+  fi
+fi
+
 echo "version_bump: ${BUMP_TYPE}"
 echo "current_version: ${CURRENT_VERSION:-unknown}"
+[ -n "$NEXT_VERSION" ] && echo "next_version: ${NEXT_VERSION}"
 [ -n "$REASONS" ] && echo -e "reasons:${REASONS}" >&2
 exit 0
