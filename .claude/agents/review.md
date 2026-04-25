@@ -237,7 +237,7 @@ CPS 문서 없는 프로젝트(`harness-init` 미완료)는 이 검증 스킵.
 - `## 이번 커밋의 목적` — 작업의 맥락 (어떤 문제를 해결하려 했는가)
 - `## 연관 WIP 문서` — 경로 또는 "없음"
 - `## 전제 컨텍스트` — Claude가 알지만 staged diff에는 없는 사실 (호출자가 박음)
-- `## pre-check 결과` — commit 스킬 정상 호출 시 항상 포함 (4줄 key:value)
+- `## pre-check 결과` — commit 스킬 정상 호출 시 항상 포함 (10 keys — SSOT: `commit/SKILL.md` "## 호출 방법 → prompt 블록")
 - `## staged diff` — **`git diff --cached` 결과 텍스트가 그대로 박혀 있음**
 - `## 지시` — 검증 지시
 
