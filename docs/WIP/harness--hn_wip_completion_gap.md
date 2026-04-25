@@ -23,18 +23,18 @@ created: 2026-04-25
 
 **설계**: commit 스킬 Step 7.5가 staged 파일 경로를 WIP 본문에서 찾아 ✅ 추가.
 
-**실제**: f82713d(staged: `commit/SKILL.md`, `review.md`) 커밋 시 WIP 본문에
+**실제**: f82713d(staged: `commit/SKILL.md`, `review.md`) 커밋 시 WIP 본문에 ✅
 해당 경로가 명시된 항목이 있었음에도 ✅ 갱신이 일어나지 않았다.
 
 ```
 # WIP 실행 계획 (당시)
-11. commit/SKILL.md split 동적 키 명시 + REVIEW_PRECHECK allowlist 추가
+11. commit/SKILL.md split 동적 키 명시 + REVIEW_PRECHECK allowlist 추가 ✅
 10. review.md:240 드리프트 수정
 ```
 
 **실측 확정 (2026-04-25)**: 케이스 (a) — 텍스트 지시만 있고 구현 없음.
 
-- SKILL.md Step 7.5(라인 517~540)는 한국어 산문 지시. bash 코드·스크립트 호출 없음
+- SKILL.md Step 7.5(라인 517~540)는 한국어 산문 지시. bash 코드·스크립트 호출 없음 ✅
 - `.claude/scripts/` 15개 파일 어디에도 staged 경로 → WIP grep → ✅ 삽입 로직 없음
 - git log 전체에서 Step 7.5 자동 ✅ 추가 흔적 0건. 모두 사용자·Claude 수동 편집
 - Claude가 스킬 실행 중 지시를 따르더라도 매칭 패턴 미정의 → 동작 일관성 보장 불가
@@ -82,18 +82,20 @@ skip 판정하는 로직이 없다. 경우의 수 추가(archived+wip, clusters+
 
 케이스 **(a) 텍스트 지시만 있고 구현 없음** 확정.
 
-- SKILL.md Step 7.5(L517~540): 한국어 산문 지시. bash 코드·스크립트 호출 없음
+- SKILL.md Step 7.5(L517~540): 한국어 산문 지시. bash 코드·스크립트 호출 없음 ✅
 - `.claude/scripts/` 15개 파일 어디에도 staged 경로 → WIP grep → ✅ 삽입 로직 없음
 - git log 전체에서 자동 ✅ 추가 흔적 0건
 
 → B 설계로 진행 가능.
 
-### B. "전부 ✅ → 자동 이동" 연결
+### B. "전부 ✅ → 자동 이동" 연결 → ✅ 완료 (2026-04-25)
 
-Step 7.5를 실제 구현하고, ✅ 갱신 후 해당 WIP의 모든 체크리스트 항목이
-✅이면 `docs-ops.sh move` 자동 실행. 차단 키워드 있으면 이동 대신 사용자 알림.
+`docs-ops.sh wip-sync` 서브커맨드 신설. commit SKILL.md Step 7.5를
+텍스트 지시에서 스크립트 호출로 교체.
 
-자동 실행 vs 사용자 confirm은 설계 시 결정.
+- staged 파일 경로·basename 매칭 → ✅ 추가
+- 전부 ✅이면 `docs-ops.sh move` 자동 호출 → cluster-update 연동
+- 차단 키워드 있으면 stderr 경고만, 이동 skip
 
 ### C. 이동 커밋 review skip → ✅ 완료 (978a8b5, 2026-04-25)
 
@@ -104,7 +106,7 @@ T39 3케이스로 검증 완료 (67/67).
 
 1. ~~A (Step 7.5 실측 검증)~~ ✅ 완료 — 구현 없음 확정
 2. ~~C (이동 커밋 skip)~~ ✅ 완료 — 978a8b5
-3. **B (Step 7.5 구현 + 자동 이동 연결)** ← 현재 잔여
+3. ~~B (Step 7.5 구현 + 자동 이동 연결)~~ ✅ 완료 — 2026-04-25
 
 ## 메모
 
