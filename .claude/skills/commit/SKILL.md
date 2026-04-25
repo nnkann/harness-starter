@@ -514,30 +514,35 @@ review의 첫 줄 `verdict:` 값으로 분기 (review.md "## 출력 형식" SSOT
 - **`verdict: pass`**: 그대로 다음 단계로.
 - **verdict 누락**: review 규격 미준수. 재호출 또는 사용자 확인. 임의 해석 금지.
 
-### 7.5. WIP 진척도 자동 갱신 (audit #3, 2026-04-22)
+### 7.5. WIP 진척도 자동 갱신 (audit #3, 2026-04-22 / 구현 2026-04-25)
 
 **실행 시점**: review `verdict: pass` 직후, `git commit` 직전.
-`verdict: block`·`warn` 경로에서는 실행 안 함 (warn은 진행하되 이 단계는
-스킵 — 사용자 수정 가능성 고려). Stage 0 skip은 본 갱신도 스킵.
+`verdict: block`·`warn` 경로에서는 실행 안 함. Stage 0 skip도 스킵.
 
-**동작**:
+**구현**: `docs-ops.sh wip-sync` 스크립트 호출.
 
-1. `git diff --cached --name-only`로 staged 파일 목록 추출.
-2. docs/WIP/의 각 문서를 읽고 본문에서 staged 파일 경로가 언급된 줄을 찾는다.
-3. 매칭된 줄 옆에 `✅` 자동 추가 (이미 있으면 스킵).
-4. 매칭된 WIP의 frontmatter `updated` 필드를 오늘 날짜로 갱신.
-5. 갱신된 WIP 파일을 `git add`로 이번 커밋에 포함.
-6. stderr 명시: "WIP N개 중 M개 매칭, 갱신됨" or "매칭 없음".
+```bash
+STAGED_FILES=$(git diff --cached --name-only | tr '\n' ' ')
+if [ -n "$STAGED_FILES" ]; then
+  bash .claude/scripts/docs-ops.sh wip-sync $STAGED_FILES 2>&1
+fi
+```
+
+**동작** (docs-ops.sh wip-sync 내부):
+
+1. staged 파일 경로·basename이 언급된 WIP 체크리스트 항목에 ✅ 추가
+2. 갱신된 WIP의 frontmatter `updated` 오늘 날짜로 갱신 + `git add`
+3. 해당 WIP의 모든 체크리스트 항목이 ✅이면 `docs-ops.sh move` 자동 실행
+   - 차단 키워드 있으면 이동 skip + stderr 경고
+   - 이동 성공 시 `cluster-update` 자동 호출
+4. stdout: `wip_sync_matched: N`, `wip_sync_moved: N`
 
 **원칙**:
-- status·파일 위치는 변경 없음. 모호한 자동 판단 금지
-- 매칭 안 되면 변경 없음. 로그로만 사용자 인지
-- 이 단계의 staged 추가는 review 재호출 유발 안 함 (`.md` ✅ 표시는
-  review 재검증 대상 아님 — 안전)
+- 매칭 안 되면 변경 없음. stdout 수치로만 인지
+- 이 단계의 staged 추가는 review 재호출 유발 안 함
 
-**위치 근거**: Step 2로는 review block 시 수정·재staging 사이클에서 ✅
-덮어쓰기 발생. Step 6 이후에도 review 실패 시 재시도에 의해 ✅가 불완전
-상태로 남음. review pass 직후가 "staged 확정된 최종 상태".
+**위치 근거**: Step 2로는 review block 시 ✅ 덮어쓰기 발생. review pass
+직후가 "staged 확정된 최종 상태".
 
 #### git log 추적성 (모든 stage 공통)
 

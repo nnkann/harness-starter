@@ -364,6 +364,96 @@ cmd_verify_relates() {
 }
 
 # ─────────────────────────────────────────────────
+# wip-sync <staged-file1> [staged-file2 ...]
+#
+# commit Step 7.5 구현체.
+# staged 파일 경로가 언급된 WIP 체크리스트 항목에 ✅ 추가.
+# 해당 WIP의 모든 체크리스트 항목이 ✅이면 cmd_move 자동 호출.
+# ─────────────────────────────────────────────────
+cmd_wip_sync() {
+  [ $# -eq 0 ] && { echo "사용법: docs-ops.sh wip-sync <staged-file> [...]" >&2; exit 1; }
+
+  local staged_files=("$@")
+  local today=$(date +%Y-%m-%d)
+  local matched_wips=0
+  local moved_wips=0
+
+  [ ! -d "docs/WIP" ] && { echo "매칭 없음 (docs/WIP 없음)" >&2; return 0; }
+
+  while IFS= read -r wip; do
+    [ -z "$wip" ] || [ ! -f "$wip" ] && continue
+
+    local file_matched=0
+    local tmp_content
+    tmp_content=$(cat "$wip")
+
+    # staged 파일 각각에 대해 WIP 본문 grep
+    for sf in "${staged_files[@]}"; do
+      [ -z "$sf" ] && continue
+      # 파일명(basename)과 경로 둘 다 매칭 시도
+      local sfbn="${sf##*/}"
+
+      # 이미 ✅ 있는 줄은 스킵, 경로 또는 basename 포함된 줄에 ✅ 추가
+      # 체크리스트 항목 패턴: 숫자. 또는 - 또는 * 로 시작하는 줄
+      local new_content
+      new_content=$(echo "$tmp_content" | awk -v sf="$sf" -v sfbn="$sfbn" '
+        {
+          # 이미 ✅ 있으면 그대로
+          if (/✅/) { print; next }
+          # 체크리스트 항목이고 staged 경로 포함
+          if (/^[[:space:]]*([-*]|[0-9]+\.)/ && (index($0, sf) > 0 || index($0, sfbn) > 0)) {
+            # 줄 끝에 ✅ 추가
+            sub(/[[:space:]]*$/, "")
+            print $0 " ✅"
+            next
+          }
+          print
+        }
+      ')
+
+      if [ "$new_content" != "$tmp_content" ]; then
+        tmp_content="$new_content"
+        file_matched=1
+      fi
+    done
+
+    [ "$file_matched" -eq 0 ] && continue
+
+    # 변경 있으면 파일에 반영 + updated 갱신
+    echo "$tmp_content" > "$wip"
+    if grep -q '^updated:' "$wip"; then
+      sed -i.bak -E "s/^updated:[[:space:]]*.*$/updated: $today/" "$wip" && rm -f "${wip}.bak"
+    fi
+    git add "$wip"
+    matched_wips=$((matched_wips + 1))
+    echo "✅ 갱신: $wip" >&2
+
+    # 전부 완료 여부 확인: 체크리스트 항목 중 ✅ 없는 줄이 있으면 미완료
+    local pending
+    pending=$(awk '
+      /^---$/{c++; next}
+      c<2{next}
+      /^[[:space:]]*([-*]|[0-9]+\.)/ && !/✅/ { print }
+    ' "$wip" | grep -v "^[[:space:]]*$" || true)
+
+    if [ -z "$pending" ]; then
+      echo "🎉 모든 항목 완료 — 자동 이동 시도: $wip" >&2
+      # cmd_move는 set -e 영향을 받으므로 서브셸로 실행, 실패 시 경고만
+      if bash "$(realpath "$0")" move "$wip" 2>&1; then
+        moved_wips=$((moved_wips + 1))
+        bash "$(realpath "$0")" cluster-update 2>&1
+      else
+        echo "⚠️  자동 이동 실패 (차단 키워드 등) — 수동 처리 필요: $wip" >&2
+      fi
+    fi
+
+  done < <(find docs/WIP -name '*.md' -type f 2>/dev/null)
+
+  echo "wip_sync_matched: $matched_wips"
+  echo "wip_sync_moved: $moved_wips"
+}
+
+# ─────────────────────────────────────────────────
 # 라우팅
 # ─────────────────────────────────────────────────
 case "$CMD" in
@@ -372,8 +462,9 @@ case "$CMD" in
   reopen) cmd_reopen "$@" ;;
   cluster-update) cmd_cluster_update ;;
   verify-relates) cmd_verify_relates ;;
+  wip-sync) cmd_wip_sync "$@" ;;
   *)
-    echo "사용법: docs-ops.sh {validate|move|reopen|cluster-update|verify-relates} [args]" >&2
+    echo "사용법: docs-ops.sh {validate|move|reopen|cluster-update|verify-relates|wip-sync} [args]" >&2
     echo "" >&2
     echo "서브커맨드:" >&2
     echo "  validate                     프론트매터·약어 검증" >&2
