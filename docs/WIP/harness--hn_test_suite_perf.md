@@ -286,12 +286,33 @@ run_case "T6.1 export → S8 hit" "signals" "S8" must_match
 | 단위 pre-check 39회 | ~78초 | pre-check을 Python/Node로 재작성 |
 | 통합 테스트 git | ~24초 | dead link·S10 검증 최소화 또는 별도 스크립트 분리 |
 
-### 근본 해결 방향
+### 근본 해결 방향 — 확정: Python 완전 재작성
 
-bash subprocess fork 오버헤드는 Windows 환경에서 스크립트 수준으로 해결 불가. 두 가지 선택:
+bash subprocess fork 오버헤드는 Windows 환경에서 스크립트 수준으로 해결 불가.
 
-1. **판정 로직 Python 재작성** — fork 없이 내부에서 처리. 예상 1회 ~5ms, 스위트 ~1초
-2. **WSL 실행** — 기존 bash 스크립트 그대로, Linux 환경에서 50ms/회 → 스위트 ~5초
+**실측 기반 Python 비용 (2026-04-25)**:
+
+| 항목 | 값 |
+|------|-----|
+| `python3` 프로세스 시작 | 76ms |
+| git subprocess 1회 | 13ms |
+| 순수 신호 로직 | 0.002ms (무시) |
+
+**방향별 예상**:
+
+| 방향 | 1회 | 스위트 68케이스 | 비고 |
+|------|-----|----------------|------|
+| Python 완전 재작성 | ~120ms (시작76 + git×3 39) | **~8초** | 드리프트 없음, 실 운영도 빠름 |
+| 하이브리드 (테스트만 Python) | <1ms (시작 1회 공유) | **<1초** | bash/Python 드리프트 위험 |
+| WSL | ~50ms | ~5초 | WSL 설치 필요, 사용 안 함 |
+
+**채택: Python 완전 재작성**. 하이브리드가 더 빠르지만 bash·Python 두 구현 드리프트 시 테스트가 거짓 통과 — 유지보수 부채가 더 크다. 완전 재작성 시 실 운영도 8초 → ~120ms/커밋으로 빨라지는 부가 효과.
+
+재작성 범위:
+- `pre-commit-check.sh` → `pre_commit_check.py` (신호 감지 + stage 결정)
+- git 호출(numstat·name-status·diff·log)은 Python subprocess 유지
+- bash-guard·hook·commit 스킬 호출 구조는 그대로
+- 기존 `.sh`는 fallback 또는 제거 (결정 미완)
 
 ## 2026-04-25 (C) fork 최소화 시도 결과
 
@@ -333,14 +354,115 @@ top 3 fork 감소 타겟:
 1. **WSL (A)**: 기존 bash 스크립트 그대로, Linux에서 실행. fork 50ms → 스위트 ~10초 예상.
 2. **Python 재작성**: fork 0, 스위트 ~1초. 재작성 비용이 문제.
 
+## Python 완전 재작성 설계 (2026-04-25 확정)
+
+### 재작성 범위
+
+**병목은 `pre-commit-check.sh` 단 하나** — 커밋마다 1회, 테스트에서 68회 호출.
+나머지 스크립트(`bash-guard.sh`, `docs-ops.sh`, `split-commit.sh` 등)는 커밋당 1~2회로
+오버헤드가 문제되지 않으므로 **그대로 유지**.
+
+```
+재작성:  pre-commit-check.sh  →  pre_commit_check.py
+전환:    test-pre-commit.sh   →  test_pre_commit.py   (pytest)
+유지:    bash-guard.sh, docs-ops.sh, split-commit.sh,
+         harness-version-bump.sh, task-groups.sh 등 전부
+```
+
+### 파일 구조
+
+```
+.claude/scripts/
+├── pre_commit_check.py      ← 신규 (신호 감지 + stage 결정 — 전체 로직)
+├── pre-commit-check.sh      ← 래퍼만 남김 (py 호출 위임)
+└── test_pre_commit.py       ← 신규 (pytest 기반 테스트)
+```
+
+`pre-commit-check.sh` 최종 형태:
+```bash
+#!/usr/bin/env bash
+exec python3 "$(dirname "$0")/pre_commit_check.py" "$@"
+```
+
+bash 로직 전부 `pre_commit_check.py`로 이전. 래퍼 외 `.sh` 내용은 삭제.
+
+### 입력 (pre_commit_check.py)
+
+Python subprocess로 git 호출:
+```python
+name_status = run(["git", "diff", "--cached", "--name-status"])
+numstat     = run(["git", "diff", "--cached", "--numstat"])
+diff_u0     = run(["git", "diff", "--cached", "-U0"])
+recent_files = run(["git", "log", f"-{REPEAT_RANGE}", "--name-only", "--format="])
+```
+
+환경변수 폴백 유지 (`_TEST_NAME_STATUS` 등) — 통합 테스트용.
+
+### 출력 (stdout 스키마 — 기존과 동일 유지)
+
+```
+pre_check_passed: true|false
+already_verified: lint todo_fixme test_location wip_cleanup
+risk_factors: ...
+diff_stats: files=N,+A,-D
+signals: S1,S2,...
+domains: harness
+domain_grades: critical
+multi_domain: false
+repeat_count: max=N
+recommended_stage: skip|micro|standard|deep
+s1_level: |file-only|line-confirmed
+split_plan: N
+split_action_recommended: single|split|sub
+prior_session_files: ...
+```
+
+commit 스킬·hook이 stdout을 파싱하므로 **키·순서·형식 변경 금지**.
+
+### 테스트 전환 (test-pre-commit.sh → test_pre_commit.py)
+
+```python
+# pytest 기반, 변수 주입으로 git 불필요
+def run_check(name_status="", numstat="", diff_u0="", **env):
+    result = subprocess.run(
+        ["python3", "pre_commit_check.py"],
+        env={**os.environ, "_TEST_NAME_STATUS": name_status,
+             "_TEST_NUMSTAT": numstat, "_TEST_DIFF_U0": diff_u0,
+             "TEST_MODE": "1", **env},
+        capture_output=True, text=True
+    )
+    return parse_output(result.stdout)
+
+def test_s8_export_hit():
+    out = run_check(
+        name_status="M\tsrc/api.ts",
+        diff_u0="diff --git a/src/api.ts b/src/api.ts\n+export function getUser() {}"
+    )
+    assert "S8" in out["signals"]
+```
+
+git clone·sandbox·reset 전부 제거. `python3` 시작 1회 76ms + 로직 0ms = 케이스당 ~80ms.
+
+### 실행 계획
+
+- [ ] 1. `pre_commit_check.py` 작성 — 신호 감지(S1~S15) + stage 결정
+- [ ] 2. stdout 스키마 동등성 검증 — 기존 `.sh`와 동일 출력 확인
+- [ ] 3. `test_pre_commit.py` 작성 — 68케이스 pytest 전환
+- [ ] 4. `pre-commit-check.sh` → py 위임 래퍼로 교체
+- [ ] 5. `test-pre-commit.sh` 제거 (또는 보존 여부 결정)
+- [ ] 6. 스위트 시간 측정 + 검증 기준 대조
+
+### 예상 검증 기준
+
+| 항목 | 현재 | 목표 |
+|------|------|------|
+| 스위트 전체 | 80초 | **< 10초** |
+| 케이스 | 68/68 | 68/68 유지 |
+| pre-check 1회 | 1,414ms | ~120ms |
+| stdout 스키마 | bash | Python (동일 포맷) |
+
 ## 영향 파일
 
-- 주: `.claude/scripts/test-pre-commit.sh` (구조) ✅
-- 보조: `.claude/scripts/pre-commit-check.sh` (입력 주입 폴백·TEST_MODE, fork 최소화) ✅
-
-## 검증 기준
-
-- 재설계 전: 111초, 68/68
-- **재설계 후 목표: < 10초, 68/68**
-- test-bash-guard 18/18 유지
-- 격리성: 단일 T 케이스 실패 시 다른 케이스로 전파 없음
+- 주: `.claude/scripts/test-pre-commit.sh` (구조) ✅ → `test_pre_commit.py`로 전환 예정
+- 보조: `.claude/scripts/pre-commit-check.sh` (입력 주입 폴백·TEST_MODE, fork 최소화) ✅ → py 래퍼로 교체 예정
+- 신규: `.claude/scripts/pre_commit_check.py`

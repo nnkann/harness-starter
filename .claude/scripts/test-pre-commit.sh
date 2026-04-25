@@ -79,6 +79,8 @@ _setup_integ_repo() {
   git clone -q "$SOURCE_REPO" "$TEST_DIR/repo" 2>/dev/null
   cp "$SOURCE_REPO/.claude/scripts/pre-commit-check.sh" \
      "$TEST_DIR/repo/.claude/scripts/pre-commit-check.sh" 2>/dev/null || true
+  cp "$SOURCE_REPO/.claude/scripts/pre_commit_check.py" \
+     "$TEST_DIR/repo/.claude/scripts/pre_commit_check.py" 2>/dev/null || true
   cp "$SOURCE_REPO/.claude/rules/staging.md" \
      "$TEST_DIR/repo/.claude/rules/staging.md" 2>/dev/null || true
   cp "$SOURCE_REPO/.claude/rules/naming.md" \
