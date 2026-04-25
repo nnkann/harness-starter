@@ -11,9 +11,9 @@ symptom-keywords:
 relates-to:
   - path: decisions/hn_doc_naming.md
     rel: caused-by
-status: in-progress
+status: completed
 created: 2026-04-21
-updated: 2026-04-22
+updated: 2026-04-25
 ---
 
 # review 에이전트 maxTurns 소진 시 verdict 누락
