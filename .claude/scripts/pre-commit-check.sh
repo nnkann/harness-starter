@@ -639,7 +639,7 @@ if [ -z "$RECOMMENDED_STAGE" ]; then
   fi
 fi
 
-# 룰 3: skip 조건 (메타·lock 단독, WIP cleanup, 문서 ≤5줄)
+# 룰 3: skip 조건 (메타·lock 단독, WIP 단독, 문서 ≤5줄)
 if [ -z "$RECOMMENDED_STAGE" ]; then
   # S5 단독 (메타 파일만)
   if has_sig S5 && ! (has_sig S7 || has_sig S2 || has_sig S8 || has_sig S14); then
@@ -647,10 +647,15 @@ if [ -z "$RECOMMENDED_STAGE" ]; then
   # S4 단독 (lock 파일만, S7 미동반)
   elif has_sig S4 && ! has_sig S7; then
     RECOMMENDED_STAGE="skip"
+  # S6 단독 + docs/WIP/ 파일만 — 계획 문서 수정은 review 대상 아님.
+  # 코드·메타·설정 동반이면 제외.
+  elif has_sig S6 \
+       && ! (has_sig S7 || has_sig S2 || has_sig S8 || has_sig S14 || has_sig S11) \
+       && ! echo "$STAGED_FILES" | grep -qE '^\.claude/(skills|agents)/' \
+       && echo "$STAGED_FILES" | grep -qE '^docs/WIP/' \
+       && ! echo "$STAGED_FILES" | grep -vqE '^docs/WIP/'; then
+    RECOMMENDED_STAGE="skip"
   # S6 단독 + ≤5줄 (문서 경미 수정) — audit #17, 2026-04-22.
-  # staging.md "C. 완화"의 자동화. 코드·메타·설정 동반이면 제외.
-  # `.claude/skills/`·`.claude/agents/`는 md지만 동작 규약 정의라 예외 —
-  # 1줄 수정이라도 standard 이상 유지.
   elif has_sig S6 && [ "$TOTAL_LINES" -le 5 ] \
        && ! (has_sig S7 || has_sig S2 || has_sig S8 || has_sig S14 || has_sig S11) \
        && ! echo "$STAGED_FILES" | grep -qE '^\.claude/(skills|agents)/'; then
