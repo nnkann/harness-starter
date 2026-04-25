@@ -309,7 +309,7 @@ bash subprocess fork 오버헤드는 Windows 환경에서 스크립트 수준으
 **채택: Python 완전 재작성**. 하이브리드가 더 빠르지만 bash·Python 두 구현 드리프트 시 테스트가 거짓 통과 — 유지보수 부채가 더 크다. 완전 재작성 시 실 운영도 8초 → ~120ms/커밋으로 빨라지는 부가 효과.
 
 재작성 범위:
-- `pre-commit-check.sh` → `pre_commit_check.py` (신호 감지 + stage 결정)
+- `pre-commit-check.sh` → `pre_commit_check.py` (신호 감지 + stage 결정) ✅
 - git 호출(numstat·name-status·diff·log)은 Python subprocess 유지
 - bash-guard·hook·commit 스킬 호출 구조는 그대로
 - 기존 `.sh`는 fallback 또는 제거 (결정 미완)
@@ -445,21 +445,25 @@ git clone·sandbox·reset 전부 제거. `python3` 시작 1회 76ms + 로직 0ms
 
 ### 실행 계획
 
-- [ ] 1. `pre_commit_check.py` 작성 — 신호 감지(S1~S15) + stage 결정
-- [ ] 2. stdout 스키마 동등성 검증 — 기존 `.sh`와 동일 출력 확인
-- [ ] 3. `test_pre_commit.py` 작성 — 68케이스 pytest 전환
-- [ ] 4. `pre-commit-check.sh` → py 위임 래퍼로 교체
-- [ ] 5. `test-pre-commit.sh` 제거 (또는 보존 여부 결정)
-- [ ] 6. 스위트 시간 측정 + 검증 기준 대조
+- [x] 1. `pre_commit_check.py` 작성 — 신호 감지(S1~S15) + stage 결정
+- [x] 2. stdout 스키마 동등성 검증 — 기존 `.sh`와 동일 출력 확인
+- [ ] 3. `test_pre_commit.py` 작성 — 68케이스 pytest 전환 (현재 test-pre-commit.sh 유지) ✅
+- [x] 4. `pre-commit-check.sh` → py 위임 래퍼로 교체 ✅
+- [ ] 5. `test-pre-commit.sh` 제거 여부 결정 (현재 보존)
+- [x] 6. 스위트 시간 측정 + 검증 기준 대조
 
-### 예상 검증 기준
+### 예상 검증 기준 → 실측 결과 (2026-04-25)
 
-| 항목 | 현재 | 목표 |
+| 항목 | 목표 | 실측 |
 |------|------|------|
-| 스위트 전체 | 80초 | **< 10초** |
-| 케이스 | 68/68 | 68/68 유지 |
-| pre-check 1회 | 1,414ms | ~120ms |
-| stdout 스키마 | bash | Python (동일 포맷) |
+| 스위트 전체 | < 10초 | **26초** (목표 미달, 통합 테스트 포함) |
+| 케이스 | 68/68 | **68/68 ✅** |
+| pre-check 1회 | ~120ms | **160ms ✅** |
+| stdout 스키마 | 동일 포맷 | **동일 ✅** |
+
+통합 테스트(T13·T35·T36·T38·T39) 구간이 실제 git sandbox를 사용하므로
+단위 테스트만으로 달성 가능한 최저 시간은 아님. 단위 테스트 68케이스만
+기준으로는 ~6초 예상. pytest 전환 시 추가 단축 가능.
 
 ## 영향 파일
 

@@ -1433,6 +1433,44 @@ ls docs/guides/hn_doc_search_protocol.md \
 
 ---
 
+## v0.21 — pre-commit-check Python 재작성 (필수 요구사항 변경)
+
+### ⚠️ 수동 액션 필요 — Python 3 설치 확인
+
+v0.21부터 `pre-commit-check.sh`가 `python3 pre_commit_check.py`를 호출한다.
+**Python 3이 PATH에 없으면 `git commit`이 즉시 실패한다.**
+
+```bash
+# 설치 확인
+python3 --version   # Python 3.8 이상 필요
+
+# 없으면 설치
+# macOS:   brew install python3
+# Ubuntu:  sudo apt install python3
+# Windows: https://python.org/downloads (PATH 추가 체크 필수)
+#          또는 winget install Python.Python.3
+```
+
+Windows에서 `python3` 명령이 없고 `python`만 있는 경우:
+```bash
+# Git Bash에서 alias 추가 (~/.bashrc)
+alias python3=python
+```
+
+### 자동 적용 (스킬이 처리)
+
+- `pre-commit-check.sh` → 4줄 래퍼로 교체 (`exec python3 pre_commit_check.py`)
+- `pre_commit_check.py` 신규 — 전체 신호 감지·stage 결정 로직 (Python 구현)
+- 성능: 1,414ms → 160ms/회, 테스트 스위트 80s → 26s
+
+### 회귀 위험
+
+- Python 3.8 미만: `dict | dict` 문법 미지원 → `TypeError`. 3.8 이상 필수.
+- Windows에서 `python3` 명령 없음: `exec: python3: not found`. alias 또는 PATH 설정 필요.
+- 상류 격리 환경(Python 3.10, Windows Git Bash)에서 68/68 통과 확인. Linux/macOS 미테스트.
+
+---
+
 ## v0.7.0 — Bash matcher 광역 패턴 폐기 + 단일 hook 통합
 
 ### 자동 적용 (스킬이 처리)

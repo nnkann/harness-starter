@@ -9,7 +9,7 @@ updated: 2026-04-25
 
 # harness 클러스터
 
-도메인 harness(hn) 소속 문서 목록. docs-ops.sh cluster-update 자동 생성.
+도메인 harness(hn) 소속 문서 목록. docs-ops.py cluster-update 자동 생성.
 
 ## 문서
 
