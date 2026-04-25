@@ -13,6 +13,7 @@ pre-commit 검사.
 
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -152,18 +153,23 @@ def _has_lint_script() -> bool:
         return False
     return '"lint"' in Path("package.json").read_text(encoding="utf-8", errors="ignore")
 
-if pkg_mgr == "npm"  and _has_lint_script(): lint_cmd = ["npm", "run", "lint", "--silent"]
-elif pkg_mgr == "pnpm" and _has_lint_script(): lint_cmd = ["pnpm", "lint"]
-elif pkg_mgr == "yarn" and _has_lint_script(): lint_cmd = ["yarn", "lint"]
-elif pkg_mgr == "bun"  and _has_lint_script(): lint_cmd = ["bun", "run", "lint"]
+def _resolve_cmd(name: str) -> str:
+    """Windows에서 .cmd 확장자 없이 npm/pnpm/yarn/bun을 못 찾는 문제 해결."""
+    resolved = shutil.which(name)
+    return resolved if resolved else name
+
+if pkg_mgr == "npm"  and _has_lint_script(): lint_cmd = [_resolve_cmd("npm"), "run", "lint", "--silent"]
+elif pkg_mgr == "pnpm" and _has_lint_script(): lint_cmd = [_resolve_cmd("pnpm"), "lint"]
+elif pkg_mgr == "yarn" and _has_lint_script(): lint_cmd = [_resolve_cmd("yarn"), "lint"]
+elif pkg_mgr == "bun"  and _has_lint_script(): lint_cmd = [_resolve_cmd("bun"), "run", "lint"]
 elif pkg_mgr in ("pip", "poetry", "uv"):
     if subprocess.run(["ruff", "--version"], capture_output=True).returncode == 0:
         lint_cmd = ["ruff", "check", ".", "--quiet"]
 elif _has_lint_script():
-    if Path("pnpm-lock.yaml").exists():   lint_cmd = ["pnpm", "lint"]
-    elif Path("yarn.lock").exists():      lint_cmd = ["yarn", "lint"]
-    elif Path("bun.lockb").exists():      lint_cmd = ["bun", "run", "lint"]
-    else:                                 lint_cmd = ["npm", "run", "lint", "--silent"]
+    if Path("pnpm-lock.yaml").exists():   lint_cmd = [_resolve_cmd("pnpm"), "lint"]
+    elif Path("yarn.lock").exists():      lint_cmd = [_resolve_cmd("yarn"), "lint"]
+    elif Path("bun.lockb").exists():      lint_cmd = [_resolve_cmd("bun"), "run", "lint"]
+    else:                                 lint_cmd = [_resolve_cmd("npm"), "run", "lint", "--silent"]
 elif Path("pyproject.toml").exists():
     if subprocess.run(["ruff", "--version"], capture_output=True).returncode == 0:
         lint_cmd = ["ruff", "check", ".", "--quiet"]
