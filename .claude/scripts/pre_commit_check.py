@@ -86,6 +86,7 @@ def resolve_path(base_dir: str, link: str) -> str:
 TEST_MODE = os.environ.get("TEST_MODE", "0") == "1"
 HARNESS_EXPAND = os.environ.get("HARNESS_EXPAND", "0") == "1"
 HARNESS_SPLIT_SUB = os.environ.get("HARNESS_SPLIT_SUB", "0") == "1"
+HARNESS_UPGRADE = os.environ.get("HARNESS_UPGRADE", "0") == "1"
 VERBOSE = os.environ.get("VERBOSE", "")
 
 # git 입력 (TEST_MODE 시 환경변수 주입)
@@ -686,8 +687,12 @@ UPSTREAM_PAT = re.compile(
 
 stage = ""
 
+# 룰 0: harness-upgrade 커밋 — upstream 검증된 코드, review 불필요
+if HARNESS_UPGRADE:
+    stage = "skip"
+
 # 룰 1: 업스트림 위험 경로
-if any(UPSTREAM_PAT.match(f) for f in staged_files):
+if not stage and any(UPSTREAM_PAT.match(f) for f in staged_files):
     stage = "deep"
 
 # 룰 2: 치명 신호

@@ -3,6 +3,7 @@
 
 # 세션별 동적 snapshot (commit 스킬의 tree-hash 캐시)
 .claude/memory/session-*
+.claude/memory/split-plan.txt
 
 # 테스트 sandbox (test-pre-commit.sh — tmp 대신 리포 내 sandbox 사용)
 .claude/.test-sandbox/
