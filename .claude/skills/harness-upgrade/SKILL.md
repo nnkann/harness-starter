@@ -186,15 +186,44 @@ REFERENCED_DOCS=$(
 2. 통과한 경로 중 다운스트림에 없으면 "신규" 카테고리로 추가 제안. 실제
    의도된 참조라 다운스트림에 추가되어야 정상.
 
-변경된 파일을 분류한다:
+변경된 파일을 분류한다.
 
-| 카테고리 | 대상 | 처리 |
-|----------|------|------|
-| 자동 덮어쓰기 | `.claude/scripts/*`, `h-setup.sh` | upstream 그대로 적용 |
-| 3-way merge | `CLAUDE.md`, `.claude/rules/*`, `.claude/skills/*`, 기타 | 대화형 병합 |
-| **사용자 전용 (절대 건드리지 마라)** | `HARNESS.json`, `coding.md`, `naming.md`, **`README.md`**, **`CHANGELOG.md`**, **`.gitignore`**, **`docs/decisions/*`**, **`docs/incidents/*`**, **`docs/WIP/*`**, **`docs/guides/*`** (단 "하네스 파일 범위"의 명시 목록 + `REFERENCED_DOCS` 동적 탐색 결과는 제외) | **무조건 건너뜀.** starter 버전이 다운스트림에 없어도 추가 안 함. diff가 있어도 표시만 하고 병합 시도 X. |
-| 신규 | 타겟에 없는 파일 | 추가 제안 (위 사용자 전용 리스트는 제외) |
-| 삭제 | upstream에서 제거된 파일 (three-way만) | 삭제 제안 (위 사용자 전용 리스트는 제외) |
+**분류 전 필수: `--diff-filter`로 상태별 분리**
+
+`git diff --name-only`는 수정(M)·추가(A)·삭제(D)를 구분 없이 나열하므로
+**절대 사용 금지**. 삭제 파일을 덮어쓰기 대상에 포함하면 `git show
+<ref>:<path>` 단계에서 `fatal: path exists on disk, but not in upstream`
+에러가 발생한다 (incident: 2026-04-25 harness-upgrade 버그).
+
+```bash
+BASE_REF=<installed_from_ref>  # 없으면 two-way 모드로 전환
+
+# 수정 파일 (M) — 자동 덮어쓰기 또는 3-way merge 대상
+MODIFIED=$(git diff "$BASE_REF" "$UPSTREAM_REMOTE/main" \
+  --diff-filter=M --name-only -- <하네스 파일 범위>)
+
+# 추가 파일 (A) — upstream에만 있음 → 신규 제안 대상
+ADDED=$(git diff "$BASE_REF" "$UPSTREAM_REMOTE/main" \
+  --diff-filter=A --name-only -- <하네스 파일 범위>)
+
+# 삭제 파일 (D) — upstream에서 제거됨 → Step 7 삭제 제안 대상
+# ⚠️ 이 목록 파일에는 git show <ref>:<path>를 시도하지 마라 — upstream에 없음
+DELETED=$(git diff "$BASE_REF" "$UPSTREAM_REMOTE/main" \
+  --diff-filter=D --name-only -- <하네스 파일 범위>)
+```
+
+two-way 모드(base 없음)에서는 DELETED를 추출할 수 없으므로 삭제 카테고리
+는 건너뛴다. upstream에 없는 로컬 파일은 "사용자 전용"으로 그대로 보존.
+
+분류 표:
+
+| 카테고리 | 감지 | 대상 | 처리 |
+|----------|------|------|------|
+| 자동 덮어쓰기 | `MODIFIED` 중 `.claude/scripts/*`, `h-setup.sh` | — | upstream 그대로 적용 |
+| 3-way merge | `MODIFIED` 중 위 이외 | `CLAUDE.md`, `.claude/rules/*`, `.claude/skills/*`, 기타 | 대화형 병합 |
+| **사용자 전용 (절대 건드리지 마라)** | `MODIFIED`·`ADDED` 중 사용자 전용 리스트 해당 | `HARNESS.json`, `coding.md`, `naming.md`, **`README.md`**, **`CHANGELOG.md`**, **`.gitignore`**, **`docs/decisions/*`**, **`docs/incidents/*`**, **`docs/WIP/*`**, **`docs/guides/*`** (단 "하네스 파일 범위"의 명시 목록 + `REFERENCED_DOCS` 동적 탐색 결과는 제외) | **무조건 건너뜀.** starter 버전이 다운스트림에 없어도 추가 안 함. diff가 있어도 표시만 하고 병합 시도 X. |
+| 신규 | `ADDED` 중 사용자 전용 리스트 **미**해당 | 타겟에 없는 파일 | 추가 제안 (Step 6) |
+| 삭제 | `DELETED` (three-way만) | upstream에서 제거된 파일 | 삭제 제안 (Step 7). **`git show`로 내용 조회 절대 금지** |
 
 ### 사용자 전용 파일 처리 규칙 (강행)
 
