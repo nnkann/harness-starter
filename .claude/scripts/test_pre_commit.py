@@ -653,25 +653,22 @@ class TestIntegRelatesTo:
 
 
 class TestIntegMoveCommit:
-    @pytest.fixture(autouse=True)
-    def _prep_move_files(self, integ_repo):
-        """T39 기반 파일 커밋 (module-scope sandbox 오염 최소화)."""
-        repo = integ_repo
-        for name in ("probe", "probe2", "probe4"):
-            _write(repo / f"docs/WIP/incidents--hn_move_{name}.md",
-                   f"---\ntitle: move {name}\ndomain: harness\nstatus: completed\ncreated: 2026-04-25\n---\n")
-        _git(["add", "docs/WIP"], repo)
-        _commit(repo, "prep T39 baseline")
-        # S10용 더미 커밋
-        _git(["commit", "--allow-empty", "-m", "prep T39 s10 v2"], repo)
-        _git(["commit", "--allow-empty", "-m", "prep T39 s10 v3"], repo)
-        yield
-        _reset(repo)
+    """T39: 각 테스트가 독립적인 파일명 사용 — module sandbox 상태 오염 방지."""
+
+    def _prep(self, repo, name: str) -> None:
+        """이름별 독립 WIP 파일 생성·커밋 + S10용 더미 커밋."""
+        _write(repo / f"docs/WIP/incidents--hn_t39_{name}.md",
+               f"---\ntitle: t39 {name}\ndomain: harness\nstatus: completed\ncreated: 2026-04-25\n---\n")
+        _git(["add", f"docs/WIP/incidents--hn_t39_{name}.md"], repo)
+        _commit(repo, f"prep T39 {name}")
+        _git(["commit", "--allow-empty", "-m", f"prep T39 {name} s10 v2"], repo)
+        _git(["commit", "--allow-empty", "-m", f"prep T39 {name} s10 v3"], repo)
 
     def test_rename_only(self, integ_repo):
         """T39.1: rename 단독 → skip"""
         repo = integ_repo
-        _git(["mv", "docs/WIP/incidents--hn_move_probe.md", "docs/incidents/hn_move_probe.md"], repo)
+        self._prep(repo, "t1")
+        _git(["mv", "docs/WIP/incidents--hn_t39_t1.md", "docs/incidents/hn_t39_t1.md"], repo)
         out = _run_precheck(repo)
         assert out.get("recommended_stage") == "skip"
         _reset(repo)
@@ -679,11 +676,12 @@ class TestIntegMoveCommit:
     def test_rename_plus_cluster(self, integ_repo):
         """T39.2: rename + cluster M → skip"""
         repo = integ_repo
-        _git(["mv", "docs/WIP/incidents--hn_move_probe2.md", "docs/incidents/hn_move_probe2.md"], repo)
+        self._prep(repo, "t2")
+        _git(["mv", "docs/WIP/incidents--hn_t39_t2.md", "docs/incidents/hn_t39_t2.md"], repo)
         cluster = repo / "docs/clusters/harness.md"
         cluster.write_text(cluster.read_text(encoding="utf-8") +
-                           "\n- [probe2](../incidents/hn_move_probe2.md)\n", encoding="utf-8")
-        _git(["add", "docs/incidents/hn_move_probe2.md", "docs/clusters/harness.md"], repo)
+                           "\n- [t2](../incidents/hn_t39_t2.md)\n", encoding="utf-8")
+        _git(["add", "docs/incidents/hn_t39_t2.md", "docs/clusters/harness.md"], repo)
         out = _run_precheck(repo)
         assert out.get("recommended_stage") == "skip"
         _reset(repo)
@@ -691,26 +689,27 @@ class TestIntegMoveCommit:
     def test_rename_plus_code(self, integ_repo):
         """T39.3: rename + 코드 M → skip 아님"""
         repo = integ_repo
-        _write(repo / "docs/WIP/incidents--hn_move_probe3.md",
-               "---\ntitle: probe3\ndomain: harness\nstatus: completed\ncreated: 2026-04-25\n---\n")
-        _git(["add", "docs/WIP/incidents--hn_move_probe3.md"], repo)
-        _commit(repo, "prep T39.3")
-        _git(["mv", "docs/WIP/incidents--hn_move_probe3.md", "docs/incidents/hn_move_probe3.md"], repo)
-        sh = repo / ".claude/scripts/pre-commit-check.sh"
-        sh.write_text(sh.read_text(encoding="utf-8") + "\n# change\n", encoding="utf-8")
-        _git(["add", "docs/incidents/hn_move_probe3.md", ".claude/scripts/pre-commit-check.sh"], repo)
+        self._prep(repo, "t3")
+        _git(["mv", "docs/WIP/incidents--hn_t39_t3.md", "docs/incidents/hn_t39_t3.md"], repo)
+        # pre-commit-check.sh 대신 일반 파일을 수정 (sh 손상 방지)
+        extra = repo / "docs/t39_t3_extra.md"
+        extra.write_text("---\ntitle: t3 extra\ndomain: harness\nstatus: in-progress\ncreated: 2026-04-25\n---\n",
+                         encoding="utf-8")
+        _git(["add", "docs/incidents/hn_t39_t3.md", str(extra)], repo)
         out = _run_precheck(repo)
         assert out.get("recommended_stage") != "skip"
         _reset(repo)
+        extra.unlink(missing_ok=True)
 
     def test_rename_cluster_s10(self, integ_repo):
         """T39.4: rename + cluster + S10 → skip (이동 커밋 S10 격상 면제)"""
         repo = integ_repo
-        _git(["mv", "docs/WIP/incidents--hn_move_probe4.md", "docs/incidents/hn_move_probe4.md"], repo)
+        self._prep(repo, "t4")
+        _git(["mv", "docs/WIP/incidents--hn_t39_t4.md", "docs/incidents/hn_t39_t4.md"], repo)
         cluster = repo / "docs/clusters/harness.md"
         cluster.write_text(cluster.read_text(encoding="utf-8") +
-                           "\n- [probe4](../incidents/hn_move_probe4.md)\n", encoding="utf-8")
-        _git(["add", "docs/incidents/hn_move_probe4.md", "docs/clusters/harness.md"], repo)
+                           "\n- [t4](../incidents/hn_t39_t4.md)\n", encoding="utf-8")
+        _git(["add", "docs/incidents/hn_t39_t4.md", "docs/clusters/harness.md"], repo)
         out = _run_precheck(repo)
         assert out.get("recommended_stage") == "skip"
         _reset(repo)
