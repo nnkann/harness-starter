@@ -588,6 +588,27 @@ Conventional Commits 규약 준수 (feat:, fix:, refactor: 등).
 HARNESS_DEV=1 git commit -m "feat: [제목]" -m "[본문]"
 ```
 
+### downstream 한 줄 (S2 또는 scripts/** 변경 시)
+
+pre-check signals에 `S2`가 있거나 staged 파일에 `.claude/scripts/**`가
+포함된 경우, 커밋 본문 끝(🔍 review 라인 직전)에 한 줄 추가한다:
+
+```
+downstream: <harness-upgrade 시 주의할 점 1줄>
+```
+
+**예시**:
+```
+downstream: harness-upgrade 후 pre-check 재실행 권장
+downstream: bash-guard.sh 경로 변경 — upgrade 후 hook 설정 확인 필요
+downstream: SKILL.md 인터페이스 변경 — commit 흐름 검토 필요
+```
+
+**규칙**:
+- 내용은 자유 형식. 차단 조건 아님 (없어도 커밋 진행)
+- `git log --grep "downstream:"` 으로 다운스트림 영향 변경 이력 조회 가능
+- S2/scripts 이외 변경에는 추가하지 않는다 (남발 방지)
+
 ### 확장 포맷 (deep stage 또는 중요 결정 커밋)
 
 아래 조건 중 하나 이상이면 본문에 `[📝 주요 참고 사항]` 섹션 추가:
