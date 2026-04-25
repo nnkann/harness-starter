@@ -99,6 +99,19 @@ pre-check 결과를 신뢰하고 라인 번호만 인용. 패턴을 재정의하
 
 WIP 없으면 이 검증 스킵.
 
+### 4.5. implementation 스킬 우회 감지
+
+**감지:** prompt `## 연관 WIP 문서`가 "없음"인데 diff에 `.claude/**` 또는
+코드 파일(`.py`, `.sh`, `.ts`, `.js` 등) 수정이 포함된 경우.
+
+**행동:** [주의] "implementation 스킬 없이 코드 수정된 것으로 보임. CLAUDE.md
+절대 규칙 위반 가능성. 다음 작업부터 implementation 스킬 선행 필요."
+
+**예외 (감지 안 함):**
+- 단순 타이포·오타 수정 (1줄 변경, 로직 없음)
+- `docs/**` 전용 변경
+- `.claude/settings.json` 단일 키-값 토글
+
 ### 5. 기존 결정 위반 (decisions/incidents)
 
 **감지:** diff 도메인이 `prompt pre-check 결과`의 `domains` 필드에 있고,

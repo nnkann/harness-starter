@@ -6,6 +6,7 @@
 ## 절대 규칙
 - 린터 에러 0인 상태에서만 커밋하라.
 - 새 파일 생성 전 .claude/rules/naming.md를 읽어라.
+- **코드 작업(구현·버그수정·리팩토링) 요청은 반드시 implementation 스킬을 먼저 발화하라.** 사용자가 "바로 진행해", "이대로", "OK" 같은 승인 표현을 해도 implementation 스킬 없이 직접 Edit·Write를 시작하지 마라.
 - **worktree를 생성하지 마라.** main에서 직접 작업한다. Agent 호출 시 `isolation: "worktree"` 사용 금지.
 - **Bash tool은 최후 수단이다.** 전용 도구 매핑 — `ls`·`find`→Glob,
   `cat`·`head`→Read, `grep`→Grep tool. (LSP 가능하면 LSP 우선). Bash는
@@ -42,6 +43,11 @@ write-doc 스킬을 사용하라. docs/에 직접 파일을 만들지 마라.
 
 <important if="기존 코드 수정 중 새 함수를 만들려 할 때">
 check-existing 스킬로 같은 도메인에 유사 함수가 있는지 먼저 확인하라.
+</important>
+
+<important if="코드를 작성·수정·리팩토링하려 할 때 (Edit·Write tool 사용 직전)">
+implementation 스킬을 먼저 발화했는가? 발화하지 않았다면 지금 즉시 발화하라.
+단순 1줄 타이포·문서만 수정·settings.json 단일 키-값 토글은 예외.
 </important>
 
 <important if="에러가 발생했을 때">
