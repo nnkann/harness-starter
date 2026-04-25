@@ -1110,6 +1110,30 @@ run_case "T39.3 docs rename + 코드 M → skip 아님" "recommended_stage" "ski
 
 reset
 
+# T39.4: docs rename + cluster M + S10(반복수정) → 이동 커밋 면제로 skip 유지
+mkdir -p docs/WIP docs/incidents
+cat > docs/WIP/incidents--hn_move_probe4.md <<'EOF'
+---
+title: move probe4
+domain: harness
+tags: []
+status: completed
+created: 2026-04-25
+---
+# move probe4
+EOF
+git add docs/WIP/incidents--hn_move_probe4.md
+git commit -q -m "prep T39.4 baseline v1" 2>/dev/null
+git commit -q --allow-empty -m "prep T39.4 baseline v2" 2>/dev/null
+git commit -q --allow-empty -m "prep T39.4 baseline v3" 2>/dev/null
+
+git mv docs/WIP/incidents--hn_move_probe4.md docs/incidents/hn_move_probe4.md
+echo "- [probe4](../incidents/hn_move_probe4.md)" >> docs/clusters/harness.md
+git add docs/incidents/hn_move_probe4.md docs/clusters/harness.md
+run_case "T39.4 docs rename + cluster M + S10 → 이동 커밋 면제로 skip" "recommended_stage" "skip" must_match
+
+reset
+
 # ─────────────────────────────────────────────────
 # 결과
 # ─────────────────────────────────────────────────

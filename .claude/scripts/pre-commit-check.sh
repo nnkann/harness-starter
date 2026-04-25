@@ -649,6 +649,7 @@ if [ -z "$RECOMMENDED_STAGE" ]; then
   M_NON_META=$(echo "$M_FILES" | grep -vE '^(docs/clusters/|\.claude/HARNESS\.json|\.claude/memory/|CHANGELOG\.md)' | grep -c .)
   if [ "$RENAME_COUNT" -gt 0 ] && [ "$NON_MOVE" -eq 0 ] && [ "$M_NON_META" -eq 0 ]; then
     RECOMMENDED_STAGE="skip"
+    IS_MOVE_COMMIT=1  # 격상 면제 플래그
   # S5 단독 (메타 파일만)
   elif has_sig S5 && ! (has_sig S7 || has_sig S2 || has_sig S8 || has_sig S14); then
     RECOMMENDED_STAGE="skip"
@@ -677,8 +678,12 @@ if [ -z "$RECOMMENDED_STAGE" ]; then
 fi
 
 # Stage 결정 (2단계: 격상 — 유지)
+# 이동 커밋(rename+meta only)은 S10 격상 면제 — 내용 변경 없는 이동에 격상 불필요
+IS_MOVE_COMMIT="${IS_MOVE_COMMIT:-0}"
 # B/C: S10 연속 수정 격상
-if [ "$REPEAT_MAX" -ge 3 ]; then
+if [ "$IS_MOVE_COMMIT" = "1" ]; then
+  : # 이동 커밋 — 격상 스킵
+elif [ "$REPEAT_MAX" -ge 3 ]; then
   RECOMMENDED_STAGE="deep"
 elif [ "$REPEAT_MAX" = "2" ]; then
   case "$RECOMMENDED_STAGE" in
