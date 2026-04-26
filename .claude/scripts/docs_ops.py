@@ -47,6 +47,43 @@ def extract_abbrs() -> list[str]:
     return sorted(abbrs)
 
 
+def extract_path_domain_map() -> list[tuple[str, str]]:
+    """naming.md '## 경로 → 도메인 매핑' 섹션에서 [(glob_pattern, domain), ...] 추출.
+    섹션이 없거나 비어있으면 빈 리스트 반환."""
+    if not NAMING_MD.exists():
+        return []
+    text = NAMING_MD.read_text(encoding="utf-8")
+    in_section = in_block = False
+    pairs: list[tuple[str, str]] = []
+    for line in text.splitlines():
+        if re.match(r"^## 경로 → 도메인 매핑", line):
+            in_section = True
+            continue
+        if in_section and line.startswith("## "):
+            break
+        if in_section:
+            if line.strip() == "```":
+                in_block = not in_block
+                continue
+            if in_block:
+                m = re.match(r"^(\S+)\s*→\s*(\S+)", line.strip())
+                if m:
+                    pairs.append((m.group(1), m.group(2)))
+    return pairs
+
+
+def path_to_domain(filepath: str, path_domain_map: list[tuple[str, str]]) -> str | None:
+    """staged 파일 경로를 경로→도메인 매핑으로 도메인 추출. 없으면 None."""
+    from fnmatch import fnmatch
+    fp = filepath.replace("\\", "/")
+    for pattern, domain in path_domain_map:
+        # 패턴 정규화: src/payment/** → fnmatch로 처리
+        pat = pattern.rstrip("/")
+        if fnmatch(fp, pat) or fnmatch(fp, pat + "/*") or fp.startswith(pat.rstrip("*").rstrip("/") + "/"):
+            return domain
+    return None
+
+
 def detect_abbr(filepath: Path, abbrs: list[str]) -> str | None:
     """파일명에서 abbr 추출 (첫 매치 정책, 라우팅/불투명 prefix 통과)."""
     name = filepath.stem  # .md 제거
@@ -464,64 +501,123 @@ def cmd_wip_sync(staged_files: list[str]) -> int:
     today = date.today().isoformat()
     matched_wips = moved_wips = 0
 
+    # abbr 기반 보조 매칭 준비
+    abbrs = extract_abbrs()
+    path_domain_map = extract_path_domain_map()
+    # domain → abbr 역매핑 (naming.md 약어 표에서)
+    domain_to_abbr: dict[str, str] = {}
+    if NAMING_MD.exists():
+        for line in NAMING_MD.read_text(encoding="utf-8").splitlines():
+            if re.match(r"^\| [a-z_]+\s*\|\s*[a-z]{2,3}\s*\|", line):
+                parts = [p.strip() for p in line.split("|") if p.strip()]
+                if len(parts) >= 2:
+                    domain_to_abbr[parts[0]] = parts[1]
+
+    # staged 파일들의 abbr 집합 (경로→도메인→abbr 변환)
+    staged_abbrs: set[str] = set()
+    if path_domain_map:
+        for sf in staged_files:
+            if not sf:
+                continue
+            domain = path_to_domain(sf, path_domain_map)
+            if domain and domain in domain_to_abbr:
+                staged_abbrs.add(domain_to_abbr[domain])
+
+    # abbr → 해당 abbr을 가진 WIP 파일 목록 (복수 오탐 방지용)
+    abbr_to_wips: dict[str, list[Path]] = {}
+    if staged_abbrs:
+        for wip in sorted(wip_dir.glob("*.md")):
+            wip_abbr = detect_abbr(wip, abbrs)
+            if wip_abbr and wip_abbr in staged_abbrs:
+                abbr_to_wips.setdefault(wip_abbr, []).append(wip)
+
     for wip in sorted(wip_dir.glob("*.md")):
         text = wip.read_text(encoding="utf-8")
         new_text = text
         file_matched = False
 
+        # 1차: 체크리스트 문자열 매칭 (기존 로직)
+        # splitlines()로 비교해 trailing newline 차이에 의한 오탐 방지
         for sf in staged_files:
             if not sf:
                 continue
             sfbn = Path(sf).name
+            _sf, _sfbn = sf, sfbn  # 루프 변수 클로저 캡처용 지역 변수
 
-            def _mark_line(line: str) -> str:
+            def _mark_line(line: str, _sf: str = _sf, _sfbn: str = _sfbn) -> str:
                 if "✅" in line:
                     return line
                 if re.match(r"^\s*([-*]|\d+\.)\s", line):
-                    if sf in line or sfbn in line:
+                    if _sf in line or _sfbn in line:
                         return line.rstrip() + " ✅"
                 return line
 
-            marked = "\n".join(_mark_line(l) for l in new_text.splitlines())
-            if marked != new_text:
-                new_text = marked
+            orig_lines = new_text.splitlines()
+            marked_lines = [_mark_line(l) for l in orig_lines]
+            if marked_lines != orig_lines:
+                # trailing newline 보존
+                new_text = "\n".join(marked_lines) + ("\n" if new_text.endswith("\n") else "")
                 file_matched = True
+
+        # 2차: abbr 기반 보조 매칭 (체크리스트 없는 incidents 등)
+        abbr_matched = False
+        if not file_matched and staged_abbrs:
+            wip_abbr = detect_abbr(wip, abbrs)
+            if wip_abbr and wip_abbr in staged_abbrs:
+                candidates = abbr_to_wips.get(wip_abbr, [])
+                if len(candidates) > 1:
+                    # 복수 WIP → 오탐 위험, skip
+                    print(
+                        f"⚠️  abbr '{wip_abbr}' WIP {len(candidates)}개 — 자동 매칭 skip"
+                        f" (수동 확인 필요: {', '.join(str(c) for c in candidates)})",
+                        file=sys.stderr,
+                    )
+                else:
+                    abbr_matched = True
+                    file_matched = True
+                    print(f"🔗 abbr 매칭: {wip} ← staged abbr '{wip_abbr}'", file=sys.stderr)
 
         if not file_matched:
             continue
 
-        wip.write_text(new_text, encoding="utf-8")
-        write_frontmatter_field(wip, "updated", today)
-        subprocess.run(["git", "add", str(wip)], capture_output=True)
-        matched_wips += 1
-        print(f"✅ 갱신: {wip}", file=sys.stderr)
+        if not abbr_matched:
+            # 체크리스트 매칭: ✅ 갱신 후 미완료 항목 검사
+            wip.write_text(new_text, encoding="utf-8")
+            write_frontmatter_field(wip, "updated", today)
+            subprocess.run(["git", "add", str(wip)], capture_output=True)
+            matched_wips += 1
+            print(f"✅ 갱신: {wip}", file=sys.stderr)
 
-        # 전부 완료 여부
-        body_lines = []
-        dash = 0
-        for line in wip.read_text(encoding="utf-8").splitlines():
-            if line.strip() == "---":
-                dash += 1
+            body_lines = []
+            dash = 0
+            for line in wip.read_text(encoding="utf-8").splitlines():
+                if line.strip() == "---":
+                    dash += 1
+                    continue
+                if dash >= 2:
+                    body_lines.append(line)
+
+            pending = [l for l in body_lines
+                       if re.match(r"^\s*([-*]|\d+\.)\s", l) and "✅" not in l
+                       and l.strip()]
+            if pending:
                 continue
-            if dash >= 2:
-                body_lines.append(line)
+        else:
+            # abbr 매칭: 체크리스트 없는 문서 → 직접 이동 시도
+            matched_wips += 1
 
-        pending = [l for l in body_lines
-                   if re.match(r"^\s*([-*]|\d+\.)\s", l) and "✅" not in l
-                   and l.strip()]
-        if not pending:
-            print(f"🎉 모든 항목 완료 — 자동 이동 시도: {wip}", file=sys.stderr)
-            r = subprocess.run(
-                [sys.executable, __file__, "move", str(wip)],
-                capture_output=True, text=True,
-            )
-            if r.returncode == 0:
-                moved_wips += 1
-                subprocess.run([sys.executable, __file__, "cluster-update"],
-                               capture_output=True)
-            else:
-                print(f"⚠️  자동 이동 실패 — 수동 처리 필요: {wip}", file=sys.stderr)
-                print(r.stderr, file=sys.stderr, end="")
+        print(f"🎉 모든 항목 완료 — 자동 이동 시도: {wip}", file=sys.stderr)
+        r = subprocess.run(
+            [sys.executable, __file__, "move", str(wip)],
+            capture_output=True, text=True,
+        )
+        if r.returncode == 0:
+            moved_wips += 1
+            subprocess.run([sys.executable, __file__, "cluster-update"],
+                           capture_output=True)
+        else:
+            print(f"⚠️  자동 이동 실패 — 수동 처리 필요: {wip}", file=sys.stderr)
+            print(r.stderr, file=sys.stderr, end="")
 
     print(f"wip_sync_matched: {matched_wips}")
     print(f"wip_sync_moved: {moved_wips}")

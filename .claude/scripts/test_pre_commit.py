@@ -713,3 +713,136 @@ class TestIntegMoveCommit:
         out = _run_precheck(repo)
         assert out.get("recommended_stage") == "skip"
         _reset(repo)
+
+
+# ─────────────────────────────────────────────────────────
+# T40: docs_ops.py wip-sync abbr 기반 보조 매칭
+# ─────────────────────────────────────────────────────────
+
+DOCS_OPS_PY = REPO_ROOT / ".claude" / "scripts" / "docs_ops.py"
+
+
+@pytest.fixture(scope="function")
+def wipsync_repo(tmp_path_factory):
+    """T40 전용 sandbox: git clone + docs_ops.py + naming.md 최신 복사. function-scope로 격리."""
+    tmp = tmp_path_factory.mktemp("wipsync")
+    repo = tmp / "repo"
+    subprocess.run(["git", "clone", "-q", str(REPO_ROOT), str(repo)],
+                   capture_output=True, check=True)
+    for name in ("docs_ops.py",):
+        src = REPO_ROOT / ".claude" / "scripts" / name
+        dst = repo / ".claude" / "scripts" / name
+        if src.exists():
+            shutil.copy2(src, dst)
+    for name in ("naming.md",):
+        src = REPO_ROOT / ".claude" / "rules" / name
+        dst = repo / ".claude" / "rules" / name
+        if src.exists():
+            shutil.copy2(src, dst)
+    yield repo
+
+
+def _run_wip_sync(repo: Path, staged_files: list[str]) -> tuple[dict[str, str], str]:
+    """docs_ops.py wip-sync 실행. (stdout key:value dict, stderr str) 반환."""
+    r = subprocess.run(
+        [sys.executable, ".claude/scripts/docs_ops.py", "wip-sync"] + staged_files,
+        cwd=repo, capture_output=True, text=True,
+    )
+    out: dict[str, str] = {}
+    for line in r.stdout.splitlines():
+        if ": " in line:
+            k, v = line.split(": ", 1)
+            out[k] = v
+    return out, r.stderr
+
+
+def _add_path_domain_map(repo: Path, mapping_lines: str) -> None:
+    """naming.md '## 경로 → 도메인 매핑' 섹션 코드블록에 매핑 라인 추가."""
+    naming = repo / ".claude" / "rules" / "naming.md"
+    text = naming.read_text(encoding="utf-8")
+    # 섹션 내 코드블록 첫 번째 ``` 뒤에 삽입
+    section_start = text.find("## 경로 → 도메인 매핑")
+    block_start = text.find("```", section_start)
+    if block_start == -1:
+        return
+    insert_pos = text.find("\n", block_start) + 1
+    text = text[:insert_pos] + mapping_lines + "\n" + text[insert_pos:]
+    naming.write_text(text, encoding="utf-8")
+
+
+def _remove_path_domain_map_lines(repo: Path, mapping_lines: str) -> None:
+    """naming.md에서 추가한 매핑 라인 제거 (테스트 teardown용)."""
+    naming = repo / ".claude" / "rules" / "naming.md"
+    text = naming.read_text(encoding="utf-8")
+    for line in mapping_lines.splitlines():
+        text = text.replace(line + "\n", "")
+    naming.write_text(text, encoding="utf-8")
+
+
+class TestWipSyncAbbrMatch:
+    """T40: wip-sync abbr 기반 보조 매칭."""
+
+    WIP_CONTENT = (
+        "---\ntitle: T40 incident\ndomain: harness\n"
+        "status: in-progress\ncreated: 2026-04-27\n---\n\n"
+        "# T40 incident\n\n## 증상\n서술형 내용. 체크리스트 없음.\n"
+    )
+
+    def test_abbr_match_no_checklist(self, wipsync_repo):
+        """T40.1: 체크리스트 없는 incidents WIP + abbr 매칭 staged 파일 → 자동 이동."""
+        repo = wipsync_repo
+        mapping = "src/t40/**     → harness"
+        _add_path_domain_map(repo, mapping)
+
+        wip = repo / "docs/WIP/incidents--hn_t40_abbr_single.md"
+        _write(wip, self.WIP_CONTENT)
+        _git(["add", str(wip)], repo)
+        _commit(repo, "T40.1 prep WIP")
+
+        out, stderr = _run_wip_sync(repo, ["src/t40/serviceA.ts"])
+        assert out.get("wip_sync_matched") == "1", f"stderr: {stderr}"
+        assert out.get("wip_sync_moved") == "1", f"stderr: {stderr}"
+        # 이동 후 WIP 파일 사라짐
+        assert not wip.exists(), "WIP 파일이 이동되지 않음"
+
+        _remove_path_domain_map_lines(repo, mapping)
+
+    def test_abbr_multi_wip_skip(self, wipsync_repo):
+        """T40.2: 같은 abbr WIP 2개 → 이동 skip, stderr 경고."""
+        repo = wipsync_repo
+        mapping = "src/t40b/**     → harness"
+        _add_path_domain_map(repo, mapping)
+
+        wip1 = repo / "docs/WIP/incidents--hn_t40b_first.md"
+        wip2 = repo / "docs/WIP/incidents--hn_t40b_second.md"
+        _write(wip1, self.WIP_CONTENT.replace("T40 incident", "T40b first"))
+        _write(wip2, self.WIP_CONTENT.replace("T40 incident", "T40b second"))
+        _git(["add", str(wip1), str(wip2)], repo)
+        _commit(repo, "T40.2 prep WIP x2")
+
+        out, stderr = _run_wip_sync(repo, ["src/t40b/serviceB.ts"])
+        assert out.get("wip_sync_matched") == "0", f"stderr: {stderr}"
+        assert "skip" in stderr.lower() or "2개" in stderr, f"stderr: {stderr}"
+        # WIP 파일들 그대로 남아있어야 함
+        assert wip1.exists() and wip2.exists()
+
+        _git(["reset", "HEAD", "."], repo)
+        _git(["clean", "-fdq"], repo)
+        _remove_path_domain_map_lines(repo, mapping)
+
+    def test_abbr_no_path_map_fallback(self, wipsync_repo):
+        """T40.3: 경로→도메인 매핑 없으면 abbr 매칭 skip → 체크리스트 매칭만 동작."""
+        repo = wipsync_repo
+        # 매핑 추가 없이 wip 생성
+        wip = repo / "docs/WIP/incidents--hn_t40c_nomap.md"
+        _write(wip, self.WIP_CONTENT.replace("T40 incident", "T40c nomap"))
+        _git(["add", str(wip)], repo)
+        _commit(repo, "T40.3 prep WIP nomap")
+
+        out, stderr = _run_wip_sync(repo, ["src/t40c/serviceC.ts"])
+        # 매핑 없으므로 matched=0
+        assert out.get("wip_sync_matched") == "0", f"stderr: {stderr}"
+        assert wip.exists()
+
+        _git(["reset", "HEAD", "."], repo)
+        _git(["clean", "-fdq"], repo)
