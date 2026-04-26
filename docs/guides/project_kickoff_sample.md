@@ -32,8 +32,13 @@ created: 2026-04-08
 
 ### Solution
 1. Problem #1 → 실시간 상태 갱신 (WebSocket 또는 polling).
+   ssot: docs/WIP/guides--task_realtime.md
 2. Problem #2 → 칸반 보드 UI에 담당자별 필터.
+   ssot: docs/WIP/guides--ui_kanban.md
 - **강제력**: 상태 변경은 반드시 API를 거치도록 (직접 DB 수정 금지 → 린터/타입으로 강제 불가, 코드 리뷰에서 잡기).
+
+### current
+current: Problem #1 실시간 상태 갱신 구현 중 → docs/WIP/guides--task_realtime.md
 
 ## 기술 결정
 - **프로젝트 유형**: 웹앱 (풀스택)

@@ -267,6 +267,30 @@ docs/WIP/ status 변경·이동은 **사용자가 명시 요청한 경우에만*
 
 사용자가 안 물으면 안 한다.
 
+#### 2.1.1. archived 이동 시 CPS grep 자동 실행
+
+"abandoned로 보내" 요청으로 archived 이동이 발생하면, 이동 직후 CPS 파일에서
+해당 파일명을 자동으로 grep해 결과를 출력한다. 질문하지 않고 흐름을 계속한다.
+
+```bash
+# archived 이동한 파일명 (확장자 제외)
+ARCHIVED_SLUG=$(basename "<이동한파일>" .md)
+
+# CPS 파일 자동 탐색 (project_kickoff.md 또는 tags: cps 포함 파일)
+CPS_FILE=$(grep -rl "tags:.*cps" docs/ 2>/dev/null | head -1)
+
+if [ -n "$CPS_FILE" ]; then
+  GREP_RESULT=$(grep -n "$ARCHIVED_SLUG" "$CPS_FILE" 2>/dev/null)
+  if [ -n "$GREP_RESULT" ]; then
+    echo "→ CPS 언급 확인됨 ($CPS_FILE):"
+    echo "$GREP_RESULT"
+    echo "→ CPS ssot: 링크 갱신이 필요할 수 있습니다 (계속 진행)"
+  fi
+fi
+```
+
+언급 없으면 출력 없이 통과. 언급 있으면 해당 라인을 보여주고 흐름 계속.
+
 #### 2.2. 이동 시 파일명 규칙
 
 파일명 형식: `{대상폴더}--{abbr}_{slug}.md` (SSOT: `.claude/rules/naming.md` "파일명 — WIP")

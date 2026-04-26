@@ -325,6 +325,20 @@ created: {YYYY-MM-DD}
 
 CPS 문서를 갱신했으면 WIP 문서의 `## 메모`에 "CPS 갱신: [변경 내용]"을 기록한다.
 
+**설계 재편 감지 (Task 완료 외 CPS 갱신 트리거):**
+
+Task 완료가 아니더라도 아래 이벤트가 발생하면 CPS `ssot:` 링크와 `current:` 라인을 갱신한다:
+
+| 이벤트 | 확인 항목 |
+|--------|----------|
+| Task 역할 재정의 (draft 번호 올라감) | CPS Solution의 해당 항목 `ssot:` 링크 + 설명 갱신 |
+| Task WIP 파일 archived로 이동 | CPS `ssot:` 링크에서 해당 경로 제거 또는 갱신 |
+| 다른 Task가 현재 Task 기능을 흡수 | 흡수된 Task의 CPS Solution 항목 삭제 또는 병합 |
+
+이 이벤트는 implementation 완료 흐름 밖에서 발생하므로 **사용자가 직접 판단**해야 한다.
+설계 재편 시 이 체크리스트를 확인하라는 알림을 WIP 메모에 남긴다:
+`## 메모: 설계 재편 — CPS ssot:/current: 갱신 확인 필요`
+
 이후는 commit 스킬이 처리한다 (커밋 시 자동으로 적절한 폴더로 이동).
 
 ## 실패·escalate 흐름

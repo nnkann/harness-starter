@@ -222,6 +222,21 @@ created: {YYYY-MM-DD}
 ### Solution
 [Step 2 — 대응 방안, 강제력 설계 포함]
 
+각 Solution 항목에 `ssot:` optional 필드를 추가한다:
+```
+- Problem #1 → [해결책 설명]
+  ssot: docs/WIP/{task_file}.md      ← Task WIP 경로. 없으면 생략.
+```
+파일 위치로 구현 상태를 읽는다: WIP에 있으면 진행 중, 없으면 grep으로 확인.
+
+### current (세션 진입점 브리지)
+```
+current: [현재 진행 중인 Task 1줄] → [마일스톤/진행 문서 경로]
+```
+예: `current: T3 레이어 분리+그룹화 → docs/WIP/phase1_overview.md`
+에이전트가 CPS를 먼저 열었을 때 즉시 "지금 어디"로 점프할 수 있게 한다.
+Task가 바뀔 때마다 이 한 줄을 갱신한다.
+
 ## 기술 결정
 - **프로젝트 유형**: [Step 3]
 - **규모**: [Step 4]
