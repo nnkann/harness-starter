@@ -4,7 +4,7 @@ domain: harness
 tags: [cluster, index]
 status: completed
 created: 2026-04-16
-updated: 2026-04-25
+updated: 2026-04-27
 ---
 
 # harness 클러스터
@@ -68,3 +68,4 @@ updated: 2026-04-25
 - [review v0.8.0 패턴 매핑 재설계 — starter 격리 벤치마크](../incidents/hn_review_v080_benchmark.md)
 - [starter 12커밋 push 누락 — 다운스트림이 업스트림 변경 못 봄](../incidents/hn_starter_push_skipped.md)
 - [린터 도구 실종 — T13이 우연히 가시화한 환경 이슈](../incidents/hn_test_isolation_git_log_leak.md)
+- [wip-sync incidents WIP 자동 완료 미동작 — 체크리스트 없는 문서 abbr 매칭 누락](../incidents/hn_wip_sync_incidents_gap.md)
