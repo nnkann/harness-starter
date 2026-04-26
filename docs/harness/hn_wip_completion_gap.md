@@ -16,7 +16,7 @@ updated: 2026-04-25
 
 ## 발견 경위
 
-2026-04-25 세션. `docs/WIP/incidents--hn_review_maxturns_verdict_miss.md`가
+2026-04-25 세션. `docs/incidents/hn_review_maxturns_verdict_miss.md`가
 대책 실행(f82713d, 5a3d051) 후에도 WIP에 남아 있어 별도 이동 커밋(9809ff6)이
 필요했다. git log 추적 결과 세 가지 결함이 겹쳐 있음을 확인.
 

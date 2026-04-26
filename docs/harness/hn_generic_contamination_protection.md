@@ -64,7 +64,7 @@ Claude, Anthropic, CLAUDE, Bash, Read, Glob, Grep, PreToolUse, PostToolUse,
 ```
 
 이 리스트는 `.claude/rules/generic-allow-list.txt` 또는
-`.claude/rules/contamination.md`에 관리.
+`docs/harness/hn_generic_contamination_protection.md`에 관리.
 
 ### 3. write-doc/implementation 스킬 확장
 

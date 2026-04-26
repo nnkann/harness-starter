@@ -14,8 +14,8 @@ harness-init이 **빈 프로젝트 초기화**라면, harness-adopt는 **기존 
 2. `.claude/` 충돌 감지 + 3-way 대화형 병합
 3. 기존 docs/ 재분류 triage (유지/보관/삭제 후보)
 4. 프론트매터 자동 추가 (도메인 추론은 항상 사용자 확인)
-5. 이식 결정 영속화 (`docs/harness/hn_adopt_session.md` 기록 → 다음
-   harness-upgrade가 참조. 날짜 suffix 금지, 재실행 시 `## 변경 이력`에 누적)
+5. 이식 결정 영속화 (이식 결정 기록 → 다음 harness-upgrade가 참조.
+   날짜 suffix 금지, 재실행 시 `## 변경 이력`에 누적)
 6. 완료 후 harness-init 연쇄 호출 (CPS 수집)
 
 ## 위임 대상 (여기서 하지 않는 것)
@@ -44,13 +44,13 @@ harness-init이 **빈 프로젝트 초기화**라면, harness-adopt는 **기존 
 | Pass (나→harness-init) | 기존 스택 추출 결과 · 기존 도메인 목록 · 기존 CLAUDE.md 스냅샷 |
 | Preserve | 기존 파일 원본 백업 경로 · 이식 전 상태 스냅샷 · 사용자 승인받은 도메인 목록(추론값 그대로 확정 금지) · 기존 README/CLAUDE.md 본문 |
 | Signal risk | ⛔ README/CLAUDE.md 덮어쓰기·기존 `.claude/` 파손 위험 · ⚠️ 도메인 추론 자신감 낮음·3-way 병합 충돌 다수 · 🔍 단계별 사용자 승인 이력 |
-| Record | `docs/harness/hn_adopt_session.md`에 이식 결정 영속화 (날짜 suffix 금지, `## 변경 이력` 누적. 다음 harness-upgrade가 참조) |
+| Record | 이식 결정 영속화 (날짜 suffix 금지, `## 변경 이력` 누적. 다음 harness-upgrade가 참조) |
 
 **엄수:**
 - ⛔ 파괴적 덮어쓰기는 사용자 명시 승인 후만 (downstream-readiness 사고
   이력)
 - 도메인 추론 결과는 항상 사용자 확인. 추론값 그대로 확정 금지
-- `hn_adopt_session.md` 기록 누락은 다음 upgrade가 silent 실패 — 필수
+- 이식 결정 기록 누락은 다음 upgrade가 silent 실패 — 필수
 
 ## 전제
 

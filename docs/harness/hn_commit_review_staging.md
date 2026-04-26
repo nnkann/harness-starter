@@ -163,7 +163,6 @@ review.md에 추가 명시:
 
 기존 4종 + 추가:
 - `.claude/HARNESS.json`
-- `docs/harness/promotion-log.md`
 - `docs/clusters/*.md`
 - **`.claude/memory/*.md`** (메모리 항목 — 사람 검증 의미 없음)
 - **`.claude/memory/MEMORY.md`** (메모리 인덱스)

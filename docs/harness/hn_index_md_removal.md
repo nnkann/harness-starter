@@ -59,7 +59,7 @@ updated: 2026-04-20
      awk 패턴에서 INDEX.md 제거.
    - `.claude/skills/commit/SKILL.md`: "메타 파일 자동 병합" 리스트에서
      INDEX.md 제거. "commit 처리 결과 박기" 대상에서도 제거.
-   - `.claude/skills/docs-manager/SKILL.md`: Step 3(INDEX 갱신) 제거.
+   - `.claude/scripts/docs_ops.py`: Step 3(INDEX 갱신) 제거.
      나머지 INDEX 언급 전부 clusters로.
    - `.claude/skills/harness-init/SKILL.md`: INDEX 초기 생성 단계 제거.
    - `.claude/skills/harness-adopt/SKILL.md`: 5g 단계·출력 형식·강제

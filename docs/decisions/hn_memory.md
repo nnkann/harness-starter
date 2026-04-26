@@ -36,7 +36,7 @@ updated: 2026-04-21
 
 ### 외부 조사 결과 요약
 
-researcher 조사(`docs/harness/external_experts.md`에 Charles Packer 등록):
+researcher 조사(`.claude/rules/external-experts.md`에 Charles Packer 등록):
 - **Anthropic Auto Memory 공식**: MEMORY.md 인덱스 세션 시작 자동 로드, 토픽 파일은 on-demand
 - **Letta (MemGPT 창안자)**: Core/Recall/Archival 3계층 — 우리 규모엔 과함
 - **Devin**: "writes its own notes across sessions" — 작업 중 snapshot 패턴

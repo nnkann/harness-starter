@@ -1168,7 +1168,7 @@ bash .claude/scripts/pre-commit-check.sh 2>&1 | grep "대규모 변경"
 - `.claude/skills/write-doc/SKILL.md` — Step 1에 abbr 조회·검증 + 누락
   시 사용자 입력 요청, Step 3 파일명 생성이 신 형식, 날짜 suffix 요청
   거부 로직
-- `.claude/skills/docs-manager/SKILL.md` — Step 3 cluster 매핑이 파일명
+- `.claude/scripts/docs_ops.py` — Step 3 cluster 매핑이 파일명
   abbr 직교 파싱(불투명 prefix·라우팅 태그·레거시 `_p2_` 통과), `--validate`
   에 약어 중복·도메인 1:1 대응·파일명 날짜 suffix 검사 추가
 
@@ -1635,7 +1635,7 @@ MIGRATIONS.md 자체 도입 + `harness-upgrade` Step 9.5(사용자 액션 표시
   review prompt 전제 컨텍스트 주입, test-strategist 병렬 호출 절차
 - `.claude/skills/write-doc/SKILL.md` 교체 — incidents/ symptom-keywords
   필수 재질의
-- `.claude/skills/docs-manager/SKILL.md` 교체 — Step 2 차단 검사 실행
+- `.claude/scripts/docs_ops.py` 교체 — Step 2 차단 검사 실행
   절차 (awk + grep)
 - `.claude/rules/staging.md` 교체 — S1 강도 분리, stdout 13 keys, Stage
   결정 우선순위 정렬

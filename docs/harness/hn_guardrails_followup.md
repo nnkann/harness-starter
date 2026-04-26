@@ -21,7 +21,7 @@ updated: 2026-04-19
    불가능한 표현을 [주의]로 보고 (차단 아님 — 사용자 의도적 유예 가능).
 
 2. **review.md needs_advisor 필드** → 분리:
-   `docs/WIP/harness--advisor_integration_260419.md`
+   `docs/archived/advisor_integration_260419.md`
 3. **commit Step 7 advisor 통합** → 위 같은 WIP로 분리.
 
 advisor 통합은 단순화 후속 검증 데이터 누적 후 진행 (마찰 회수와
