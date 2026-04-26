@@ -1,7 +1,7 @@
 {
   "profile": "full",
   "skills": "harness-upgrade,implementation,commit,advisor,check-existing,write-doc,naming-convention,coding-convention,eval",
-  "version": "0.23.0",
+  "version": "0.23.1",
   "is_starter": true,
   "installed_from_ref": "4ec2a9899ee11e1a2620cb424299db53d392644d",
   "installed_at": "2026-04-16T00:00:00Z",
