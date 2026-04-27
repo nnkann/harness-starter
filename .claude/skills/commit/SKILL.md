@@ -238,6 +238,11 @@ verdict: pass | warn | block
 > 이하로 조기 종료 이점 미미. 린트 실패 시 staged 유지 → 사용자가 수정
 > 후 재커밋하면 기존 staged + 수정분 함께 커밋. `--lint-only` 모드 제거됨.
 
+> **work-verify 워크플로우**: commit 스킬은 pytest·린터를 직접 실행하지 않는다.
+> 테스트는 구현 완료 시점(work-verify)에서 이미 통과됐어야 한다.
+> commit 스킬의 역할은 staged 상태의 커밋 가능 여부(commit-check)와 diff 안전성(review)이다.
+> `self-verify.md` "## 검증 워크플로우" 참조.
+
 ### 1. 작업 잔여물 정리
 
 커밋 전 임시 파일이 포함되지 않도록 정리한다.
