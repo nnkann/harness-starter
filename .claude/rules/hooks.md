@@ -51,3 +51,4 @@ stderr가 비어 디버깅 불가. incident `bash_n_flag_overblock`,
   argument-constraint 패턴이 추가됐으면 [차단].
   `permissions.allow`에 `Bash(...)` 패턴이 추가된 것은 위반 아님 — 혼동 금지.
 - **사용자**: 즉시 bash-guard.sh 방식으로 통합.
+ 
