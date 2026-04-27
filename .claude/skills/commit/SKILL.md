@@ -76,35 +76,42 @@ v1.4.1 커밋에서 review가 직전 커밋 diff를 잘못 분석).
 
 스킬이 Bash로 직접 실행해서 결과를 prompt에 삽입한다:
 
-**입력 크기 분기 기준 (단계별 — 이 규칙을 따른다):**
+**그룹 성격 기반 diff 전달 (단계별 — 이 규칙을 따른다):**
 
-| diff 크기 | 전달 방식 | 근거 |
-|-----------|-----------|------|
-| 0~2000줄 | 전체 인라인 | review가 패턴 감지에 전체 컨텍스트 필요 |
-| 2001~5000줄 | stat 요약 + 첫 2000줄 + `... (truncated)` | 패턴 검증은 앞부분 + stat으로 충분 |
-| 5001줄+ | stat만 + "파일별 Read 지시" | 전체는 토큰 과소비. review가 필요 시 개별 Read |
+split 후 각 sub-커밋은 단일 char 그룹으로 구성된다. `split_group_1_name`의
+`char:` prefix로 그룹 성격을 판별해 전달 방식을 결정한다.
+
+| 그룹 성격 | 전달 방식 | 근거 |
+|----------|----------|------|
+| `char:exec` / `char:agent-rule` / `char:skill` / `wip:*` | 전처리된 full diff | 실행 로직·판단 기준·흐름 — 줄 단위 패턴 감지 필요 |
+| `char:doc` | stat만 + Read 지시 | 자연어 위주 — 프론트매터·구조 확인은 Read로 충분 |
+
+공통 전처리 (모든 그룹):
+- `--unified=1`: context lines 3→1 (PR-Agent 방식 적용, 변경 줄 집중)
+- `index` 줄 제거: `grep -v "^index "`
+- `diff --git` 헤더 제거: `grep -v "^diff --git "`
+
+실측 근거: f35b6c0(4032줄) 기준 doc→stat 대체 시 37% 감소(4032→2513줄) 확인.
 
 ```bash
-# 1. diff 캡처 (스킬이 직접 실행)
-DIFF=$(git diff --cached)
+# 1. 그룹 성격 판별 (pre-check stdout에서 추출)
+GROUP_NAME=$(echo "$PRE_CHECK_OUTPUT" | grep "^split_group_1_name:" | cut -d' ' -f2-)
 
-# 2. 크기 가드: 단계별 축약
-DIFF_SIZE=$(echo "$DIFF" | wc -l)
-if [ "$DIFF_SIZE" -gt 5000 ]; then
-  # 과대 입력 — stat만, 개별 Read 지시
-  DIFF_BLOCK="diff 매우 큼 ($DIFF_SIZE 라인). stat만 포함:
+# 2. 공통 전처리
+DIFF_PROCESSED=$(git diff --cached --unified=1 \
+  | grep -v "^index " \
+  | grep -v "^diff --git ")
+
+# 3. 그룹별 전달 방식 결정
+if echo "$GROUP_NAME" | grep -qE "^char:doc"; then
+  # doc 그룹: stat만 + Read 지시
+  DIFF_BLOCK="변경 성격: doc (자연어·문서). stat만 포함:
 $(git diff --cached --stat)
 ---
-(본문 생략. 파일별 Read로 맥락 확인 필요 — git diff --cached -- <파일>)"
-elif [ "$DIFF_SIZE" -gt 2000 ]; then
-  # 큰 입력 — stat + 앞부분
-  DIFF_BLOCK="diff 너무 큼 ($DIFF_SIZE 라인). stat과 처음 2000라인만 포함:
-$(git diff --cached --stat)
----
-$(echo "$DIFF" | head -2000)
-... (truncated)"
+본문 확인이 필요하면 Read 도구로 개별 파일을 직접 조회하라."
 else
-  DIFF_BLOCK="$DIFF"
+  # exec/agent-rule/skill/wip: 전처리된 full diff
+  DIFF_BLOCK="$DIFF_PROCESSED"
 fi
 ```
 
