@@ -780,7 +780,16 @@ elif not TEST_MODE and total_files > 0 and Path(".claude/scripts/task_groups.py"
             if len(parts) >= 2:
                 group_assign.setdefault(parts[0], []).append(parts[1])
         split_plan = len(group_assign)
-        split_action = "split" if split_plan >= 2 else "single"
+        # 성격(char) 기반 split 조건 — 서로 다른 char가 2종 이상이면 split
+        chars: set[str] = set()
+        for g in group_assign:
+            if g.startswith("char:"):
+                chars.add(g)
+            elif g.startswith("wip:"):
+                parts_g = g.split(":")
+                if len(parts_g) >= 3:
+                    chars.add(f"char:{parts_g[2]}")
+        split_action = "split" if len(chars) >= 2 else "single"
 
 # ─────────────────────────────────────────────────────────
 # prior_session_files
@@ -825,11 +834,17 @@ print(f"split_action_recommended: {split_action}")
 print(f"prior_session_files: {prior_files}")
 
 if split_action == "split" and group_assign:
-    PRIO = {"scripts": 1, "agents": 2, "rules": 3, "hooks": 4, "config": 5, "misc": 99}
+    # char 기반 정렬 — 위험도 높은 순서 (exec 먼저, doc 마지막)
+    CHAR_PRIO = {"exec": 1, "agent-rule": 2, "skill": 3, "misc": 4, "doc": 9}
     def sort_key(g: str) -> tuple:
-        if g.startswith("skill:"): return (2.5, g)
-        if g.startswith("doc:"):   return (5.5, g)
-        return (PRIO.get(g, 10), g)
+        if g.startswith("char:"):
+            c = g.split(":", 1)[1]
+            return (CHAR_PRIO.get(c, 5), g)
+        if g.startswith("wip:"):
+            parts_g = g.split(":")
+            c = parts_g[2] if len(parts_g) >= 3 else "misc"
+            return (CHAR_PRIO.get(c, 5), g)
+        return (10, g)
     for i, g in enumerate(sorted(group_assign, key=sort_key), 1):
         print(f"split_group_{i}_name: {g}")
         print(f"split_group_{i}_files: {','.join(group_assign[g])}")

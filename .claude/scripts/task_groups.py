@@ -1,11 +1,18 @@
 #!/usr/bin/env python3
 """
-staged 파일을 task × abbr × kind 3축으로 그룹화 (audit #18).
+staged 파일을 task × char × kind 3축으로 그룹화 (audit #18, v2).
 
 그룹 키 형식:
-  wip:<slug>:<abbr>:<kind>
-  path:기타:<abbr>:<kind>   — WIP 매칭 실패 폴백
+  wip:<slug>:<char>:<kind>  — WIP 매칭 성공 (char = 변경 성격)
+  char:<type>               — WIP 매칭 실패 폴백 (성격 기반 자동 분리)
   meta:config               — 메타 파일 (흡수 대상)
+
+char 값:
+  exec        .claude/scripts/**, .claude/hooks/**
+  agent-rule  .claude/agents/**, .claude/rules/**
+  skill       .claude/skills/**
+  doc         docs/**, *.md
+  misc        나머지
 
 출력 (stdout, tab-separated):
   group_name<TAB>file_path
@@ -36,33 +43,19 @@ def run(cmd: list[str]) -> str:
     return subprocess.run(cmd, capture_output=True, text=True).stdout
 
 
-def extract_abbrs() -> list[str]:
-    if not NAMING_MD.exists():
-        return []
-    text = NAMING_MD.read_text(encoding="utf-8")
-    in_section = False
-    abbrs: set[str] = set()
-    for line in text.splitlines():
-        if re.match(r"^## 도메인 약어", line):
-            in_section = True; continue
-        if in_section and line.startswith("## "):
-            break
-        if in_section and re.match(r"^\| [a-z_]+\s*\|\s*[a-z]{2,3}\s*\|", line):
-            parts = [p.strip() for p in line.split("|") if p.strip()]
-            if len(parts) >= 2:
-                abbrs.add(parts[1])
-    return sorted(abbrs)
 
-
-def detect_abbr(path: str, abbr_pat: re.Pattern | None) -> str:
-    name = Path(path).stem
-    if "--" in name:
-        name = name.split("--", 1)[1]
-    if abbr_pat:
-        m = abbr_pat.search(name)
-        if m:
-            return m.group(1)
-    return "no-abbr"
+def detect_char(path: str) -> str:
+    """파일 경로 → 변경 성격(char) 분류."""
+    p = path.replace("\\", "/")
+    if re.match(r"\.claude/(scripts|hooks)/", p):
+        return "exec"
+    if re.match(r"\.claude/(agents|rules)/", p):
+        return "agent-rule"
+    if re.match(r"\.claude/skills/", p):
+        return "skill"
+    if re.match(r"docs/", p) or p.endswith(".md"):
+        return "doc"
+    return "misc"
 
 
 # ─────────────────────────────────────────────────────────
@@ -186,13 +179,6 @@ def main() -> int:
                 if old not in rename_map:
                     rename_map[old] = path
 
-    # abbr 패턴
-    abbrs = extract_abbrs()
-    abbr_pat: re.Pattern | None = None
-    if abbrs:
-        pat = "|".join(re.escape(a) for a in abbrs)
-        abbr_pat = re.compile(rf"(?:^|[_-])({pat})_")
-
     # WIP impact map
     impact = parse_wip_impact()  # [(slug, task_id, kind, pattern)]
 
@@ -213,7 +199,6 @@ def main() -> int:
 
     for f in staged_paths:
         judge = rename_map.get(f, f)
-        abbr = detect_abbr(judge, abbr_pat)
 
         # 1. 메타 파일
         if META_PATTERNS.match(judge):
@@ -225,18 +210,21 @@ def main() -> int:
             slug = Path(judge).stem
             if "--" in slug:
                 slug = slug.split("--", 1)[1]
-            assignments.append((f"wip:{slug}:{abbr}:feature", f))
+            char = detect_char(judge)
+            assignments.append((f"wip:{slug}:{char}:feature", f))
             continue
 
         # 3. task 매칭
         match = match_wip(judge)
         if match:
             slug, kind = match
-            assignments.append((f"wip:{slug}:{abbr}:{kind}", f))
+            char = detect_char(judge)
+            assignments.append((f"wip:{slug}:{char}:{kind}", f))
             continue
 
-        # 4. 폴백
-        assignments.append((f"path:기타:{abbr}:feature", f))
+        # 4. 폴백 — 성격 기반 자동 분리 (WIP 없어도 동작)
+        char = detect_char(judge)
+        assignments.append((f"char:{char}", f))
 
     # 메타 흡수: meta:config → 가장 큰 non-meta 그룹
     group_sizes: dict[str, int] = defaultdict(int)
