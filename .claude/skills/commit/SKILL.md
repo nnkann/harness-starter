@@ -243,7 +243,7 @@ verdict: pass | warn | block
 ## 공통 단계 (light + strict)
 
 > **Step 0 린터 조기 체크 폐기 (audit #1, 2026-04-22)**: 린트는 Step 5
-> 전체 pre-check에서만 실행. Step 1~4(잔여물·WIP·버전·스테이징)는 1초
+> 전체 pre-check에서만 실행. Step 1~4(잔여물·WIP·스테이징·버전)는 1초
 > 이하로 조기 종료 이점 미미. 린트 실패 시 staged 유지 → 사용자가 수정
 > 후 재커밋하면 기존 staged + 수정분 함께 커밋. `--lint-only` 모드 제거됨.
 
@@ -345,14 +345,34 @@ rules/docs.md 참조.
   (audit #10, 2026-04-22 — docs-manager 스킬 폐기, 332줄 → 스크립트화)
 - **자동 status 변경·이동 금지** — 사용자가 명시 요청한 경우에만 (잘못된 자동 판단으로 정보 손실 위험)
 
-### 3. 하네스 버전 체크 (harness-starter 전용 — audit #4, 2026-04-22)
+### 3. 스테이징
+
+`git status`로 변경 파일 확인 후, 특별한 제외 요청 없으면 `git add .`
+
+**메타 파일 자동 병합 (분리 커밋 차단)**:
+
+Step 4(버전 체크)에서 버전 범프가 있었거나, 본 커밋의 변경으로 인해 다음 메타
+파일이 함께 갱신되어야 한다면 **본 커밋에 자동 포함**한다 (분리 커밋 만들지
+마라):
+
+- `.claude/HARNESS.json` (버전 범프 시)
+- `docs/clusters/*.md` (문서 추가·이동 시)
+
+이유: 이 메타 파일을 별도 커밋으로 분리하면 review가 두 번 돌고, 두
+번째 커밋은 의미 있는 검증이 불가능 (버전 1자리 변경에 6카테고리 검증).
+0d047a5 이후 면제 리스트가 도입되어 분리할 이유가 사라졌다.
+
+### 4. 하네스 버전 체크 (harness-starter 전용 — audit #4, 2026-04-22)
+
+> **Step 3 이후 실행 필수** — 스크립트가 staged 파일을 읽어 범프 타입을 결정한다.
+> 스테이징 전에 실행하면 항상 "staged 없음"으로 오판. (2026-04-28 누락 원인)
 
 ```bash
 python3 .claude/scripts/harness_version_bump.py
 ```
 
 - 다운스트림(`is_starter: false` 또는 파일 없음)은 스크립트가 즉시 exit,
-  stdout·stderr 없음 → Step 4로 진행
+  stdout·stderr 없음 → Step 5로 진행
 - 업스트림은 stdout에 `version_bump: minor|patch|none` + 근거를 출력.
   commit 스킬이 이 값을 참고해 사용자에게 범프 여부 확인
 
@@ -365,7 +385,7 @@ python3 .claude/scripts/harness_version_bump.py
 | 문서·주석·오타만 | 올리지 않음 | README 업데이트, 프론트매터 수정 |
 
 **버전을 올릴 때** (사용자 확인 후):
-1. `.claude/HARNESS.json`의 `version` 필드 갱신
+1. `.claude/HARNESS.json`의 `version` 필드 갱신 후 `git add .claude/HARNESS.json`
 2. **커밋 메시지 제목에 `(v0.X.Y)` 포함** — 이것이 버전 이력의 SSOT.
    회고는 `git log --oneline --grep "(v0\."`로 전체 범프 조회. 세부 변경은
    해당 WIP/decisions 문서 + 커밋 메시지 본문이 담는다.
@@ -376,23 +396,6 @@ python3 .claude/scripts/harness_version_bump.py
 
 **스크립트 제안이 애매하거나 사용자 의도와 다르면** 사용자에게 묻는다.
 자의적으로 올리지 않는다.
-
-### 4. 스테이징
-
-`git status`로 변경 파일 확인 후, 특별한 제외 요청 없으면 `git add .`
-
-**메타 파일 자동 병합 (분리 커밋 차단)**:
-
-Step 3에서 버전 범프가 있었거나, 본 커밋의 변경으로 인해 다음 메타 파일
-이 함께 갱신되어야 한다면 **본 커밋에 자동 포함**한다 (분리 커밋 만들지
-마라):
-
-- `.claude/HARNESS.json` (버전 범프 시)
-- `docs/clusters/*.md` (문서 추가·이동 시)
-
-이유: 이 메타 파일을 별도 커밋으로 분리하면 review가 두 번 돌고, 두
-번째 커밋은 의미 있는 검증이 불가능 (버전 1자리 변경에 6카테고리 검증).
-0d047a5 이후 면제 리스트가 도입되어 분리할 이유가 사라졌다.
 
 ### 5. pre-check (정적 검사, 빠름)
 
@@ -459,7 +462,7 @@ s1_level: ""|file-only|line-confirmed              # S1 시크릿 신호 강도 
 잘라내면 안 됨).
 
 - **exit 2 (차단)**: stderr 메시지를 사용자에게 전달. 문제 수정 후
-  스테이징(Step 4)부터 재시도. 리뷰 단계로 진행하지 마라.
+  스테이징(Step 3)부터 재시도. 리뷰 단계로 진행하지 마라.
 - **exit 0 (통과)**: stdout 전체를 보관하고 5.5단계로 진행.
 
 > pre-check은 commit 스킬만 실행한다. `git commit` hook에서 재실행하지
