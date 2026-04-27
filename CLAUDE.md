@@ -21,7 +21,7 @@
 | 문서 단독 생성 | `/write-doc` 스킬 |
 | 커밋 | `/commit` 스킬 |
 | 기술 결정·스택 선택 | `/advisor` 스킬 |
-| 에러·예상 밖 동작 | `/debug-specialist` 에이전트 |
+| 에러·예상 밖 동작 (1회 시도로 원인 불명, 또는 동일 수정 2회 이상 반복) | `/debug-specialist` 에이전트 즉시 |
 | 내부 자료 조사 | `doc-finder` 에이전트 |
 | 외부 자료 조사 | `researcher` 에이전트 |
 

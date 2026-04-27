@@ -108,7 +108,35 @@ if git remote | grep -qx harness-upstream 2>/dev/null; then
   fi
 fi
 
-# 7. 핵심 규칙 리마인드
+# 7. 연속 fix 커밋 감지 — 동일 파일에 fix가 2커밋 연속이면 debug-specialist 강제 호출
+if git rev-parse --is-inside-work-tree &>/dev/null; then
+  # 최근 2커밋 메시지 둘 다 fix 포함인지 확인
+  msg1=$(git log -1 --format="%s" 2>/dev/null)
+  msg2=$(git log -2 --format="%s" 2>/dev/null | tail -1)
+  # fix 단어 경계 앵커링 — prefix/config 등 포함 단어 오탐 방지
+  if echo "$msg1" | grep -qiE '(^|[[:space:]]|:)fix([[:space:]]|$|[^a-z])' && \
+     echo "$msg2" | grep -qiE '(^|[[:space:]]|:)fix([[:space:]]|$|[^a-z])'; then
+    # 두 커밋에 공통으로 등장하는 파일 확인
+    files1=$(git diff-tree --no-commit-id -r --name-only HEAD 2>/dev/null)
+    files2=$(git diff-tree --no-commit-id -r --name-only HEAD~1 2>/dev/null)
+    repeated=$(comm -12 <(echo "$files1" | sort) <(echo "$files2" | sort))
+    if [ -n "$repeated" ]; then
+      echo ""
+      echo "⛔ 연속 fix 감지: 아래 파일이 2커밋 연속 수정됐습니다." >&2
+      echo ""
+      echo "⛔ 연속 fix 감지: 아래 파일이 2커밋 연속 수정됐습니다."
+      echo "$repeated" | while read f; do echo "  - $f"; done
+      echo ""
+      echo "<important>"
+      echo "debug-specialist 에이전트를 지금 즉시 호출하라."
+      echo "Agent 도구를 사용해 subagent_type: \"debug-specialist\" 로 호출한다."
+      echo "호출 전에 사용자에게 증상·재현 조건·직전 수정 내용을 확인하라."
+      echo "</important>"
+    fi
+  fi
+fi
+
+# 8. 핵심 규칙 리마인드
 echo ""
 echo "═══ RULES ═══"
 echo "1. 린터 에러 0에서만 커밋."
