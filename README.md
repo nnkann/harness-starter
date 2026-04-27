@@ -90,6 +90,7 @@ CLAUDE.md                        에이전트 루트 인스트럭션 (≤30줄)
     ├── harness_version_bump.py  업스트림 버전 범프 제안 (is_starter 가드 내장)
     ├── task_groups.py           staged 파일을 WIP task × abbr × kind로 그룹화 (분리 판정)
     ├── split-commit.sh          커밋 분리 실행 (task_groups.py 기반)
+    ├── install-starter-hooks.sh starter 전용 pre-commit hook 설치 (버전 범프 체크 포함)
     ├── test_pre_commit.py       회귀 테스트 (51 케이스, pytest — 단위+통합)
     └── test-bash-guard.sh       회귀 테스트 (18 케이스, 강제 경유 G1~G5 포함)
 scripts/                         유틸 스크립트 (하네스 외부)
@@ -112,7 +113,7 @@ docs/
 0a. h-setup.sh         하네스 파일 복사. 프로파일 선택(minimal/standard/full).
                      완료 시 docs/WIP/harness_init_pending.md 생성.
 
-0b. /harness-sync    (클론한 머신에서만, 한 번만) 의존성 설치 + 권한 설정.
+0b. /harness-sync    (클론한 머신에서만, 한 번만) 의존성 설치 + 권한 설정 + git hook 설치.
 
 1. /harness-init     PRD/아이디어 입력 → CPS 정리, 스택/강도 결정, 하네스 빈 칸 채움.
                      완료 시 docs/WIP/project_kickoff.md + 첫 작업 문서 생성.

@@ -526,6 +526,9 @@ done
 # 실행 권한
 chmod +x "$TARGET/.claude/scripts/"*.sh 2>/dev/null
 
+# starter 전용 git hook 설치 (is_starter: false면 스크립트가 즉시 exit)
+bash "$TARGET/.claude/scripts/install-starter-hooks.sh" 2>/dev/null || true
+
 # .gitignore — 하네스가 필요로 하는 머신별 파일 제외
 GI="$TARGET/.gitignore"
 if [ -f "$GI" ]; then
