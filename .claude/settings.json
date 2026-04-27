@@ -1,4 +1,38 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(bash *)",
+      "Bash(cd *)",
+      "Bash(cd *&&*)",
+      "Bash(git *)",
+      "Bash(git * -- *)",
+      "Bash(git *&&*)",
+      "Bash(for *git*)",
+      "Bash(git diff*|*)",
+      "Bash(git log*|*)",
+      "Bash(git show*|*)",
+      "Bash(HARNESS_DEV=1 git *)",
+      "Bash(cd *HARNESS_DEV=1 git *)",
+      "Bash(ls *)",
+      "Bash(mkdir *)",
+      "Bash(mv *)",
+      "Bash(cp *)",
+      "Bash(rm *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(find *)",
+      "Bash(export *)",
+      "Read(*)",
+      "Edit(*)",
+      "Write(*)",
+      "Glob(*)",
+      "Grep(*)",
+      "WebSearch",
+      "WebFetch(*)"
+    ]
+  },
   "hooks": {
     "SessionStart": [
       {
