@@ -406,7 +406,11 @@ review에 들어간다.
 
 **단일 실행 + 변수 중심** (audit #5, 2026-04-22 재설계). tree-hash 캐싱
 폐기 — "캐싱 대기"의 I/O 오버헤드가 무의미하다는 사용자 지적 반영.
-재commit 시 pre-check 재실행이 기본 경로. diff는 변수로 유지:
+재commit 시 pre-check 재실행이 기본 경로. diff는 변수로 유지.
+
+**sub-커밋 예외**: `HARNESS_SPLIT_SUB=1` 환경에서는 pre-check을 재실행하지
+않는다. 부모 커밋에서 캡처한 `PRE_CHECK_OUTPUT`·`REVIEW_PRECHECK` 변수를
+그대로 이어받아 사용한다. 신호·린터·분리 판정은 이미 완료됐다.
 
 ```bash
 STAGED_DIFF=$(git diff --cached)
@@ -472,10 +476,12 @@ bash .claude/scripts/split-commit.sh
 - `.claude/memory/split-plan.txt`에 남은 그룹 목록 저장
 - commit 스킬은 **첫 그룹만으로** Step 6·7·7.5·8(커밋)·9(푸시 제외) 수행
   - 커밋 시 **`HARNESS_SPLIT_SUB=1 HARNESS_DEV=1` prefix 필수**
-  - sub-커밋은 pre-check 분리 판정 skip, 정상 review·커밋 흐름
-  - sub-커밋의 recommended_stage는 그룹 staged 파일만으로 자동 재판정된다
-    (split 후 staged = 그룹 파일만이므로 pre-check이 그룹 신호만 감지).
-    문서 이동 단독 그룹은 standard 이하, harness critical 변경 그룹은 deep.
+  - sub-커밋은 **pre-check 재실행 금지** — 부모 커밋의 `PRE_CHECK_OUTPUT` 변수를
+    그대로 재사용. 린터·신호·분리 판정은 이미 완료됐다
+  - sub-커밋의 review stage는 그룹 성격(`split_group_N_name`)으로 결정:
+    - `char:doc` → Stage 0 (skip) 강제. 자연어 문서에 LLM review 불필요
+    - `char:exec` / `char:agent-rule` / `char:skill` / `wip:*` → 부모의
+      `recommended_stage` 그대로 사용 (재판정 없음)
 - 첫 sub-커밋 완료 후 **다시 `/commit` 호출** → split-commit.sh가 다음 그룹 stage
 - `split-plan.txt`가 비면 분리 종료
 
