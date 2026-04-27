@@ -84,7 +84,7 @@ profile: <HARNESS.json의 profile>
 - 누락된 도구는 **리스트로 보고만** 한다. 자동 설치하지 않는다(OS별 상이, sudo 위험).
 - 사용자에게 설치 방법을 안내(공식 사이트 링크 정도).
 
-### Step 5. 스크립트 권한 설정
+### Step 5. 스크립트 권한 설정 + starter hook 설치
 
 `.claude/scripts/*.sh`에 실행 권한 부여:
 
@@ -93,6 +93,14 @@ chmod +x .claude/scripts/*.sh 2>/dev/null || true
 ```
 
 Windows(Git Bash 등)에서는 no-op이 되어도 무방. 에러 무시.
+
+`is_starter: true`인 repo라면 git hook도 설치:
+
+```bash
+bash .claude/scripts/install-starter-hooks.sh
+```
+
+다운스트림(`is_starter: false`)은 스크립트가 즉시 exit — 무해.
 
 ### Step 6. 하네스 무결성 검사
 
