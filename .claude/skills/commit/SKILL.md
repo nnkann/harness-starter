@@ -268,7 +268,7 @@ docs/WIP/ status 변경·이동은 **사용자가 명시 요청한 경우에만*
 
 | 사용자 요청 | 동작 |
 |------------|------|
-| "completed로 이동" | `python3 .claude/scripts/docs_ops.py move <WIP파일>` — status=completed, 파일 이동, 차단 키워드 검사 자동 수행. 이후 `python3 .claude/scripts/docs_ops.py cluster-update`로 clusters 갱신 |
+| "completed로 이동" | `python3 .claude/scripts/docs_ops.py move <WIP파일>` — status=completed, 파일 이동, 차단 키워드 검사 + **역참조 dead link 자동 갱신** 수행. 이후 `python3 .claude/scripts/docs_ops.py cluster-update`로 clusters 갱신. **`git mv` 직접 사용 금지 — 역참조 갱신이 누락됨** |
 | "부분 완료, 잔여 분리" | (a) 잔여를 `<원래이름>_followup.md`로 신설, `relates-to: rel: extends` (b) 원본은 `docs_ops.py move` 호출 |
 | "abandoned로 보내" | (a) status → abandoned (b) archived/로 수동 이동 |
 
