@@ -1,5 +1,18 @@
 # Self-Verify 규칙
 
+## 검증 워크플로우
+
+```
+구현 완료
+  └─ work-verify (이 규칙): 내가 만든 것이 동작하는가? (pytest + 린터)
+      └─ 통과하면 /commit 스킬 호출
+           └─ commit-check (pre_commit_check.py): 커밋 가능한 상태인가? (린터·dead link·WIP 잔여)
+               └─ review: 변경이 안전한가? (회귀·계약·스코프)
+```
+
+각 단계는 역할이 다르다. work-verify를 통과한 테스트는 같은 세션에서
+코드 변경 없으면 재실행하지 마라 — commit-check이 대신하지 않는다.
+
 에이전트는 커밋 전이 아니라, **작업 중에** 자기 결과물을 검증해야 한다.
 Review Agent(커밋 시점)에서 처음 문제를 발견하면 늦다.
 
