@@ -25,6 +25,7 @@
 | 내부 자료 조사 | `doc-finder` 에이전트 |
 | 외부 자료 조사 | `researcher` 에이전트 |
 
+
 <important if="코드를 작성·수정·리팩토링하려 할 때">
 /implementation 스킬을 먼저 발화했는가? 안 했다면 지금 즉시 발화하라.
 예외: 1줄 타이포·문서만 수정·settings.json 키-값 토글.
