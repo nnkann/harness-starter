@@ -31,6 +31,39 @@
 
 set -e
 
+SPLIT_PLAN=".claude/memory/split-plan.txt"
+
+# 0. split-plan.txt가 있으면 다음 그룹 자동 stage (pre-check 재계산 없이)
+if [ -f "$SPLIT_PLAN" ]; then
+  NEXT_LINE=$(grep -v '^#' "$SPLIT_PLAN" | head -1)
+  if [ -n "$NEXT_LINE" ]; then
+    NEXT_NAME=$(echo "$NEXT_LINE" | cut -f1)
+    NEXT_FILES=$(echo "$NEXT_LINE" | cut -f2)
+
+    echo "split-plan.txt에서 다음 그룹 로드: $NEXT_NAME"
+    git reset HEAD -- . > /dev/null 2>&1 || true
+    echo "$NEXT_FILES" | tr ',' '\n' | while IFS= read -r f; do
+      [ -z "$f" ] && continue
+      if [ -e "$f" ]; then git add -- "$f"; else git rm -q -- "$f" 2>/dev/null || true; fi
+    done
+
+    # split-plan.txt에서 첫 줄 제거
+    REMAINING=$(grep -v '^#' "$SPLIT_PLAN" | tail -n +2)
+    if [ -z "$REMAINING" ]; then
+      rm -f "$SPLIT_PLAN"
+      echo "✅ '$NEXT_NAME' staged 완료 (마지막 그룹)."
+    else
+      {
+        head -2 "$SPLIT_PLAN"  # 주석 헤더 보존
+        echo "$REMAINING"
+      } > "${SPLIT_PLAN}.tmp" && mv "${SPLIT_PLAN}.tmp" "$SPLIT_PLAN"
+      echo "✅ '$NEXT_NAME' staged 완료. 남은 그룹: $(echo "$REMAINING" | wc -l)개"
+    fi
+    exit 0
+  fi
+  rm -f "$SPLIT_PLAN"
+fi
+
 # 1. pre-check 실행
 PRE_OUT=$(python3 "$(dirname "$0")/pre_commit_check.py" 2>/dev/null)
 PRE_EXIT=$?
