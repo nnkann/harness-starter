@@ -84,14 +84,17 @@ split 후 각 sub-커밋은 단일 char 그룹으로 구성된다. `split_group_
 | 그룹 성격 | 전달 방식 | 근거 |
 |----------|----------|------|
 | `char:exec` / `char:agent-rule` / `char:skill` / `wip:*` | 전처리된 full diff | 실행 로직·판단 기준·흐름 — 줄 단위 패턴 감지 필요 |
-| `char:doc` | stat만 + Read 지시 | 자연어 위주 — 프론트매터·구조 확인은 Read로 충분 |
+| `char:doc` | 전처리된 full diff (3000줄+ 시 truncate) | diff 없이 stat만 주면 review가 Read N회 소진 → maxTurns 초과 (incident `hn_review_maxturns_verdict_miss` 2026-04-28) |
 
 공통 전처리 (모든 그룹):
 - `--unified=1`: context lines 3→1 (PR-Agent 방식 적용, 변경 줄 집중)
 - `index` 줄 제거: `grep -v "^index "`
 - `diff --git` 헤더 제거: `grep -v "^diff --git "`
 
-실측 근거: f35b6c0(4032줄) 기준 doc→stat 대체 시 37% 감소(4032→2513줄) 확인.
+**doc 그룹 3000줄+ truncate**: stat을 앞에 붙이고 diff를 3000줄에서 잘라 전달.
+review가 나머지 파일을 Read로 확인하더라도 이미 stat으로 전체 윤곽을 알고 있어
+불필요한 Read를 줄일 수 있다. stat-only였던 구 방식(37% 감소)은 Read 소진이라는
+더 큰 비용을 발생시켜 폐기.
 
 ```bash
 # 1. 그룹 성격 판별 (pre-check stdout에서 추출)
@@ -102,13 +105,19 @@ DIFF_PROCESSED=$(git diff --cached --unified=1 \
   | grep -v "^index " \
   | grep -v "^diff --git ")
 
-# 3. 그룹별 전달 방식 결정
+# 3. 그룹별 전달 방식 결정 (전 그룹 full diff — doc는 3000줄 truncate)
 if echo "$GROUP_NAME" | grep -qE "^char:doc"; then
-  # doc 그룹: stat만 + Read 지시
-  DIFF_BLOCK="변경 성격: doc (자연어·문서). stat만 포함:
+  # doc 그룹: full diff, 단 3000줄 초과 시 truncate + stat 보조
+  DIFF_LINE_COUNT=$(echo "$DIFF_PROCESSED" | wc -l)
+  if [ "$DIFF_LINE_COUNT" -gt 3000 ]; then
+    DIFF_BLOCK="변경 성격: doc (자연어·문서). diff 3000줄 초과로 앞부분만 포함:
 $(git diff --cached --stat)
 ---
-본문 확인이 필요하면 Read 도구로 개별 파일을 직접 조회하라."
+$(echo "$DIFF_PROCESSED" | head -3000)
+--- (이하 생략 — 필요 시 Read로 개별 파일 확인)"
+  else
+    DIFF_BLOCK="$DIFF_PROCESSED"
+  fi
 else
   # exec/agent-rule/skill/wip: 전처리된 full diff
   DIFF_BLOCK="$DIFF_PROCESSED"
