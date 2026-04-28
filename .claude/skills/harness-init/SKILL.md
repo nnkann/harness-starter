@@ -366,6 +366,10 @@ created: {YYYY-MM-DD}
 - Step 7의 결정 문서(CPS + 스택) status를 `completed`로 변경한다.
 - 커밋 시 commit 스킬이 `docs/guides/`로 이동시킨다.
 - `docs/guides/project_kickoff_sample.md`가 존재하면 삭제한다 (실제 CPS로 대체되었으므로).
+- 이 스킬 폴더를 삭제한다 — harness-init은 1회성. 필요 시 harness-upgrade로 재수신:
+  ```bash
+  rm -rf .claude/skills/harness-init
+  ```
 
 #### 8d. 완료 메시지
 

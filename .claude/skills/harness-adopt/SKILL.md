@@ -473,7 +473,12 @@ HARNESS.json에 다음 필드를 추가/갱신:
 }
 ```
 
-### Step 8. 완료 리포트
+### Step 8. 완료 리포트 + 자기 삭제
+
+리포트 출력 후 이 스킬 폴더를 삭제한다 — harness-adopt는 1회성. 필요 시 harness-upgrade로 재수신:
+```bash
+rm -rf .claude/skills/harness-adopt
+```
 
 ```
 ## harness-adopt 완료

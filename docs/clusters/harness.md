@@ -57,6 +57,7 @@ updated: 2026-04-28
 - [split 커밋 sub-group review stage 재판정 — 그룹별 신호 기반 강도 결정](../harness/hn_split_commit_review_stage.md)
 - [split 성격 기반 그룹화 + commit 흐름 내 diff 참조 최적화](../harness/hn_split_diff_delivery.md)
 - [review staging 잔여 — S8 정밀화 + 5커밋 측정 + 폭증 게이트](../harness/hn_staging_remaining.md)
+- [starter 전용 스킬 자기 삭제 + starter_skills 병합 버그 수정](../harness/hn_starter_skill_self_delete.md)
 - [test-pre-commit 스위트 성능 — 잔여 구조 재설계](../harness/hn_test_suite_perf.md)
 - [업스트림 전용 로직·기록 전수 감사 — 다운스트림 전파 파일 청소](../harness/hn_upstream_only_audit.md)
 - [WIP 완료 자동화 구조적 결함 — Step 7.5 미동작 + SSOT 드리프트 + 이동 미연결](../harness/hn_wip_completion_gap.md)
