@@ -215,6 +215,21 @@ DELETED=$(git diff "$BASE_REF" "$UPSTREAM_REMOTE/main" \
 two-way 모드(base 없음)에서는 DELETED를 추출할 수 없으므로 삭제 카테고리
 는 건너뛴다. upstream에 없는 로컬 파일은 "사용자 전용"으로 그대로 보존.
 
+**MIGRATIONS.md `### 변경 파일` 섹션 우선 참조**:
+
+upstream MIGRATIONS.md의 해당 버전 섹션에 `### 변경 파일` 표가 있으면,
+git diff 결과보다 이 표를 **우선 신뢰**한다. 표의 `처리` 열 값이 분류 근거:
+
+| 처리 값 | 분류 |
+|---------|------|
+| `자동 덮어쓰기` | 자동 덮어쓰기 |
+| `3-way merge` | 3-way merge |
+| `신규 추가` | 신규 |
+| `삭제` | 삭제 |
+
+표에 없는 파일은 git diff 결과로 분류한다 (기존 로직 유지).
+표 자체가 없는 버전은 git diff만으로 분류 (하위 호환).
+
 분류 표:
 
 | 카테고리 | 감지 | 대상 | 처리 |
@@ -346,6 +361,8 @@ rm -rf "$TMPDIR"
 
    해결 방법: [ours 유지 / theirs 적용 / 직접 편집]
    ```
+   충돌 해소 후 해당 파일을 `CONFLICT_RESOLVED` 목록에 추가한다.
+   (two-way 모드에서 사용자가 직접 편집한 파일도 동일하게 추가)
 4. 승인 후 파일에 적용
 5. 검증:
    - `.sh`: `bash -n <파일>`
@@ -560,7 +577,28 @@ Step 9.5로 돌아가 처리하거나, 나중에 처리하려면 docs/WIP/harnes
    ```
    - **`docs/harness/migration-log.md`는 upstream이 절대 덮어쓰지 않는다.** 다운스트림 소유.
    - 문제 발생 시 이 파일을 upstream에 전달하면 맥락 파악 가능.
-4. 완료 보고:
+4. **커밋** — `CONFLICT_RESOLVED` 목록 유무로 분기:
+
+   **충돌 해소 파일이 없는 경우** (자동 덮어쓰기·신규 추가만):
+   upstream 검증 코드이므로 review 불필요. 단일 커밋으로 처리:
+   ```bash
+   git add .
+   HARNESS_UPGRADE=1 HARNESS_DEV=1 git commit -m "chore: 하네스 업그레이드 vX.Y.Z → vA.B.C"
+   ```
+   > `HARNESS_UPGRADE=1`은 pre-check·staging.md 룰 0번에 의해 review를 skip시킨다.
+
+   **충돌 해소 파일이 있는 경우** (`CONFLICT_RESOLVED` 비어있지 않음):
+   충돌 해소 결과만 검증이 필요. `--quick`으로 해당 파일만 review:
+   ```bash
+   git add .
+   # commit 스킬 호출 전 충돌 해소 파일 목록을 컨텍스트로 전달
+   /commit --quick
+   ```
+   commit 스킬 호출 시 전제 컨텍스트에 다음을 명시:
+   - "하네스 업그레이드 커밋. 충돌 해소 파일: `<CONFLICT_RESOLVED 목록>`"
+   - "나머지 파일은 upstream 그대로 — 충돌 해소 파일만 검증 대상"
+
+5. 완료 보고:
    ```
    ✅ 하네스 업그레이드 완료 (0.9.2 → 1.0.0)
 
