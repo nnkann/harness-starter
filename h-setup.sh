@@ -273,12 +273,15 @@ EOF
     [ -f "$src" ] || continue
     stage_or_copy "$src" "$TARGET/.claude/skills/$skill/SKILL.md"
   done
+  # starter_skills는 업그레이드 복사 제외 (다운스트림 전달 안 함)
+  STARTER_SKILLS=$(grep -o '"starter_skills"[[:space:]]*:[[:space:]]*"[^"]*"' "$SCRIPT_DIR/.claude/HARNESS.json" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/' | tr ',' ' ')
   for src in "$SCRIPT_DIR/.claude/skills/"*/SKILL.md; do
     [ -f "$src" ] || continue
     skill=$(basename "$(dirname "$src")")
     dst="$TARGET/.claude/skills/$skill/SKILL.md"
     [ -f "$dst" ] || continue
     echo "$SKILLS" | grep -qw "$skill" && continue
+    echo "$STARTER_SKILLS" | grep -qw "$skill" && continue  # starter 전용 스킬 제외
     stage_or_copy "$src" "$dst"
   done
 
