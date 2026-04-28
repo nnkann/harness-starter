@@ -293,11 +293,11 @@ created: {YYYY-MM-DD}
    - 기존 패턴 영향 의심 → codebase-analyst
    - 위험 결정 직전 → risk-analyst
    - 성능 민감 변경 → performance-analyst
-3. **Phase(작업 단위) 완료 직후 AC 실행** — WIP의 `Acceptance Criteria` 항목을
-   Claude가 직접 실행해서 확인한다.
-   - 커맨드면 Bash 실행, 사람 확인 조건이면 결과를 사용자에게 제시
-   - **AC 미통과 → "완료" 선언 금지.** 즉시 원인 파악 후 재수정
-   - 테스트 스위트(`pytest`, `test_pre_commit.py` 등)가 있으면 **반드시 실행**
+3. **Phase(작업 단위) 완료 직후 AC 실행 — 필수, 생략 불가**
+   - **자동화 가능 AC**: Bash로 실행하고 결과를 사용자에게 제시. 실행 기록 없이 "완료" 선언 금지.
+   - **자동화 불가 AC** (Claude 행동·UI 동작·운용 효과): "자동 검증 불가 — 운용에서 확인 필요" 명시 의무. 커버되는 범위와 안 되는 범위를 구분해서 제시.
+   - **테스트 스위트** (`pytest`, `test_pre_commit.py` 등): 관련 변경이 있으면 **반드시 실행**. SKILL.md·rules/*.md 변경도 포함 (행동 정의 문서 — 단순 문서 SKIP 대상 아님).
+   - **AC 미통과 → "완료" 선언 금지.** 즉시 원인 파악 후 재수정.
 4. **단위 완료 시 WIP 갱신** — `## 결정 사항` / `## 메모`에 기록. specialist
    응답은 **원문 보존** (요약 금지 — 근거 유실). 핸드오프 계약의 Preserve·
    Record 축 준수.
@@ -323,7 +323,7 @@ created: {YYYY-MM-DD}
 | 기존 Solution이 바뀌었다 | CPS 문서의 Solution 섹션 갱신 |
 | Context가 달라졌다 (전제 변경) | CPS 문서의 Context 섹션 갱신 |
 | 새 도메인이 생겼다 | CPS 도메인 목록 + naming.md에 추가 |
-| 변경 없음 | 건너뜀 |
+| 변경 없음 | **WIP `## 결정 사항`에 "CPS 갱신: 없음" 명시** (묵시적 생략 금지) |
 
 CPS 문서를 갱신했으면 WIP 문서의 `## 메모`에 "CPS 갱신: [변경 내용]"을 기록한다.
 

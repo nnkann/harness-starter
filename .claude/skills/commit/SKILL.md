@@ -389,6 +389,13 @@ python3 .claude/scripts/harness_version_bump.py
 2. **커밋 메시지 제목에 `(v0.X.Y)` 포함** — 이것이 버전 이력의 SSOT.
    회고는 `git log --oneline --grep "(v0\."`로 전체 범프 조회. 세부 변경은
    해당 WIP/decisions 문서 + 커밋 메시지 본문이 담는다.
+3. **`docs/harness/MIGRATIONS.md`에 새 버전 섹션 작성** — staged diff를 기반으로
+   Claude가 직접 작성. 포맷 SSOT는 MIGRATIONS.md 상단 "## 포맷" 섹션.
+   - 변경 내용: diff에서 다운스트림에 영향 있는 변경 추출
+   - 적용 방법: 자동 적용(harness-upgrade가 처리) / 수동 적용(직접 해야 함) 분류
+   - 수동 적용 없으면 `없음` 명시 (생략 금지)
+   - 검증: 적용 확인 명령어 (생략 가능)
+   - `git add docs/harness/MIGRATIONS.md`
 
 > **과거 `docs/harness/promotion-log.md` 폐기 (v0.20.7)**: 수동 row append
 > 비용이 매 커밋 누적되고 git log와 SSOT가 중복됐다. 이제 `git log`가 유일
