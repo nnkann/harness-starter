@@ -98,8 +98,27 @@ def main() -> int:
 
     # 4. 출력
     current = data.get("version", "unknown")
+
+    # staged HARNESS.json이 있으면 거기서 버전 읽기 (이미 범프된 경우 감지)
+    staged_harness = run(["git", "show", ":0:.claude/HARNESS.json"])
+    if staged_harness:
+        try:
+            staged_data = json.loads(staged_harness)
+            staged_version = staged_data.get("version", current)
+        except Exception:
+            staged_version = current
+    else:
+        staged_version = current
+
+    if bump_type != "none" and current != "unknown":
+        nv = next_version(current, bump_type)
+        # staged HARNESS.json 버전이 이미 next_version과 같으면 범프 완료로 처리
+        if nv and staged_version == nv:
+            bump_type = "none"
+            reasons = [f"이미 범프됨: {staged_version}"]
+
     print(f"version_bump: {bump_type}")
-    print(f"current_version: {current}")
+    print(f"current_version: {staged_version}")
     if bump_type != "none" and current != "unknown":
         nv = next_version(current, bump_type)
         if nv:
