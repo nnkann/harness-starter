@@ -475,10 +475,12 @@ for f in "$SCRIPT_DIR/.claude/rules/"*; do
   copy_if_new "$f" "$TARGET/.claude/rules/$(basename "$f")"
 done
 
-# .claude/skills/ (프로파일 기준)
+# .claude/skills/ (프로파일 기준, starter_skills 제외)
 echo ""
 echo "📁 .claude/skills/ ($PROFILE)"
+STARTER_SKILLS_INSTALL=$(grep -o '"starter_skills"[[:space:]]*:[[:space:]]*"[^"]*"' "$SCRIPT_DIR/.claude/HARNESS.json" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/' | tr ',' ' ')
 for skill in $SKILLS; do
+  echo "$STARTER_SKILLS_INSTALL" | grep -qw "$skill" && continue  # starter 전용 스킬 제외
   src="$SCRIPT_DIR/.claude/skills/$skill/SKILL.md"
   [ -f "$src" ] || { echo -e "  ${RED}❌ 스킬 누락: $skill${NC}"; continue; }
   copy_if_new "$src" "$TARGET/.claude/skills/$skill/SKILL.md"
