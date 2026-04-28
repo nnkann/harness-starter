@@ -27,20 +27,7 @@ if [ "$HARNESS_DEV" != "1" ]; then
   echo ""
   exit 1
 fi
-
-# 버전 범프 체크 (sub-커밋은 스킵 — 부모 커밋에서 이미 판정)
-if [ "$HARNESS_SPLIT_SUB" != "1" ]; then
-  BUMP_OUTPUT=$(python3 .claude/scripts/harness_version_bump.py 2>/dev/null)
-  BUMP_TYPE=$(echo "$BUMP_OUTPUT" | grep "^version_bump:" | cut -d' ' -f2)
-  if [ "$BUMP_TYPE" = "patch" ] || [ "$BUMP_TYPE" = "minor" ]; then
-    NEXT_VER=$(echo "$BUMP_OUTPUT" | grep "^next_version:" | cut -d' ' -f2)
-    echo ""
-    echo "⚠️  버전 범프 누락: $BUMP_TYPE 필요 (→ $NEXT_VER)"
-    echo "   HARNESS.json version 갱신 후 git add .claude/HARNESS.json 하고 재커밋."
-    echo ""
-    exit 1
-  fi
-fi
+# 버전 범프 체크는 pre_commit_check.py가 담당 (commit Step 4에서 Claude가 판단·갱신)
 HOOK
 
 chmod +x "$HOOK_FILE"

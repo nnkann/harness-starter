@@ -431,6 +431,30 @@ for line in numstat_raw.splitlines():
 risk_factors_summary = ";".join(risk_reasons)
 
 # ─────────────────────────────────────────────────────────
+# 5.5. 버전 범프 누락 경고 (is_starter 전용, 차단 아님)
+# ─────────────────────────────────────────────────────────
+
+try:
+    import json as _json
+    _harness = _json.loads(Path(".claude/HARNESS.json").read_text(encoding="utf-8"))
+    if _harness.get("is_starter"):
+        _bump_out = run(["python3", ".claude/scripts/harness_version_bump.py"])
+        _bump_type = next(
+            (l.split(":", 1)[1].strip() for l in _bump_out.splitlines()
+             if l.startswith("version_bump:")), "none"
+        )
+        if _bump_type in ("patch", "minor"):
+            _next_ver = next(
+                (l.split(":", 1)[1].strip() for l in _bump_out.splitlines()
+                 if l.startswith("next_version:")), "?")
+            err(f"⚠️  버전 범프 누락: {_bump_type} 필요 (→ {_next_ver})")
+            err("   commit Step 4에서 HARNESS.json·MIGRATIONS.md·README.md 일괄 갱신.")
+            risk_reasons.append(f"버전 범프 누락({_bump_type}→{_next_ver})")
+            risk_factors_summary = ";".join(risk_reasons)
+except Exception:
+    pass
+
+# ─────────────────────────────────────────────────────────
 # 6. S10 연속 수정 카운트
 # ─────────────────────────────────────────────────────────
 
