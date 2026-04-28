@@ -84,24 +84,66 @@ copy_if_new "$src" "$TARGET/.claude/scripts/$(basename "$src")"
 - 다운스트림 프로젝트가 독립적으로 사용할 수 있는가? → `skills`
 - harness-starter 구조(h-setup.sh·MIGRATIONS.md 등)를 전제로 하는가? → `starter_skills`
 
-### Step 5. MIGRATIONS.md 갱신 (버전 범프 동반 시)
+### Step 5. 버전 범프 + MIGRATIONS.md 갱신
 
-버전이 올라가는 커밋과 함께 연동 파일이 변경됐으면 MIGRATIONS.md 해당 버전 섹션에 기록:
+**코드·동작 변경이 있으면 반드시 버전을 올린다.**
+
+#### semver 판단 기준
+
+| 변경 유형 | 범프 |
+|----------|------|
+| 다운스트림 breaking change (스킬 삭제·동작 역전·필드 제거) | minor |
+| 새 기능·스킬·스크립트 추가, 동작 개선 | minor |
+| 버그 수정·내부 리팩토링 (동작 무변경) | patch |
+| **SKILL.md·rules/*.md Step 절차·체크리스트 변경** (Claude 행동에 영향) | **patch** |
+| MIGRATIONS.md·README·주석·오타만 변경 | 범프 불필요 |
+
+#### 버전 범프 실행
+
+```bash
+python3 .claude/scripts/harness_version_bump.py
+# 출력 예: version_bump: minor → 0.25.0 → 0.26.0
+```
+
+스크립트가 HARNESS.json `version` 필드를 갱신한다.
+
+#### MIGRATIONS.md 섹션 작성
+
+버전 범프 후 `docs/harness/MIGRATIONS.md`에 새 버전 섹션 추가.
+**포맷 SSOT는 MIGRATIONS.md 상단 "## 포맷" 섹션.** 반드시 그 포맷을 따른다.
 
 ```markdown
-### 자동 적용 (스킬이 처리)
-- <변경 내용 1줄>
+## v0.X — 한 줄 요약
 
-### 수동 액션 (다운스트림 필수)
-- (필요 시만)
+### 변경 내용
+이번 버전에서 달라진 것. 다운스트림이 맥락 파악용 최소 설명.
+
+### 적용 방법
+
+**자동 적용**: harness-upgrade가 처리. 확인만.
+- ...
+
+**수동 적용**: upgrade 후 직접 실행. 안 하면 미동작.
+- 없음  ← 수동 액션 없을 때도 이 줄 명시
+
+### 검증
+적용 후 확인 방법. 생략 가능.
 ```
+
+**작성 원칙**:
+- "수동 적용 없음"도 `없음`으로 명시 (누락인지 없는 건지 구분)
+- 배경 설명·긴 이력은 제거. 다운스트림이 "뭘 해야 하는가"에만 집중
+- 다운스트림 고유명사 금지 (docs.md "오염 면제" 참조)
 
 ### Step 6. 완료 확인
 
 - [ ] h-setup.sh: 새 스크립트 호출이 반영됐는가 (필요 시)
 - [ ] README.md: 파일 목록에 추가됐는가
 - [ ] HARNESS.json: 올바른 필드(`skills`/`starter_skills`)에 등록됐는가
-- [ ] MIGRATIONS.md: 버전 범프 동반 시 섹션 추가됐는가
+- [ ] 버전 범프: `harness_version_bump.py` 실행하고 HARNESS.json `version` 갱신됐는가
+- [ ] MIGRATIONS.md: 새 버전 섹션 추가됐는가 (포맷 준수)
+- [ ] **테스트**: `python3 -m pytest .claude/scripts/test_pre_commit.py -q` 통과 (스크립트 연동 변경 시 필수. SKILL.md·rules 단독 변경도 실행 권장)
+- [ ] **CPS**: `docs/guides/project_kickoff.md` Solutions 항목 중 이번 변경과 관련된 것 갱신했는가 (새 방어 레이어 추가·기존 Solution 구조 변경 시)
 
 ---
 
