@@ -688,7 +688,7 @@ if total_files > 0 and not any(has_sig(s) for s in ("S3", "S4", "S5", "S6")):
 # ─────────────────────────────────────────────────────────
 
 UPSTREAM_PAT = re.compile(
-    r"^(?:\.claude/scripts/|\.claude/agents/|\.claude/hooks/|\.claude/settings\.json$)"
+    r"^(?:\.claude/scripts/|\.claude/agents/|\.claude/hooks/|\.claude/settings\.json$|h-setup\.sh$)"
 )
 
 stage = ""

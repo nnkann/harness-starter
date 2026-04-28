@@ -226,6 +226,24 @@ class TestStageDeep:
         )
         assert stage(out) == "deep"
 
+    def test_h_setup_deep(self):
+        """T32.1: h-setup.sh 단독 수정 → deep (UPSTREAM_PAT 등록)"""
+        out = run_check(
+            name_status="M h-setup.sh",
+            numstat="5 0 h-setup.sh",
+            diff_u0="+# change\n",
+        )
+        assert stage(out) == "deep"
+
+    def test_h_setup_with_docs_deep(self):
+        """T32.2: h-setup.sh + docs → deep (업스트림 위험 경로 우선)"""
+        out = run_check(
+            name_status="M h-setup.sh\nM docs/guides/foo.md",
+            numstat="2 0 h-setup.sh\n1 0 docs/guides/foo.md",
+            diff_u0="+# change\n+# doc\n",
+        )
+        assert stage(out) == "deep"
+
 
 class TestStageStandard:
     def test_rules_not_deep(self):
