@@ -15,6 +15,7 @@
 """
 
 import re
+import shutil
 import subprocess
 import sys
 from datetime import date
@@ -310,7 +311,16 @@ def cmd_move(src_str: str) -> int:
 
     dest = Path(f"docs/{prefix}/{rest}")
     dest.parent.mkdir(parents=True, exist_ok=True)
-    git(["mv", str(src), str(dest)])
+    r = git(["mv", str(src), str(dest)])
+    if r.returncode != 0:
+        # 미추적 파일(untracked)은 git mv 불가 — shutil로 이동 후 인덱스 수동 갱신
+        shutil.move(str(src), str(dest))
+        ra = git(["add", str(dest)])
+        rb = git(["rm", "--cached", str(src)])
+        if ra.returncode != 0 or rb.returncode != 0:
+            print(f"❌ 인덱스 갱신 실패: add={ra.returncode} rm={rb.returncode}",
+                  file=sys.stderr)
+            return 1
 
     today = date.today().isoformat()
     write_frontmatter_field(dest, "status", "completed")
