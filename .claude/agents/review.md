@@ -153,6 +153,7 @@ WIP 없으면 이 검증 스킵.
 - 새 도메인 추가 (naming.md에 없던 domain: 값이 프론트매터에 등장)
 - 새 규칙·스킬·에이전트 신설 (`.claude/rules/*`·`.claude/skills/*`·
   `.claude/agents/*`에 `A` 상태 파일)
+- **기존 SKILL.md·rules/*.md의 Step 절차·체크리스트 실질 변경** (`M` 상태 + 줄 수 변경 ≥3) — 행동 정의 문서이므로 Solution 구조 변화와 연동될 수 있음
 - 핵심 설정(settings.json·CLAUDE.md)의 전제 변경
 
 **행동 (Stage 2·3):**
