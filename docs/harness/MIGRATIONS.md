@@ -15,6 +15,34 @@ updated: 2026-04-28
 업그레이드 과정에서 발생한 충돌·이상 소견·수동 결정은 `migration-log.md`에
 별도 기록한다 (다운스트림 소유, upstream은 읽기만).
 
+## migration-log.md — 다운스트림 기록 문서
+
+다운스트림 프로젝트 루트에 `migration-log.md`를 두고 업그레이드마다 누적한다.
+harness-upgrade 완료 시 버전 헤더를 자동 생성하며, **나머지는 다운스트림이 직접 채운다.**
+upstream은 이 파일을 **절대 덮어쓰지 않는다.** 문제 발생 시 이 파일을 upstream에 전달.
+
+```markdown
+# migration-log
+
+## v0.X → v0.Y (YYYY-MM-DD)
+
+### 충돌·수동 결정
+<!-- 3-way merge 충돌 해소 결정, theirs/ours 선택 이유 -->
+- (없으면 생략)
+
+### 이상 소견
+<!-- 예상 밖 동작, 확인 필요 항목, upgrade 후 달라진 점 -->
+- (없으면 생략)
+
+### 수동 적용 결과
+<!-- MIGRATIONS.md 수동 적용 항목 완료 여부 -->
+- (없으면 생략)
+```
+
+기록할 것이 없는 버전은 헤더만 남겨도 된다.
+
+---
+
 ## 포맷
 
 ```markdown
