@@ -2,11 +2,6 @@
 title: advisor 전면 재설계 — 의사결정 프레임 라이브러리 + 판단 경로 명시
 domain: harness
 tags: [advisor, decision-framework, orchestration, judgment]
-relates-to:
-  - path: harness/hn_eval_advisor_migration.md
-    rel: extends
-  - path: harness/hn_implementation_router.md
-    rel: extends
 status: completed
 created: 2026-04-20
 updated: 2026-04-20

@@ -2,11 +2,6 @@
 title: 검증 파이프라인 강화 — MIGRATIONS 자동생성·AC 강제·CPS 갱신 강제
 domain: harness
 tags: [skill, harness-dev, commit, implementation, ac, cps, migration]
-relates-to:
-  - path: harness/hn_migrations_version_gap.md
-    rel: extends
-  - path: guides/project_kickoff.md
-    rel: implements
 status: completed
 created: 2026-04-28
 ---

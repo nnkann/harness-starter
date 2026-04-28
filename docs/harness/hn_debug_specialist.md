@@ -2,9 +2,6 @@
 title: debug-specialist 에이전트 신설 — 막힐 때 자동 위임처 확보
 domain: harness
 tags: [agent, debug, escalation]
-relates-to:
-  - path: harness/hn_phase_agent_improvements.md
-    rel: caused-by
 status: completed
 created: 2026-04-25
 updated: 2026-04-25

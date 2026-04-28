@@ -2,9 +2,6 @@
 title: wip-sync incidents WIP 자동 완료 미동작 — 체크리스트 없는 문서 abbr 매칭 누락
 domain: harness
 tags: [wip-sync, docs-ops, commit, incidents]
-relates-to:
-  - path: harness/hn_wip_completion_gap.md
-    rel: caused-by
 status: completed
 created: 2026-04-27
 updated: 2026-04-27

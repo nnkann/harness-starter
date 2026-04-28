@@ -2,9 +2,6 @@
 title: docs_ops.py move 시 relates-to 역참조 자동 갱신
 domain: harness
 tags: [docs-ops, relates-to, dead-link, move]
-relates-to:
-  - path: incidents/hn_docs_ops_cluster_update_perf.md
-    rel: references
 status: completed
 created: 2026-04-25
 updated: 2026-04-25

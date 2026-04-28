@@ -2,11 +2,6 @@
 title: review staging 재조정 — scripts/agents 이진 판정
 domain: harness
 tags: [staging, review, rule, tokens]
-relates-to:
-  - path: decisions/hn_staging_governance.md
-    rel: extends
-  - path: incidents/hn_review_maxturns_verdict_miss.md
-    rel: references
 status: completed
 created: 2026-04-21
 updated: 2026-04-21

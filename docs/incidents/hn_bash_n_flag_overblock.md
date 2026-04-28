@@ -7,9 +7,6 @@ symptom-keywords:
   - "bash -n"
   - "head -n"
   - "PreToolUse 차단"
-relates-to:
-  - path: ../WIP/harness--hook_flow_efficiency_260418.md
-    rel: caused-by
 status: completed
 created: 2026-04-19
 updated: 2026-04-19

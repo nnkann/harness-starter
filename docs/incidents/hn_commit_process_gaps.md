@@ -9,11 +9,6 @@ symptom-keywords:
   - WIP dead link
   - review 중간 수정
   - 테스트 없이 커밋
-relates-to:
-  - path: harness/hn_split_diff_delivery.md
-    rel: caused-by
-  - path: harness/hn_split_commit_review_stage.md
-    rel: references
 status: completed
 created: 2026-04-27
 updated: 2026-04-27

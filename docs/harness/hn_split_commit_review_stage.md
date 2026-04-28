@@ -2,13 +2,6 @@
 title: split 커밋 sub-group review stage 재판정 — 그룹별 신호 기반 강도 결정
 domain: harness
 tags: [commit, review, staging, split]
-relates-to:
-  - path: decisions/hn_staging_governance.md
-    rel: references
-  - path: harness/hn_commit_review_staging.md
-    rel: extends
-  - path: harness/hn_split_diff_delivery.md
-    rel: supersedes
 status: completed
 created: 2026-04-25
 updated: 2026-04-25

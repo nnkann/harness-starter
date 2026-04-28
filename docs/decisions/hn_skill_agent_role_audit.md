@@ -2,11 +2,6 @@
 title: 스킬·에이전트 역할 분담 감사 — 라우터 패턴 전방위 적용
 domain: harness
 tags: [skill, agent, routing, orchestration, audit]
-relates-to:
-  - path: harness/hn_implementation_router.md
-    rel: extends
-  - path: WIP/harness--hn_info_flow_leak_phase3.md
-    rel: references
 status: completed
 created: 2026-04-20
 updated: 2026-04-20

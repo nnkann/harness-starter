@@ -2,11 +2,6 @@
 title: pipeline-design 규칙 업스트림 이식 계획
 domain: harness
 tags: [pipeline, rule, upstream-rule, review-pattern]
-relates-to:
-  - path: decisions/hn_doc_naming.md
-    rel: references
-  - path: decisions/hn_rules_metadata.md
-    rel: extends
 status: completed
 created: 2026-04-21
 updated: 2026-04-21

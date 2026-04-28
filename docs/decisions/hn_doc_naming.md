@@ -2,13 +2,6 @@
 title: 문서 네이밍 전면 개편 — 도메인 약어 + 통합 원칙
 domain: harness
 tags: [naming, docs, upstream-rule, rule]
-relates-to:
-  - path: decisions/hn_memory.md
-    rel: references
-  - path: harness/hn_index_md_removal.md
-    rel: extends
-  - path: decisions/hn_frontmatter_graph_spec.md
-    rel: supersedes
 status: completed
 created: 2026-04-21
 updated: 2026-04-21

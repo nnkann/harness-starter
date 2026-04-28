@@ -7,9 +7,6 @@ symptom-keywords:
   - 상류 신호 암묵적 폐기
   - 단계간 중복 판단
   - 한 달 재편 draft1 draft2 draft3
-relates-to:
-  - path: decisions/hn_pipeline_design_rule.md
-    rel: caused-by
 status: completed
 created: 2026-04-21
 ---

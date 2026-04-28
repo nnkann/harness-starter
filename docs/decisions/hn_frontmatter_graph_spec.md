@@ -2,11 +2,6 @@
 title: 프론트매터 그래프 스펙 설계
 domain: harness
 tags: [frontmatter, graph, docs-structure, historical]
-relates-to:
-  - path: harness/hn_index_md_removal.md
-    rel: references
-  - path: decisions/hn_doc_naming.md
-    rel: references
 status: completed
 created: 2026-04-16
 updated: 2026-04-21
@@ -59,10 +54,6 @@ title: 문서 제목
 domain: auth                          # 주 도메인 (1개, 필수)
 tags: [jwt, session, redis]           # 키워드 (0~5개, 선택)
 relates-to:                           # 관련 문서 포인터 (선택)
-  - path: setup/project_kickoff_sample.md
-    rel: extends                      # 관계 타입
-  - path: history/auth_migration.md
-    rel: caused-by
 status: completed                     # 기존 status 흡수
 created: 2026-04-14
 updated: 2026-04-14

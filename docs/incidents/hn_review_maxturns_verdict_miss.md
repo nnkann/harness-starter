@@ -12,9 +12,6 @@ symptom-keywords:
   - deep stage tool 소진
   - Read 강제 지시 tool 소진
   - diff 대신 Read fileA fileB
-relates-to:
-  - path: decisions/hn_doc_naming.md
-    rel: caused-by
 status: completed
 created: 2026-04-21
 updated: 2026-04-28

@@ -2,11 +2,6 @@
 title: Phase 구조 보강 — WIP AC 섹션 + Phase 6원칙 + escalate 에이전트 트리거 + WIP 실행 순서
 domain: harness
 tags: [implementation, phase, escalation, wip-template]
-relates-to:
-  - path: decisions/hn_skill_agent_role_audit.md
-    rel: extends
-  - path: harness/hn_implementation_router.md
-    rel: extends
 status: completed
 created: 2026-04-25
 updated: 2026-04-25

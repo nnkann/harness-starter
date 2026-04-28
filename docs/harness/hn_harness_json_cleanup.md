@@ -2,9 +2,6 @@
 title: HARNESS.json skills 목록 정리 — 1회성 스킬 삭제 + 활성 목록 정비
 domain: harness
 tags: [harness-json, skills, cleanup, metadata]
-relates-to:
-  - path: harness/hn_phase_agent_improvements.md
-    rel: caused-by
 status: completed
 created: 2026-04-25
 updated: 2026-04-25

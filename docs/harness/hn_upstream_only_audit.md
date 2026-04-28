@@ -2,15 +2,6 @@
 title: 업스트림 전용 로직·기록 전수 감사 — 다운스트림 전파 파일 청소
 domain: harness
 tags: [harness-starter, upstream-only, downstream, contamination, audit]
-relates-to:
-  - path: harness/hn_generic_contamination_protection.md
-    rel: extends
-  - path: harness/hn_commit_process_audit.md
-    rel: references
-  - path: incidents/hn_downstream_name_leak.md
-    rel: references
-  - path: decisions/hn_doc_naming.md
-    rel: references
 status: completed
 created: 2026-04-22
 updated: 2026-04-22

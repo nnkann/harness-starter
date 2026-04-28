@@ -2,17 +2,6 @@
 title: 커밋 프로세스 감사 — #18 false-negative 축 보강
 domain: harness
 tags: [commit, review, pre-check, audit, staging, split]
-relates-to:
-  - path: harness/hn_commit_perf_optimization.md
-    rel: extends
-  - path: decisions/hn_review_staging_rebalance.md
-    rel: references
-  - path: decisions/hn_review_tool_budget.md
-    rel: references
-  - path: harness/hn_commit_review_staging.md
-    rel: extends
-  - path: harness/hn_info_flow_leak_audit.md
-    rel: extends
 status: completed
 created: 2026-04-22
 updated: 2026-04-23

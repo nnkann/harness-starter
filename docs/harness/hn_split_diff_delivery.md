@@ -2,9 +2,6 @@
 title: split 성격 기반 그룹화 + commit 흐름 내 diff 참조 최적화
 domain: harness
 tags: [split, commit, review, diff, task_groups]
-relates-to:
-  - path: harness/hn_split_commit_review_stage.md
-    rel: supersedes
 status: completed
 created: 2026-04-27
 ---

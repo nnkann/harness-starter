@@ -9,13 +9,6 @@ symptom-keywords:
   - archived 오염
   - promotion-log 복사
   - review verdict warn
-relates-to:
-  - path: incidents/hn_matcher_false_block.md
-    rel: references
-  - path: harness/hn_generic_contamination_protection.md
-    rel: extends
-  - path: decisions/hn_code_ssot_audit.md
-    rel: references
 status: completed
 created: 2026-04-20
 ---

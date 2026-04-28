@@ -10,9 +10,6 @@ symptom-keywords:
   - 린터 rule 위반 warn 격하
   - zsh command not found 형식
   - MIGRATIONS 단정 표현
-relates-to:
-  - path: incidents/hn_test_isolation_git_log_leak.md
-    rel: extends
 status: completed
 created: 2026-04-22
 updated: 2026-04-22

@@ -2,11 +2,6 @@
 title: docs/INDEX.md 폐기 — 관리 드리프트 SSOT 제거
 domain: harness
 tags: [docs, ssot, simplification, index-removal]
-relates-to:
-  - path: harness/hn_simplification.md
-    rel: extends
-  - path: decisions/hn_frontmatter_graph_spec.md
-    rel: supersedes
 status: completed
 created: 2026-04-20
 updated: 2026-04-20

@@ -2,11 +2,6 @@
 title: commit + review 핸드오프 계약 이식 + 중복 제거
 domain: harness
 tags: [skill, agent, commit, review, handoff, refactor]
-relates-to:
-  - path: decisions/hn_skill_agent_role_audit.md
-    rel: implements
-  - path: harness/hn_implementation_router.md
-    rel: extends
 status: completed
 created: 2026-04-20
 updated: 2026-04-20

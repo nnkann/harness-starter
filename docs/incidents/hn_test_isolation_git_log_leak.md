@@ -10,9 +10,6 @@ symptom-keywords:
   - npm run lint exit 2
   - pre-check 린터 스킵
   - TEST_DEBUG=1
-relates-to:
-  - path: decisions/hn_review_staging_rebalance.md
-    rel: references
 status: completed
 created: 2026-04-22
 updated: 2026-04-22
