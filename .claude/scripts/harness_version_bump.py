@@ -97,18 +97,26 @@ def main() -> int:
             reasons.append(f"기존 핵심 파일 수정: {','.join(modified_critical[:3])}")
 
     # 4. 출력
-    current = data.get("version", "unknown")
+    # HEAD 버전: 범프 기준점 (디스크는 이미 범프됐을 수 있으므로 HEAD에서 읽음)
+    head_harness = run(["git", "show", "HEAD:.claude/HARNESS.json"])
+    if head_harness:
+        try:
+            current = json.loads(head_harness).get("version", data.get("version", "unknown"))
+        except Exception:
+            current = data.get("version", "unknown")
+    else:
+        # HEAD 없음 (첫 커밋) — 디스크 버전 사용
+        current = data.get("version", "unknown")
 
-    # staged HARNESS.json이 있으면 거기서 버전 읽기 (이미 범프된 경우 감지)
+    # staged HARNESS.json 버전 (이미 범프됐는지 감지용)
     staged_harness = run(["git", "show", ":0:.claude/HARNESS.json"])
     if staged_harness:
         try:
-            staged_data = json.loads(staged_harness)
-            staged_version = staged_data.get("version", current)
+            staged_version = json.loads(staged_harness).get("version", current)
         except Exception:
             staged_version = current
     else:
-        staged_version = current
+        staged_version = data.get("version", current)
 
     if bump_type != "none" and current != "unknown":
         nv = next_version(current, bump_type)
