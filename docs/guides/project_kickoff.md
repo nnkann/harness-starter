@@ -180,11 +180,17 @@ incident `hn_bash_n_flag_overblock` 참조.
 2. **harness-dev Step 5 semver 표** — SKILL.md·rules 절차 변경 = patch 범프 대상으로 명시
 3. **harness-dev Step 6 체크리스트** — 테스트 통과 + CPS 갱신 항목 추가
 4. **review 카테고리 8** — 기존 SKILL.md·rules 실질 변경(M, ≥3줄)도 CPS 갱신 감지 대상 추가
+5. **commit Step 4 MIGRATIONS.md 자동 작성** — 버전 범프 확정 후 MIGRATIONS.md 섹션 작성 절차 추가 (v0.26.2)
+6. **implementation Step 2.5 AC 강제화** — 자동화 가능 AC 실행 기록 의무, 불가 항목 명시 의무 (v0.26.2)
+7. **implementation Step 4 CPS 갱신 명시 의무** — "없음"도 WIP ## 결정 사항에 명기 (v0.26.2)
 
 **해결 기준**:
 - SKILL.md·rules 변경 커밋에 `python3 -m pytest .claude/scripts/test_pre_commit.py -q` 실행 기록이 있음
 - SKILL.md 절차 변경 시 MIGRATIONS.md 해당 버전 섹션 동반
 - WIP AC 완료 후 CPS Solution 항목 갱신 여부가 명시적으로 확인됨
+
+**구현 완료 (2026-04-28, v0.26.2)**: 5·6·7번 방어 레이어 추가. 해결 기준 3개 모두 스킬 절차에 강제화됨.
+실제 Claude 행동 변화는 운용에서 확인 필요 — "테스트 통과 = 검증됨"으로 포장 금지.
 
 **제약**: SKILL.md 변경의 실제 Claude 행동 변화는 자동 검증 불가 — 운용에서
 확인 필요. "테스트 통과 = 검증됨"으로 포장 금지.
