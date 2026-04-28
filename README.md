@@ -54,9 +54,10 @@ CLAUDE.md                        에이전트 루트 인스트럭션 (≤30줄)
 │   ├── external-experts.md      [온디맨드] 분야별 레퍼런스 인물 캐시 (researcher)
 │   ├── pipeline-design.md       [if] 다단 처리 파이프라인 설계 7항목 체크리스트
 │   └── staging.md               [상시] /commit review 자동 단계화 (5줄 룰 + 13신호)
-├── skills/                      온디맨드 스킬 (12개)
-│   ├── harness-init/            프로젝트 초기화 (CPS + 스택 결정)
-│   ├── harness-adopt/           기존 프로젝트에 하네스 이식
+├── skills/                      온디맨드 스킬 (13개, starter 전용 3개 포함)
+│   ├── harness-init/            [starter] 프로젝트 초기화 (CPS + 스택 결정)
+│   ├── harness-adopt/           [starter] 기존 프로젝트에 하네스 이식
+│   ├── harness-dev/             [starter] 스크립트·스킬 추가 시 h-setup.sh·README·HARNESS.json 자동 갱신
 │   ├── harness-sync/            클론 후 환경 동기화
 │   ├── harness-upgrade/         하네스 업그레이드 (3-way merge + MIGRATIONS.md 안내)
 │   ├── implementation/          작업 문서 라이프사이클
