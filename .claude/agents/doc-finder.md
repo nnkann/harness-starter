@@ -7,7 +7,7 @@ description: >-
   (3) 키워드만 알고 정확한 문서 위치를 모를 때, (4) codebase-analyst가
   깊은 분석 전 1차 자료 수집이 필요할 때.
   SKIP: (1) 깊은 패턴 분석·재사용 기회 평가·결정 충돌 분석
-  (→ codebase-analyst), (2) 문서 갱신·이동 (→ `docs-ops.sh`),
+  (→ codebase-analyst), (2) 문서 갱신·이동 (→ `docs_ops.py`),
   (3) 외부 자료 조사 (→ researcher), (4) 단일 파일 직접 읽기 (→ Read).
 model: haiku
 tools: Read, Glob, Grep

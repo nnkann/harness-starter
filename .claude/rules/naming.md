@@ -11,7 +11,7 @@
 - `grep -r "hn_memory"` → 주제 관련 문서·참조 **한 번에 발견**
 - 파일명 `hn_memory.md`만 봐도 **도메인(harness) + 주제(memory)** 확정.
   문서 열지 않고도 성격 파악 가능
-- cluster 파일(`clusters/{domain}.md`)은 `docs-ops.sh`가 파일명 abbr을
+- cluster 파일(`clusters/{domain}.md`)은 `docs_ops.py`가 파일명 abbr을
   파싱해 **자동 생성·갱신**. 수동 인덱스 관리 불필요
 - 날짜 suffix 폐기로 **주제 = 파일 1:1 대응**. 같은 주제 검색 시 여러
   날짜 파일 중 최신 찾는 수고 없음
@@ -49,7 +49,7 @@
 ## 도메인 약어 (abbr) — SSOT
 
 파일명 prefix 및 cluster 자동 매핑용. 위 "도메인 목록 > 확정"의 **각
-도메인마다 약어 1개가 등록**돼야 한다. 누락 시 `docs-ops.sh`가 경고.
+도메인마다 약어 1개가 등록**돼야 한다. 누락 시 `docs_ops.py`가 경고.
 
 ### 약어 규칙
 
@@ -97,6 +97,10 @@ migrations/**      → migration
 업스트림 기본값: 생략. 다운스트림은 자기 프로젝트의 코드 폴더에 맞춰
 위 예시를 참고해 경로 매핑을 추가 권장 (없으면 S9 도메인 등급 신호가
 폴더 구조 기반 추출 경로를 잃음).
+
+실제 매핑 (`docs_ops.py`·`pre_commit_check.py`가 파싱하는 영역):
+```
+```
 
 ## 폴더명
 
@@ -160,7 +164,7 @@ SSOT가 분열.
 ```
 
 - `{대상폴더}--`: WIP 라우팅 태그 (decisions / guides / incidents / harness)
-  `commit` 시 ``docs-ops.sh``가 제거하고 본 폴더로 이동
+  `commit` 시 `docs_ops.py move`가 제거하고 본 폴더로 이동
 - 나머지는 위 "파일명 — 문서"와 동일 (날짜 suffix 없음)
 
 이동 결과:
@@ -171,7 +175,7 @@ WIP/incidents--hn_leak.md            → incidents/hn_leak.md
 
 ## Cluster 자동 매핑 — 직교 파싱 규칙
 
-`docs-ops.sh`가 파일명을 파싱해 cluster를 결정한다. **abbr이 파일명 어느
+`docs_ops.py`가 파일명을 파싱해 cluster를 결정한다. **abbr이 파일명 어느
 위치에 있어도 인식**하는 직교 규칙으로, 다운스트림이 앞에 불투명 prefix
 (마일스톤 `m3-`, Sprint `s12-`, 레거시 `_p2_` 등)를 붙여도 매핑 성공.
 

@@ -11,7 +11,7 @@
 파일명 prefix (abbr)    →  naming.md "도메인 약어" 표  →  domain
 파일명 slug             →  주제 식별 (grep 대상)
 프론트매터 tags         →  세분화 분류 (skill·agent·rule 등)
-clusters/{domain}.md    →  도메인 진입점 (`docs-ops.sh`가 자동 갱신)
+clusters/{domain}.md    →  도메인 진입점 (`docs_ops.py`가 자동 갱신)
 ```
 
 따라서 `ls docs/**/hn_*`·`grep -r "memory"`만으로 원하는 문서를 찾을 수
@@ -113,14 +113,14 @@ incident 생성 시 빈 필드면 재질의.
 
 ### 자동 매핑 (파일명 abbr → cluster)
 
-`docs-ops.sh`가 파일명을 파싱해 cluster를 자동 결정한다. SSOT는
+`docs_ops.py`가 파일명을 파싱해 cluster를 자동 결정한다. SSOT는
 `naming.md` "Cluster 자동 매핑" 섹션. 요약:
 
 - 파일명에 등록된 abbr이 있으면 → 그 도메인 cluster에 등록
   (불투명 prefix·라우팅 태그 통과, 여러 abbr 있으면 첫 매치)
 - abbr 없는 전역 마스터 (`project_kickoff.md`·`MIGRATIONS.md` 등) →
   프론트매터 `domain:`으로 폴백
-- 약어 누락·중복은 `docs-ops.sh validate`가 감지
+- 약어 누락·중복은 `docs_ops.py validate`가 감지
 
 ## 문서 탐색
 
@@ -218,7 +218,7 @@ hit 0건만이 "새로 만들어도 된다"의 전제. hit 있으면 아래 두 
 
 ### 왜 이 형식인가 (운영 관점)
 
-- **파일명만으로 도메인 즉시 확정** → Read 안 해도 cluster 확정, `docs-ops.sh`
+- **파일명만으로 도메인 즉시 확정** → Read 안 해도 cluster 확정, `docs_ops.py`
   가 프론트매터 재파싱 없이 매핑 가능
 - **주제 = 파일 1:1** → `grep -r "memory"` 한 번에 관련 논의 전부 모임.
   여러 날짜 파일 중 최신 찾는 수고 없음

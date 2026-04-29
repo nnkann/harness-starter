@@ -41,7 +41,7 @@
 2026-04-18 사고 참고는 `docs/decisions/hn_rules_metadata.md` 참조.
 
 요약:
-- 로컬 pre-commit hook (`scripts/install-secret-scan-hook.sh`)
+- 로컬 pre-commit hook (`scripts/install-starter-hooks.sh`)
 - CI gitleaks
 - 주기적 `/eval --deep`
 - 노출 시 즉시 rotation → history 재작성 → re-clone → incident 문서
