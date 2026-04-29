@@ -775,12 +775,15 @@ def _run_wip_sync(repo: Path, staged_files: list[str]) -> tuple[dict[str, str], 
 
 
 def _add_path_domain_map(repo: Path, mapping_lines: str) -> None:
-    """naming.md '## 경로 → 도메인 매핑' 섹션 코드블록에 매핑 라인 추가."""
+    """naming.md '## 경로 → 도메인 매핑' 섹션의 '실제 매핑' 코드블록에 매핑 라인 추가."""
     naming = repo / ".claude" / "rules" / "naming.md"
     text = naming.read_text(encoding="utf-8")
-    # 섹션 내 코드블록 첫 번째 ``` 뒤에 삽입
+    # '실제 매핑' 레이블 이후 코드블록 ``` 뒤에 삽입
     section_start = text.find("## 경로 → 도메인 매핑")
-    block_start = text.find("```", section_start)
+    real_label = text.find("실제 매핑", section_start)
+    if real_label == -1:
+        return
+    block_start = text.find("```", real_label)
     if block_start == -1:
         return
     insert_pos = text.find("\n", block_start) + 1

@@ -24,8 +24,6 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-NAMING_MD = Path(".claude/rules/naming.md")
-
 META_PATTERNS = re.compile(
     r"^(\.claude/HARNESS\.json"
     r"|docs/harness/MIGRATIONS\.md"

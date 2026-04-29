@@ -18,6 +18,23 @@ import subprocess
 import sys
 from pathlib import Path
 
+# docs_ops.py 유틸 재사용 (naming.md 파싱 중복 방지)
+_DOCS_OPS = Path(__file__).parent / "docs_ops.py"
+if _DOCS_OPS.exists():
+    import importlib.util as _ilu
+    _spec = _ilu.spec_from_file_location("docs_ops", _DOCS_OPS)
+    _docs_ops = _ilu.module_from_spec(_spec)   # type: ignore[arg-type]
+    _spec.loader.exec_module(_docs_ops)         # type: ignore[union-attr]
+    _extract_abbrs     = _docs_ops.extract_abbrs
+    _detect_abbr       = _docs_ops.detect_abbr
+    _extract_path_map  = _docs_ops.extract_path_domain_map
+    _path_to_domain    = _docs_ops.path_to_domain
+else:
+    def _extract_abbrs():       return []
+    def _detect_abbr(p, a):     return None
+    def _extract_path_map():    return []
+    def _path_to_domain(f, m):  return None
+
 # ─────────────────────────────────────────────────────────
 # 헬퍼
 # ─────────────────────────────────────────────────────────
@@ -635,6 +652,9 @@ if s8_found:
     add_signal("S8")
 
 # S9: 도메인 추출 + 등급 매핑
+# 추출 순서: 1) docs 프론트매터 domain: 2) WIP abbr→domain 3) 경로→도메인 매핑
+
+# 1) docs 파일 프론트매터
 doc_domains: set[str] = set()
 for f in staged_files:
     if f.startswith("docs/") and f.endswith(".md") and Path(f).exists():
@@ -650,20 +670,45 @@ for f in staged_files:
         except Exception:
             pass
 
+# 2) WIP 파일: abbr 파싱 → domain (라우팅 태그 오인 방지)
 wip_domains: set[str] = set()
-WIP_PREFIX = re.compile(r"^docs/WIP/([^-]+)--")
-for f in staged_files:
-    m = WIP_PREFIX.match(f)
-    if m:
-        wip_domains.add(m.group(1))
+_abbrs = _extract_abbrs()
+_abbr_to_domain: dict[str, str] = {}
+naming_md = Path(".claude/rules/naming.md")
+if naming_md.exists():
+    in_tbl = False
+    for _line in naming_md.read_text(encoding="utf-8", errors="ignore").splitlines():
+        if re.match(r"^## 도메인 약어", _line):
+            in_tbl = True
+            continue
+        if in_tbl and _line.startswith("## "):
+            break
+        if in_tbl and re.match(r"^\| [a-z_]+\s*\|\s*[a-z]{2,3}\s*\|", _line):
+            parts = [p.strip() for p in _line.split("|") if p.strip()]
+            if len(parts) >= 2:
+                _abbr_to_domain[parts[1]] = parts[0]  # abbr → domain_full
 
-all_domains = sorted(doc_domains | wip_domains)
+for f in staged_files:
+    if f.startswith("docs/WIP/"):
+        detected = _detect_abbr(Path(f), _abbrs)
+        if detected and detected in _abbr_to_domain:
+            wip_domains.add(_abbr_to_domain[detected])
+
+# 3) 경로→도메인 매핑 (naming.md "## 경로 → 도메인 매핑" 섹션)
+path_domains: set[str] = set()
+_path_map = _extract_path_map()
+if _path_map:
+    for f in staged_files:
+        d = _path_to_domain(f, _path_map)
+        if d:
+            path_domains.add(d)
+
+all_domains = sorted(doc_domains | wip_domains | path_domains)
 domains_str = ",".join(all_domains)
 
 domain_grades: list[str] = []
 grade_map: dict[str, str] = {}
 
-naming_md = Path(".claude/rules/naming.md")
 if all_domains and naming_md.exists():
     in_section = False
     for line in naming_md.read_text(encoding="utf-8", errors="ignore").splitlines():

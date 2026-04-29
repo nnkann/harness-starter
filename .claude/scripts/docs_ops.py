@@ -50,11 +50,11 @@ def extract_abbrs() -> list[str]:
 
 def extract_path_domain_map() -> list[tuple[str, str]]:
     """naming.md '## 경로 → 도메인 매핑' 섹션에서 [(glob_pattern, domain), ...] 추출.
-    섹션이 없거나 비어있으면 빈 리스트 반환."""
+    '실제 매핑' 레이블 이후 코드블록만 파싱. 섹션이 없거나 비어있으면 빈 리스트."""
     if not NAMING_MD.exists():
         return []
     text = NAMING_MD.read_text(encoding="utf-8")
-    in_section = in_block = False
+    in_section = in_block = in_real = False
     pairs: list[tuple[str, str]] = []
     for line in text.splitlines():
         if re.match(r"^## 경로 → 도메인 매핑", line):
@@ -63,10 +63,15 @@ def extract_path_domain_map() -> list[tuple[str, str]]:
         if in_section and line.startswith("## "):
             break
         if in_section:
+            if re.match(r"^실제 매핑", line.strip()):
+                in_real = True
+                continue
             if line.strip() == "```":
                 in_block = not in_block
+                if not in_block:
+                    in_real = False  # 블록 종료 시 리셋
                 continue
-            if in_block:
+            if in_block and in_real:
                 m = re.match(r"^(\S+)\s*→\s*(\S+)", line.strip())
                 if m:
                     pairs.append((m.group(1), m.group(2)))
