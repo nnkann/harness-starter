@@ -352,7 +352,7 @@ AC 기반으로 바꾸면 다운스트림은 자기 AC만으로 검증 범위가
 2. `test_pre_commit.py` — 신호 판정 검증 테스트 전체 제거. 시크릿 스캔 테스트만 유지 ✅
 3. `staging.md` — 신호 체계 섹션 제거. AC 기반 검증 기준으로 재작성 ✅
 4. `commit/SKILL.md` — Step 5(pre-check) 제거. Step 6 diff 전처리·review 전달 블록 제거. Step 7 review 호출을 AC `kind:` + `영향 범위:` 기준으로 직접 판단
-5. `review.md` — diff 기반 독립 판단 구조 → AC 항목 충족 여부 확인으로 재작성. diff는 review가 필요 시 직접 Read (전체 전달 불필요)
+5. `review.md` — diff 기반 독립 판단 구조 → AC 항목 충족 여부 확인으로 재작성. diff는 review가 필요 시 직접 Read (전체 전달 불필요) ✅
 
 **Acceptance Criteria**:
 - [x] Goal: commit 흐름에서 파일 경로 기반 신호 판정 + diff 전체 전달 레이어가 제거되고, AC가 검증 범위를 결정하는 구조로 전환됨
@@ -360,7 +360,7 @@ AC 기반으로 바꾸면 다운스트림은 자기 AC만으로 검증 범위가
 - [x] test_pre_commit.py 신호 관련 테스트 제거 (35개 유지 — ENOENT/completed/dead link/relates-to/move commit/wip-sync) ✅
 - [x] commit/SKILL.md Step 5 pre-check 경량화, diff 전처리·review 전달 블록 제거
 - [x] staging.md 신호 체계 섹션 제거, AC kind 기반 stage 판단 규칙으로 교체 ✅
-- [x] review.md AC 기반 검증으로 재작성 — diff 전체 수신 대신 AC 항목 중심
+- [x] review.md AC 기반 검증으로 재작성 — diff 전체 수신 대신 AC 항목 중심 ✅
 - [x] 기존 커밋 흐름(잔여물 정리·WIP 이동·버전 범프·git commit·push)은 유지
 
 ---
@@ -385,7 +385,7 @@ AC 기반으로 바꾸면 다운스트림은 자기 AC만으로 검증 범위가
 - **docs.md**: WIP task 블록 AC 포맷 확장 섹션 추가 — `Goal:` + `영향 범위:` 항목 정의 ✅
 - **staging.md**: 원칙 3번 추가(AC 기반 검증 기준). 연결 규칙 B에 `영향 범위:` → deep 트리거 추가. 연결 규칙 C에 AC 전부 [x] + 영향 범위 없음 → micro 완화 조건 추가. 신호 수 13개 유지(S16 없음) ✅
 - **commit/SKILL.md**: Step 7 Stage별 행동 직접 서술 제거 → `staging.md` SSOT 포인터로 교체. 거대 커밋 정책도 포인터로 교체. 플래그 처리·review 호출·응답 처리 로직 유지 ✅
-- **diff 전처리·전달 블록 제거 방향 결정**: review에 3000줄 diff를 통째로 박는 구조는 AC가 검증 범위를 선언하면 불필요. review는 AC 항목 기준으로 필요한 파일만 직접 Read. commit/SKILL.md diff 전처리 블록 + review.md diff 기반 판단 구조 모두 Task 6 제거 대상
+- **diff 전처리·전달 블록 제거 방향 결정**: review에 3000줄 diff를 통째로 박는 구조는 AC가 검증 범위를 선언하면 불필요. review는 AC 항목 기준으로 필요한 파일만 직접 Read. commit/SKILL.md diff 전처리 블록 + review.md diff 기반 판단 구조 모두 Task 6 제거 대상 ✅
 - **pre_commit_check.py + staging 신호 체계 폐기 방향 결정**: 파일 경로 기반 신호 판정(S1~S15) + stage 결정 로직은 AC가 없던 시절 추측으로 검증 범위를 결정하던 구조. WIP AC의 `kind:` + `영향 범위:`가 이미 검증 범위를 선언하므로 이 레이어 전체가 불필요. 다운스트림에서도 56개 테스트가 자기 프로젝트와 무관하게 상속되는 문제 해소. → Task 6에서 실제 제거 작업 ✅
 - **CPS 갱신**: 없음 (harness-starter는 CPS 문서 없음)
 
