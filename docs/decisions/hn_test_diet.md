@@ -5,8 +5,9 @@ tags: [test, diet, ac, trigger, downstream]
 relates-to:
   - path: decisions/hn_karpathy_principles.md
     rel: caused-by
-status: in-progress
+status: completed
 created: 2026-04-30
+updated: 2026-04-30
 ---
 
 # 테스트 다이어트 + 트리거 좁힘
