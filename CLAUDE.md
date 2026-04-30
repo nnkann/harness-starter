@@ -9,6 +9,25 @@
 - 빌드/실행 명령어: python3 .claude/scripts/pre_commit_check.py (pre-check), python3 -m pytest .claude/scripts/test_pre_commit.py -q (테스트)
 - 배포 방식: git push origin main → 다운스트림이 harness-upgrade로 fetch
 
+## 행동 원칙
+
+### Think Before Coding
+
+구현 전에 가정을 명시한다.
+
+- 요청에 해석이 여러 개라면 선택지를 먼저 제시하고 확인한다
+- 가장 단순한 접근을 먼저 말한다. 복잡한 설계는 단순 방법이 실패한 뒤에
+- 모호하면 멈추고 질문한다. 가정으로 달려가지 마라
+- "아마 X일 것"으로 수정을 시작하지 마라 → `no-speculation.md`
+
+### Goal-Driven Execution
+
+성공 기준을 먼저 정의하고 구현한다.
+
+- "버그 고쳐" → AC 먼저 정의, AC 통과하게 구현
+- 다단계 작업은 `[단계] → verify: [AC 항목]` 형식으로 계획 수립
+- WIP task AC 체크박스가 완료 기준. 전부 [x] → self-verify → /commit
+
 ## 절대 규칙
 - worktree 생성 금지. Agent 호출 시 `isolation: "worktree"` 사용 금지.
 - Bash는 복합 파이프라인·git·스크립트 실행만. 단일 조회는 Glob·Read·Grep. (LSP 가능하면 LSP 우선)
