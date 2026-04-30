@@ -249,7 +249,6 @@ if test_outside:
 dead_links: list[str] = []
 
 # A. 삭제·rename된 md 파일을 참조하는 기존 링크
-# rename의 경우 old path가 사라지므로 별도로 추출 필요 (ns_parsed는 new path만 가짐)
 deleted_or_moved: list[str] = []
 for line in name_status_raw.splitlines():
     if not line.strip():
@@ -409,43 +408,49 @@ if Path("docs/WIP").exists():
             err(f"   {f}")
 
 # ─────────────────────────────────────────────────────────
-# 5. 위험도 수집
+# 5. 시크릿 스캔
 # ─────────────────────────────────────────────────────────
 
-risk_reasons: list[str] = []
-
-if total_files >= 5:
-    risk_reasons.append(f"변경 파일 {total_files}개 (≥5)")
-if deleted_lines >= 50:
-    risk_reasons.append(f"삭제 {deleted_lines}줄 (≥50)")
-
-CORE_FILE_PAT = re.compile(
-    r"^(?:CLAUDE\.md|\.claude/settings\.json|\.claude/rules/|\.claude/scripts/)"
+S1_FILE_PAT = re.compile(
+    r"auth|token|secret|key|credential|password|\.env", re.I
 )
-if any(CORE_FILE_PAT.match(f) for f in staged_files):
-    risk_reasons.append("핵심 설정 파일 변경")
+S1_EXEMPT   = re.compile(
+    r"\.(test|spec)\.|/tests?/|/__tests__/|^docs/|\.md$|/example|-helper\.|-utils?\."
+)
+S1_LINE_PAT = re.compile(
+    r"^\+.*(sb_secret_|service_role|sk_live_|sk_test_|ghp_|AKIA[0-9A-Z]{16}|password\s*=)",
+    re.I,
+)
+# 패턴 정의·테스트 픽스처가 있는 스크립트 파일은 line 스캔 면제
+S1_LINE_EXEMPT = re.compile(r"^\.claude/scripts/")
 
-SEC_FILE_PAT = re.compile(r"auth|token|secret|key|credential|password", re.I)
-SEC_DIFF_PAT = re.compile(r"^\+.*(auth|token|secret|key|credential|password)", re.I | re.MULTILINE)
-if any(SEC_FILE_PAT.search(f) for f in staged_files) or SEC_DIFF_PAT.search(diff_u0_raw):
-    risk_reasons.append("보안 관련 패턴 감지")
+s1_file_hit = any(
+    S1_FILE_PAT.search(f) and not S1_EXEMPT.search(f)
+    for f in staged_files
+)
 
-INFRA_PAT = re.compile(r"Dockerfile|docker-compose|\.github/workflows/|\.gitlab-ci|deploy", re.I)
-if any(INFRA_PAT.search(f) for f in staged_files):
-    risk_reasons.append("인프라/배포 파일 변경")
+# 파일별로 현재 경로를 추적하며 line 스캔 (면제 파일 제외)
+s1_line_hit = False
+_cur_file = ""
+for _line in diff_u0_raw.splitlines():
+    if _line.startswith("diff --git "):
+        _p = _line.split()[-1]
+        _cur_file = _p[2:] if _p.startswith("b/") else _p
+        continue
+    if S1_LINE_EXEMPT.match(_cur_file):
+        continue
+    if S1_LINE_PAT.match(_line):
+        s1_line_hit = True
+        break
 
-# 단일 파일 추가+삭제 동시 30줄 이상
-for line in numstat_raw.splitlines():
-    parts = line.split()
-    if len(parts) >= 3:
-        try:
-            if int(parts[0]) >= 30 and int(parts[1]) >= 30:
-                risk_reasons.append(f"구조적 수정 감지: {parts[2]}")
-                break
-        except ValueError:
-            pass
-
-risk_factors_summary = ";".join(risk_reasons)
+s1_level = ""
+if s1_line_hit:
+    s1_level = "line-confirmed"
+    err("❌ 시크릿 패턴 감지 (line-confirmed). 커밋 차단.")
+    ERRORS += 1
+elif s1_file_hit:
+    s1_level = "file-only"
+    err("⚠️ 시크릿 관련 파일명 감지 (file-only). 내용 확인 권장.")
 
 # ─────────────────────────────────────────────────────────
 # 5.5. 버전 범프 누락 경고 (is_starter 전용, 차단 아님)
@@ -466,321 +471,61 @@ try:
                  if l.startswith("next_version:")), "?")
             err(f"⚠️  버전 범프 누락: {_bump_type} 필요 (→ {_next_ver})")
             err("   commit Step 4에서 HARNESS.json·MIGRATIONS.md·README.md 일괄 갱신.")
-            risk_reasons.append(f"버전 범프 누락({_bump_type}→{_next_ver})")
-            risk_factors_summary = ";".join(risk_reasons)
 except Exception:
     pass
 
 # ─────────────────────────────────────────────────────────
-# 6. S10 연속 수정 카운트
+# 6. WIP에서 AC kind 읽기 (stage 판단용)
 # ─────────────────────────────────────────────────────────
 
-REPEAT_RANGE = 5
-EXEMPT_PAT   = re.compile(r"^\.claude/HARNESS\.json$|^docs/clusters/")
-CORE_PAT     = re.compile(r"^CLAUDE\.md$|^\.claude/settings\.json$|^\.claude/rules/|^\.claude/scripts/")
-
-if TEST_MODE:
-    recent_files: list[str] = []
-else:
-    recent_raw = run(["git", "log", f"-{REPEAT_RANGE}", "--name-only", "--format="])
-    recent_files = [l for l in recent_raw.splitlines() if l.strip()]
-
-# 카운트 맵 구축
-from collections import Counter
-recent_count = Counter(recent_files)
-
-repeat_warn_hit: list[str] = []
-repeat_block_hit: list[str] = []
-repeat_block_core: list[tuple[str, int]] = []
+# staged WIP 파일에서 kind와 영향 범위 항목 추출
+wip_kind = ""
+has_impact_scope = False
 
 for f in staged_files:
-    if EXEMPT_PAT.match(f):
+    if not f.startswith("docs/WIP/"):
         continue
-    c = recent_count[f]
-    if c >= 3:
-        repeat_block_hit.append(f"   - {f} (최근 {REPEAT_RANGE}커밋 중 {c}회)")
-        if CORE_PAT.match(f):
-            repeat_block_core.append((f, c))
-    elif c >= 2:
-        repeat_warn_hit.append(f"   - {f} (최근 {REPEAT_RANGE}커밋 중 {c}회)")
-
-if repeat_block_core:
-    for f, c in repeat_block_core:
-        err("")
-        err(f"❌ 핵심 설정 파일 {c}회 연속 수정: {f}")
-        err("   추측 수정 가능성. 다음을 먼저 확인:")
-        err(f"   1. git log -5 -- {f} (이전 수정 사유)")
-        err("   2. docs/incidents/ (관련 사례)")
-        err("   3. 공식 문서 (rules/internal-first.md)")
-        err("   정당한 점진 확장이면 HARNESS_EXPAND=1 prefix로 우회:")
-        err("     HARNESS_EXPAND=1 git commit -m \"...\"")
-        if HARNESS_EXPAND:
-            if VERBOSE:
-                err("   (HARNESS_EXPAND=1 감지 — 통과)")
-        else:
-            ERRORS += 1
-
-repeat_max = 0
-for f in staged_files:
-    if EXEMPT_PAT.match(f):
+    if not Path(f).exists():
         continue
-    repeat_max = max(repeat_max, recent_count[f])
+    try:
+        content = Path(f).read_text(encoding="utf-8", errors="ignore")
+        # kind 추출: "> kind: X" 패턴
+        m = re.search(r"^>\s*kind:\s*(\w+)", content, re.MULTILINE)
+        if m and not wip_kind:
+            wip_kind = m.group(1)
+        # 영향 범위 항목 존재 여부
+        if re.search(r"^\s*-\s*\[.?\]\s*영향 범위:", content, re.MULTILINE):
+            has_impact_scope = True
+    except Exception:
+        pass
 
 # ─────────────────────────────────────────────────────────
-# 7. 신호 감지 (S1~S15)
-# ─────────────────────────────────────────────────────────
-
-signals: list[str] = []
-sig_set: set[str] = set()
-
-def add_signal(s: str) -> None:
-    if s not in sig_set:
-        signals.append(s)
-        sig_set.add(s)
-
-def has_sig(s: str) -> bool:
-    return s in sig_set
-
-# S1~S6, S11, S14, S15 통합 분류
-S1_FILE_PAT = re.compile(
-    r"auth|token|secret|key|credential|password|\.env", re.I
-)
-S1_EXEMPT   = re.compile(
-    r"\.(test|spec)\.|/tests?/|/__tests__/|^docs/|\.md$|/example|-helper\.|-utils?\."
-)
-S2_PAT  = re.compile(
-    r"^(?:CLAUDE\.md|\.claude/settings\.json|\.claude/rules/|\.claude/scripts/"
-    r"|\.claude/hooks/|Dockerfile|docker-compose|\.github/workflows/)"
-)
-S11_PAT = re.compile(r"^(?:scripts/.*\.sh$|\.husky/|Makefile$)")
-S14_PAT = re.compile(r"(?:^|/)migrations/|^alembic/versions/|^prisma/migrations/")
-S15_PAT = re.compile(
-    r"^(?:package\.json|pyproject\.toml|Cargo\.toml|go\.mod"
-    r"|requirements.*\.txt|Gemfile|composer\.json)$"
-)
-LOCK_PAT = re.compile(
-    r"^(?:package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb"
-    r"|uv\.lock|Cargo\.lock|go\.sum|composer\.lock|Gemfile\.lock)$"
-)
-META_PAT = re.compile(
-    r"^(?:\.claude/HARNESS\.json|docs/clusters/.*\.md"
-    r"|\.claude/memory/.*\.md|CHANGELOG\.md)$"
-)
-DOC_PAT  = re.compile(r"^docs/|\.md$")
-
-s1_file_hit = False
-s2_hit = s11_hit = s14_hit = s15_hit = False
-lock_count = meta_count = doc_count = 0
-
-for f in staged_files:
-    if S1_FILE_PAT.search(f) and not S1_EXEMPT.search(f):
-        s1_file_hit = True
-    if S2_PAT.match(f):  s2_hit  = True
-    if S11_PAT.match(f): s11_hit = True
-    if S14_PAT.search(f):s14_hit = True
-    if S15_PAT.match(f): s15_hit = True
-    # 상호 배타 (lock > meta > doc)
-    if LOCK_PAT.match(f):    lock_count += 1
-    elif META_PAT.match(f):  meta_count += 1
-    elif DOC_PAT.match(f):   doc_count  += 1
-
-non_lock = total_files - lock_count
-non_meta = total_files - meta_count
-non_doc  = total_files - doc_count
-
-# S1 라인 hit
-S1_LINE_PAT = re.compile(
-    r"^\+.*(sb_secret_|service_role|sk_live_|sk_test_|ghp_|AKIA[0-9A-Z]{16}|password\s*=)",
-    re.I | re.MULTILINE,
-)
-s1_line_hit = bool(S1_LINE_PAT.search(diff_u0_raw))
-
-s1_level = ""
-if s1_line_hit:
-    add_signal("S1"); s1_level = "line-confirmed"
-elif s1_file_hit:
-    add_signal("S1"); s1_level = "file-only"
-
-if s2_hit:  add_signal("S2")
-
-# S3: 모든 staged가 신규(A)
-if total_files > 0:
-    non_added = sum(1 for status, _ in ns_parsed if status != "A")
-    if non_added == 0:
-        add_signal("S3")
-
-# S4/S5/S6 단독
-if lock_count > 0 and non_lock == 0: add_signal("S4")
-if meta_count > 0 and non_meta == 0: add_signal("S5")
-if doc_count  > 0 and non_doc  == 0 and not has_sig("S5"): add_signal("S6")
-
-# S8: 공유 모듈 시그니처 변경
-S8_TEST_PAT = re.compile(r"\.(test|spec)\.|/tests?/|/__tests__/")
-S8_JS_PAT   = re.compile(
-    r"^[+-]export\s+(?:default\s+)?(?:async\s+)?(?:class|function|interface|type|enum|const|let|var)\s+"
-)
-S8_PY_PAT   = re.compile(r"^[+-](?:async\s+)?(?:def|class)\s+[a-zA-Z_]")
-S8_GO_PAT   = re.compile(r"^[+-](?:func|type|var|const)\s+[A-Z][a-zA-Z0-9_]*")
-S8_JAVA_PAT = re.compile(
-    r"^[+-]\s*public\s+(?:static\s+)?(?:class|interface|enum|[a-zA-Z<>]+\s+[a-zA-Z_])"
-)
-
-current_file = ""
-current_ext  = ""
-s8_found = False
-for line in diff_u0_raw.splitlines():
-    if line.startswith("diff --git "):
-        p = line.split()[-1]
-        current_file = p[2:] if p.startswith("b/") else p
-        if S8_TEST_PAT.search(current_file):
-            current_ext = ""
-        elif re.search(r"\.(ts|tsx|js|jsx)$", current_file): current_ext = "js"
-        elif current_file.endswith(".py"):                    current_ext = "py"
-        elif current_file.endswith(".go"):                    current_ext = "go"
-        elif re.search(r"\.(java|cs)$", current_file):       current_ext = "java"
-        else:                                                 current_ext = ""
-        continue
-    if line.startswith(("+++", "---")):
-        continue
-    if not s8_found:
-        if current_ext == "js"   and S8_JS_PAT.match(line):   s8_found = True
-        elif current_ext == "py" and S8_PY_PAT.match(line):   s8_found = True
-        elif current_ext == "go" and S8_GO_PAT.match(line):   s8_found = True
-        elif current_ext == "java" and S8_JAVA_PAT.match(line): s8_found = True
-
-if s8_found:
-    add_signal("S8")
-
-# S9: 도메인 추출 + 등급 매핑
-# 추출 순서: 1) docs 프론트매터 domain: 2) WIP abbr→domain 3) 경로→도메인 매핑
-
-# 1) docs 파일 프론트매터
-doc_domains: set[str] = set()
-for f in staged_files:
-    if f.startswith("docs/") and f.endswith(".md") and Path(f).exists():
-        try:
-            for l in Path(f).read_text(encoding="utf-8", errors="ignore").splitlines():
-                if l.startswith("domain:"):
-                    d = l[7:].strip()
-                    if d:
-                        doc_domains.add(d)
-                    break
-                if l.strip() == "---" and doc_domains:
-                    break
-        except Exception:
-            pass
-
-# 2) WIP 파일: abbr 파싱 → domain (라우팅 태그 오인 방지)
-wip_domains: set[str] = set()
-_abbrs = _extract_abbrs()
-_abbr_to_domain: dict[str, str] = {}
-naming_md = Path(".claude/rules/naming.md")
-if naming_md.exists():
-    in_tbl = False
-    for _line in naming_md.read_text(encoding="utf-8", errors="ignore").splitlines():
-        if re.match(r"^## 도메인 약어", _line):
-            in_tbl = True
-            continue
-        if in_tbl and _line.startswith("## "):
-            break
-        if in_tbl and re.match(r"^\| [a-z_]+\s*\|\s*[a-z]{2,3}\s*\|", _line):
-            parts = [p.strip() for p in _line.split("|") if p.strip()]
-            if len(parts) >= 2:
-                _abbr_to_domain[parts[1]] = parts[0]  # abbr → domain_full
-
-for f in staged_files:
-    if f.startswith("docs/WIP/"):
-        detected = _detect_abbr(Path(f), _abbrs)
-        if detected and detected in _abbr_to_domain:
-            wip_domains.add(_abbr_to_domain[detected])
-
-# 3) 경로→도메인 매핑 (naming.md "## 경로 → 도메인 매핑" 섹션)
-path_domains: set[str] = set()
-_path_map = _extract_path_map()
-if _path_map:
-    for f in staged_files:
-        d = _path_to_domain(f, _path_map)
-        if d:
-            path_domains.add(d)
-
-all_domains = sorted(doc_domains | wip_domains | path_domains)
-domains_str = ",".join(all_domains)
-
-domain_grades: list[str] = []
-grade_map: dict[str, str] = {}
-
-if all_domains and naming_md.exists():
-    in_section = False
-    for line in naming_md.read_text(encoding="utf-8", errors="ignore").splitlines():
-        if line.startswith("## 도메인 등급"):
-            in_section = True
-            continue
-        if in_section and line.startswith("## "):
-            break
-        if in_section:
-            if "**critical**" in line:
-                after = re.sub(r".*:", "", line)
-                for d in re.sub(r"[*()]", "", after).replace(",", " ").split():
-                    if d:
-                        grade_map[d] = "critical"
-            elif "**meta**" in line:
-                after = re.sub(r".*:", "", line)
-                for d in re.sub(r"[*()]", "", after).replace(",", " ").split():
-                    if d:
-                        grade_map[d] = "meta"
-
-    for d in all_domains:
-        domain_grades.append(grade_map.get(d, "normal"))
-
-domain_grades_str = ",".join(domain_grades)
-if domain_grades:
-    add_signal("S9")
-
-domain_count = len(all_domains)
-multi_domain = "true" if domain_count >= 2 else "false"
-
-# S10
-if repeat_max >= 2:
-    add_signal("S10")
-
-# S11/S14/S15
-if s11_hit: add_signal("S11")
-if s14_hit: add_signal("S14")
-if s15_hit: add_signal("S15")
-
-# S7: 위 신호 없으면 일반 코드
-if total_files > 0 and not any(has_sig(s) for s in ("S3", "S4", "S5", "S6")):
-    add_signal("S7")
-
-# ─────────────────────────────────────────────────────────
-# Stage 결정
+# Stage 결정 (AC kind 기반)
 # ─────────────────────────────────────────────────────────
 
 UPSTREAM_PAT = re.compile(
     r"^(?:\.claude/scripts/|\.claude/agents/|\.claude/hooks/|\.claude/settings\.json$|h-setup\.sh$)"
 )
+META_M_PAT = re.compile(
+    r"^docs/clusters/|^\.claude/HARNESS\.json$|^\.claude/memory/|^CHANGELOG\.md$"
+)
 
 stage = ""
 
-# 룰 0: harness-upgrade 커밋 — upstream 검증된 코드, review 불필요
+# 룰 0: harness-upgrade 커밋
 if HARNESS_UPGRADE:
     stage = "skip"
 
-# 룰 1: 업스트림 위험 경로
+# 룰 1: 업스트림 위험 경로 → deep
 if not stage and any(UPSTREAM_PAT.match(f) for f in staged_files):
     stage = "deep"
 
-# 룰 2: 치명 신호
-if not stage:
-    if s1_level == "line-confirmed" or has_sig("S14") or has_sig("S8"):
-        stage = "deep"
+# 룰 2: 시크릿 line-confirmed → deep
+if not stage and s1_level == "line-confirmed":
+    stage = "deep"
 
 # 룰 3: skip 조건
-is_move_commit = False
 if not stage:
-    META_M_PAT = re.compile(
-        r"^docs/clusters/|^\.claude/HARNESS\.json$|^\.claude/memory/|^CHANGELOG\.md$"
-    )
     rename_count = non_move = m_non_meta = 0
     for status, path in ns_parsed:
         if status.startswith("R"):
@@ -790,45 +535,40 @@ if not stage:
                 m_non_meta += 1
         else:
             non_move += 1
+
+    is_meta_only = all(
+        META_M_PAT.match(p) for st, p in ns_parsed if not st.startswith("R")
+    ) if ns_parsed else False
+
+    # 이동 커밋 (rename 단독)
     if rename_count > 0 and non_move == 0 and m_non_meta == 0:
         stage = "skip"
-        is_move_commit = True
-    elif has_sig("S5") and not any(has_sig(s) for s in ("S7", "S2", "S8", "S14")):
+    # 메타 단독
+    elif is_meta_only and rename_count == 0 and non_move == 0:
         stage = "skip"
-    elif has_sig("S4") and not has_sig("S7"):
-        stage = "skip"
-    elif (has_sig("S6")
-          and not any(has_sig(s) for s in ("S7", "S2", "S8", "S14", "S11"))
-          and not any(f.startswith(".claude/skills/") or f.startswith(".claude/agents/")
-                      for f in staged_files)
-          and any(f.startswith("docs/WIP/") for f in staged_files)
-          and all(f.startswith("docs/WIP/") for f in staged_files)):
-        stage = "skip"
-    elif (has_sig("S6") and total_lines <= 5
-          and not any(has_sig(s) for s in ("S7", "S2", "S8", "S14", "S11"))
+    # WIP 단독
+    elif (all(f.startswith("docs/WIP/") for f in staged_files)
+          and staged_files
           and not any(f.startswith(".claude/skills/") or f.startswith(".claude/agents/")
                       for f in staged_files)):
         stage = "skip"
+    # docs 5줄 이하
+    elif (all(f.endswith(".md") for f in staged_files)
+          and staged_files
+          and total_lines <= 5):
+        stage = "skip"
 
-# 룰 4: 나머지 → standard
+# 룰 4: AC kind 기반 판단
 if not stage:
-    stage = "standard"
-
-# 2단계: S10 격상
-if not is_move_commit:
-    if repeat_max >= 3:
-        stage = "deep"
-    elif repeat_max == 2:
-        stage = {"skip": "standard", "micro": "standard", "standard": "deep"}.get(stage, stage)
-
-# ─────────────────────────────────────────────────────────
-# 거대 변경 경고
-# ─────────────────────────────────────────────────────────
-
-if total_files > 30 or added_lines > 1500 or deleted_lines > 1500:
-    err(f"⚠ 대규모 변경 감지 (files={total_files}, +{added_lines}, -{deleted_lines}).")
-    err("  review maxTurns 한계로 verdict 신뢰도 저하 + 검토 피로 누적 가능.")
-    err("  권장: 스코프를 나눠 작은 커밋 여러 개로 분리. 논리 단위별로 staging.")
+    if wip_kind in ("docs", "chore"):
+        stage = "micro"
+    elif wip_kind == "bug":
+        stage = "standard" if has_impact_scope else "micro"
+    elif wip_kind in ("feature", "refactor"):
+        stage = "deep" if has_impact_scope else "standard"
+    else:
+        # WIP 없거나 kind 미지정 → standard
+        stage = "standard"
 
 # ─────────────────────────────────────────────────────────
 # 커밋 분리 판정
@@ -849,7 +589,6 @@ elif not TEST_MODE and total_files > 0 and Path(".claude/scripts/task_groups.py"
             if len(parts) >= 2:
                 group_assign.setdefault(parts[0], []).append(parts[1])
         split_plan = len(group_assign)
-        # 성격(char) 기반 split 조건 — 서로 다른 char가 2종 이상이면 split
         chars: set[str] = set()
         for g in group_assign:
             if g.startswith("char:"):
@@ -878,10 +617,16 @@ if session_file.exists():
         pass
 
 # ─────────────────────────────────────────────────────────
-# 출력
+# 거대 변경 경고
 # ─────────────────────────────────────────────────────────
 
-signals_str = ",".join(signals)
+if total_files > 30 or added_lines > 1500 or deleted_lines > 1500:
+    err(f"⚠ 대규모 변경 감지 (files={total_files}, +{added_lines}, -{deleted_lines}).")
+    err("  권장: 스코프를 나눠 작은 커밋 여러 개로 분리.")
+
+# ─────────────────────────────────────────────────────────
+# 출력
+# ─────────────────────────────────────────────────────────
 
 if ERRORS > 0:
     err("")
@@ -889,13 +634,9 @@ if ERRORS > 0:
 
 print(f"pre_check_passed: {'false' if ERRORS > 0 else 'true'}")
 print(f"already_verified: {ALREADY_VERIFIED}")
-print(f"risk_factors: {risk_factors_summary}")
 print(f"diff_stats: {diff_stats}")
-print(f"signals: {signals_str}")
-print(f"domains: {domains_str}")
-print(f"domain_grades: {domain_grades_str}")
-print(f"multi_domain: {multi_domain}")
-print(f"repeat_count: max={repeat_max}")
+print(f"wip_kind: {wip_kind or 'none'}")
+print(f"has_impact_scope: {'true' if has_impact_scope else 'false'}")
 print(f"recommended_stage: {stage}")
 print(f"s1_level: {s1_level}")
 print(f"split_plan: {split_plan}")
@@ -903,7 +644,6 @@ print(f"split_action_recommended: {split_action}")
 print(f"prior_session_files: {prior_files}")
 
 if split_action == "split" and group_assign:
-    # char 기반 정렬 — 위험도 높은 순서 (exec 먼저, doc 마지막)
     CHAR_PRIO = {"exec": 1, "agent-rule": 2, "skill": 3, "misc": 4, "doc": 9}
     def sort_key(g: str) -> tuple:
         if g.startswith("char:"):

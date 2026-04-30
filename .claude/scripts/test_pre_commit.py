@@ -2,7 +2,7 @@
 pre_commit_check.py 회귀 테스트 (pytest)
 
 단위 테스트: TEST_MODE=1 + 환경변수 주입 — git 호출 없음, ~80ms/케이스
-통합 테스트: 실제 git sandbox — dead link·S10·이동 커밋 검증
+통합 테스트: 실제 git sandbox — dead link·이동 커밋 검증
 
 사용: pytest .claude/scripts/test_pre_commit.py -v
       pytest .claude/scripts/test_pre_commit.py -v -k "unit"   # 단위만
@@ -24,7 +24,6 @@ import pytest
 
 REPO_ROOT = Path(__file__).parent.parent.parent  # harness-starter/
 PY_SCRIPT = REPO_ROOT / ".claude" / "scripts" / "pre_commit_check.py"
-
 
 
 def run_check(
@@ -57,258 +56,8 @@ def run_check(
     return out
 
 
-def signals(out: dict) -> list[str]:
-    return [s for s in out.get("signals", "").split(",") if s]
-
-
 def stage(out: dict) -> str:
     return out.get("recommended_stage", "")
-
-
-# ─────────────────────────────────────────────────────────
-# 단위 테스트 — git 불필요
-# ─────────────────────────────────────────────────────────
-
-class TestS1:
-    def test_helper_exempt(self):
-        """T1: auth-helper.ts → S1 면제"""
-        out = run_check(
-            name_status="M src/auth-helper.ts",
-            numstat="1 0 src/auth-helper.ts",
-            diff_u0="+export const x = 1;\n",
-        )
-        assert "S1" not in signals(out)
-        assert out.get("s1_level", "") == ""
-
-    def test_file_only(self):
-        """T2: auth.ts → S1 file-only"""
-        out = run_check(
-            name_status="M src/auth.ts",
-            numstat="1 0 src/auth.ts",
-            diff_u0="+export const validate = () => true;\n",
-        )
-        assert "S1" in signals(out)
-        assert out.get("s1_level") == "file-only"
-
-    def test_line_confirmed(self):
-        """T3: 시크릿 패턴 → S1 line-confirmed + deep"""
-        out = run_check(
-            name_status="M src/config.ts",
-            numstat="1 0 src/config.ts",
-            diff_u0='+export const KEY = "sk_live_xxxxxxxxxxxxxxxx";\n',
-        )
-        assert "S1" in signals(out)
-        assert out.get("s1_level") == "line-confirmed"
-        assert stage(out) == "deep"
-
-
-class TestStageSkip:
-    def test_s5_clusters_only(self):
-        """T4: clusters 단독 → S5 → skip"""
-        out = run_check(
-            name_status="M docs/clusters/harness.md",
-            numstat="1 0 docs/clusters/harness.md",
-            diff_u0="+한 줄 변경\n",
-        )
-        assert stage(out) == "skip"
-
-    def test_s5_harness_json(self):
-        """T30: HARNESS.json 단독 → S5 → skip"""
-        out = run_check(
-            name_status="M .claude/HARNESS.json",
-            numstat='1 1 .claude/HARNESS.json',
-            diff_u0='+"version": "0.20.19"',
-        )
-        assert stage(out) == "skip"
-
-    def test_s6_docs_1line(self):
-        """T37.1: docs 1줄 수정 → S6 ≤5줄 → skip"""
-        out = run_check(
-            name_status="M docs/guides/hn_probe.md",
-            numstat="1 0 docs/guides/hn_probe.md",
-            diff_u0="+추가 한 줄.\n",
-        )
-        assert stage(out) == "skip"
-
-    def test_s6_docs_over5lines(self):
-        """T37.2: docs 10줄 → standard"""
-        out = run_check(
-            name_status="M docs/guides/hn_probe2.md",
-            numstat="10 0 docs/guides/hn_probe2.md",
-            diff_u0="+줄1\n+줄2\n+줄3\n+줄4\n+줄5\n+줄6\n+줄7\n+줄8\n+줄9\n+줄10\n",
-        )
-        assert stage(out) != "skip"
-
-    def test_s6_docs_with_code(self):
-        """T37.3: docs + 코드 동반 → skip 아님"""
-        out = run_check(
-            name_status="M docs/guides/hn_probe3.md\nM src/foo.ts",
-            numstat="1 0 docs/guides/hn_probe3.md\n1 0 src/foo.ts",
-            diff_u0="+한줄.\n+export const foo = 1\n",
-        )
-        assert stage(out) != "skip"
-
-
-class TestS8:
-    def test_negative_test_file(self):
-        """T5: *.test.ts → S8 음성"""
-        out = run_check(
-            name_status="M tests/foo.test.ts\nM src/comment.ts\nM src/internal.go",
-            numstat="1 0 tests/foo.test.ts\n1 0 src/comment.ts\n1 0 src/internal.go",
-            diff_u0=(
-                "diff --git a/tests/foo.test.ts b/tests/foo.test.ts\n"
-                "+export function setup() { return 1; }\n"
-                "diff --git a/src/comment.ts b/src/comment.ts\n"
-                '+const msg = "see export const X";\n'
-                "diff --git a/src/internal.go b/src/internal.go\n"
-                '+func handler() string { return "ok" }\n'
-            ),
-        )
-        assert "S8" not in signals(out)
-
-    def test_positive_ts_export(self):
-        """T6: TS export function → S8 hit"""
-        out = run_check(
-            name_status="M src/api.ts\nM src/util.py\nM src/api.go",
-            numstat="3 0 src/api.ts\n2 0 src/util.py\n2 0 src/api.go",
-            diff_u0=(
-                "diff --git a/src/api.ts b/src/api.ts\n"
-                "+export function getUser(id: string) { return { id }; }\n"
-                "diff --git a/src/util.py b/src/util.py\n"
-                "+def calculate(x):\n+    return x * 2\n"
-                "diff --git a/src/api.go b/src/api.go\n"
-                '+func Handler() string { return "ok" }\n'
-            ),
-        )
-        assert "S8" in signals(out)
-
-    def test_positive_python_def(self):
-        """T8: Python def → S8 hit"""
-        out = run_check(
-            name_status="M src/util.py",
-            numstat="2 0 src/util.py",
-            diff_u0=(
-                "diff --git a/src/util.py b/src/util.py\n"
-                "+def calculate(x):\n+    return x * 2\n"
-            ),
-        )
-        assert "S8" in signals(out)
-
-    def test_positive_go_exported(self):
-        """T9: Go 대문자 func → S8 hit"""
-        out = run_check(
-            name_status="M src/api.go",
-            numstat="2 0 src/api.go",
-            diff_u0=(
-                "diff --git a/src/api.go b/src/api.go\n"
-                '+func Handler() string { return "ok" }\n'
-            ),
-        )
-        assert "S8" in signals(out)
-
-
-class TestStageDeep:
-    def test_upstream_scripts(self):
-        """T21: .claude/scripts → deep"""
-        out = run_check(
-            name_status="M .claude/scripts/foo.sh\nM .claude/agents/foo.md\nM .claude/hooks/pre.sh\nM .claude/settings.json",
-            numstat="1 0 .claude/scripts/foo.sh\n1 0 .claude/agents/foo.md\n1 0 .claude/hooks/pre.sh\n1 0 .claude/settings.json",
-            diff_u0="+#!/bin/bash\n+# agent\n+#!/bin/bash\n+{}\n",
-        )
-        assert stage(out) == "deep"
-
-    def test_src_plus_scripts(self):
-        """T31: src + scripts → deep"""
-        out = run_check(
-            name_status="M src/foo.ts\nM .claude/scripts/bar.sh",
-            numstat="1 0 src/foo.ts\n1 0 .claude/scripts/bar.sh",
-            diff_u0="+export const x = 1\n+#!/bin/bash\n",
-        )
-        assert stage(out) == "deep"
-
-    def test_h_setup_deep(self):
-        """T32.1: h-setup.sh 단독 수정 → deep (UPSTREAM_PAT 등록)"""
-        out = run_check(
-            name_status="M h-setup.sh",
-            numstat="5 0 h-setup.sh",
-            diff_u0="+# change\n",
-        )
-        assert stage(out) == "deep"
-
-    def test_h_setup_with_docs_deep(self):
-        """T32.2: h-setup.sh + docs → deep (업스트림 위험 경로 우선)"""
-        out = run_check(
-            name_status="M h-setup.sh\nM docs/guides/foo.md",
-            numstat="2 0 h-setup.sh\n1 0 docs/guides/foo.md",
-            diff_u0="+# change\n+# doc\n",
-        )
-        assert stage(out) == "deep"
-
-
-class TestStageStandard:
-    def test_rules_not_deep(self):
-        """T25-T27: rules·skills·CLAUDE.md → standard (not deep)"""
-        out = run_check(
-            name_status="M .claude/rules/foo.md\nM .claude/skills/foo/SKILL.md\nM CLAUDE.md",
-            numstat="1 0 .claude/rules/foo.md\n1 0 .claude/skills/foo/SKILL.md\n5 0 CLAUDE.md",
-            diff_u0="+# rule\n+# skill\n+# CLAUDE\n",
-        )
-        assert stage(out) == "standard"
-
-    def test_docs_general(self):
-        """T28: docs 일반 → standard"""
-        out = run_check(
-            name_status="M docs/guides/note.md",
-            numstat="8 0 docs/guides/note.md",
-            diff_u0="+---\n+title: 노트\n+domain: harness\n+status: completed\n+created: 2026-04-21\n+---\n+본문.\n",
-        )
-        assert stage(out) == "standard"
-
-    def test_mixed_rules_docs_src(self):
-        """T32: rules+docs+src(비-export) → standard"""
-        out = run_check(
-            name_status="M .claude/rules/foo.md\nM docs/guides/note.md\nM src/foo.ts",
-            numstat="1 0 .claude/rules/foo.md\n8 0 docs/guides/note.md\n2 1 src/foo.ts",
-            diff_u0="+# rule\n+본문.\n+const x = 1;\n",
-        )
-        assert stage(out) == "standard"
-
-
-class TestSignalMix:
-    def test_lock_doc_mix(self):
-        """T16: lock + doc 혼합 → S4/S6 미발화"""
-        out = run_check(
-            name_status="M package-lock.json\nM docs/note.md",
-            numstat="1 0 package-lock.json\n1 0 docs/note.md",
-            diff_u0="+{}\n+# note\n",
-        )
-        assert "S4" not in signals(out)
-        assert "S6" not in signals(out)
-        assert stage(out) in ("standard", "micro", "deep")
-
-    def test_meta_code_mix(self):
-        """T17: meta + 코드 → S5 미발화, S7 발화"""
-        out = run_check(
-            name_status="M docs/clusters/harness.md\nM src/foo.ts",
-            numstat="1 0 docs/clusters/harness.md\n1 0 src/foo.ts",
-            diff_u0="+# clusters\n+export const x = 1\n",
-        )
-        assert "S5" not in signals(out)
-        assert "S7" in signals(out)
-
-    def test_s15_s7(self):
-        """T18: package.json + 코드 → S15 + S7"""
-        out = run_check(
-            name_status="M src/bar.ts\nM package.json",
-            numstat="1 1 src/bar.ts\n1 1 package.json",
-            diff_u0=(
-                '-export const x = 1\n+export const x = 2\n'
-                '-"version":"0.0.1"\n+"version":"0.0.2"\n'
-            ),
-        )
-        assert "S15" in signals(out)
-        assert "S7" in signals(out)
-        assert stage(out) in ("standard", "deep")
 
 
 # ─────────────────────────────────────────────────────────
@@ -413,6 +162,96 @@ created: 2026-04-19
 
 
 # ─────────────────────────────────────────────────────────
+# 시크릿 스캔 단위 테스트
+# ─────────────────────────────────────────────────────────
+
+class TestSecretScan:
+    def test_line_confirmed_blocks(self):
+        """시크릿 패턴 라인 → pre_check_passed=false, s1_level=line-confirmed"""
+        r = subprocess.run(
+            [sys.executable, str(PY_SCRIPT)],
+            env={
+                **os.environ,
+                "TEST_MODE": "1",
+                "_TEST_NAME_STATUS": "M src/config.ts",
+                "_TEST_NUMSTAT": "1 0 src/config.ts",
+                "_TEST_DIFF_U0": '+export const KEY = "sk_live_xxxxxxxxxxxxxxxx";\n',
+            },
+            capture_output=True, text=True,
+        )
+        out: dict[str, str] = {}
+        for line in r.stdout.splitlines():
+            if ": " in line:
+                k, v = line.split(": ", 1)
+                out[k] = v
+        assert out.get("pre_check_passed") == "false"
+        assert out.get("s1_level") == "line-confirmed"
+        assert r.returncode == 2
+
+    def test_file_only_warns(self):
+        """시크릿 관련 파일명 → s1_level=file-only, 차단 아님"""
+        out = run_check(
+            name_status="M src/auth.ts",
+            numstat="1 0 src/auth.ts",
+            diff_u0="+export const validate = () => true;\n",
+        )
+        assert out.get("s1_level") == "file-only"
+        assert out.get("pre_check_passed") == "true"
+
+    def test_helper_exempt(self):
+        """auth-helper.ts → 시크릿 면제"""
+        out = run_check(
+            name_status="M src/auth-helper.ts",
+            numstat="1 0 src/auth-helper.ts",
+            diff_u0="+export const x = 1;\n",
+        )
+        assert out.get("s1_level", "") == ""
+        assert out.get("pre_check_passed") == "true"
+
+
+# ─────────────────────────────────────────────────────────
+# Stage 기본 단위 테스트 (AC kind 기반)
+# ─────────────────────────────────────────────────────────
+
+class TestStageBasic:
+    def test_upstream_scripts_deep(self):
+        """업스트림 위험 경로 → deep"""
+        out = run_check(
+            name_status="M .claude/scripts/foo.sh",
+            numstat="1 0 .claude/scripts/foo.sh",
+            diff_u0="+#!/bin/bash\n",
+        )
+        assert stage(out) == "deep"
+
+    def test_wip_only_skip(self):
+        """WIP 단독 → skip"""
+        out = run_check(
+            name_status="M docs/WIP/decisions--hn_foo.md",
+            numstat="3 0 docs/WIP/decisions--hn_foo.md",
+            diff_u0="+내용\n",
+        )
+        assert stage(out) == "skip"
+
+    def test_docs_5lines_skip(self):
+        """docs 5줄 이하 → skip"""
+        out = run_check(
+            name_status="M docs/guides/hn_foo.md",
+            numstat="1 0 docs/guides/hn_foo.md",
+            diff_u0="+한 줄\n",
+        )
+        assert stage(out) == "skip"
+
+    def test_no_wip_standard(self):
+        """WIP 없는 일반 파일 → standard"""
+        out = run_check(
+            name_status="M src/foo.ts",
+            numstat="2 0 src/foo.ts",
+            diff_u0="+const x = 1;\n",
+        )
+        assert stage(out) == "standard"
+
+
+# ─────────────────────────────────────────────────────────
 # 통합 테스트 — 실제 git sandbox 필요
 # ─────────────────────────────────────────────────────────
 
@@ -423,7 +262,6 @@ def _git(args: list[str], cwd: Path, **kwargs) -> subprocess.CompletedProcess:
 
 
 def _run_precheck(repo: Path) -> dict[str, str]:
-    # 상대경로 사용 — Windows Git Bash는 절대경로(C:\...)를 인식 못 함
     r = subprocess.run(
         [sys.executable, ".claude/scripts/pre_commit_check.py"],
         cwd=repo, capture_output=True, text=True,
@@ -473,34 +311,6 @@ def integ_repo(tmp_path_factory):
         if src.exists():
             shutil.copy2(src, dst)
     yield repo
-
-
-class TestIntegS10:
-    def test_s10_repeat_count(self, integ_repo):
-        """T13: 3회 연속 수정 → S10, repeat_count max=2, exit 0"""
-        repo = integ_repo
-        f = repo / "docs" / "WIP" / "test--s10_probe.md"
-        _write(f, "---\ntitle: t\ndomain: harness\nstatus: pending\ncreated: 2026-04-25\n---\n첫줄\n")
-        _git(["add", str(f)], repo)
-        _commit(repo, "T13 prep1")
-        f.write_text(f.read_text() + "둘째\n", encoding="utf-8")
-        _git(["add", str(f)], repo)
-        _commit(repo, "T13 prep2")
-        f.write_text(f.read_text() + "셋째\n", encoding="utf-8")
-        _git(["add", str(f)], repo)
-
-        r = subprocess.run(
-            [sys.executable, ".claude/scripts/pre_commit_check.py"],
-            cwd=repo, capture_output=True, text=True,
-        )
-        assert r.returncode == 0, "T13.1: 3회 연속 수정 차단 안 됨 (exit 0)"
-        out: dict[str, str] = {}
-        for line in r.stdout.splitlines():
-            if ": " in line:
-                k, v = line.split(": ", 1)
-                out[k] = v
-        assert out.get("repeat_count") == "max=2", f"T13.2: {out.get('repeat_count')}"
-        _reset(repo)
 
 
 class TestIntegDeadLink:
@@ -674,13 +484,11 @@ class TestIntegMoveCommit:
     """T39: 각 테스트가 독립적인 파일명 사용 — module sandbox 상태 오염 방지."""
 
     def _prep(self, repo, name: str) -> None:
-        """이름별 독립 WIP 파일 생성·커밋 + S10용 더미 커밋."""
+        """이름별 독립 WIP 파일 생성·커밋."""
         _write(repo / f"docs/WIP/incidents--hn_t39_{name}.md",
                f"---\ntitle: t39 {name}\ndomain: harness\nstatus: completed\ncreated: 2026-04-25\n---\n")
         _git(["add", f"docs/WIP/incidents--hn_t39_{name}.md"], repo)
         _commit(repo, f"prep T39 {name}")
-        _git(["commit", "--allow-empty", "-m", f"prep T39 {name} s10 v2"], repo)
-        _git(["commit", "--allow-empty", "-m", f"prep T39 {name} s10 v3"], repo)
 
     def test_rename_only(self, integ_repo):
         """T39.1: rename 단독 → skip"""
@@ -709,7 +517,6 @@ class TestIntegMoveCommit:
         repo = integ_repo
         self._prep(repo, "t3")
         _git(["mv", "docs/WIP/incidents--hn_t39_t3.md", "docs/incidents/hn_t39_t3.md"], repo)
-        # pre-commit-check.sh 대신 일반 파일을 수정 (sh 손상 방지)
         extra = repo / "docs/t39_t3_extra.md"
         extra.write_text("---\ntitle: t3 extra\ndomain: harness\nstatus: in-progress\ncreated: 2026-04-25\n---\n",
                          encoding="utf-8")
@@ -719,8 +526,8 @@ class TestIntegMoveCommit:
         _reset(repo)
         extra.unlink(missing_ok=True)
 
-    def test_rename_cluster_s10(self, integ_repo):
-        """T39.4: rename + cluster + S10 → skip (이동 커밋 S10 격상 면제)"""
+    def test_rename_cluster_no_upgrade(self, integ_repo):
+        """T39.4: rename + cluster → skip"""
         repo = integ_repo
         self._prep(repo, "t4")
         _git(["mv", "docs/WIP/incidents--hn_t39_t4.md", "docs/incidents/hn_t39_t4.md"], repo)
@@ -778,7 +585,6 @@ def _add_path_domain_map(repo: Path, mapping_lines: str) -> None:
     """naming.md '## 경로 → 도메인 매핑' 섹션의 '실제 매핑' 코드블록에 매핑 라인 추가."""
     naming = repo / ".claude" / "rules" / "naming.md"
     text = naming.read_text(encoding="utf-8")
-    # '실제 매핑' 레이블 이후 코드블록 ``` 뒤에 삽입
     section_start = text.find("## 경로 → 도메인 매핑")
     real_label = text.find("실제 매핑", section_start)
     if real_label == -1:
@@ -823,7 +629,6 @@ class TestWipSyncAbbrMatch:
         out, stderr = _run_wip_sync(repo, ["src/t40/serviceA.ts"])
         assert out.get("wip_sync_matched") == "1", f"stderr: {stderr}"
         assert out.get("wip_sync_moved") == "1", f"stderr: {stderr}"
-        # 이동 후 WIP 파일 사라짐
         assert not wip.exists(), "WIP 파일이 이동되지 않음"
 
         _remove_path_domain_map_lines(repo, mapping)
@@ -844,7 +649,6 @@ class TestWipSyncAbbrMatch:
         out, stderr = _run_wip_sync(repo, ["src/t40b/serviceB.ts"])
         assert out.get("wip_sync_matched") == "0", f"stderr: {stderr}"
         assert "skip" in stderr.lower() or "2개" in stderr, f"stderr: {stderr}"
-        # WIP 파일들 그대로 남아있어야 함
         assert wip1.exists() and wip2.exists()
 
         _git(["reset", "HEAD", "."], repo)
@@ -854,14 +658,12 @@ class TestWipSyncAbbrMatch:
     def test_abbr_no_path_map_fallback(self, wipsync_repo):
         """T40.3: 경로→도메인 매핑 없으면 abbr 매칭 skip → 체크리스트 매칭만 동작."""
         repo = wipsync_repo
-        # 매핑 추가 없이 wip 생성
         wip = repo / "docs/WIP/incidents--hn_t40c_nomap.md"
         _write(wip, self.WIP_CONTENT.replace("T40 incident", "T40c nomap"))
         _git(["add", str(wip)], repo)
         _commit(repo, "T40.3 prep WIP nomap")
 
         out, stderr = _run_wip_sync(repo, ["src/t40c/serviceC.ts"])
-        # 매핑 없으므로 matched=0
         assert out.get("wip_sync_matched") == "0", f"stderr: {stderr}"
         assert wip.exists()
 

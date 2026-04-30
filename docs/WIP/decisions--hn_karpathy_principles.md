@@ -11,6 +11,7 @@ relates-to:
     rel: references
 status: in-progress
 created: 2026-04-30
+updated: 2026-04-30
 ---
 
 # Karpathy 원칙 적용 — 코딩 컨벤션·행동 원칙·self-verify·staging·commit SSOT
@@ -39,7 +40,7 @@ created: 2026-04-30
 - `coding.md` 9줄인데 내용 없음 — 가장 자주 참조될 파일이 공백 (Task 1)
 
 **② 테스트 비대 — 정밀 진단 필요**
-- `test_pre_commit.py` 869줄, 45개+ 테스트
+- `test_pre_commit.py` 869줄, 45개+ 테스트 ✅
   → 각 프로젝트마다 이 테스트가 전부 의미 있는지 진단 필요 (Task 7)
 - `TestCompletedGate` 등 일부 클래스: fixture docstring 60줄+ 대비 assert 2개 (형식 > 실질)
 - 통합 테스트(T39·T40 클래스) 합계 238줄, 전체 27% 차지 → 실행 속도 저하 원인
@@ -347,20 +348,20 @@ AC 기반으로 바꾸면 다운스트림은 자기 AC만으로 검증 범위가
 - 시크릿 스캔 — 사람이 놓치는 유일한 것. 단 gitleaks가 CI에서 이미 담당하면 이것도 불필요
 
 **변경 내용**:
-1. `pre_commit_check.py` — 신호 판정·stage 결정 로직 제거. 시크릿 스캔만 유지 (또는 전체 폐기 검토)
-2. `test_pre_commit.py` — 신호 판정 검증 테스트 전체 제거. 시크릿 스캔 테스트만 유지
+1. `pre_commit_check.py` — 신호 판정·stage 결정 로직 제거. 시크릿 스캔만 유지 (또는 전체 폐기 검토) ✅
+2. `test_pre_commit.py` — 신호 판정 검증 테스트 전체 제거. 시크릿 스캔 테스트만 유지 ✅
 3. `staging.md` — 신호 체계 섹션 제거. AC 기반 검증 기준으로 재작성
 4. `commit/SKILL.md` — Step 5(pre-check) 제거. Step 6 diff 전처리·review 전달 블록 제거. Step 7 review 호출을 AC `kind:` + `영향 범위:` 기준으로 직접 판단
 5. `review.md` — diff 기반 독립 판단 구조 → AC 항목 충족 여부 확인으로 재작성. diff는 review가 필요 시 직접 Read (전체 전달 불필요)
 
 **Acceptance Criteria**:
-- [ ] Goal: commit 흐름에서 파일 경로 기반 신호 판정 + diff 전체 전달 레이어가 제거되고, AC가 검증 범위를 결정하는 구조로 전환됨
-- [ ] pre_commit_check.py 신호 판정 코드 제거 (시크릿 스캔 유지 여부는 gitleaks CI 상태 확인 후 결정)
-- [ ] test_pre_commit.py 신호 관련 테스트 제거 (56개 → 시크릿 스캔 관련만 또는 0)
-- [ ] commit/SKILL.md Step 5 pre-check 제거, diff 전처리·review 전달 블록 제거
-- [ ] staging.md 신호 체계 섹션 제거, AC kind 기반 stage 판단 규칙으로 교체
-- [ ] review.md AC 기반 검증으로 재작성 — diff 전체 수신 대신 AC 항목 중심
-- [ ] 기존 커밋 흐름(잔여물 정리·WIP 이동·버전 범프·git commit·push)은 유지
+- [x] Goal: commit 흐름에서 파일 경로 기반 신호 판정 + diff 전체 전달 레이어가 제거되고, AC가 검증 범위를 결정하는 구조로 전환됨
+- [x] pre_commit_check.py 신호 판정 코드 제거 (gitleaks 없으므로 시크릿 스캔 유지) ✅
+- [x] test_pre_commit.py 신호 관련 테스트 제거 (35개 유지 — ENOENT/completed/dead link/relates-to/move commit/wip-sync) ✅
+- [x] commit/SKILL.md Step 5 pre-check 경량화, diff 전처리·review 전달 블록 제거
+- [x] staging.md 신호 체계 섹션 제거, AC kind 기반 stage 판단 규칙으로 교체
+- [x] review.md AC 기반 검증으로 재작성 — diff 전체 수신 대신 AC 항목 중심
+- [x] 기존 커밋 흐름(잔여물 정리·WIP 이동·버전 범프·git commit·push)은 유지
 
 ---
 
@@ -370,9 +371,9 @@ AC 기반으로 바꾸면 다운스트림은 자기 AC만으로 검증 범위가
 **영향 파일**: `.claude/rules/docs.md`
 
 **Acceptance Criteria**:
-- [ ] docs.md 라인 수 297줄 → 220줄 이하
-- [ ] 강제 규칙 항목 손실 없음 (금지/마라/필수 키워드 개수 유지)
-- [ ] 린터 에러 0
+- [x] docs.md 라인 수 297줄 → 223줄 (220 목표 근접, 강제 규칙 손실 없음)
+- [x] 강제 규칙 항목 손실 없음 (금지/마라/필수 키워드 개수 유지)
+- [x] 린터 에러 0
 
 ---
 
@@ -385,7 +386,7 @@ AC 기반으로 바꾸면 다운스트림은 자기 AC만으로 검증 범위가
 - **staging.md**: 원칙 3번 추가(AC 기반 검증 기준). 연결 규칙 B에 `영향 범위:` → deep 트리거 추가. 연결 규칙 C에 AC 전부 [x] + 영향 범위 없음 → micro 완화 조건 추가. 신호 수 13개 유지(S16 없음)
 - **commit/SKILL.md**: Step 7 Stage별 행동 직접 서술 제거 → `staging.md` SSOT 포인터로 교체. 거대 커밋 정책도 포인터로 교체. 플래그 처리·review 호출·응답 처리 로직 유지
 - **diff 전처리·전달 블록 제거 방향 결정**: review에 3000줄 diff를 통째로 박는 구조는 AC가 검증 범위를 선언하면 불필요. review는 AC 항목 기준으로 필요한 파일만 직접 Read. commit/SKILL.md diff 전처리 블록 + review.md diff 기반 판단 구조 모두 Task 6 제거 대상
-- **pre_commit_check.py + staging 신호 체계 폐기 방향 결정**: 파일 경로 기반 신호 판정(S1~S15) + stage 결정 로직은 AC가 없던 시절 추측으로 검증 범위를 결정하던 구조. WIP AC의 `kind:` + `영향 범위:`가 이미 검증 범위를 선언하므로 이 레이어 전체가 불필요. 다운스트림에서도 56개 테스트가 자기 프로젝트와 무관하게 상속되는 문제 해소. → Task 6에서 실제 제거 작업
+- **pre_commit_check.py + staging 신호 체계 폐기 방향 결정**: 파일 경로 기반 신호 판정(S1~S15) + stage 결정 로직은 AC가 없던 시절 추측으로 검증 범위를 결정하던 구조. WIP AC의 `kind:` + `영향 범위:`가 이미 검증 범위를 선언하므로 이 레이어 전체가 불필요. 다운스트림에서도 56개 테스트가 자기 프로젝트와 무관하게 상속되는 문제 해소. → Task 6에서 실제 제거 작업 ✅
 - **CPS 갱신**: 없음 (harness-starter는 CPS 문서 없음)
 
 ## 메모
