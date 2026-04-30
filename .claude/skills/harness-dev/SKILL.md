@@ -142,7 +142,7 @@ python3 .claude/scripts/harness_version_bump.py
 - [ ] HARNESS.json: 올바른 필드(`skills`/`starter_skills`)에 등록됐는가
 - [ ] 버전 범프: `harness_version_bump.py` 실행하고 HARNESS.json `version` 갱신됐는가
 - [ ] MIGRATIONS.md: 새 버전 섹션 추가됐는가 (포맷 준수)
-- [ ] **테스트**: `python3 -m pytest .claude/scripts/test_pre_commit.py -q` 통과 (스크립트 연동 변경 시 필수. SKILL.md·rules 단독 변경도 실행 권장)
+- [ ] **테스트**: AC가 명시 요구하면 그 marker만 실행 (`pytest -m <marker>`). 무조건 전체 실행 금지. 회귀 가드 가치 있는 변경이면 작업 task의 AC `영향 범위:` 항목에 marker 명시
 - [ ] **CPS**: `docs/guides/project_kickoff.md` Solutions 항목 중 이번 변경과 관련된 것 갱신했는가 (새 방어 레이어 추가·기존 Solution 구조 변경 시)
 
 ---
