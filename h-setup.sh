@@ -257,12 +257,23 @@ EOF
     stage_or_copy "$f" "$TARGET/.claude/agents/$(basename "$f")"
   done
 
-  # 스크립트
+  # 스크립트 (starter 전용 파일 제외)
   echo ""
   echo "📁 .claude/scripts/"
+  STARTER_ONLY_SCRIPTS="test_pre_commit.py conftest.py"
   for f in "$SCRIPT_DIR/.claude/scripts/"*; do
     [ -f "$f" ] || continue
-    stage_or_copy "$f" "$TARGET/.claude/scripts/$(basename "$f")"
+    bn=$(basename "$f")
+    echo "$STARTER_ONLY_SCRIPTS" | grep -qw "$bn" && continue
+    stage_or_copy "$f" "$TARGET/.claude/scripts/$bn"
+  done
+
+  # 다운스트림에 남아 있는 starter 전용 파일 cleanup
+  for bn in $STARTER_ONLY_SCRIPTS; do
+    if [ -f "$TARGET/.claude/scripts/$bn" ]; then
+      rm "$TARGET/.claude/scripts/$bn"
+      echo "🗑️  starter 전용 파일 제거: .claude/scripts/$bn"
+    fi
   done
 
   # 스킬 (프로파일 기준)
@@ -494,12 +505,15 @@ for f in "$SCRIPT_DIR/.claude/agents/"*; do
   copy_if_new "$f" "$TARGET/.claude/agents/$(basename "$f")"
 done
 
-# .claude/scripts/
+# .claude/scripts/ (starter 전용 파일 제외)
 echo ""
 echo "📁 .claude/scripts/"
+STARTER_ONLY_SCRIPTS="test_pre_commit.py conftest.py"
 for f in "$SCRIPT_DIR/.claude/scripts/"*; do
   [ -f "$f" ] || continue
-  copy_if_new "$f" "$TARGET/.claude/scripts/$(basename "$f")"
+  bn=$(basename "$f")
+  echo "$STARTER_ONLY_SCRIPTS" | grep -qw "$bn" && continue
+  copy_if_new "$f" "$TARGET/.claude/scripts/$bn"
 done
 
 # settings.json
