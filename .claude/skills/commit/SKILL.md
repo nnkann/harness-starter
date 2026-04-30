@@ -134,7 +134,11 @@ s1_level:
 WIP AC를 검증 기준으로 삼아라. AC 항목을 하나씩 확인하고,
 `영향 범위:` 항목이 있으면 해당 파일을 Read해서 회귀 체크.
 diff가 필요하면 `git diff --cached`를 직접 실행해서 확인해도 된다.
-반환 형식은 review.md "## 출력 형식" SSOT를 따른다 (markdown + verdict 헤더).
+
+응답 첫 2줄은 무조건 다음 형식으로 시작 (분석 요약·서론 금지):
+## 리뷰 결과
+verdict: pass | warn | block
+나머지 형식은 review.md "## 출력 형식" SSOT.
 ```
 
 review 에이전트는 AC를 기준으로 필요한 파일을 Read/Glob/Grep으로 확인하고,
