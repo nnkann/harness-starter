@@ -64,6 +64,7 @@ task 헤더 바로 다음 줄에 선언. 없으면 기본 `feature`.
 - [ ] 세부 조건 1
 - [ ] 세부 조건 2
 - [ ] 영향 범위: [파일·문서명] — [어떤 회귀를 체크해야 하는가]  ← feature/refactor에서만
+- [ ] 영향 범위: pre_commit_check.py — `pytest -m stage` 회귀 체크   ← 테스트 명시 요구 시
 ```
 
 규칙:
@@ -71,6 +72,19 @@ task 헤더 바로 다음 줄에 선언. 없으면 기본 `feature`.
 - `영향 범위:` 항목 — `feature` / `refactor` kind에서만 필요할 때 작성.
   `bug` / `docs` / `chore`는 kind가 이미 스코프를 선언하므로 생략
 - `영향 범위:` 항목 1개 이상 → staging deep 트리거 (kind 기반 판단 이후 2차 격상)
+
+**테스트 트리거 — `pytest -m <marker>` 표현**:
+
+자동 회귀 테스트는 **무조건 매 커밋 실행 안 함**. AC가 명시 요구할 때만 실행.
+표현 형식:
+
+```markdown
+- [ ] 영향 범위: <대상 파일> — `pytest -m <marker>` 회귀 체크
+- [ ] 영향 범위: <대상 파일> — `pytest <경로>` 회귀 체크
+```
+
+self-verify·review가 이 표현을 보면 marker만 추출해 실행. self-verify.md
+"트리거 매트릭스" SSOT.
 
 ### incidents/ 전용
 
