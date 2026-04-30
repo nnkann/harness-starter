@@ -212,13 +212,14 @@ def cmd_validate() -> int:
 # move <wip-file>
 # ─────────────────────────────────────────────────────────
 
-# 단어 경계로 TODO/FIXME 매칭 (todo_fixme 같은 복합어 오탐 방지)
-BLOCK_KEYWORDS = re.compile(r"\b(TODO|FIXME)\b", re.IGNORECASE)
+# 명령형 패턴만 차단. 키워드 단독 매칭은 회고적 서술까지 잡아 오탐.
+# TODO:/FIXME: (콜론 표기 — 코드 주석·이슈 트래커 관습)
+BLOCK_KEYWORDS = re.compile(r"\b(TODO|FIXME)\s*:", re.IGNORECASE)
+# 빈 체크박스 — 진짜 미완료 신호
+BLOCK_EMPTY_CHECKBOX = re.compile(r"^\s*[-*]\s*\[\s\]\s", re.MULTILINE)
+# 섹션 헤더의 미결 키워드 — 명백히 미결 항목 그룹
 BLOCK_HEADERS = re.compile(
-    r"^\s*##\s*(후속|미결|미결정|추후|나중에|별도로)", re.MULTILINE
-)
-BLOCK_ITEMS = re.compile(
-    r"^\s*[-*0-9.]+\s.*(후속|미결|미결정|추후|나중에|별도로).*$", re.MULTILINE
+    r"^\s*#{1,6}\s*(후속|미결|미결정|추후|나중에|별도로)\b", re.MULTILINE
 )
 DONE_PAT = re.compile(r"✅|완료|처리됨|done", re.IGNORECASE)
 RESULT_SECTION = re.compile(r"^## (처리 결과|원본|회고|처리|결과)", re.MULTILINE)
@@ -291,26 +292,19 @@ def cmd_move(src_str: str) -> int:
     text = src.read_text(encoding="utf-8")
     body = _extract_body(text)
 
-    # 차단 검사
-    hits = [l for l in BLOCK_KEYWORDS.findall(body) if not DONE_PAT.search(l)]
-    header_hits = BLOCK_HEADERS.findall(body)
-    item_hits   = [l for l in BLOCK_ITEMS.findall(body) if not DONE_PAT.search(l)]
-
-    # 라인 단위로 재검사 (정확도)
+    # 차단 검사 — 명령형 패턴만
     todo_lines = [l for l in body.splitlines()
                   if BLOCK_KEYWORDS.search(l) and not DONE_PAT.search(l)
                   and not re.search(r"todo_fixme|todo/fixme", l, re.I)]
+    checkbox_lines = [l for l in body.splitlines() if BLOCK_EMPTY_CHECKBOX.match(l)]
     header_lines = [l for l in body.splitlines() if BLOCK_HEADERS.match(l)]
-    item_lines   = [l for l in body.splitlines()
-                    if re.match(r"^\s*[-*0-9.]+\s.*(후속|미결|미결정|추후|나중에|별도로)", l)
-                    and not DONE_PAT.search(l)]
 
-    if todo_lines or header_lines or item_lines:
+    if todo_lines or checkbox_lines or header_lines:
         print(f"🚫 completed 전환 차단: {src} 본문에 미결 패턴 존재", file=sys.stderr)
-        for l in todo_lines:   print(f"   TODO: {l}", file=sys.stderr)
-        for l in header_lines: print(f"   HEADER: {l}", file=sys.stderr)
-        for l in item_lines:   print(f"   ITEM: {l}", file=sys.stderr)
-        print("   대응: (a) 잔여를 별도 WIP로 분리 (b) 본문에서 키워드 제거 후 재시도",
+        for l in todo_lines:     print(f"   TODO/FIXME: {l}", file=sys.stderr)
+        for l in checkbox_lines: print(f"   빈 체크박스: {l}", file=sys.stderr)
+        for l in header_lines:   print(f"   미결 헤더: {l}", file=sys.stderr)
+        print("   대응: (a) 잔여를 별도 WIP로 분리 (b) 미완료 항목 처리 후 재시도",
               file=sys.stderr)
         return 2
 
