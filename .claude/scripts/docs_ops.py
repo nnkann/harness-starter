@@ -226,7 +226,11 @@ RESULT_SECTION = re.compile(r"^## (처리 결과|원본|회고|처리|결과)", 
 
 
 def _extract_body(text: str) -> str:
-    """프론트매터 제거 + '처리 결과' 섹션 이후 skip."""
+    """프론트매터 제거 + '처리 결과' 섹션 이후 skip + 코드블록 안 제외.
+
+    코드블록(``` 또는 ~~~) 안의 라인은 차단 검사 대상 아님 — 예시 포맷이지
+    진짜 미결 항목이 아니므로 면제.
+    """
     lines = text.splitlines()
     i, dash = 0, 0
     while i < len(lines):
@@ -237,11 +241,15 @@ def _extract_body(text: str) -> str:
                 break
         else:
             i += 1
-    body_lines, skip = [], False
+    body_lines, skip, in_code = [], False, False
     for line in lines[i:]:
+        stripped = line.lstrip()
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            in_code = not in_code
+            continue
         if RESULT_SECTION.match(line):
             skip = True
-        if not skip:
+        if not skip and not in_code:
             body_lines.append(line)
     return "\n".join(body_lines)
 
