@@ -2,7 +2,7 @@
   "profile": "full",
   "skills": "harness-upgrade,harness-sync,implementation,commit,advisor,check-existing,write-doc,naming-convention,coding-convention,eval",
   "starter_skills": "harness-init,harness-adopt",
-  "version": "0.27.4",
+  "version": "0.27.5",
   "is_starter": true,
   "installed_from_ref": "4ec2a9899ee11e1a2620cb424299db53d392644d",
   "installed_at": "2026-04-16T00:00:00Z",

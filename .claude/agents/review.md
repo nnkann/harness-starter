@@ -69,7 +69,11 @@ AC 없으면 이 검증 스킵 → 2·3번으로.
 
 ### 3. 계약·스코프 위반
 
-diff가 필요하면 `git diff --cached`를 직접 실행한다.
+기본은 Read·Grep으로 AC 영향 파일을 확인한다. 다음 경우에만 `git diff --cached`를 실행:
+
+- staged 파일 중 AC 영향 파일에 없는 것이 있음 (스코프 이탈 의심)
+- AC 항목이 추상적이라 변경 위치를 Read·Grep으로 특정 불가
+- 루프 1에서 AC 모두 pass + staged 파일이 AC 영향 파일과 일치 → diff 불필요
 
 **계약 축 — "이 변경이 기존 결정/계약에 반하는가?"**
 - decisions/ 문서와 충돌 → **[차단]**
@@ -106,13 +110,15 @@ diff가 필요하면 `git diff --cached`를 직접 실행한다.
 
 ## 도구 선택 원칙
 
+순서: AC prompt 확인 → Read/Grep으로 영향 파일 → 필요할 때만 diff.
+
 | 찾는 것 | 도구 | tool call |
 |---------|------|:---------:|
-| diff 확인 | Bash `git diff --cached` | 1회 |
-| 파일 내용 | Read | 마지막 수단 |
-| 파일 존재 | Glob | 1회 |
+| AC 항목 충족 (prompt에 있음) | tool 없음 | 0회 — 항상 먼저 |
+| AC 명시 파일 내용 | Read | AC 항목별 1회 |
 | 패턴 존재 | Grep | 1회 |
-| AC·diff에 이미 있음 | tool 없음 | 0회 |
+| 파일 존재 | Glob | 1회 |
+| 스코프 이탈 의심 시 diff | Bash `git diff --cached` | 조건부 1회 |
 
 ## 낭비 금지
 
