@@ -543,26 +543,16 @@ pre-check stdout의 `recommended_stage` 값에 따라 분기. `--no-review`/
 
 #### Stage별 행동
 
-**Stage 0 (skip)**:
-- review 호출 안 함
-- 커밋 메시지에 `🔍 review: skip | signals: <...> | domains: <...>` 한 줄 자동 포함
+Stage별 시간·tool·행동 정의는 **`staging.md` "## Stage" 섹션 SSOT** 참조.
+이 스킬은 stage 값을 받아 review를 호출하는 역할만 한다.
 
-**Stage 1 (micro)** — 1~2 tool calls, 시크릿/스코프 위주:
-- review 호출, prompt에 `recommended_stage: micro` 명시
-- 신규 파일만(S3)인 경우 신규 패스 모드 (프론트매터·구조만)
-- 한도 내 종료, 응답 처리는 아래
+요약 (상세는 staging.md):
+- **Stage 0 (skip)**: review 호출 안 함. 커밋 메시지에 `🔍 review: skip` 한 줄
+- **Stage 1 (micro)**: review 호출, `recommended_stage: micro` 명시. S3 신규 파일 모드
+- **Stage 2 (standard)**: review 호출, `recommended_stage: standard` 명시
+- **Stage 3 (deep)**: review 호출, `recommended_stage: deep` 명시
 
-**Stage 2 (standard)** — 3~5 tool calls, 현재 기본 동작:
-- review 호출, prompt에 `recommended_stage: standard` 명시
-
-**Stage 3 (deep)** — 10+ tool calls, 전체 검증:
-- review 호출, prompt에 `recommended_stage: deep` 명시
-- S1·S2·S8·S9(critical)·S14 hit 또는 사용자 `--deep`
-
-**거대 커밋 정책** — 파일 30+ 또는 diff 1500줄+이면 pre-check이 stderr에
-"스코프 분리 권장" 경고 출력. 자동 분기·우회 플래그 없음. 사용자가
-커밋을 논리 단위로 쪼개 여러 개로 분리한다. 배경: `staging.md` "거대
-커밋 정책" 섹션 + incident `hn_review_maxturns_verdict_miss` 참조.
+**거대 커밋 정책** — `staging.md` "거대 커밋 정책" 섹션 SSOT 참조.
 
 #### 호출 시점·선행 조건
 
