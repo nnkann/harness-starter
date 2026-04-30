@@ -475,29 +475,52 @@ except Exception:
     pass
 
 # ─────────────────────────────────────────────────────────
-# 6. WIP에서 AC kind 읽기 (stage 판단용)
+# 6. WIP에서 AC kind 읽기 (stage 판단용) — task 블록 단위
 # ─────────────────────────────────────────────────────────
+#
+# staged 파일이 영향을 주는 task만 골라서 그 task의 kind / has_impact_scope를 본다.
+# WIP 파일 전체 스캔 금지 — 다른 task의 `영향 범위:` 항목이 섞이면 오판.
 
-# staged WIP 파일에서 kind와 영향 범위 항목 추출
 wip_kind = ""
 has_impact_scope = False
 
-for f in staged_files:
-    if not f.startswith("docs/WIP/"):
-        continue
-    if not Path(f).exists():
-        continue
-    try:
-        content = Path(f).read_text(encoding="utf-8", errors="ignore")
-        # kind 추출: "> kind: X" 패턴
-        m = re.search(r"^>\s*kind:\s*(\w+)", content, re.MULTILINE)
-        if m and not wip_kind:
-            wip_kind = m.group(1)
-        # 영향 범위 항목 존재 여부
-        if re.search(r"^\s*-\s*\[.?\]\s*영향 범위:", content, re.MULTILINE):
-            has_impact_scope = True
-    except Exception:
-        pass
+try:
+    sys.path.insert(0, str(Path(__file__).parent))
+    from task_groups import parse_wip_tasks  # type: ignore
+
+    tasks = parse_wip_tasks()  # {(slug, task_id): {kind, impact_files, has_impact_scope}}
+
+    matched_tasks: list[dict] = []
+
+    for f in staged_files:
+        # staged WIP 파일 자체 → 그 슬러그의 모든 task 영향 후보
+        if f.startswith("docs/WIP/") and f.endswith(".md"):
+            slug = Path(f).stem
+            if "--" in slug:
+                slug = slug.split("--", 1)[1]
+            for (s, _), info in tasks.items():
+                if s == slug:
+                    matched_tasks.append(info)
+            continue
+
+        # 일반 staged 파일 → impact_files 매칭
+        fbn = Path(f).name
+        for (_, _), info in tasks.items():
+            for pattern in info["impact_files"]:
+                pbn = Path(pattern).name
+                if f == pattern or f.endswith("/" + pattern) or fbn == pbn:
+                    matched_tasks.append(info)
+                    break
+
+    # 매칭된 task들 중 kind 결정 (가장 강한 stage 유도하는 kind 우선: refactor/feature > bug > docs/chore)
+    KIND_PRIO = {"refactor": 4, "feature": 3, "bug": 2, "docs": 1, "chore": 1}
+    if matched_tasks:
+        best = max(matched_tasks, key=lambda t: KIND_PRIO.get(t["kind"], 0))
+        wip_kind = best["kind"]
+        # has_impact_scope는 매칭된 task에서 OR
+        has_impact_scope = any(t["has_impact_scope"] for t in matched_tasks)
+except Exception:
+    pass
 
 # ─────────────────────────────────────────────────────────
 # Stage 결정 (AC kind 기반)
