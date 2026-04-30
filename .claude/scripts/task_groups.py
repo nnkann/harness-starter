@@ -60,12 +60,15 @@ def detect_char(path: str) -> str:
 # WIP 본문 파싱 → {pattern → (slug, kind)}
 # ─────────────────────────────────────────────────────────
 
-def parse_wip_impact() -> list[tuple[str, str, str, str]]:
-    """WIP 파일에서 (slug, task_id, kind, file_pattern) 튜플 목록 반환."""
-    results: list[tuple[str, str, str, str]] = []
+def parse_wip_tasks() -> dict[tuple[str, str], dict]:
+    """WIP 파일에서 task 단위 정보 추출.
+
+    반환: {(slug, task_id): {"kind": str, "impact_files": list[str], "has_impact_scope": bool}}
+    """
+    tasks: dict[tuple[str, str], dict] = {}
     wip_dir = Path("docs/WIP")
     if not wip_dir.exists():
-        return results
+        return tasks
 
     for wip_file in sorted(wip_dir.glob("*.md")):
         slug = wip_file.stem
@@ -74,8 +77,7 @@ def parse_wip_impact() -> list[tuple[str, str, str, str]]:
 
         text = wip_file.read_text(encoding="utf-8", errors="ignore")
         in_block = False
-        task_id = ""
-        kind = "feature"
+        task_key: tuple[str, str] | None = None
         explicit_kind = False
         in_impact = False
         scan_lines = 0
@@ -86,46 +88,61 @@ def parse_wip_impact() -> list[tuple[str, str, str, str]]:
             if m:
                 in_block = True
                 task_id = m.group(1).replace("·", "-")
-                kind = "feature"
+                task_key = (slug, task_id)
+                tasks[task_key] = {"kind": "feature", "impact_files": [], "has_impact_scope": False}
                 explicit_kind = False
                 in_impact = False
                 scan_lines = 0
-                # 헤더 텍스트에서 kind 힌트
                 if re.search(r"근본 수정|버그|오탐|fix:|hotfix", line, re.I):
-                    kind = "bug"
+                    tasks[task_key]["kind"] = "bug"
                 continue
 
             # 다른 헤더 → 블록 종료
             if re.match(r"^### ", line) and in_block:
-                in_block = False; in_impact = False; continue
+                in_block = False; in_impact = False; task_key = None; continue
             if line.strip() == "---" and in_block:
-                in_block = False; in_impact = False; continue
+                in_block = False; in_impact = False; task_key = None; continue
 
-            if not in_block:
+            if not in_block or task_key is None:
                 continue
+
+            t = tasks[task_key]
 
             # kind 마커
             if not explicit_kind:
                 km = re.match(r"^>\s*kind:\s*([a-z]+)", line)
                 if km:
-                    kind = km.group(1); explicit_kind = True; continue
-                if kind == "feature" and scan_lines < 5 and line.strip():
+                    t["kind"] = km.group(1); explicit_kind = True; continue
+                if t["kind"] == "feature" and scan_lines < 5 and line.strip():
                     if re.search(r"근본 수정|버그|오탐|fix:|hotfix|회귀", line, re.I):
-                        kind = "bug"
+                        t["kind"] = "bug"
                     scan_lines += 1
 
-            # 영향 파일 섹션
+            # 영향 범위: AC 항목 (체크박스 패턴)
+            if re.match(r"^\s*-\s*\[.?\]\s*영향 범위:", line):
+                t["has_impact_scope"] = True
+
+            # 영향 파일 섹션 (task 메타)
             if "**영향 파일**" in line:
                 in_impact = True
             if in_impact:
-                for m in re.finditer(r"`([^`]+)`", line):
-                    p = m.group(1)
+                for mm in re.finditer(r"`([^`]+)`", line):
+                    p = mm.group(1)
                     if "/" in p or "." in p:
                         if not re.match(r"^(--|Step)", p):
-                            results.append((slug, task_id, kind, p))
+                            t["impact_files"].append(p)
                 if line.strip() == "" or (re.match(r"^\*\*[^영]", line)):
                     in_impact = False
 
+    return tasks
+
+
+def parse_wip_impact() -> list[tuple[str, str, str, str]]:
+    """후방 호환: (slug, task_id, kind, file_pattern) 튜플 목록."""
+    results: list[tuple[str, str, str, str]] = []
+    for (slug, task_id), info in parse_wip_tasks().items():
+        for p in info["impact_files"]:
+            results.append((slug, task_id, info["kind"], p))
     return results
 
 
