@@ -377,6 +377,40 @@ AC 기반으로 바꾸면 다운스트림은 자기 AC만으로 검증 범위가
 
 ---
 
+### 8. Task 6 후속 — task 단위 AC scope + review diff 조건 명시
+> kind: bug
+
+**영향 파일**: `.claude/scripts/pre_commit_check.py`, `.claude/scripts/task_groups.py`, `.claude/agents/review.md`
+
+**배경**:
+
+Task 6 커밋 후 두 가지 설계 구멍 발견.
+
+1. `pre_commit_check.py`가 staged WIP 파일을 통째로 스캔해서 `kind`(첫 매치만) /
+   `영향 범위:`(어느 항목이든 1개만 있으면 true) 판정. Task 1만 staged해도
+   다른 task의 `영향 범위:` 항목이 잡혀 false deep 발생.
+2. `review.md`가 "AC가 검증 출발점"이라 했으나 라인 72·도구 표가 diff 실행을
+   default로 암시 → AC 있어도 diff 습관적 호출.
+
+**변경 내용**:
+1. `task_groups.py`에 `parse_wip_tasks()` 추가 — task 단위 `{kind, impact_files, has_impact_scope}` 반환.
+   `parse_wip_impact()`는 후방 호환 wrapper로 유지.
+2. `pre_commit_check.py` 6번 섹션 — staged 파일을 task의 `impact_files`에 매칭한 뒤,
+   매칭된 task의 kind/has_impact_scope만 사용. WIP 파일 자체가 staged면 그
+   슬러그의 모든 task가 후보. 매칭된 task 중 `KIND_PRIO` 최댓값을 wip_kind로 채택.
+3. `review.md` — 라인 72에 diff 실행 조건 3개 명시 (스코프 이탈 의심·Read로 특정 불가·AC pass 시 불필요).
+   도구 선택 표에 AC 충족 항목을 첫 행, diff를 마지막 조건부 행으로 재배치.
+
+**Acceptance Criteria**:
+- [x] Goal: Task 1만 staged해도 wip_kind=docs, has_impact_scope=false로 판정됨
+- [x] task_groups.py `parse_wip_tasks()` 함수 신설, 기존 `parse_wip_impact()` 후방 호환 유지
+- [x] pre_commit_check.py가 staged 파일 → task 매칭 후 그 task의 정보만 사용
+- [x] review.md 라인 72에 diff 실행 조건 3개 명시
+- [x] review.md 도구 선택 표에서 AC 항목 충족이 첫 행, diff가 마지막 조건부 행
+- [x] 기존 39/40 테스트 통과 (실패 1개는 fixture가 현재 repo의 WIP 디렉토리를 clone해서 발생하는 환경 의존 — Karpathy WIP 완료 후 자동 해소)
+
+---
+
 ## 결정 사항
 
 - **coding.md**: 기존 빈 껍데기 → Surgical Changes 원칙 5개 + 금지 5개 추가. coding-convention 스킬 연결 주석 유지
