@@ -1,12 +1,21 @@
 """
-pre_commit_check.py 회귀 테스트 (pytest)
+pre_commit_check.py / docs_ops.py 회귀 테스트 (pytest)
 
-단위 테스트: TEST_MODE=1 + 환경변수 주입 — git 호출 없음, ~80ms/케이스
-통합 테스트: 실제 git sandbox — dead link·이동 커밋 검증
+**원칙: 매 커밋 무조건 실행 없음.** AC가 명시 요구할 때만 실행한다.
+WIP AC `영향 범위:` 항목에 `pytest -m <marker> 회귀 체크`라 적혀 있으면
+self-verify·review가 그 marker만 실행. 회귀 가드는 CI/eval --deep 트리거.
 
-사용: pytest .claude/scripts/test_pre_commit.py -v
-      pytest .claude/scripts/test_pre_commit.py -v -k "unit"   # 단위만
-      pytest .claude/scripts/test_pre_commit.py -v -k "integ"  # 통합만
+영역 marker:
+- secret    : 시크릿 스캔 (3) — gitleaks 폴백 회귀 가드
+- gate      : completed 전환 차단 룰 (2)
+- stage     : pre_commit_check.py stage 결정 (4)
+- enoent    : 린터 ENOENT 정규식 회귀 가드 (12)
+- docs_ops  : dead link / relates-to / move commit / wip-sync (19)
+
+사용:
+  pytest -m gate            # 차단 룰만
+  pytest -m "stage or gate" # stage + gate
+  pytest                    # 전체 (CI/eval 전용)
 """
 
 import os
@@ -17,6 +26,8 @@ import sys
 from pathlib import Path
 
 import pytest
+
+
 
 # ─────────────────────────────────────────────────────────
 # 헬퍼
@@ -69,6 +80,7 @@ sys.path.insert(0, str(PY_SCRIPT.parent))
 from pre_commit_check import ENOENT_PATTERNS as ENOENT_PAT  # noqa: E402
 
 
+@pytest.mark.enoent
 class TestEnoentPattern:
     @pytest.mark.parametrize("fixture", [
         "'eslint' is not recognized as an internal or external command",
@@ -124,6 +136,7 @@ def _extract_body_skip_result(text: str) -> str:
 BLOCK_HEADER = re.compile(r"^\s*##\s*(후속|미결|미결정|추후|나중에|별도로)", re.MULTILINE)
 
 
+@pytest.mark.gate
 class TestCompletedGate:
     def test_block_header(self):
         """T14: ## 후속 헤더 → 차단 감지"""
@@ -165,6 +178,7 @@ created: 2026-04-19
 # 시크릿 스캔 단위 테스트
 # ─────────────────────────────────────────────────────────
 
+@pytest.mark.secret
 class TestSecretScan:
     def test_line_confirmed_blocks(self):
         """시크릿 패턴 라인 → pre_check_passed=false, s1_level=line-confirmed"""
@@ -213,6 +227,7 @@ class TestSecretScan:
 # Stage 기본 단위 테스트 (AC kind 기반)
 # ─────────────────────────────────────────────────────────
 
+@pytest.mark.stage
 class TestStageBasic:
     def test_upstream_scripts_deep(self):
         """업스트림 위험 경로 → deep"""
@@ -313,6 +328,7 @@ def integ_repo(tmp_path_factory):
     yield repo
 
 
+@pytest.mark.docs_ops
 class TestIntegDeadLink:
     def test_deleted_file_dead_link(self, integ_repo):
         """T35.1: md 삭제 + 기존 링크 → 차단"""
@@ -372,6 +388,7 @@ class TestIntegDeadLink:
         _reset(repo)
 
 
+@pytest.mark.docs_ops
 class TestIntegRelatesTo:
     def test_exists(self, integ_repo):
         """T36.1: relates-to 존재 → 통과"""
@@ -480,6 +497,7 @@ class TestIntegRelatesTo:
         _reset(repo)
 
 
+@pytest.mark.stage
 class TestIntegMoveCommit:
     """T39: 각 테스트가 독립적인 파일명 사용 — module sandbox 상태 오염 방지."""
 
@@ -606,6 +624,7 @@ def _remove_path_domain_map_lines(repo: Path, mapping_lines: str) -> None:
     naming.write_text(text, encoding="utf-8")
 
 
+@pytest.mark.docs_ops
 class TestWipSyncAbbrMatch:
     """T40: wip-sync abbr 기반 보조 매칭."""
 
