@@ -745,3 +745,28 @@ class TestMoveUntrackedWip:
 
         _git(["reset", "HEAD", "."], repo)
         _git(["clean", "-fdq"], repo)
+
+
+# ─────────────────────────────────────────────────────────
+# T42: pre_commit_check.py main 함수화 — import 시 sys.exit 발생 안 함
+# (incident hn_upstream_anomalies.md G Phase 2)
+# ─────────────────────────────────────────────────────────
+
+@pytest.mark.enoent
+class TestModuleImportSafe:
+    """module-level main 로직이 import 시 sys.exit하지 않아야 한다."""
+
+    def test_import_does_not_exit(self):
+        """T42.1: subprocess로 새 Python에서 import — staged 변경 유무 무관 통과."""
+        # subprocess로 새 인터프리터에서 import 시도. main 로직이 module-level이면
+        # sys.exit(2)로 종료되어 returncode 2. main 함수화 후엔 import만 통과 → returncode 0.
+        r = subprocess.run(
+            [sys.executable, "-c",
+             "import sys; sys.path.insert(0, r'" + str(PY_SCRIPT.parent) + "'); "
+             "from pre_commit_check import ENOENT_PATTERNS; "
+             "assert ENOENT_PATTERNS is not None; print('import_ok')"],
+            cwd=REPO_ROOT, capture_output=True, text=True,
+            env={**os.environ, "PYTHONUTF8": "1"},
+        )
+        assert r.returncode == 0, f"import 시 sys.exit 발생 (returncode={r.returncode}): stderr={r.stderr}"
+        assert "import_ok" in r.stdout, f"import 후 print 도달 못 함: stdout={r.stdout}"

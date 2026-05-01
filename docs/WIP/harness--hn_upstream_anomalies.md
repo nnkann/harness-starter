@@ -287,11 +287,11 @@ if __name__ == "__main__":
 ```
 
 **작업 순서:**
-1. ✅ **[Phase 1 완료]** `run()` 함수에 `encoding="utf-8"` + `or ""` 방어 추가 (갈래 1).
-   검증: PYTHONUTF8 없이 한글 staged diff 처리 통과 (cp949 디코딩 실패 해소).
-   import 회귀 가드는 main 함수화(Phase 2) 후에만 가능 — Phase 1만으론
-   module-level main이 staged 시 sys.exit로 import 막힘.
-2. **[Phase 2 예정]** `pre_commit_check.py` main 로직 → `def main():` 함수화 + `if __name__ == "__main__":` 보호 (갈래 2). 회귀 가드: import 후 sys.exit 발생 안 함 + 기존 marker 모두 통과. ✅
+1. ✅ **[Phase 1 완료, commit ab4c30c]** `run()` 함수에 `encoding="utf-8"` + `or ""` 방어 추가 (갈래 1). 검증: PYTHONUTF8 없이 한글 staged diff 처리 통과.
+2. ✅ **[Phase 2 완료]** `pre_commit_check.py` main 로직 → `def main() -> int:` 함수화 + `if __name__ == "__main__": sys.exit(main())` 보호 (갈래 2).
+   - ENOENT_PATTERNS만 module-level 유지 (test가 import). 입력 수집·검사·출력 580줄은 main() 안으로.
+   - 회귀 가드: `TestModuleImportSafe::test_import_does_not_exit` 신규. staged 변경 유무 무관 import 후 sys.exit 발생 안 함 검증.
+   - 종합 검증: `pytest -m "secret or gate or stage or enoent"` 27/27 통과.
 3. **[Phase 3 예정]** 같은 패턴 일괄 점검:
    - `docs_ops.py`의 `subprocess.run` 호출 — encoding 누락? main 로직 module-level?
    - `harness_version_bump.py`·`task_groups.py`·기타 `.claude/scripts/*.py`
