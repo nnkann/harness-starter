@@ -662,12 +662,13 @@ Step 9.5로 돌아가 처리하거나, 나중에 처리하려면 docs/WIP/harnes
 4. **커밋** — `CONFLICT_RESOLVED` 목록 유무로 분기:
 
    **충돌 해소 파일이 없는 경우** (자동 덮어쓰기·신규 추가만):
-   upstream 검증 코드이므로 review 불필요. 단일 커밋으로 처리:
+   upstream 검증 코드이므로 review 불필요. commit 스킬에 `--no-review`
+   전달해 단일 커밋:
    ```bash
    git add .
-   HARNESS_UPGRADE=1 HARNESS_DEV=1 git commit -m "chore: 하네스 업그레이드 vX.Y.Z → vA.B.C"
+   /commit --no-review
    ```
-   > `HARNESS_UPGRADE=1`은 pre-check·staging.md 룰 0번에 의해 review를 skip시킨다.
+   > `--no-review`는 commit 스킬 Stage 결정 우선순위 1번 — review 호출 자체를 skip.
 
    **충돌 해소 파일이 있는 경우** (`CONFLICT_RESOLVED` 비어있지 않음):
    충돌 해소 결과만 검증이 필요. `--quick`으로 해당 파일만 review:
@@ -743,4 +744,4 @@ Step 9.5로 돌아가 처리하거나, 나중에 처리하려면 docs/WIP/harnes
 | harness-sync | sync = 환경(의존성, 권한), upgrade = 하네스 파일 업데이트. 별개. |
 | harness-init | init은 최초 프로젝트 결정. upgrade는 스타터 버전 업. |
 | harness-adopt | adopt은 기존 프로젝트에 하네스 이식. upgrade는 이미 설치된 하네스 갱신. |
-| commit | 업그레이드 완료 후 커밋은 commit 스킬로. `HARNESS_UPGRADE=1` prefix를 붙여 pre-check에 전달 — upstream 검증된 코드이므로 review skip. 예: `HARNESS_UPGRADE=1 HARNESS_DEV=1 git commit ...` 또는 commit 스킬 호출 전 `export HARNESS_UPGRADE=1`. |
+| commit | 업그레이드 완료 후 커밋은 commit 스킬로. 충돌 해소 없으면 `--no-review` 전달 (review skip). 충돌 있으면 `--quick`. 예: `/commit --no-review` 또는 `/commit --quick`. |
