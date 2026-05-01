@@ -229,7 +229,7 @@ ADDED 3개로 정확.
 | D | CRLF/LF normalization 미비 | 🟡 호환성 | merge 전 LF 정규화 + .gitattributes |
 | E | worktree 정책-실태 불일치 | 🟡 청결 | bash-guard 차단 + upgrade 시 clean 자동 정리 + dirty 안내 (.gitignore 추가는 정책 약화라 폐기) |
 | F | installed_from_ref stale 감지 부재 | 🟢 안정성 | upgrade 시작 시 sanity check |
-| G | Windows + 한글 환경 무한 막힘 | 🔴 회귀 차단 | 갈래 2 채택 — main 로직 함수화 + `if __name__ == "__main__":` 보호 (갈래 1 encoding="utf-8" 포함) |
+| G | Windows + 한글 환경 무한 막힘 | ✅ v0.28.3·v0.28.4·v0.28.5 해결 | Phase 1 encoding=utf-8 + Phase 2 main() 함수화 + Phase 3 다른 .py 일괄 |
 
 ## 메모
 
@@ -241,7 +241,10 @@ ADDED 3개로 정확.
   분리 권장 (security / encoding+hygiene / upgrade-safety).
 - E·F는 다운스트림에서 자체 정리도 가능하나, starter 측 강제가 더 본질적.
 
-### G. Windows + 한글 환경 무한 막힘 — script-as-module 결함
+### G. Windows + 한글 환경 무한 막힘 — script-as-module 결함 [✅ v0.28.3·v0.28.4·v0.28.5 해결]
+
+> **상태**: Phase 1·2·3 모두 완료. SSOT는 본 섹션. 다운스트림 fetch 시
+> 자동 흡수.
 
 **증상**:
 1. `pre_commit_check.py` import가 `subprocess.run(text=True, capture_output=True)`로 ✅
@@ -292,9 +295,13 @@ if __name__ == "__main__":
    - ENOENT_PATTERNS만 module-level 유지 (test가 import). 입력 수집·검사·출력 580줄은 main() 안으로.
    - 회귀 가드: `TestModuleImportSafe::test_import_does_not_exit` 신규. staged 변경 유무 무관 import 후 sys.exit 발생 안 함 검증.
    - 종합 검증: `pytest -m "secret or gate or stage or enoent"` 27/27 통과.
-3. **[Phase 3 예정]** 같은 패턴 일괄 점검:
-   - `docs_ops.py`의 `subprocess.run` 호출 — encoding 누락? main 로직 module-level?
-   - `harness_version_bump.py`·`task_groups.py`·기타 `.claude/scripts/*.py`
+3. ✅ **[Phase 3 완료]** 다른 `.claude/scripts/*.py` 일괄 점검 결과:
+   - `docs_ops.py:152` `git()` 함수 → `encoding="utf-8"` 추가 ✅
+   - `harness_version_bump.py:19` `run()` 함수 → `encoding="utf-8"` + `or ""` 방어 ✅
+   - `task_groups.py:41` `run()` 함수 → `encoding="utf-8"` + `or ""` 방어 ✅
+   - main 로직은 세 파일 모두 이미 `def main()` + `if __name__ == "__main__":` 패턴 적용됨 — 추가 리팩토링 불필요
+   - `conftest.py`·`test_pre_commit.py`는 subprocess 호출 시 명시적 encoding 사용 또는 cwd만 사용 — 검토 통과
+   - 종합 회귀: `pytest -m "secret or gate or stage or enoent"` 27/27 통과
 
 **위험도**: 2번이 main 로직 580줄 리팩토링 — 들여쓰기 변경 + 변수 스코프
 영향. 변수가 `ERRORS += 1` 같이 module-level mutable에 의존하면 함수

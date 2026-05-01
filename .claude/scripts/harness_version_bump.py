@@ -16,7 +16,9 @@ HARNESS_JSON = Path(".claude/HARNESS.json")
 
 
 def run(cmd: list[str]) -> str:
-    return subprocess.run(cmd, capture_output=True, text=True).stdout.strip()
+    # Windows + 한글 환경 cp949 디코딩 결함 방지 (incident hn_upstream_anomalies G)
+    r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
+    return (r.stdout or "").strip()
 
 
 def next_version(current: str, bump_type: str) -> str:

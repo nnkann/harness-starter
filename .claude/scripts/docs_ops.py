@@ -149,7 +149,8 @@ def resolve_path(base_dir: str, link: str) -> str:
 
 
 def git(args: list[str]) -> subprocess.CompletedProcess:
-    return subprocess.run(["git"] + args, capture_output=True, text=True)
+    # Windows + 한글 환경 cp949 디코딩 결함 방지 (incident hn_upstream_anomalies G)
+    return subprocess.run(["git"] + args, capture_output=True, text=True, encoding="utf-8")
 
 
 # ─────────────────────────────────────────────────────────

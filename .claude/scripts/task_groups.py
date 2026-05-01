@@ -38,7 +38,9 @@ META_PATTERNS = re.compile(
 # ─────────────────────────────────────────────────────────
 
 def run(cmd: list[str]) -> str:
-    return subprocess.run(cmd, capture_output=True, text=True).stdout
+    # Windows + 한글 환경 cp949 디코딩 결함 방지 (incident hn_upstream_anomalies G)
+    r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
+    return r.stdout or ""
 
 
 
