@@ -108,7 +108,6 @@ def resolve_path(base_dir: str, link: str) -> str:
 TEST_MODE = os.environ.get("TEST_MODE", "0") == "1"
 HARNESS_EXPAND = os.environ.get("HARNESS_EXPAND", "0") == "1"
 HARNESS_SPLIT_SUB = os.environ.get("HARNESS_SPLIT_SUB", "0") == "1"
-HARNESS_UPGRADE = os.environ.get("HARNESS_UPGRADE", "0") == "1"
 VERBOSE = os.environ.get("VERBOSE", "")
 
 # ENOENT_PATTERNS는 test가 import하므로 module-level 유지
@@ -547,10 +546,6 @@ def main() -> int:
     )
 
     stage = ""
-
-    # 룰 0: harness-upgrade 커밋
-    if HARNESS_UPGRADE:
-        stage = "skip"
 
     # 룰 1: 업스트림 위험 경로 → deep
     if not stage and any(UPSTREAM_PAT.match(f) for f in staged_files):
