@@ -222,6 +222,19 @@ class TestSecretScan:
         assert out.get("s1_level", "") == ""
         assert out.get("pre_check_passed") == "true"
 
+    def test_harness_doc_line_exempt(self):
+        """.claude/agents/*.md 같은 패턴 SSOT 문서는 line 스캔 면제 (incident hn_secret_line_exempt_gap)"""
+        out = run_check(
+            name_status="M .claude/agents/threat-analyst.md",
+            numstat="1 0 .claude/agents/threat-analyst.md",
+            diff_u0=(
+                "diff --git a/.claude/agents/threat-analyst.md b/.claude/agents/threat-analyst.md\n"
+                "+패턴: sb_secret_|service_role|sk_live_|sk_test_|ghp_|AKIA[0-9A-Z]{16}|password\\s*=\n"
+            ),
+        )
+        assert out.get("s1_level", "") == ""
+        assert out.get("pre_check_passed") == "true"
+
 
 # ─────────────────────────────────────────────────────────
 # Stage 기본 단위 테스트 (AC kind 기반)
@@ -685,6 +698,50 @@ class TestWipSyncAbbrMatch:
         out, stderr = _run_wip_sync(repo, ["src/t40c/serviceC.ts"])
         assert out.get("wip_sync_matched") == "0", f"stderr: {stderr}"
         assert wip.exists()
+
+        _git(["reset", "HEAD", "."], repo)
+        _git(["clean", "-fdq"], repo)
+
+
+# ─────────────────────────────────────────────────────────
+# T41: docs_ops.py move untracked WIP fallback (incident hn_secret_line_exempt_gap)
+# ─────────────────────────────────────────────────────────
+
+@pytest.mark.docs_ops
+class TestMoveUntrackedWip:
+    """untracked WIP 파일도 move가 성공해야 한다 (git rm --cached 회피)."""
+
+    WIP_CONTENT = (
+        "---\ntitle: T41 untracked move\ndomain: harness\n"
+        "status: in-progress\ncreated: 2026-05-01\n---\n\n"
+        "# T41 untracked move\n\n## 증상\n서술형. 체크리스트 없음.\n"
+    )
+
+    def test_untracked_move_succeeds(self, wipsync_repo):
+        """T41.1: working tree에만 있는 WIP를 move → returncode 0, dest staged, status=completed."""
+        repo = wipsync_repo
+        wip = repo / "docs/WIP/incidents--hn_t41_untracked.md"
+        _write(wip, self.WIP_CONTENT)
+        # git add 하지 않음 — untracked 상태 유지
+
+        r = subprocess.run(
+            [sys.executable, ".claude/scripts/docs_ops.py", "move", str(wip.relative_to(repo))],
+            cwd=repo, capture_output=True, text=True,
+        )
+        assert r.returncode == 0, f"stdout={r.stdout}\nstderr={r.stderr}"
+
+        dest = repo / "docs/incidents/hn_t41_untracked.md"
+        assert dest.exists(), "dest 파일이 생성되지 않음"
+        assert not wip.exists(), "src WIP 파일이 남아있음"
+
+        # dest가 git index에 staged됐는지 확인
+        ls = subprocess.run(["git", "ls-files", "--cached", str(dest.relative_to(repo))],
+                            cwd=repo, capture_output=True, text=True)
+        assert ls.stdout.strip(), f"dest가 staged 안 됨: {ls.stdout}"
+
+        # status: completed로 갱신됐는지
+        text = dest.read_text(encoding="utf-8")
+        assert "status: completed" in text, "status가 completed로 갱신 안 됨"
 
         _git(["reset", "HEAD", "."], repo)
         _git(["clean", "-fdq"], repo)

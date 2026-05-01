@@ -323,9 +323,16 @@ def cmd_move(src_str: str) -> int:
         # 미추적 파일(untracked)은 git mv 불가 — shutil로 이동 후 인덱스 수동 갱신
         shutil.move(str(src), str(dest))
         ra = git(["add", str(dest)])
-        rb = git(["rm", "--cached", str(src)])
-        if ra.returncode != 0 or rb.returncode != 0:
-            print(f"❌ 인덱스 갱신 실패: add={ra.returncode} rm={rb.returncode}",
+        # src가 인덱스에 있을 때만 rm --cached 시도 (untracked 파일은 skip)
+        src_in_index = git(["ls-files", "--error-unmatch", str(src)]).returncode == 0
+        if src_in_index:
+            rb = git(["rm", "--cached", str(src)])
+            if rb.returncode != 0:
+                print(f"❌ 인덱스 rm 실패: src={src} rc={rb.returncode}",
+                      file=sys.stderr)
+                return 1
+        if ra.returncode != 0:
+            print(f"❌ 인덱스 add 실패: dest={dest} rc={ra.returncode}",
                   file=sys.stderr)
             return 1
 

@@ -4,7 +4,7 @@ domain: meta
 tags: [cluster, index]
 status: completed
 created: 2026-04-16
-updated: 2026-04-30
+updated: 2026-05-01
 ---
 
 # meta 클러스터

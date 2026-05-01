@@ -421,8 +421,9 @@ S1_LINE_PAT = re.compile(
     r"^\+.*(sb_secret_|service_role|sk_live_|sk_test_|ghp_|AKIA[0-9A-Z]{16}|password\s*=)",
     re.I,
 )
-# 패턴 정의·테스트 픽스처가 있는 스크립트 파일은 line 스캔 면제
-S1_LINE_EXEMPT = re.compile(r"^\.claude/scripts/")
+# 하네스 자체가 시크릿 패턴을 SSOT로 문서화하는 위치는 line 스캔 면제
+# (scripts: 정의/테스트 픽스처, agents/rules/skills/memory: 패턴 인용 문서)
+S1_LINE_EXEMPT = re.compile(r"^\.claude/(scripts|agents|rules|skills|memory)/")
 
 s1_file_hit = any(
     S1_FILE_PAT.search(f) and not S1_EXEMPT.search(f)
