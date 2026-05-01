@@ -9,7 +9,7 @@ relates-to:
     rel: references
 status: in-progress
 created: 2026-05-01
-updated: 2026-05-01
+updated: 2026-05-02
 ---
 
 # harness-starter 이상 징후 묶음 (다운스트림 발견)
@@ -224,11 +224,11 @@ ADDED 3개로 정확.
 | ID | 이슈 | 우선순위 | 제안 |
 |----|------|----------|------|
 | A | threat-analyst.md secret false positive | ✅ v0.28.2 해결 | `S1_LINE_EXEMPT` 확장 — `incidents/hn_secret_line_exempt_gap.md` SSOT |
-| B | `Bash(rm *)` 위험 권한 자동 추가 | 🟡 보안 | starter settings.json에서 제거 + 위험 패턴 사용자 승인 강제 |
+| B | `Bash(rm *)` 위험 권한 자동 추가 | ✅ 2026-05-02 해결 | settings.json에서 `Bash(rm *)`·`Bash(export *)` 제거 + harness-upgrade Step 8.1 위험 패턴 명시 승인 강제 |
 | C | HARNESS_UPGRADE 환경변수 의미 일관화 | 🟠 일관성 | 우회 경로 SSOT 정리 — secret은 코드 면제로 분리됨 |
-| D | CRLF/LF normalization 미비 | 🟡 호환성 | merge 전 LF 정규화 + .gitattributes |
-| E | worktree 정책-실태 불일치 | 🟡 청결 | bash-guard 차단 + upgrade 시 clean 자동 정리 + dirty 안내 (.gitignore 추가는 정책 약화라 폐기) |
-| F | installed_from_ref stale 감지 부재 | 🟢 안정성 | upgrade 시작 시 sanity check |
+| D | CRLF/LF normalization 미비 | ✅ 2026-05-02 해결 | `.gitattributes` `* text=auto eol=lf` + harness-upgrade Step 5에서 ours `tr -d '\r'` 정규화 |
+| E | worktree 정책-실태 불일치 | ✅ 2026-05-02 해결 | bash-guard.sh `git worktree add` 차단 + harness-upgrade Step 0.1 잔여 자동 정리 (clean 자동 / dirty 안내) |
+| F | installed_from_ref stale 감지 부재 | ✅ 2026-05-02 해결 | harness-upgrade Step 1 fetch 직후 + Step 10 갱신 후 양쪽 sanity check |
 | G | Windows + 한글 환경 무한 막힘 | ✅ v0.28.3·v0.28.4·v0.28.5 해결 | Phase 1 encoding=utf-8 + Phase 2 main() 함수화 + Phase 3 다른 .py 일괄 |
 
 ## 메모
@@ -237,9 +237,57 @@ ADDED 3개로 정확.
   다운스트림은 후속 업그레이드에서 자연 흡수.
 - **A는 v0.28.2 commit `f0e7a2c`로 해결됨** — 다운스트림은 fetch 후
   자연 해소. SSOT는 `incidents/hn_secret_line_exempt_gap.md`.
-- B·D·E·F는 미해결. 영역별 logical unit이 다르므로 wave 단위 별 commit
-  분리 권장 (security / encoding+hygiene / upgrade-safety).
-- E·F는 다운스트림에서 자체 정리도 가능하나, starter 측 강제가 더 본질적.
+- **B·D·E·F는 2026-05-02 단일 wave로 해결**. 사용자 결정으로 영역 분리
+  대신 일괄 처리. 변경 위치:
+  - B: `.claude/settings.json` (rm·export 제거),
+    `.claude/skills/harness-upgrade/SKILL.md` Step 8.1 (위험 패턴 명시 승인)
+  - D: `.gitattributes` 신규, `harness-upgrade/SKILL.md` Step 5
+    (ours `tr -d '\r'` 정규화)
+  - E: `.claude/scripts/bash-guard.sh` (worktree add 차단),
+    `harness-upgrade/SKILL.md` Step 0.1 (잔여 자동 정리)
+  - F: `harness-upgrade/SKILL.md` Step 1 (fetch 직후 sanity check),
+    Step 10 (갱신 후 sanity check)
+- C는 미해결 (HARNESS_UPGRADE 환경변수 의미 일관화). 우선순위 낮음 —
+  별 wave로 처리 예정.
+
+## 결정 사항
+
+### 2026-05-02 wave (B·D·E·F 일괄)
+
+- **wave 분리 안 함**: 사용자 결정. "한번에 나온 사항"이라는 발화 근거.
+  영역(보안/호환성/청결/안정성)이 달라도 입력 단위가 같으므로 단일 PR/
+  커밋으로 처리. → 반영: 본 WIP의 정리 표 + 메모.
+- **B 위험 권한**: starter 기본에서 `Bash(rm *)`·`Bash(export *)` 제거.
+  좁은 패턴(`rm tests/output/*` 등)으로 대체는 사용자 프로젝트 책임으로
+  넘김. → 반영: settings.json L20·L26 제거.
+- **B 위험 패턴 일괄 차단 룰**: `rm`·`--force`·`-f`·`reset --hard`·
+  `push --force`·`export *`·`curl|sh`·`|sudo` — harness-upgrade Step 8.1
+  자동 추가 금지 + 명시 승인 강제. → 반영: SKILL.md Step 8.1.
+- **D LF 정규화 위치**: `.gitattributes` (저장 시점) + merge 시 ours
+  `tr -d '\r'` (런타임). 양쪽 모두 적용 — `.gitattributes`는 신규 클론
+  보호, `tr`은 기존 워킹트리 autocrlf 환경 보호. → 반영: `.gitattributes`,
+  SKILL.md Step 5.
+- **E worktree 차단 위치**: `bash-guard.sh`만. `.gitignore`는 정책 약화
+  (CLAUDE.md 절대 규칙과 모순)라 폐기. → 반영: bash-guard.sh L65-72.
+- **E clean/dirty 분기**: clean은 자동 제거 (작업 손실 없음 + 절대 규칙
+  위반 상태), dirty는 안내만 (작업 손실 위험). force remove 금지.
+  → 반영: SKILL.md Step 0.1.
+- **F sanity check 두 지점**: Step 1 fetch 직후 (현재 ref 검증) + Step 10
+  갱신 후 (다음 업그레이드 보호). 한 지점만으로는 부족 — 갱신 직후 실패
+  하면 다음 업그레이드 시점까지 묻힘. → 반영: SKILL.md Step 1, Step 10.
+
+CPS 갱신: 없음 (Problem·Solution 변경 없음 — 기존 운영 룰 정밀화).
+
+## 검증
+
+- `python3 -c "import json; json.load(open('.claude/settings.json'))"` — JSON 유효
+- `bash -n .claude/scripts/bash-guard.sh` — 구문 OK
+- `echo '{"tool_input":{"command":"git worktree add foo"}}' | bash bash-guard.sh`
+  → exit 2 (차단 동작 확인)
+- `echo '{"tool_input":{"command":"git worktree list"}}' | bash bash-guard.sh`
+  → exit 0 (read 동작 통과 확인)
+- harness-upgrade SKILL.md 변경분: 운용 검증 (실제 다운스트림 업그레이드
+  사이클에서 확인 필요 — 자동 검증 불가)
 
 ### G. Windows + 한글 환경 무한 막힘 — script-as-module 결함 [✅ v0.28.3·v0.28.4·v0.28.5 해결]
 
