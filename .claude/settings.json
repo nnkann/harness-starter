@@ -29,7 +29,6 @@
       "Bash(python3 -m pytest .claude/scripts/test_pre_commit.py *)",
       "Bash(python3 -m pytest *)",
       "Bash(HARNESS_DEV=1 bash *)",
-      "Bash(HARNESS_UPGRADE=1 bash *)",
       "Read(*)",
       "Edit(*)",
       "Write(*)",
