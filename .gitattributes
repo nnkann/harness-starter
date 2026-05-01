@@ -1,0 +1,11 @@
+# LF 정규화 — Windows + Git Bash 환경에서 3-way merge 시 CRLF 혼합으로
+# 통째 충돌 발생 방지 (incident: hn_upstream_anomalies.md D 항목).
+* text=auto eol=lf
+
+# 바이너리는 변환 제외
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
