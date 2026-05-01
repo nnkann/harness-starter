@@ -52,6 +52,18 @@ if [[ $COMMAND =~ ^[[:space:]]*git[[:space:]]+commit([[:space:]]|$) ]]; then
 fi
 
 # ─────────────────────────────────────────────
+# 검증 2.5: git worktree add 차단 — CLAUDE.md 절대 규칙
+# "worktree 생성 금지" 정책을 코드로 강제 (incident: hn_upstream_anomalies.md E).
+# git worktree list/remove/prune 등 정리 명령은 통과.
+# ─────────────────────────────────────────────
+if [[ $COMMAND =~ (^|[[:space:]])git[[:space:]]+worktree[[:space:]]+add([[:space:]]|$) ]]; then
+  echo "❌ git worktree add 금지 (CLAUDE.md 절대 규칙)." >&2
+  echo "   근거: docs/incidents/hn_upstream_anomalies.md E 항목" >&2
+  echo "   list/remove/prune은 허용." >&2
+  exit 2
+fi
+
+# ─────────────────────────────────────────────
 # 검증 3: .claude/tmp/ 잔재 재발 방지
 # hn_memory.md — tmp 개념 폐기. .claude/memory/ 흡수.
 # Claude가 수동 실행으로 잔재 파일 생성하는 경로 차단.
