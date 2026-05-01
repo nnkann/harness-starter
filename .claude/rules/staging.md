@@ -27,7 +27,6 @@
 ### 1단계 — 기본 룰 (첫 매칭)
 
 ```
-0. HARNESS_UPGRADE=1 환경변수                                   → skip
 1. .claude/scripts/** OR .claude/agents/** OR .claude/hooks/**
    OR .claude/settings.json 건드림                              → deep
 2. 시크릿 line-confirmed                                        → deep
@@ -35,6 +34,11 @@
 4. docs 5줄 이하                                                → skip
 5. (나머지 — AC kind 기반으로 판단)
 ```
+
+> **룰 0 폐기 (2026-05-02, v0.28.7)**: `HARNESS_UPGRADE=1` 환경변수
+> 폐기. harness-upgrade는 commit 스킬에 `--no-review` 플래그를 직접
+> 전달해 review skip을 명시한다. 이전 룰 0번 동작은 commit 스킬의
+> `--no-review` 처리(Stage 결정 우선순위 1번)로 흡수.
 
 ### 2단계 — AC kind 기반 판단 (룰 5)
 
