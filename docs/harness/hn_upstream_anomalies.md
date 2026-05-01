@@ -7,7 +7,7 @@ relates-to:
     rel: extends
   - path: incidents/hn_secret_line_exempt_gap.md
     rel: references
-  - path: WIP/decisions--hn_harness_upgrade_env_semantics.md
+  - path: decisions/hn_harness_upgrade_env_semantics.md
     rel: references
 status: completed
 created: 2026-05-01

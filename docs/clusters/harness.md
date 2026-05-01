@@ -17,6 +17,7 @@ updated: 2026-05-02
 - [문서 네이밍 전면 개편 — 도메인 약어 + 통합 원칙](../decisions/hn_doc_naming.md)
 - [프론트매터 그래프 스펙 설계](../decisions/hn_frontmatter_graph_spec.md)
 - [하네스 엔지니어링 적합성 분석](../decisions/hn_gap_analysis.md)
+- [HARNESS_UPGRADE 환경변수 의미 일관화](../decisions/hn_harness_upgrade_env_semantics.md)
 - [하네스 스타터 개선 계획](../decisions/hn_improvement.md)
 - [Karpathy 원칙 적용 — 코딩 컨벤션·행동 원칙·self-verify·staging·commit SSOT](../decisions/hn_karpathy_principles.md)
 - [memory 재설계 — tmp 폐기 + 동적 snapshot 도입 + 트리거 재정의](../decisions/hn_memory.md)
