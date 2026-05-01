@@ -4,7 +4,7 @@ domain: harness
 tags: [cluster, index]
 status: completed
 created: 2026-04-16
-updated: 2026-05-01
+updated: 2026-05-02
 ---
 
 # harness 클러스터
@@ -62,6 +62,7 @@ updated: 2026-05-01
 - [review staging 잔여 — S8 정밀화 + 5커밋 측정 + 폭증 게이트](../harness/hn_staging_remaining.md)
 - [starter 전용 스킬 자기 삭제 + starter_skills 병합 버그 수정](../harness/hn_starter_skill_self_delete.md)
 - [test-pre-commit 스위트 성능 — 잔여 구조 재설계](../harness/hn_test_suite_perf.md)
+- [harness-starter 이상 징후 묶음 (다운스트림 발견)](../harness/hn_upstream_anomalies.md)
 - [업스트림 전용 로직·기록 전수 감사 — 다운스트림 전파 파일 청소](../harness/hn_upstream_only_audit.md)
 - [검증 파이프라인 강화 — MIGRATIONS 자동생성·AC 강제·CPS 갱신 강제](../harness/hn_verification_pipeline.md)
 - [WIP 완료 자동화 구조적 결함 — Step 7.5 미동작 + SSOT 드리프트 + 이동 미연결](../harness/hn_wip_completion_gap.md)
