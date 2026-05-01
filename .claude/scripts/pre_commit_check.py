@@ -40,10 +40,14 @@ else:
 # ─────────────────────────────────────────────────────────
 
 def run(cmd: list[str], *, check=False) -> str:
-    """subprocess 실행 → stdout 문자열 반환. 실패 시 빈 문자열."""
+    """subprocess 실행 → stdout 문자열 반환. 실패 시 빈 문자열.
+
+    Windows + 한글 staged diff에서 system locale(cp949)로 디코딩 실패해
+    stdout=None이 되던 결함 방지 (incident hn_upstream_anomalies.md G 항목).
+    """
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True)
-        return r.stdout
+        r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
+        return r.stdout or ""
     except Exception:
         return ""
 
