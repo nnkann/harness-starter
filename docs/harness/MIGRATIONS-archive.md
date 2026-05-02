@@ -43,6 +43,38 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.30.1 — wip-sync 매칭 정밀화 + 위임 트리거 강화 (자기증명 사고 대응)
+
+### 변경 파일
+
+| 파일 | 처리 | 비고 |
+|------|------|------|
+| `.claude/scripts/docs_ops.py` | 3-way merge | wip-sync 매칭 정규식 정밀화 — `^\s*([-*]\|\d+\.)\s` → `^\s*[-*]\s+\[[ xX]\]\s` (체크박스 라인 한정). frontmatter 영역 마킹 제외(`_fm_end` 인덱스). `body_referenced`도 `[x]` 마크 + staged 파일 언급으로 좁힘 |
+| `.claude/scripts/session-start.sh` | 3-way merge | 연속 fix 감지를 prefix 무관 "공통 파일 2 커밋 연속 수정"으로 확장. 메타 파일(HARNESS.json·README·MIGRATIONS·clusters) 노이즈 제외 |
+| `.claude/rules/no-speculation.md` | 3-way merge | 호출 조건표에 "동일 시스템 동작 이슈 2회 이상" 행 추가 + 본문 보강 (사용자 키워드 보고 없어도 Claude 자가 트리거 의무) |
+| `.claude/scripts/test_pre_commit.py` | 3-way merge | TestWipSyncMatchPrecision 3 케이스 신설 (사전 준비·frontmatter relates-to false positive 차단 + 정상 매칭 회귀 가드) |
+
+### 적용 방법
+자동. `harness-upgrade` 실행 시 3-way merge로 적용.
+
+### 회귀 위험
+- upstream 격리 환경에서 `pytest -m docs_ops` 신규 3 케이스 통과 확인
+- `bash -n session-start.sh` 구문 검증 통과
+- 기존 2 failure (`TestWipSyncAbbrMatch::test_abbr_*`)는 본 변경과 무관 — 별건 abbr 보조 매칭 경로 이슈 (debug-specialist 진단 결과)
+- 다운스트림 환경(Linux/macOS) 미테스트
+- session-start hook은 매 세션 시작에 동작 — 변경 후 다음 세션부터 효과
+
+### 검증
+```bash
+# wip-sync 매칭 정밀화 회귀 가드
+python -m pytest .claude/scripts/test_pre_commit.py::TestWipSyncMatchPrecision -v
+
+# session-start.sh 구문
+bash -n .claude/scripts/session-start.sh
+```
+
+
+
 ## v0.30.0 — eval --harness CPS 무결성 감시 + commit 잔여 정정 (efficiency overhaul follow-up)
 
 ### 변경 파일

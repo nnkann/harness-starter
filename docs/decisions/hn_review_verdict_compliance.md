@@ -8,7 +8,7 @@ tags: [review, verdict, format, compliance]
 relates-to:
   - path: harness/hn_harness_efficiency_overhaul.md
     rel: caused-by
-status: in-progress
+status: completed
 created: 2026-05-02
 updated: 2026-05-02
 ---
@@ -136,3 +136,25 @@ commit/SKILL.md prompt 끝에도 명시. 그럼에도 100% 누락.
   시작점에 영향 — 실측 필요하나 강한 prior
 - 작은 변경 — review.md 인용 박스 1개·commit/SKILL.md "지시" 블록 1개 수정
   (15~20줄). 작업 규모 small
+
+## 변경 이력
+
+### v0.30.6 (2026-05-02) — Stage 0 skip 우회 결함 수정
+
+본 문서가 v0.30.5 commit에서 AC 모두 [x]였음에도 자동 이동되지 않은 사고
+발견. 원인:
+
+- commit/SKILL.md Step 7.5 "Stage 0 skip도 스킵" 명시
+- v0.30.5는 review 영역 자체 변경이라 `recommended_stage: skip`
+- skip이 wip-sync 흐름을 가로채 본 문서 자동 이동 누락 → 수동 `docs_ops.py move` 필요
+
+**원인 분석**:
+- wip-sync는 staged 확정 상태 기반 — review 호출 여부와 독립
+- Stage 0 skip은 "review LLM 호출 안 함"이지 "진척도 갱신 안 함"이 아님
+- 둘이 conflate된 설계 결함
+
+**수정 (v0.30.6)**:
+- Step 7.5를 verdict 기반 분기로 재정의
+  - `block`만 차단 (커밋 자체 불가)
+  - `pass`·`warn`·skip(verdict 미설정) 모두 wip-sync 실행
+- 본 문서 자체가 자기증명 사례 — v0.30.5 후속 v0.30.6에서 수동 이동 + 결함 수정 함께 처리

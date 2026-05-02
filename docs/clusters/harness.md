@@ -15,6 +15,7 @@ updated: 2026-05-02
 
 - [코드 SSOT 서더링 감사 — 중복 정의·동기화 부담 정리](../decisions/hn_code_ssot_audit.md)
 - [commit 스킬 5.3 — AC 검증 묶음 자동 실행 (tests·실측 화이트리스트)](../decisions/hn_commit_auto_verify.md)
+- [CPS Problem 인용 빈도 검토 — P1·P3·P4·P6 정체 의심 판정](../decisions/hn_cps_problem_inflation_review.md)
 - [문서 네이밍 전면 개편 — 도메인 약어 + 통합 원칙](../decisions/hn_doc_naming.md)
 - [eval CPS 무결성 감시 — 박제 감지·Problem 인플레이션](../decisions/hn_eval_cps_integrity.md)
 - [프론트매터 그래프 스펙 설계](../decisions/hn_frontmatter_graph_spec.md)
@@ -27,6 +28,7 @@ updated: 2026-05-02
 - [Remote 기반 하네스 업그레이드 전략](../decisions/hn_remote_upgrade_strategy.md)
 - [review staging 재조정 — scripts/agents 이진 판정](../decisions/hn_review_staging_rebalance.md)
 - [review 에이전트 tool call 예산 재설계 — 조기 중단 + 유동 배분](../decisions/hn_review_tool_budget.md)
+- [review 에이전트 verdict 헤더 형식 준수율 — 100% 누락 패턴](../decisions/hn_review_verdict_compliance.md)
 - [Rules 파일 다이어트 — 분리한 메타·배경·자동 감지 상세](../decisions/hn_rules_metadata.md)
 - [스킬·에이전트 역할 분담 감사 — 라우터 패턴 전방위 적용](../decisions/hn_skill_agent_role_audit.md)
 - [Review Staging 거버넌스 — 신호 추가 게이트와 알려진 한계](../decisions/hn_staging_governance.md)

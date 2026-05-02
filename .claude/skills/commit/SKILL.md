@@ -655,17 +655,33 @@ review의 첫 줄 `verdict:` 값으로 분기 (review.md "## 출력 형식" SSOT
 
 ### 7.5. WIP 진척도 자동 갱신 (audit #3, 2026-04-22 / 구현 2026-04-25)
 
-**실행 시점**: review `verdict: pass` 직후, `git commit` 직전.
-`verdict: block`·`warn` 경로에서는 실행 안 함. Stage 0 skip도 스킵.
+**실행 시점**: `git commit` 직전. **Stage와 무관하게 실행** (v0.30.6
+설계 결함 수정).
+
+- `verdict: pass` → 실행
+- `verdict: warn` → 실행 (block만 차단이고 warn은 진행이므로 wip-sync 정합)
+- **Stage 0 (skip)** → 실행 (review 호출 안 한 것이지 진척도 갱신은 별 사안)
+- `verdict: block` → 실행 안 함 (커밋 자체 차단되므로)
+
+**v0.30.5 이전 결함**: Stage 0 skip이 wip-sync 흐름을 가로채 AC 모두 [x]인
+WIP가 자동 이동 안 됨. v0.30.5 commit 직후 hn_review_verdict_compliance.md
+수동 이동 필요했던 사례. wip-sync는 staged 확정 상태 기반이므로 review
+호출 여부와 독립.
 
 **구현**: `docs_ops.py wip-sync` 호출.
 
 ```bash
-STAGED_FILES=$(git diff --cached --name-only | tr '\n' ' ')
-if [ -n "$STAGED_FILES" ]; then
-  python3 .claude/scripts/docs_ops.py wip-sync $STAGED_FILES 2>&1
+# block이 아니면 실행 (skip·pass·warn 모두 진행)
+if [ "$VERDICT" != "block" ]; then
+  STAGED_FILES=$(git diff --cached --name-only | tr '\n' ' ')
+  if [ -n "$STAGED_FILES" ]; then
+    python3 .claude/scripts/docs_ops.py wip-sync $STAGED_FILES 2>&1
+  fi
 fi
 ```
+
+Stage 0 skip 흐름에서는 `VERDICT` 변수 미설정 → 빈 문자열 → `!= "block"`
+조건 통과. `git diff --cached --name-only`로 실제 staged만 처리.
 
 **동작** (docs_ops.py wip-sync 내부):
 
@@ -680,8 +696,8 @@ fi
 - 매칭 안 되면 변경 없음. stdout 수치로만 인지
 - 이 단계의 staged 추가는 review 재호출 유발 안 함
 
-**위치 근거**: Step 2로는 review block 시 ✅ 덮어쓰기 발생. review pass
-직후가 "staged 확정된 최종 상태".
+**위치 근거**: Step 2로는 review block 시 ✅ 덮어쓰기 발생. Step 7.5(review
+직후)가 "staged 확정된 최종 상태". v0.30.6에서 Stage 0 skip 우회 결함 수정.
 
 #### git log 추적성 (모든 stage 공통)
 
