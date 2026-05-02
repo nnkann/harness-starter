@@ -33,7 +33,7 @@ import pytest
 # 헬퍼
 # ─────────────────────────────────────────────────────────
 
-REPO_ROOT = Path(__file__).parent.parent.parent  # harness-starter/
+REPO_ROOT = Path(__file__).parent.parent.parent.parent  # harness-starter/
 PY_SCRIPT = REPO_ROOT / ".claude" / "scripts" / "pre_commit_check.py"
 
 

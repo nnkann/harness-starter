@@ -26,7 +26,7 @@
       "Bash(python3 .claude/scripts/docs_ops.py *)",
       "Bash(python3 .claude/scripts/harness_version_bump.py *)",
       "Bash(python3 .claude/scripts/task_groups.py *)",
-      "Bash(python3 -m pytest .claude/scripts/test_pre_commit.py *)",
+      "Bash(python3 -m pytest .claude/scripts/tests/ *)",
       "Bash(python3 -m pytest *)",
       "Bash(HARNESS_DEV=1 bash *)",
       "Read(*)",

@@ -160,11 +160,12 @@ fi
 # ─────────────────────────────────────────────
 # 6. 회귀 테스트 스크립트 존재
 # ─────────────────────────────────────────────
-for s in test_pre_commit.py test-bash-guard.sh; do
-  if [ ! -f ".claude/scripts/$s" ]; then
-    add_warning "$s 없음 — 회귀 검증 불가"
-  fi
-done
+if [ ! -f ".claude/scripts/tests/test_pre_commit.py" ]; then
+  add_warning "tests/test_pre_commit.py 없음 — 회귀 검증 불가"
+fi
+if [ ! -f ".claude/scripts/test-bash-guard.sh" ]; then
+  add_warning "test-bash-guard.sh 없음 — 회귀 검증 불가"
+fi
 
 # ─────────────────────────────────────────────
 # 결과

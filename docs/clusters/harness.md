@@ -30,6 +30,7 @@ updated: 2026-05-02
 - [review 에이전트 tool call 예산 재설계 — 조기 중단 + 유동 배분](../decisions/hn_review_tool_budget.md)
 - [review 에이전트 verdict 헤더 형식 준수율 — 100% 누락 패턴](../decisions/hn_review_verdict_compliance.md)
 - [Rules 파일 다이어트 — 분리한 메타·배경·자동 감지 상세](../decisions/hn_rules_metadata.md)
+- [본 세션 시험 결과 종합 — review verdict + wip-sync false positive 누적 데이터](../decisions/hn_session_test_results.md)
 - [스킬·에이전트 역할 분담 감사 — 라우터 패턴 전방위 적용](../decisions/hn_skill_agent_role_audit.md)
 - [Review Staging 거버넌스 — 신호 추가 게이트와 알려진 한계](../decisions/hn_staging_governance.md)
 - [starter 전용 스킬 격리 — harness-dev 스킬 신설](../decisions/hn_starter_skill_isolation.md)

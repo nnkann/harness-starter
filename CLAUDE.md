@@ -6,7 +6,7 @@
 ## 환경
 <!-- harness-init 실행 후 채워진다 -->
 - 패키지 매니저: N/A (harness-starter — 배포 템플릿, 앱 빌드 없음)
-- 빌드/실행 명령어: python3 .claude/scripts/pre_commit_check.py (pre-check), python3 -m pytest .claude/scripts/test_pre_commit.py -q (테스트)
+- 빌드/실행 명령어: python3 .claude/scripts/pre_commit_check.py (pre-check), python3 -m pytest .claude/scripts/tests/ -q (테스트)
 - 배포 방식: git push origin main → 다운스트림이 harness-upgrade로 fetch
 
 ## 행동 원칙

@@ -43,6 +43,33 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.30.3 — review verdict prefill 패턴 (효율 개선)
+
+### 변경 파일
+
+| 파일 | 처리 | 비고 |
+|------|------|------|
+| `.claude/skills/commit/SKILL.md` | 3-way merge | review prompt 끝을 `## 리뷰 결과 / verdict: `로 끝내 prefill 효과. "출력 형식 — 절대 규칙" 섹션 추가 — 분석 머릿말 금지·결론부터 출력 명시 |
+| `.claude/agents/review.md` | 3-way merge | 상단 헤더 인용 박스 강화 — 자주 나오는 실수 명시·"분석은 reasoning에서, 출력은 결론부터" 행동 가이드. line 201 SSOT는 형식 정의, 상단은 행동 가이드로 역할 분리 |
+
+### 적용 방법
+자동. `harness-upgrade` 실행 시 3-way merge로 적용. 다음 commit부터 review
+1패스 통과율 추적.
+
+### 회귀 위험
+- prefill 패턴 효과 자동 검증 불가 — 운용에서 5 commit 1패스 성공률로 측정
+- 본 세션 직전 4 commit (v0.29.2~v0.30.2) 모두 verdict 누락 → 1차 재호출 회복 패턴 100%
+- 다운스트림 환경(Linux/macOS) 미테스트 (prompt 텍스트 변경이라 OS 무관)
+
+### 검증
+```bash
+# 다음 commit 시 review 1차 응답 첫 2줄 형식 준수 여부 관찰
+# git log 메시지에 [review-form-warn] 태그 빈도 추적
+git log --grep "review-form-warn" --oneline
+```
+
+
+
 ## v0.30.2 — MIGRATIONS·README 슬림화 + archive 자동화 (효율 개선)
 
 ### 변경 파일

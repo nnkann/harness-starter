@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-SCRIPT = Path(__file__).parent / "extract_review_verdict.py"
+SCRIPT = Path(__file__).parent.parent / "extract_review_verdict.py"
 
 
 def _run(stdin_text: str) -> tuple[int, str]:
