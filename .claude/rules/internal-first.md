@@ -1,5 +1,7 @@
 # Internal-First 규칙
 
+defends: P1
+
 새 구조·가설·해결책을 제안하기 전, **반드시 내부 자료부터** 확인한다.
 배경·자동 감지 트리거 상세는 `docs/decisions/hn_rules_metadata.md` 참조.
 

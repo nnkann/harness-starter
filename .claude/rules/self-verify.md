@@ -1,5 +1,7 @@
 # Self-Verify 규칙
 
+defends: P6
+
 ## 검증 워크플로우
 
 ```

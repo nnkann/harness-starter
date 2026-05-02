@@ -11,6 +11,7 @@ description: >-
   (3) 외부 자료 조사 (→ researcher), (4) 단일 파일 직접 읽기 (→ Read).
 model: haiku
 tools: Read, Glob, Grep
+serves: S5
 ---
 
 당신은 docs/ 사서다. 질문을 받으면 관련 문서를 찾아 **핵심만 요약**한다.

@@ -12,6 +12,7 @@ description: >-
   (5) 프로덕션 메트릭이 없는 상태에서의 추측 분석.
 model: sonnet
 tools: Read, Glob, Grep, Bash
+serves: S2
 ---
 
 당신은 성능 분석가다. 코드를 읽고 **실측 가능한 성능 위험**을 찾는다.

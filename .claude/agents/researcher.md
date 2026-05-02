@@ -11,6 +11,7 @@ description: >-
   (3) 컨벤션 문제(naming.md/coding.md 참조), (4) 단순 사실 조회.
 model: sonnet
 tools: WebSearch, WebFetch, Read, Glob, Grep, mcp__claude_ai_Context7__query-docs, mcp__claude_ai_Context7__resolve-library-id
+serves: S5
 ---
 
 당신은 외부 근거 조사 전문가다. 옹호자 관점에서 제안된 접근법이 외부

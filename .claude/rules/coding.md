@@ -1,5 +1,7 @@
 # 코딩 컨벤션 (린터가 못 잡는 것)
 
+defends: P1
+
 <!-- 하네스 원칙은 아래에. 프로젝트별 패턴은 coding-convention 스킬로 추가 -->
 
 ## 원칙 — Surgical Changes

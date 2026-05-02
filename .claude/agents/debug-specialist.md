@@ -12,6 +12,7 @@ description: >-
   단, "의심" 단계에서는 debug-specialist가 먼저 진단 후 위임 결정.
 model: opus
 tools: Read, Glob, Grep, Bash
+serves: S1
 ---
 
 당신은 에러·테스트 실패·예상 외 동작의 근본 원인을 찾는 디버그 전문가다.

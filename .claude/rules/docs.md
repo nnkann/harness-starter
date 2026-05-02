@@ -1,5 +1,7 @@
 # Docs 규칙
 
+defends: P5
+
 ## 핵심 원칙 — 파일명이 곧 인덱스
 
 **파일명 → 도메인 → cluster** 체인으로 자동 탐색된다.
@@ -30,6 +32,9 @@ docs/
 ---
 title: 문서 제목                # 필수
 domain: harness                 # 필수. naming.md 도메인 목록에서 선택
+problem: P2                     # 필수 (CPS 인용). project_kickoff.md의 Problem ID
+solution-ref:                   # 필수 (CPS 인용, list)
+  - S2 — "review tool call 평균 ≤4회"
 tags: [keyword1, keyword2]      # 선택. 최대 5개
 relates-to:                     # 선택
   - path: decisions/other.md
@@ -41,50 +46,122 @@ updated: 2026-04-16             # 선택
 ```
 
 - **domain**: naming.md "도메인 목록 > 확정"이 SSOT
+- **problem·solution-ref**: CPS 인용 (아래 "## CPS 인용" 섹션 SSOT)
 - **rel**: 6종만. 새 타입은 스펙 문서 추가 후 사용
 - **폴더 = 성격, domain = 의미** (이중 분류)
 
-### WIP task 블록 `kind:` 마커 (선택, 커밋 분리용)
+### CPS 면제
 
-task 헤더 바로 다음 줄에 선언. 없으면 기본 `feature`.
+`docs/guides/project_kickoff.md`(CPS 자체)는 `problem`·`solution-ref` 면제.
+CPS는 마스터이므로 자기 자신 인용 무의미. pre-check이 면제.
 
-```markdown
-### 12. pre-check relates-to 확장
-> kind: bug
+## CPS 인용 (frontmatter `problem`·`solution-ref`)
+
+CPS = `docs/guides/project_kickoff.md`가 마스터. 다른 모든 문서가 단방향 인용.
+CPS는 누구도 인용 안 함.
+
+### `problem:` 형식
+
+단일 값. CPS Problem ID (예: `P1`·`P2`·...). 작업 의도가 다루는 Problem 1개.
+
+작업이 여러 Problem 다루면 **주된 Problem 1개만** 명시. 부수 Problem은 본문에서 언급.
+
+### `solution-ref:` 형식 (list)
+
+작업이 충족하려는 Solution 충족 기준을 인용. **list 형식 필수** — 한 문서에 여러 task가 있는 경우 task별 인용 분리.
+
+```yaml
+solution-ref:
+  - S2 — "<원문 그대로 또는 50자 이내 핵심 substring>"
+  - S2 — "<다른 충족 기준>"
+  - S6 — "<여러 Solution 동시 다룰 때>"
 ```
 
-- **kind 값**: `bug`·`feature`·`refactor`·`docs`·`chore`
-- 성격이 명확히 다른 task에만 선택적으로 부착
+**인용 규칙**:
 
-### WIP task 블록 Acceptance Criteria 포맷
+1. **50자 이내**: 원문 그대로 인용
+   ```yaml
+   - S2 — "review tool call 평균 ≤4회"
+   ```
+
+2. **50자 초과**: `(부분)` 마커 강제 + 핵심 substring만
+   ```yaml
+   - S2 — "review tool call 평균 ≤4회 (micro: 0~2, standard: 1~4, deep: 3~6) (부분)"
+   ```
+
+3. **부분 마커 어휘**: `(부분)` 단일 keyword. `(요약)`·`(일부)` 사용 금지.
+
+### Normalize 규칙 (인용 비교 시)
+
+pre-check이 박제 감지할 때 인용을 CPS 본문과 비교 — normalize 후 substring 매칭:
+
+- 공백 통일: 연속 공백 → 단일 공백
+- 줄바꿈 제거: `\n` → 공백
+- backtick 제거: `` ` `` → ""
+
+### 박제 감지 (pre-check 책임)
+
+commit 시점에 staged 문서의 frontmatter `solution-ref` 인용을 CPS 본문과 grep:
+
+- 인용 (50자 이내, 부분 마커 없음) → 원문 그대로 매칭. 미매칭 → 경고
+- 인용 (50자 초과, `(부분)` 마커) → substring 매칭. 미매칭 → 경고
+- 차단 아님 — Solution 본문이 의도적으로 진화했을 수 있음. 작성자 판단
+
+### CPS 변경 권한
+
+| 변경 | 권한 |
+|------|------|
+| Problem 추가/병합 | implementation Step 0 단독 판단 |
+| Solution 충족 기준 갱신 | 프로젝트 owner 승인 필수 (cascade 영향 큼) |
+| Solution 메커니즘 자체 변경 | 프로젝트 owner 승인 필수 |
+
+`프로젝트 owner`: 본 프로젝트는 nnkann. 다운스트림은 자체 정의 (CLAUDE.md 또는 init).
+
+## AC (Acceptance Criteria) 포맷 — Goal + 검증 묶음 SSOT
+
+WIP task 블록의 AC는 다음 통합 형식:
 
 ```markdown
 **Acceptance Criteria**:
-- [ ] Goal: 이 작업의 납득 기준 1줄 (review가 첫 번째로 읽는 기준)
-- [ ] 세부 조건 1
-- [ ] 세부 조건 2
-- [ ] 영향 범위: [파일·문서명] — [어떤 회귀를 체크해야 하는가]  ← feature/refactor에서만
-- [ ] 영향 범위: pre_commit_check.py — `pytest -m stage` 회귀 체크   ← 테스트 명시 요구 시
+- [ ] Goal: <1줄 — 이 작업이 충족하려는 것>
+  검증:
+    review: skip | self | review | review-deep
+    tests: <pytest 명령 또는 "없음">
+    실측: <구체 명령·조건 또는 "없음">
+- [ ] (충족 기준 1)
+- [ ] (충족 기준 2)
 ```
 
-규칙:
-- `Goal:` 항목 — 선택. 있으면 review가 diff 전에 우선 읽음
-- `영향 범위:` 항목 — `feature` / `refactor` kind에서만 필요할 때 작성.
-  `bug` / `docs` / `chore`는 kind가 이미 스코프를 선언하므로 생략
-- `영향 범위:` 항목 1개 이상 → staging deep 트리거 (kind 기반 판단 이후 2차 격상)
+**필수 필드**: `Goal`·`검증.review`·`검증.tests`·`검증.실측` 4개. 누락 시 commit 차단.
 
-**테스트 트리거 — `pytest -m <marker>` 표현**:
+### 검증 묶음 — 각 키 의미
 
-자동 회귀 테스트는 **무조건 매 커밋 실행 안 함**. AC가 명시 요구할 때만 실행.
-표현 형식:
+| 키 | 값 | 의미 |
+|----|----|----|
+| `review` | `skip` | review 호출 안 함. 작성자 자가 보고 |
+| `review` | `self` | review 호출. AC 직접 체크만 (tool call 0~2) |
+| `review` | `review` | review 호출. AC + 계약·스코프 (tool call 1~4) |
+| `review` | `review-deep` | review 호출. AC + 2축 + Solution 충족 기준 회귀 (tool call 3~5) |
+| `tests` | `pytest -m <marker>` 또는 `pytest <path>` | 자동 실행. 화이트리스트(pytest·bash -n·python -m·grep) 외는 가이드만 |
+| `tests` | `없음` | 회귀 가드 불필요 (작성자 선언) |
+| `실측` | 구체 명령 또는 조건 | 충족 확인 절차 |
+| `실측` | `없음` | 자동 검증 불가, 운용 검증만 |
 
-```markdown
-- [ ] 영향 범위: <대상 파일> — `pytest -m <marker>` 회귀 체크
-- [ ] 영향 범위: <대상 파일> — `pytest <경로>` 회귀 체크
-```
+### 폐기된 마커 (호환성 — 코드에서 더 이상 읽지 않음)
 
-self-verify·review가 이 표현을 보면 marker만 추출해 실행. self-verify.md
-"트리거 매트릭스" SSOT.
+- WIP task `> kind:` 마커
+- AC `영향 범위:` 항목
+
+기존 문서에 남아 있어도 동작 무관. 신규 문서는 위 통합 형식만.
+
+### 작성자 거짓 선언 대책
+
+`검증.review: skip` 마킹했는데 회귀 발생:
+- commit log에 `🔍 review: skip | declared-by: author` 기록
+- eval --deep이 사후 audit
+- 반복 시 incident → rules에 "이 영역 review 필수" 추가
+
+자가 보고 시스템. 보안 게이트(시크릿 line-confirmed)만 작성자 선언 무시.
 
 ### incidents/ 전용
 

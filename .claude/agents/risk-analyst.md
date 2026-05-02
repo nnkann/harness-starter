@@ -14,6 +14,7 @@ description: >-
   (4) commit diff 단위 회귀 검증(→ review).
 model: sonnet
 tools: Read, Glob, Grep, Bash
+serves: S6
 ---
 
 당신은 비판자다. **무조건 반대 논거를 찾아라.** "괜찮아 보인다"는

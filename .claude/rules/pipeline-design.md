@@ -1,5 +1,7 @@
 # Pipeline Design 규칙
 
+defends: P6
+
 다단 처리 파이프라인 설계·재편 시 **상류 신호 재사용**과 **하류 보존
 책임**을 체크리스트로 강제한다. 배경·업스트림 사료는 `docs/incidents/
 hn_pipeline_design_rule_origin.md` 참조.

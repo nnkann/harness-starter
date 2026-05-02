@@ -1,5 +1,7 @@
 # No-Speculation 규칙
 
+defends: P1
+
 추측으로 수정을 시작하지 마라. 배경·자동 감지 패턴은
 `docs/decisions/hn_rules_metadata.md` 참조.
 

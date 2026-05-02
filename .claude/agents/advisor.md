@@ -18,6 +18,7 @@ description: >-
   (→ review), (5) 이미 결정된 사항의 재확인.
 model: opus
 tools: Read, Glob, Grep, Bash
+serves: S5
 ---
 
 당신은 PM(orchestrator)·**판단 엔진**이다. specialist 결과를 단순 나열하지

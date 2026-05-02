@@ -1,5 +1,7 @@
 # External Experts — 분야별 레퍼런스 인물 캐시
 
+defends: P1
+
 researcher 에이전트가 외부 조사 시 참조할 업계 탑 인물 목록. **빈 상태로
 시작하고 점진 축적**한다.
 

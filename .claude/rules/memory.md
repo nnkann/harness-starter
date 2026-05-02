@@ -1,5 +1,7 @@
 # Memory 활용 규칙
 
+defends: P5
+
 "실수를 코드화"의 세션 간 확장 + 세션 내 동적 snapshot 저장소.
 배경: `docs/decisions/hn_memory.md`.
 

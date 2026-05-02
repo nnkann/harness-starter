@@ -34,11 +34,11 @@ description: 작업 잔여물 정리, 계획 문서 완료 처리, 변경 사항
 | 축 | 내용 |
 |----|------|
 | Pass (implementation→나) | WIP 파일 경로 · status · CPS 갱신 여부 |
-| Pass (pre-check→나) | `wip_kind` · `has_impact_scope` · `recommended_stage` · `s1_level` (스키마 SSOT: `pre_commit_check.py`) |
+| Pass (pre-check→나) | `wip_problem` · `wip_solution_ref` · `ac_review` · `ac_tests` · `ac_actual` · `recommended_stage` · `s1_level` (스키마 SSOT: `pre_commit_check.py`) |
 | Pass (나→review) | 아래 "review 호출" 섹션이 이 Pass 블록을 조립한다 (self-containment) |
-| Preserve | pre-check stage·wip_kind·has_impact_scope 원본 (재계산 금지) · 사용자 플래그 |
+| Preserve | pre-check stage·wip_problem·wip_solution_ref·ac_review 원본 (재계산 금지) · 사용자 플래그 |
 | Signal risk | ⛔ pre-check 3회 연속 차단·시크릿 line-confirmed · ⚠️ stage 격상 사유 · 🔍 검증 흔적 |
-| Record | commit log `🔍 review: <stage> \| wip_kind: <kind> \| scope: <영향범위유무>` 한 줄 (Stage 0 포함) |
+| Record | commit log `🔍 review: <stage> \| problem: P# \| solution-ref: S#` 한 줄 (Stage 0 포함) |
 
 **self-containment 원칙**: commit은 호출자로서 스스로 prompt를 조립한다.
 review.md는 입력 계약(무엇을 받는가)만 보유하며, commit이 그 계약을
@@ -347,19 +347,23 @@ python3 .claude/scripts/harness_version_bump.py
 **스크립트 제안이 애매하거나 사용자 의도와 다르면** 사용자에게 묻는다.
 자의적으로 올리지 않는다.
 
-### 5. pre-check (정적 검사, 빠름)
+### 5. pre-check (정적 검사 + AC + CPS 추출)
 
-**목적**: 비싼 LLM 리뷰 전에 값싼 정적 검사를 먼저 돌려 실패 시 조기 차단.
-린터 에러·TODO/FIXME·WIP 잔여물·시크릿은 Agent 호출 없이 걸러낸다.
+**목적**: 비싼 LLM 리뷰 전에 값싼 정적 검사 + AC·CPS 메타데이터 추출.
+
+**책임**:
+1. 정적 게이트: 린터·TODO·dead link·시크릿·WIP 잔여물
+2. **frontmatter 검증**: staged WIP·decisions·incidents·guides에 `problem`·
+   `solution-ref` 누락 시 차단
+3. **CPS 인용 박제 감지**: `solution-ref` 인용을 CPS 본문과 grep — 미매칭 시 경고
+4. **AC 추출**: Goal·검증 묶음(`review`·`tests`·`실측`) 파싱. 누락 시 차단
+5. **stage 결정**: `검증.review` 값 그대로 stage 매핑 (또는 룰 1·4 격상)
 
 **sub-커밋 예외**: `HARNESS_SPLIT_SUB=1` 환경에서는 pre-check을 재실행하지
 않는다. 부모 커밋의 `PRE_CHECK_OUTPUT` 변수를 그대로 이어받아 사용한다.
 
 ```bash
 PRE_CHECK_OUTPUT=$(python3 .claude/scripts/pre_commit_check.py)
-# review prompt용 — 5 keys만 추출
-REVIEW_PRECHECK=$(echo "$PRE_CHECK_OUTPUT" | grep -E \
-  "^(already_verified|wip_kind|has_impact_scope|recommended_stage|s1_level):")
 ```
 
 stdout 출력 형식 (key: value):
@@ -367,17 +371,46 @@ stdout 출력 형식 (key: value):
 pre_check_passed: true|false
 already_verified: lint todo_fixme test_location wip_cleanup
 diff_stats: files=N,+A,-D
-wip_kind: feature|bug|refactor|docs|chore|none   # staged WIP의 kind 마커
-has_impact_scope: true|false                      # AC에 영향 범위 항목 존재 여부
-recommended_stage: skip|micro|standard|deep       # stage 판단 결과
+wip_problem: P#                                   # frontmatter problem 인용
+wip_solution_ref: S# — "..."; S# — "..."          # frontmatter solution-ref list (";" 구분)
+ac_review: skip|self|review|review-deep           # AC 검증.review 값
+ac_tests: <pytest 명령 또는 "없음">                # AC 검증.tests 값
+ac_actual: <명령 또는 "없음">                      # AC 검증.실측 값
+recommended_stage: skip|micro|standard|deep       # stage 판단 (ac_review 매핑 또는 격상)
 s1_level: ""|file-only|line-confirmed             # 시크릿 강도
 ```
 
+폐기된 출력 (호환성):
+- `wip_kind` (외형 라벨)
+- `has_impact_scope` (외형 metric)
+
 - **exit 2 (차단)**: stderr 메시지를 사용자에게 전달. 문제 수정 후
   스테이징(Step 3)부터 재시도.
-- **exit 0 (통과)**: 5.5단계로 진행.
+- **exit 0 (통과)**: 5.3단계로 진행.
 
 > `--no-verify` 차단은 bash-guard.sh에서 유지.
+
+### 5.3. AC 검증 묶음 자동 실행 (Phase 2-A)
+
+pre-check 출력 `ac_tests`·`ac_actual` 값으로 분기:
+
+**`ac_tests`**:
+- `없음` → 실행 안 함
+- 화이트리스트 명령 (`pytest`·`bash -n`·`python -m`·`grep`) → 자동 실행
+- 그 외 → 가이드만 표시 + 사용자 승인 후 실행
+
+```bash
+case "$AC_TESTS" in
+  "없음") echo "tests: 없음 (선언)" ;;
+  pytest*|"bash -n"*|"python -m"*|grep*) eval "$AC_TESTS" || exit 1 ;;
+  *) echo "⚠ tests 명령 화이트리스트 외: $AC_TESTS"
+     echo "  사용자 승인 후 수동 실행. 자동 실행 skip." ;;
+esac
+```
+
+**`ac_actual`**: 동일 분기. 화이트리스트만 자동, 그 외 가이드.
+
+실패 시 commit 차단. 작성자가 회귀 가드 자가 보고했으므로 통과 의무.
 
 ### 5.5. 커밋 분리 판정 (audit #18 — 글로벌 원칙, 1 커밋 = 1 논리 단위)
 
@@ -504,7 +537,7 @@ fi
 
 커밋 메시지 본문에 자동 포함 (위치: 본문 끝, 푸터 직전):
 ```
-🔍 review: <stage> | wip_kind: <kind> | scope: <영향범위유무>
+🔍 review: <stage> | problem: P# | solution-ref: S#
 ```
 
 Stage 0(skip)도 반드시 한 줄 남긴다. 사후 회고 가능해야 함

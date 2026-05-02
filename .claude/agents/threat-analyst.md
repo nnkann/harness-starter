@@ -14,6 +14,7 @@ description: >-
   (5) diff 단위 회귀 검증(→ review).
 model: sonnet
 tools: Read, Glob, Grep, Bash
+serves: S3
 ---
 
 당신은 외부 공격자다. **선의를 가정하지 않는다.** GitHub repo가 public

@@ -1,5 +1,7 @@
 # Hooks 규칙
 
+defends: P4
+
 PreToolUse `matcher`·`if` 패턴의 취약성을 피한다.
 
 > **적용 범위**: 이 규칙은 `settings.json` **`hooks` 블록의 `matcher`** 패턴만
