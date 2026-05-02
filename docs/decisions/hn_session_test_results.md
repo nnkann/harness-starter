@@ -10,7 +10,7 @@ relates-to:
     rel: extends
   - path: decisions/hn_wip_sync_match_precision.md
     rel: extends
-status: in-progress
+status: completed
 created: 2026-05-02
 updated: 2026-05-02
 ---

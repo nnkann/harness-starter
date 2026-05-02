@@ -25,6 +25,7 @@ updated: 2026-05-02
 - [Karpathy 원칙 적용 — 코딩 컨벤션·행동 원칙·self-verify·staging·commit SSOT](../decisions/hn_karpathy_principles.md)
 - [memory 재설계 — tmp 폐기 + 동적 snapshot 도입 + 트리거 재정의](../decisions/hn_memory.md)
 - [pipeline-design 규칙 업스트림 이식 계획](../decisions/hn_pipeline_design_rule.md)
+- [약속 박제 보호 — completed 봉인 + 미루기 차단 룰](../decisions/hn_promise_protection.md)
 - [Remote 기반 하네스 업그레이드 전략](../decisions/hn_remote_upgrade_strategy.md)
 - [review staging 재조정 — scripts/agents 이진 판정](../decisions/hn_review_staging_rebalance.md)
 - [review 에이전트 tool call 예산 재설계 — 조기 중단 + 유동 배분](../decisions/hn_review_tool_budget.md)

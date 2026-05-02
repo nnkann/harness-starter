@@ -6,10 +6,11 @@ solution-ref:
   - S5 — "원인이 특정되면 해당 항목 제거 + 실측 재측정 (부분)"
 tags: [rules, completed, promise, protection, anti-defer]
 relates-to:
-  - path: WIP/decisions--hn_session_test_results.md
+  - path: decisions/hn_session_test_results.md
     rel: caused-by
-status: pending
+status: completed
 created: 2026-05-02
+updated: 2026-05-02
 ---
 
 # 약속 박제 보호 — completed 봉인 + 미루기 차단
@@ -32,30 +33,30 @@ created: 2026-05-02
     review: review
     tests: pytest -m gate
     실측: completed 문서 임의 수정 후 pre-check이 exit 2 차단 확인
-- [x] pre_commit_check.py에 completed 본문 변경 감지 로직 추가
+- [x] pre_commit_check.py에 completed 본문 변경 감지 로직 추가 ✅
 - [x] 회귀 테스트 신설 (TestCompletedSeal 또는 기존 gate 클래스 확장)
 
 ### 2. 미루기 차단 룰 (anti-defer)
 
 **Acceptance Criteria**:
-- [x] Goal: `.claude/rules/anti-defer.md` 신설. "미루기 회피 사유" 패턴 명시 + 사용자 명시 처리 지시 우선 규칙
+- [x] Goal: `.claude/rules/anti-defer.md` 신설. "미루기 회피 사유" 패턴 명시 + 사용자 명시 처리 지시 우선 규칙 ✅
   검증:
     review: review
     tests: 없음 (룰 텍스트)
     실측: 본 룰 위반 패턴 감지 시 review가 [주의] 보고
 - [x] 미루기 사유 블랙리스트 명시 ("측정 후·다음 세션·데이터 누적 필요" 등 사용자 승인 없는 단독 사용 금지)
 - [x] wave 정의를 미루기 도구로 사용 금지 명시
-- [x] CLAUDE.md `## 진입점` 표에 anti-defer 규칙 추가
+- [x] CLAUDE.md `## 진입점` 표에 anti-defer 규칙 추가 ✅
 
 ### 3. review 자동 감지 — wave scope 무단 확장
 
 **Acceptance Criteria**:
-- [x] Goal: review.md에 "직전 commit 메시지·WIP의 명시 범위 밖 변경" 감지 항목 추가
+- [x] Goal: review.md에 "직전 commit 메시지·WIP의 명시 범위 밖 변경" 감지 항목 추가 ✅
   검증:
     review: self
     tests: 없음 (룰 텍스트)
     실측: 본 wave가 자기증명 — 본 commit이 wave scope 위반 없는지 review가 확인
-- [x] review.md "## 검증 루프"에 "wave scope 일치 검사" 단계 추가
+- [x] review.md "## 검증 루프"에 "wave scope 일치 검사" 단계 추가 ✅
 - [x] 위반 시 [주의] 보고 (차단 아님 — 자율 신뢰 영역)
 
 ## 결정 사항
