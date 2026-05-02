@@ -646,7 +646,7 @@ def integ_repo(tmp_path_factory):
     subprocess.run(["git", "clone", "-q", str(REPO_ROOT), str(repo)],
                    capture_output=True, check=True)
     # 미커밋 최신 파일 덮어쓰기
-    for name in ("pre_commit_check.py",):
+    for name in ("pre_commit_check.py", "docs_ops.py"):
         src = REPO_ROOT / ".claude" / "scripts" / name
         dst = repo / ".claude" / "scripts" / name
         if src.exists():
@@ -1296,3 +1296,82 @@ class TestModuleImportSafe:
         )
         assert r.returncode == 0, f"import 시 sys.exit 발생 (returncode={r.returncode}): stderr={r.stderr}"
         assert "import_ok" in r.stdout, f"import 후 print 도달 못 함: stdout={r.stdout}"
+
+
+# ─────────────────────────────────────────────────────────
+# T44: cluster-update 게이팅 (C4 결정적 출력)
+# ─────────────────────────────────────────────────────────
+
+
+@pytest.mark.docs_ops
+class TestClusterUpdateGating:
+    """T44: 본체·문서 변경 없으면 mtime 갱신 0건. 영향 도메인만 갱신."""
+
+    def _run_cluster_update(self, repo: Path) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, ".claude/scripts/docs_ops.py", "cluster-update"],
+            cwd=repo, capture_output=True, text=True,
+            env={**os.environ, "PYTHONUTF8": "1"},
+        )
+
+    def test_idempotent_skip(self, integ_repo):
+        """T44.1: 두 번 호출해도 mtime 무변경 (skip)."""
+        repo = integ_repo
+        # 첫 호출 — 모든 cluster 정렬
+        self._run_cluster_update(repo)
+        clusters = sorted((repo / "docs/clusters").glob("*.md"))
+        assert clusters, "clusters/ 비어 있음"
+        before = {c: c.stat().st_mtime_ns for c in clusters}
+        # 즉시 재호출
+        r = self._run_cluster_update(repo)
+        assert r.returncode == 0
+        after = {c: c.stat().st_mtime_ns for c in clusters}
+        assert before == after, f"멱등 깨짐: {[c.name for c in clusters if before[c] != after[c]]}"
+        assert "skip" in r.stdout.lower()
+
+    def test_only_affected_domain_updates(self, integ_repo):
+        """T44.2: 단일 cluster를 의도적으로 stale 화 → 그것만 갱신."""
+        repo = integ_repo
+        self._run_cluster_update(repo)
+        clusters = sorted((repo / "docs/clusters").glob("*.md"))
+        assert len(clusters) >= 2, "다중 도메인 cluster 필요"
+        target = clusters[0]
+        others = clusters[1:]
+        # target stale 화 (내용 변조)
+        text = target.read_text(encoding="utf-8")
+        target.write_text(text + "\n# stale_marker\n", encoding="utf-8")
+        before_others = {c: c.stat().st_mtime_ns for c in others}
+        before_target = target.stat().st_mtime_ns
+        # 잠깐 대기 없이 재호출 — mtime 단위가 ns이므로 변경되면 즉시 반영
+        r = self._run_cluster_update(repo)
+        assert r.returncode == 0
+        # target만 갱신됐어야 함
+        after_others = {c: c.stat().st_mtime_ns for c in others}
+        assert before_others == after_others, "비영향 cluster mtime 갱신됨"
+        # target은 다시 결정적 본문으로 복원되어 mtime 갱신
+        assert target.stat().st_mtime_ns != before_target or "stale_marker" not in target.read_text(encoding="utf-8")
+
+    def test_wip_appears_in_cluster(self, integ_repo):
+        """T44.3: WIP 파일이 cluster `## 진행 중 (WIP)` 섹션에 자동 등록."""
+        repo = integ_repo
+        # 임시 WIP 파일 신설 (harness 도메인)
+        wip = repo / "docs/WIP/decisions--hn_t44_visibility.md"
+        wip.parent.mkdir(parents=True, exist_ok=True)
+        wip.write_text(
+            "---\ntitle: T44 가시성 테스트\ndomain: harness\n"
+            "problem: P5\nsolution-ref:\n  - S5 — \"테스트\"\n"
+            "status: in-progress\ncreated: 2026-05-02\n---\n\n# 본문\n",
+            encoding="utf-8",
+        )
+        try:
+            r = self._run_cluster_update(repo)
+            assert r.returncode == 0
+            harness_cluster = repo / "docs/clusters/harness.md"
+            text = harness_cluster.read_text(encoding="utf-8")
+            assert "## 진행 중 (WIP)" in text, "WIP 섹션 헤더 누락"
+            assert "decisions--hn_t44_visibility.md" in text, "신규 WIP 미등록"
+            assert "T44 가시성 테스트" in text, "WIP title 누락"
+        finally:
+            if wip.exists():
+                wip.unlink()
+            self._run_cluster_update(repo)  # 정리

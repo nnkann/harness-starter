@@ -191,17 +191,21 @@ tags는 기술 분류, **재발 시 사용자가 입에 올릴 단어**는 sympt
 
 ## 문서 탐색
 
-### 기본 경로 (파일명·cluster 1차)
+### 기본 경로 (cluster 1차 — completed + WIP 단일 진입점)
 
 ```
-1. 도메인 짐작되면        → ls docs/**/{abbr}_*    (예: hn_*)
-2. 주제 키워드 있으면      → ls docs/**/*{keyword}* (예: *memory*, *staging*)
-3. 위 둘 결합 가능         → ls docs/**/hn_*memory*
-4. cluster 진입점         → cat docs/clusters/{domain}.md
-5. tags 세분화 필요       → grep -l "tags:.*skill" docs/
+1. cluster 진입점 (권장)   → cat docs/clusters/{domain}.md
+                            (`## 문서` + `## 진행 중 (WIP)` 섹션 모두 포함)
+2. 도메인 + 라우팅 태그 통과 → ls docs/**/*{abbr}_*  (양쪽 wildcard 필수)
+                            (단순 `{abbr}_*`는 WIP 라우팅 태그 `decisions--`에 막힘)
+3. 주제 키워드 있으면        → ls docs/**/*{keyword}* (예: *memory*, *staging*)
+4. 위 둘 결합 가능           → ls docs/**/*hn_*memory*
+5. tags 세분화 필요         → grep -l "tags:.*skill" docs/
 ```
 
-파일명이 규칙을 따르면 1~4로 끝난다.
+cluster scan(1번)으로 시작하면 completed + 진행 중 WIP를 한 번에 발견.
+파일 직접 glob(2번)이 필요할 땐 양쪽 wildcard 필수 — 라우팅 태그 통과
+규칙은 `naming.md` "Cluster 자동 매핑 — 직교 파싱 규칙" 참조.
 
 ### 깊은 탐색 (1차 실패 시)
 

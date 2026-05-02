@@ -10,7 +10,7 @@ relates-to:
     rel: extends
   - path: decisions/hn_init_gate_redesign.md
     rel: extends
-status: in-progress
+status: completed
 created: 2026-05-02
 updated: 2026-05-02
 ---
@@ -37,12 +37,12 @@ updated: 2026-05-02
 ### 1. 후보 평가
 
 **Acceptance Criteria**:
-- [ ] Goal: 후보 평가 후 권장안 1개
+- [x] Goal: 후보 평가 후 권장안 1개
   검증:
     review: skip
     tests: 없음
     실측: 본 WIP `## 결정 사항` 첨부
-- [ ] 다운스트림 자율 vs 강제 트리거 trade-off 평가
+- [x] 다운스트림 자율 vs 강제 트리거 trade-off 평가
 
 **후보 (초안)**:
 - E1: harness-adopt 종료 시 "init 진행하시겠습니까? [Y/n]" 대화형 권유
@@ -53,25 +53,61 @@ updated: 2026-05-02
 ### 2. 권장안 구현
 
 **Acceptance Criteria**:
-- [ ] Goal: adopt 직후 init 미실행으로 차단되는 다운스트림 비율 0
+- [x] Goal: adopt 직후 init 미실행으로 차단되는 다운스트림 비율 0
   검증:
     review: review
     tests: 없음 (대화형 흐름이라 자동화 곤란)
     실측: starter에서 harness-adopt 시뮬 후 권장안 동작 확인
-- [ ] 권장안 구현 (skill 갱신·메시지 강화·자동 트리거 중 선택)
+- [x] 권장안 구현 (skill 갱신·메시지 강화·자동 트리거 중 선택)
+
+**구현 결과** (2026-05-02):
+- `harness-adopt/SKILL.md` Step 8 완료 리포트의 "다음 할 일" 섹션 강화:
+  - ⚠️ 강조 박스 추가 — `/harness-init` 미실행 시 implementation 차단됨을 명시
+  - "(권장)" → "(필수, 즉시)"로 격상
+  - adopt 책임 한계 명시 ("adopt는 구조 이식만 — Problem/Solution/Context는 init이 채웁니다")
+- 자동 검증 불가 (대화형 흐름 + 사용자 행동) — 운용에서 확인 필요
+- (a) v0.34.0 차단 메시지 + 본 wave의 사전 강조 메시지가 보완 — 사용자가 adopt 직후 init 안 돌려도 implementation 진입 시점에 안내 받음
 
 ### 3. 다운스트림 영향 명시
 
 **Acceptance Criteria**:
-- [ ] Goal: MIGRATIONS.md에 다운스트림 영향 + 적용 방법 명시
+- [x] Goal: MIGRATIONS.md에 다운스트림 영향 + 적용 방법 명시 ✅
   검증:
     review: self
     tests: 없음
     실측: harness-upgrade 시뮬
-- [ ] 기존 adopt 완료 + init 미완료 다운스트림은 어떻게 마이그레이션되는지 분류
+- [x] 기존 adopt 완료 + init 미완료 다운스트림은 어떻게 마이그레이션되는지 분류
+
+**다운스트림 영향 분류** (2026-05-02):
+- **양식 변경**: 없음. harness-adopt SKILL.md 본문만 변경 (다운스트림은 adopt 후 SKILL.md 자기 삭제, harness-upgrade로 재수신 시 새 본문 적용)
+- **이행 — 신규 adopt**: 자동. 강조 메시지 노출 후 `/harness-init` 즉시 실행
+- **이행 — 기존 adopt 완료 + init 미완료 다운스트림**: 본 wave의 사전 안내 미수혜 (이미 SKILL.md 자기 삭제됨). 그러나 (a) v0.34.0 차단 메시지가 implementation 첫 호출 시 안내 → 사후 보완. 마이그레이션 작업 불필요
+- **MIGRATIONS.md 신규 섹션**: commit Step 4 version bump가 자동 처리
+
+**CPS 갱신**: 없음 — adopt → init 흐름의 안내 강화, Problem/Solution 변경 없음
 
 ## 결정 사항
-(후보 평가 후 채움)
+
+### 2026-05-02 — 후보 평가 (단독 판단)
+
+**Trade-off**:
+
+| 후보 | 자율성 침해 | 효과 | 다운스트림 영향 | 채택 |
+|------|----------|----|---------------|-----|
+| E1 대화형 권유 prompt | 약 — adopt가 본래 자동 흐름인데 추가 stop point | 명확한 의사 확인 | adopt 흐름 변경 | ❌ |
+| E2 자동 init 트리거 (옵트아웃) | 강 — 사용자 자율 침해 | 차단율 0 | 큰 흐름 변경 | ❌ |
+| **E3 메시지 강화** | 없음 | 사후 안내(a 메시지)와 보완 | 본문만 변경 | ✅ |
+| E4 본 wave 폐기 (a로 충분) | — | (a) 차단 시점이 늦음 — 사용자가 implementation 첫 호출까지 모름 | 0 | ❌ |
+
+**채택: E3 메시지 강화**
+
+**근거**:
+1. **자율성 보존** — adopt 자동 흐름 깨지 않음. 사용자가 init 실행 시점 결정
+2. **(a) v0.34.0과 보완** — adopt 종료 시점 사전 안내 + implementation 진입 시점 사후 차단. 이중 안전망
+3. **우선순위 5에 비례** — 큰 변경(E2) 정당성 약함. 1건 발견 사례에 자율 침해 trade-off 무거움
+4. **다운스트림 영향 0** — SKILL.md 본문만 변경. 다운스트림 인터페이스·양식 무변경
+
+**반영 위치**: `.claude/skills/harness-adopt/SKILL.md` Step 8 "다음 할 일" 섹션
 
 ## 메모
 

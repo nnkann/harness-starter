@@ -252,3 +252,17 @@ updated: 2026-05-02
 - 추가 다운스트림 baseline은 자연 발생 시 본 wave 후속 별 wave 또는 4-B 검증 wave에서 수집
 - **starter 운영 데이터 보존 위치**: 로컬 `.measurements/` (gitignore — 다운스트림 오염 회피). 본 WIP·decisions는 placeholder만 사용
 - 다운스트림 보고 수령 시 placeholder 일반화 (incident hn_downstream_name_leak 패턴)
+
+## 변경 이력
+
+### 2026-05-02 — Phase 4-B 별 wave 5개 모두 처리 완료
+
+본 wave에서 분리한 5 병목 모두 후속 wave로 처리. 각 별 wave 결정 문서:
+
+- **(a) init check false-block 제거** — `decisions/hn_init_gate_redesign.md` (v0.34.0)
+- **(b) WIP cluster miss 해결** — `decisions/hn_wip_cluster_visibility.md` (v0.34.1)
+- **(c) cluster 재생성 게이팅** — `decisions/hn_cluster_update_gating.md` (v0.34.1)
+- **(d) Glob 패턴 보강** — `decisions/hn_glob_routing_tag.md` (v0.34.1)
+- **(e) adopt-without-init 차단·유도** — `decisions/hn_adopt_without_init_guard.md` (v0.34.1)
+
+본 wave의 baseline 결과는 5 별 wave 결정 문서에서 근거로 인용. 추가 측정·재진행 없음.

@@ -43,6 +43,35 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.31.2 — commit/SKILL.md Step 7 staging.md SSOT link로 단순화
+
+### 변경 파일
+
+- `.claude/skills/commit/SKILL.md` — Step 7 Stage 결정 우선순위·Stage별 행동·거대 커밋 정책 본문 재진술 제거 → staging.md SSOT 참조 한 단락
+- `docs/WIP/decisions--hn_rule_skill_ssot_apply.md` (신설) — Task 2 wave WIP
+
+### 변경 내용
+
+`hn_rule_skill_ssot.md` Task 1 측정 결과 핫스팟 1순위(commit × staging)
+처리. SKILL.md 본문에 staging.md의 Stage 정의·플래그 우선순위·충돌 처리·
+거대 커밋 정책이 일부 인라인되어 있던 것을 SSOT 참조로 단순화.
+
+스킬 ~30줄 → ~5줄. staging.md 갱신 시 SKILL.md 동기화 누락 위험 제거.
+
+### 적용 방법
+
+자동. harness-upgrade 후 별도 작업 없음.
+
+### 검증
+
+```bash
+pytest -m stage
+```
+
+회귀 위험: 본 변경은 SKILL.md 본문만 — Claude가 staging.md를 follow하는지 운용에서 확인 필요. 본 commit 자체가 자기증명 (Step 7 흐름이 정상 작동했음).
+
+
+
 ## v0.31.1 — scripts/tests 폴더 분리 (운영/테스트 혼재 해소)
 
 ### 변경 파일

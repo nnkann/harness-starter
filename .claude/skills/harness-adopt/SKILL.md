@@ -497,8 +497,12 @@ rm -rf .claude/skills/harness-adopt
   - 건너뜀: 3개 (사용자 선택)
 
 ### 다음 할 일
-  1. `harness-init` 실행 — CPS 정리 + 환경 빈 칸 채우기
-     (기존 프로젝트라도 CPS 정리는 권장)
+
+  ⚠️  **`/harness-init` 실행 — 필수.** CPS(`docs/guides/project_kickoff.md`)가
+      sample 상태로 남으면 implementation 스킬이 작업 시작을 차단합니다.
+      adopt는 구조 이식만 — Problem/Solution/Context는 init이 채웁니다.
+
+  1. `/harness-init` 실행 (필수, 즉시)
   2. relates-to 관계 채우기 — 문서 간 연결
   3. coding-convention / naming-convention 스킬로 규칙 세분화
 ```

@@ -95,3 +95,10 @@ updated: 2026-05-02
 - [starter 12커밋 push 누락 — 다운스트림이 업스트림 변경 못 봄](../incidents/hn_starter_push_skipped.md)
 - [린터 도구 실종 — T13이 우연히 가시화한 환경 이슈](../incidents/hn_test_isolation_git_log_leak.md)
 - [wip-sync incidents WIP 자동 완료 미동작 — 체크리스트 없는 문서 abbr 매칭 누락](../incidents/hn_wip_sync_incidents_gap.md)
+
+## 진행 중 (WIP)
+
+- [adopt-without-init 다운스트림 능동 유도 — harness-init 자동 트리거](../WIP/decisions--hn_adopt_without_init_guard.md)
+- [cluster 재생성 게이팅 — 본체 변경 시 전수 갱신 패턴 분리](../WIP/decisions--hn_cluster_update_gating.md)
+- [Glob 라우팅 태그 통과 — 사용자·에이전트 검색 비대칭 해소](../WIP/decisions--hn_glob_routing_tag.md)
+- [WIP cluster scan 가시성 — in-progress 도달 경로 추가](../WIP/decisions--hn_wip_cluster_visibility.md)

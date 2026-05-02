@@ -9,7 +9,9 @@ defends: P5
 **이 규칙 덕분에 가능한 것** (전에 폐기된 `INDEX.md`의 역할을 파일명
 체계가 흡수):
 
-- `ls docs/**/{abbr}_*` → 그 도메인의 모든 문서를 **즉시 목록화**
+- `ls docs/**/*{abbr}_*` → 그 도메인의 모든 문서(WIP 포함)를 **즉시 목록화**
+  (양쪽 wildcard 필수 — WIP 라우팅 태그 `decisions--` 통과). 단순 진입점은
+  `docs/clusters/{domain}.md` (completed + 진행 중 WIP 단일 노출).
 - `grep -r "hn_memory"` → 주제 관련 문서·참조 **한 번에 발견**
 - 파일명 `hn_memory.md`만 봐도 **도메인(harness) + 주제(memory)** 확정.
   문서 열지 않고도 성격 파악 가능

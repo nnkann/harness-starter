@@ -405,51 +405,83 @@ def cmd_cluster_update() -> int:
 
     today = date.today().isoformat()
     updated = 0
+    skipped = 0
 
     for abbr in abbrs:
         domain = abbr_to_domain.get(abbr, abbr)
         cluster = Path(f"docs/clusters/{domain}.md")
 
-        # 해당 abbr 문서 수집 (WIP·archived·clusters 제외)
+        # 해당 abbr 문서 수집 (archived·clusters 제외, WIP는 별도 수집)
         docs_list: list[Path] = []
+        wip_list: list[Path] = []
         for md in sorted(DOCS_DIR.rglob("*.md")):
             parts_set = set(md.parts)
-            if "WIP" in parts_set or "archived" in parts_set or "clusters" in parts_set:
+            if "archived" in parts_set or "clusters" in parts_set:
                 continue
-            if detect_abbr(md, abbrs) == abbr:
+            if detect_abbr(md, abbrs) != abbr:
+                continue
+            if "WIP" in parts_set:
+                wip_list.append(md)
+            else:
                 docs_list.append(md)
 
-        lines = [
-            "---",
-            f"title: {domain} 클러스터",
-            f"domain: {domain}",
-            "tags: [cluster, index]",
-            "status: completed",
-            "created: 2026-04-16",
-            f"updated: {today}",
-            "---",
-            "",
-            f"# {domain} 클러스터",
-            "",
-            f"도메인 {domain}({abbr}) 소속 문서 목록. docs-ops.py cluster-update 자동 생성.",
-            "",
-        ]
-        if docs_list:
-            lines.append("## 문서")
-            lines.append("")
-            for f in docs_list:
-                fm = extract_frontmatter(f)
-                title = fm.get("title") or f.name
-                rel = str(f).replace("\\", "/")
-                rel = rel.removeprefix("docs/")
-                lines.append(f"- [{title}](../{rel})")
-        else:
-            lines.append("_(문서 없음)_")
+        def build_body(updated_value: str) -> str:
+            lines = [
+                "---",
+                f"title: {domain} 클러스터",
+                f"domain: {domain}",
+                "tags: [cluster, index]",
+                "status: completed",
+                "created: 2026-04-16",
+                f"updated: {updated_value}",
+                "---",
+                "",
+                f"# {domain} 클러스터",
+                "",
+                f"도메인 {domain}({abbr}) 소속 문서 목록. docs-ops.py cluster-update 자동 생성.",
+                "",
+            ]
+            if docs_list:
+                lines.append("## 문서")
+                lines.append("")
+                for f in docs_list:
+                    fm = extract_frontmatter(f)
+                    title = fm.get("title") or f.name
+                    rel = str(f).replace("\\", "/")
+                    rel = rel.removeprefix("docs/")
+                    lines.append(f"- [{title}](../{rel})")
+            else:
+                lines.append("_(문서 없음)_")
+            if wip_list:
+                lines.append("")
+                lines.append("## 진행 중 (WIP)")
+                lines.append("")
+                for f in wip_list:
+                    fm = extract_frontmatter(f)
+                    title = fm.get("title") or f.name
+                    rel = str(f).replace("\\", "/")
+                    rel = rel.removeprefix("docs/")
+                    lines.append(f"- [{title}](../{rel})")
+            return "\n".join(lines) + "\n"
 
-        cluster.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        # 결정적 비교: 기존 파일의 updated 값을 재사용해 본문 생성 → 동일하면 skip
+        prev_updated = ""
+        prev_text = ""
+        if cluster.exists():
+            prev_text = cluster.read_text(encoding="utf-8")
+            m = re.search(r"^updated: (\S+)$", prev_text, re.MULTILINE)
+            if m:
+                prev_updated = m.group(1)
+
+        candidate_with_prev = build_body(prev_updated) if prev_updated else ""
+        if prev_text and candidate_with_prev == prev_text:
+            skipped += 1
+            continue
+
+        cluster.write_text(build_body(today), encoding="utf-8")
         updated += 1
 
-    print(f"clusters/ 갱신: {updated}개 파일")
+    print(f"clusters/ 갱신: {updated}개 파일 (skip {skipped}개)")
     return 0
 
 
