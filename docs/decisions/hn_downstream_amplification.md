@@ -255,6 +255,44 @@ updated: 2026-05-02
 
 ## 변경 이력
 
+### 2026-05-02 — v0.34.1 다운스트림 검증 결과 (도메인 18 환경)
+
+다운스트림 1개(도메인 18 / 문서 361 / WIP 5)에서 v0.34.1 4 wave 검증 보고 수령.
+`harness-upgrade` 시 충돌 0, 신규 파일 1개(`check_init_done.sh`).
+
+**(c) cluster 재생성 게이팅**:
+- 1회차: 갱신 0 / skip 18 (직전 upgrade의 cluster-update가 첫 적용 완료된 상태)
+- 2회차: 갱신 0 / skip 18, mtime 완전 일치
+- → 결정적 출력 + diff 비교 정상. mtime noise 0 확인 (도메인 18 환경)
+
+**(b) WIP cluster 가시성**:
+- `## 진행 중 (WIP)` 섹션 등록: 3 / 18 cluster (WIP 있는 도메인만)
+- WIP 5개 중 abbr 매칭 가능 3개 모두 등록 (누락 0)
+- 남은 2개는 abbr 없는 전역 마스터형 → cluster 미매핑이 의도된 동작
+- WIP 0인 도메인 cluster 15개는 섹션 미생성 (비어있는 섹션 회피 확인)
+
+**(d) Glob 라우팅 태그 비대칭 재현**:
+- 단순 glob `WIP/<abbr>_*` → 0 hit (라우팅 태그 prefix `decisions--`에 막힘)
+- 양쪽 wildcard `WIP/*<abbr>_*` → 1 hit (통과)
+- → 가이드 변경(`docs.md`·`naming.md` 양쪽 wildcard 명시)의 정합성 확인
+
+**참고 baseline (도메인 18 환경)**:
+- cluster scan (`cat docs/clusters/<도메인>.md`): 0.016s
+- 도메인 한정 grep: 0.104s
+- 전체 docs grep: 0.086s
+- amplification 본문 baseline의 cluster scan 5.6s와 큰 격차 — 5.6s의
+  주된 비용은 cluster scan 자체가 아닌 후속 SSOT 3단계 grep 단계로 추정.
+  v0.34.1 결정적 출력은 본문 비대화 방지 효과만, 1차 진입 비용은 원래
+  미미했음을 후행 측정으로 확인
+
+**회귀 신호**:
+- `/commit` 차단 0, SEALED 회귀 0, validate 오류 0
+- cluster의 WIP 링크 dead-link 0
+- 사전 dead-link 부채 7건 잔존 (v0.34.1 무관, 별 wave 검토 가치)
+
+**결론**: v0.34.1 4 wave 모두 다운스트림 의도대로 작동. 신규 회귀 0.
+(e) adopt 메시지는 다운스트림이 이미 adopt 완료 상태라 본 검증 범위 외.
+
 ### 2026-05-02 — `.measurements/` 폴더 폐기
 
 본문 4곳에서 참조한 starter 로컬 `.measurements/` 폴더 폐기. 향후 다운스트림
