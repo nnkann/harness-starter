@@ -11,6 +11,7 @@ pre-commit 검사.
   2: 차단 (ERRORS > 0)
 """
 
+import json
 import os
 import re
 import shutil
@@ -434,7 +435,11 @@ def main() -> int:
     )
     # 하네스 자체가 시크릿 패턴을 SSOT로 문서화하는 위치는 line 스캔 면제
     # (scripts: 정의/테스트 픽스처, agents/rules/skills/memory: 패턴 인용 문서)
-    S1_LINE_EXEMPT = re.compile(r"^\.claude/(scripts|agents|rules|skills|memory)/")
+    S1_LINE_EXEMPT = re.compile(
+        r"^\.claude/(scripts|agents|rules|skills|memory)/"
+        r"|^docs/(WIP|incidents|decisions|guides|harness)/"
+        r"|^scripts/install-secret-scan-hook\.sh$"
+    )
 
     s1_file_hit = any(
         S1_FILE_PAT.search(f) and not S1_EXEMPT.search(f)
@@ -654,6 +659,25 @@ def main() -> int:
     if total_files > 30 or added_lines > 1500 or deleted_lines > 1500:
         err(f"⚠ 대규모 변경 감지 (files={total_files}, +{added_lines}, -{deleted_lines}).")
         err("  권장: 스코프를 나눠 작은 커밋 여러 개로 분리.")
+
+    # ─────────────────────────────────────────────────────────
+    # hook 미설치 경고 (Phase 1 — threat-analyst 권고)
+    # 시크릿 line-confirmed 가드는 commit 스킬 경유 시에만 작동.
+    # 터미널 직접 git commit 시 hook이 안전망. 미설치면 경고.
+    # ─────────────────────────────────────────────────────────
+
+    try:
+        with open(".claude/HARNESS.json", encoding="utf-8") as f:
+            hj = json.load(f)
+        if hj.get("hook_installed") is not True:
+            err("")
+            err("⚠ pre-commit hook 미설치. 터미널 직접 git commit 시 시크릿 가드 부재.")
+            if hj.get("is_starter"):
+                err("  설치: bash .claude/scripts/install-starter-hooks.sh")
+            else:
+                err("  설치: bash scripts/install-secret-scan-hook.sh")
+    except Exception:
+        pass
 
     # ─────────────────────────────────────────────────────────
     # 출력

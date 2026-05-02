@@ -104,7 +104,8 @@ if [[ $UNQ_COMMAND =~ ^git[[:space:]]+commit([[:space:]]|$) ]]; then
   # 그 외 git commit 직접 호출 → 차단
   echo "❌ git commit 직접 호출 금지 (audit #8)." >&2
   echo "   → commit 스킬 사용: /commit  또는  Skill tool에서 commit 호출" >&2
-  echo "   이스케이프(긴급): HARNESS_DEV=1 git commit -m ..." >&2
+  echo "   비상 이스케이프: HARNESS_DEV=1 git commit -m ..." >&2
+  echo "   (시크릿 line-confirmed 가드는 git pre-commit hook이 항상 실행 — 우회 불가)" >&2
   echo "   근거: 스킬 우회 시 pre-check·review·진척도 갱신·추적 라인 누락" >&2
   exit 2
 fi
