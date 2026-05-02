@@ -1,33 +1,37 @@
 ---
-title: 다운스트림 증폭 완화 — 도메인 수 비례 비용 제거
+title: 다운스트림 증폭 측정 — Phase 4-A baseline 수집·가설 검증
 domain: harness
 problem: P5
 solution-ref:
   - S5 — "서브에이전트 spawn 시 컨텍스트 < 500k 토큰 (부분)"
-tags: [downstream, amplification, scale-gating, doc-finder]
+tags: [downstream, amplification, baseline, measurement]
 relates-to:
   - path: harness/hn_harness_efficiency_overhaul.md
     rel: caused-by
-status: pending
+status: in-progress
 created: 2026-05-02
+updated: 2026-05-02
 ---
 
-# 다운스트림 증폭 완화
+# 다운스트림 증폭 측정 — Phase 4-A
 
 ## 사전 준비
 - 읽을 문서: `.claude/skills/implementation/SKILL.md` Step 0.3·0.8, `.claude/scripts/docs_ops.py` (clusters)
 - 이전 산출물: hn_harness_efficiency_overhaul.md Phase 2-A v0.29.1 (외형 metric 폐기·AC + CPS 도입)
 
 ## 목표
-다운스트림에서 도메인·CPS·문서 수 증가에 step 비용이 비선형 증가하는 문제 해결.
-실측 baseline 확보 후 단계 적용.
+다운스트림에서 도메인·CPS·문서 수 증가에 step 비용이 비선형 증가하는지
+**실측 검증**. baseline 수집 + 가설 약화·강화 판단까지가 본 wave 산출물.
+
+게이팅 코드 적용(Phase 4-B)은 본 wave에서 분리 — 측정으로 드러난
+병목 5개((a)~(e))는 별 wave WIP로 신설.
 
 ## 작업 목록
 
-### 1. Phase 4-A — baseline trace 수집 (선행, 코드 변경 0)
+### Phase 4-A — baseline trace 수집
 
 **Acceptance Criteria**:
-- [x] Goal: 다운스트림 1개 프로젝트에서 동일 작업 1건의 tool call·시간 trace 수집해 baseline 확보
+- [x] Goal: 다운스트림 1개 이상 프로젝트에서 tool call·시간 trace 수집해 baseline 확보
   검증:
     review: skip
     tests: 없음 (측정 작업)
@@ -35,64 +39,61 @@ created: 2026-05-02
 - [x] doc-finder fast scan tool call 수 측정 (3 calls / 12.3s / hit 1)
 - [x] SSOT 3단계 탐색 시간 측정 (cluster 5.6s / grep 12.6s / read 6.2s)
 - [x] clusters 갱신 빈도 측정 (v0.33.0 업그레이드 commit 1건에서 18/18 전 도메인 재생성. v0.27.x 업그레이드 commit은 0건 — 상시 N 비례 아님, docs_ops.py 본체 변경 시 전수 갱신 패턴)
-- [x] 도메인 수에 실제로 비례하는지 확인 — N=1 한정 (cluster I/O는 비례, 그러나 진짜 병목은 init drift·WIP miss·glob 미스매치)
+- [x] 도메인 수에 실제로 비례하는지 확인 — 3환경(2/7/18) 측정 후 가설 약화 결론
 
-### 2. Phase 4-B — 게이팅 코드 적용 (Phase 4-A 결과 후)
+### Phase 4-B — 게이팅 코드 적용 (별 wave로 분리)
 
-> **재설계됨 (2026-05-02, baseline 반영)**: 원안의 "도메인 수 비례 cluster I/O 절감"은
-> 실측에서 부분 확인됐으나(18/18 재생성 → 6x I/O), 다운스트림 baseline에서 더 큰 비용원
-> 셋이 드러남. AC를 그 셋 중심으로 재구성. 원래 항목은 (c)로 흡수.
+본 wave 측정 결과 드러난 5개 병목은 별 wave WIP로 분리 신설:
 
-**Acceptance Criteria**:
-- [ ] Goal: 다운스트림 N=1 baseline 대비 implementation Step 0 진입 wall ≤50% 감소 (83.4s → 40s 이하)
-  검증:
-    review: review-deep
-    tests: pytest -m stage
-    실측: 같은 작업(lk DB 마이그레이션) 재측정으로 절감 확인
-- [ ] (a) init check false-block 제거 — CLAUDE.md drift 게이트가 19.7s 헛돔. drift 감지 로직 정밀화 또는 게이트 자체 재검토
-- [ ] (b) WIP cluster miss 해결 — WIP 파일도 cluster scan에서 hit 되도록 (현재 in-progress 작업이 항상 cluster scan miss → grep으로 폴백)
-- [ ] (c) cluster 재생성 게이팅 — docs_ops.py 본체 변경 시 18/18 전수 mtime 갱신 패턴 발견(v0.33.0 업그레이드 commit). 신규 문서·이동·rename 시 영향 도메인만 갱신하도록 incremental update + 본체 변경은 별 트리거
-- [ ] (d) Glob 패턴 보강 — `<abbr>_*` glob이 `decisions--<abbr>_*` WIP 못 잡는 문제. naming.md 라우팅 태그 직교 파싱과 정합. 사용자·에이전트 단순 glob 시나리오 명시 가이드
-- [ ] (e) adopt-without-init 차단·유도 (N=2 baseline 신규 발견) — `harness-adopt`만 돌고 `harness-init` 안 돈 다운스트림 차단 또는 init 재실행 유도. CPS sample 존재 + 실 kickoff.md 부재 감지 메커니즘
+- **(a) init check false-block 제거** — `decisions--hn_init_gate_redesign.md` 신설 (본 세션, 우선순위 1)
+- **(b) WIP cluster miss 해결** — 별 wave WIP 신설 대기
+- **(c) cluster 재생성 게이팅** — 별 wave WIP 신설 대기
+- **(d) Glob 패턴 보강** — 별 wave WIP 신설 대기
+- **(e) adopt-without-init 차단·유도** — 별 wave WIP 신설 대기
+
+각 wave는 본 wave의 baseline 결과(`## 메모`)를 근거로 시작. 본 wave는
+4-A 측정 종료 시점에 completed 이동.
 
 ## 결정 사항
 
-### 2026-05-02 — Phase 4-A baseline N=1 반영, Phase 4-B 재설계
+### 2026-05-02 — Phase 4-A 결론 (3환경 baseline 종합)
 
-**판단**: B (다른 병목이 진짜 원인) + A 부분 (cluster I/O 비례도 사실).
+**측정 환경 3건**:
+- starter: 도메인 2, meta 단독 시나리오, Step 0 wall 28.55s, drift N
+- 다운스트림 N=2: 도메인 7, 코드 작업, Step 0 wall 77.67s, drift Y
+- 다운스트림 N=1: 도메인 18, 코드 작업, Step 0 wall 83.4s, drift Y
 
-원래 가설("도메인 수 비례 cluster 비용")은 18/18 재생성으로 부분 확인.
-그러나 다운스트림 baseline에서 cluster I/O보다 큰 비용원 셋(init drift 19.7s,
-WIP cluster miss, glob 미스매치)이 드러남. Phase 4-B AC를 (a)~(d)로
-재구성 — 원안의 cluster 게이팅은 (c)로 흡수, 나머지 셋이 신규 항목.
+**원래 가설("도메인 수 비례 비용") — 약화 결론**:
+- 도메인 7 vs 18 차이 2.6x인데 Step 0 wall 차이 1.07x — 도메인 수는 약한 변수
+- 도메인 9x(2→18) 차이에 Step 0 2.9x — 비례 약함
+- cluster 재생성도 상시 N 비례 아님: docs_ops.py 본체 변경 시에만 전수 mtime
+  갱신 트리거 (v0.33.0 업그레이드 commit 1건만)
 
-**샘플 한계 명시**: 다운스트림 N=1 (도메인 18 환경). 중간 규모(5~10)
-baseline 부재. 자연 발생 대기.
+**진짜 변수 (3환경 종합)**:
+1. 환경 양식 drift (init check 4.85s vs 15~19s, 3~4x 차이)
+2. 문서 수 (SSOT grep 비용)
+3. WIP 비중 (cluster scan miss 빈도)
+4. CPS 부재·sample만 존재 (Problem 매칭 불가)
 
-### 2026-05-02 — starter baseline 측정 (meta 단독 시나리오)
+**병목 5개 식별** — 별 wave WIP로 분리 (본 wave 종료 후 신설):
+- (a) init check 게이트 정밀화 — **본 세션에서 신설**: `decisions--hn_init_gate_redesign.md`
+- (b) WIP cluster miss 해결 — 별 wave 신설 대기
+- (c) cluster 재생성 게이팅 — 별 wave 신설 대기
+- (d) Glob 라우팅 태그 통과 — 별 wave 신설 대기
+- (e) adopt-without-init 차단·유도 — 별 wave 신설 대기 (N=2에서 신규 발견)
 
-원본 측정 데이터는 starter 로컬 `.measurements/`(gitignore)에 보존.
-다운스트림 오염 회피 위해 본문에 핵심 수치만 인라인.
+**우선순위 근거** (별 wave 신설 시 참고):
+- (a) starter 4.85s vs 다운스트림 15~19s, 3~4x. 도메인 수 무관. **우선순위 1**
+- (c) meta 단독에서 23.7s 절감 검증됨. **우선순위 2**
+- (b) 3환경 중 2개 발현. 단순 fast path. **우선순위 3**
+- (d) `<abbr>_*` glob 부분 실패 명시 확인. **우선순위 4**
+- (e) 신규 발견 (N=2). starter 자기 영향 검토 의무 사례 (incident hn_sealed_migrations_exempt_gap 형제 패턴). **우선순위 5**
 
-**판단 갱신**:
-- **(a) init drift 게이트 결함 확정** — starter 4.85s vs 다운스트림 19.7s
-  = 4.1x. 도메인 수 무관. **선행 착수 우선순위 1** (다운스트림 추가 보고 무관)
-- **(c) meta skip 효과 입증** — meta 단독 변경에서 23.7s 절감 가능
-  (28.55s → 4.85s). **선행 착수 우선순위 2**
-- **(b) WIP cluster miss** — 다운스트림 N=1 dev clone + 중간 규모 N=1
-  두 환경 모두 명시 확인. cluster scan은 WIP 시나리오에서 효용 없음.
-  **선행 착수 우선순위 3 격상** (3개 환경 중 2개 발현 + 단순 fast path)
-- **(d) glob 미스매치** — 중간 규모 baseline에서 부분 실패 명시 확인.
-  `<abbr>_*` glob hit 0, `decisions--<abbr>_*` 직접 매칭만 hit. 사용자·
-  에이전트 시나리오에서 누락 발생. **선행 착수 우선순위 4**
-- **도메인 수 비례 가설 약화 — 강화** — 도메인 7 vs 18 차이 2.6x인데
-  Step 0 wall 차이 1.07x. 본 wave 제목 자체 재검토 필요. 실 변수는
-  **CPS 부재 + 환경 drift + WIP 비중**. 4-B 종료 후 wave 제목·목표 재서술
-- **(e) 신규 — adopt-completed-but-init-skipped 상태** — 중간 규모
-  baseline에서 발견. `harness-adopt`만 돌고 `harness-init` 안 돈 다운스트림.
-  CPS sample만 존재 → Problem 매칭 불가, init 게이트가 본래 차단해야 하는데
-  드리프트 통과. Phase 4-B 신규 항목 후보 (init 미실행 명시 차단·재실행
-  유도 메커니즘)
+### 2026-05-02 — wave 분리 결정
+
+원래 wave 제목 "도메인 수 비례 비용 제거"는 가설 약화 결론과 부정합 →
+"baseline 수집·가설 검증"으로 재서술. Phase 4-B 게이팅 코드 작업은
+별 wave 5개로 분리. 본 wave는 4-A 측정·결론까지가 산출물, completed 이동.
 
 ## 메모
 
@@ -248,6 +249,6 @@ baseline 부재. 자연 발생 대기.
 - 본 wave는 v0.29.1 hn_harness_efficiency_overhaul.md에서 분리됨
 - 측정 게이트 필수 — 추측 기반 적용 금지
 - starter 단독 측정으로는 효과 검증 어려움. 다운스트림 1개 이상 필수
-- 다음 다운스트림 보고 수령 시 본 섹션에 `### baseline — 다운스트림 N=N` 형식으로 추가 (고유명사 박지 마라 — incident hn_downstream_name_leak 패턴)
-- 추가 시나리오 측정 후보: meta 도메인 단독 변경 (README 수정·메모리 인덱스 갱신 등) — Phase 4-B (a) `meta skip` 효과 검증용
+- 추가 다운스트림 baseline은 자연 발생 시 본 wave 후속 별 wave 또는 4-B 검증 wave에서 수집
 - **starter 운영 데이터 보존 위치**: 로컬 `.measurements/` (gitignore — 다운스트림 오염 회피). 본 WIP·decisions는 placeholder만 사용
+- 다운스트림 보고 수령 시 placeholder 일반화 (incident hn_downstream_name_leak 패턴)
