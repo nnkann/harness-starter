@@ -78,8 +78,12 @@ baseline 부재. 자연 발생 대기.
   = 4.1x. 도메인 수 무관. **선행 착수 우선순위 1** (다운스트림 추가 보고 무관)
 - **(c) meta skip 효과 입증** — meta 단독 변경에서 23.7s 절감 가능
   (28.55s → 4.85s). **선행 착수 우선순위 2**
-- **(b) WIP cluster miss·(d) glob 미스매치** — meta 시나리오에서 미발현.
-  중간 규모 다운스트림 baseline 1건 추가 후 우선순위 확정
+- **(b) WIP cluster miss** — 다운스트림 dev clone 재측정에서 명시 확인 (in-progress
+  WIP가 어떤 cluster에도 미등록 → cluster scan 항상 hit 0). **WIP 비중 큰
+  환경일수록 손해**가 새 표현. meta 시나리오에서는 미발현이라 우선순위는
+  중간 규모 baseline 1건 추가 후 확정
+- **(d) glob 미스매치** — 라우팅 태그 없는 환경에서는 미발현. 라우팅 태그 통과
+  시나리오 측정 시 우선순위 확정
 - **도메인 수 비례 가설 약화** — 본 wave 제목("도메인 수 비례") 자체
   재검토 필요. 실 변수는 문서 수 + 환경 drift. 4-B 종료 후 wave 제목·
   목표 재서술 검토
@@ -129,6 +133,26 @@ baseline 부재. 자연 발생 대기.
 - N=1 단일 작업
 - wall에 Bash 타임스탬프 오버헤드 포함
 - 인간 사고·LLM reasoning 시간 미포함
+
+#### 재측정 노트 (2026-05-02, 같은 환경 dev clone, shell 시뮬)
+
+같은 다운스트림 환경(도메인 18, 동일 작업)을 dev clone에서 shell-only로
+재측정. 새 baseline 아님 — owner 요청한 중간 규모(5~10) 미충족.
+
+수령 가치 (2개만):
+1. **(g) init drift 헛돔 재현 확인** — CLAUDE.md `## 환경`에 `패키지 매니저:`
+   키 부재, project_kickoff sample만 존재. 게이트가 차단 신호 없이 통과 →
+   기존 4.1x 비용 부풀림 패턴의 환경 조건 재확인
+2. **(h) WIP cluster miss 명시 확인** — in-progress WIP가 어떤 cluster에도
+   미등록. cluster scan 항상 hit 0. 새 표현: **"WIP 비중 큰 환경일수록 손해"**
+   (활동량 많은 다운스트림에서 더 큰 비용)
+
+수령 미가치:
+- shell wall 절대값 (1.018s) — LLM round-trip 빠진 하한선. 기존 83.4s와 비교 불가
+- 도메인 수 비례 추세 — 같은 18, 새 데이터 포인트 0
+- (i) glob 라우팅 태그 통과 — 라우팅 태그 없는 환경이라 핵심 시나리오 미검증
+
+원본 보고서는 starter 로컬 `.measurements/`(gitignore)에 보존.
 
 ### baseline — harness-starter (2026-05-02, meta 단독 시나리오)
 
