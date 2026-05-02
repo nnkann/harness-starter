@@ -8,7 +8,7 @@ tags: [downstream, amplification, baseline, measurement]
 relates-to:
   - path: harness/hn_harness_efficiency_overhaul.md
     rel: caused-by
-status: in-progress
+status: completed
 created: 2026-05-02
 updated: 2026-05-02
 ---
