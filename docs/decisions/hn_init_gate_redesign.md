@@ -10,7 +10,7 @@ relates-to:
     rel: extends
   - path: incidents/hn_sealed_migrations_exempt_gap.md
     rel: references
-status: in-progress
+status: completed
 created: 2026-05-02
 updated: 2026-05-02
 ---
