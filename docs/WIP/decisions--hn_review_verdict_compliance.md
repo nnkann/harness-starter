@@ -8,8 +8,9 @@ tags: [review, verdict, format, compliance]
 relates-to:
   - path: harness/hn_harness_efficiency_overhaul.md
     rel: caused-by
-status: pending
+status: in-progress
 created: 2026-05-02
+updated: 2026-05-02
 ---
 
 # review verdict 형식 100% 누락
@@ -43,41 +44,53 @@ commit/SKILL.md prompt 끝에도 명시. 그럼에도 100% 누락.
 ### 1. 원인 진단
 
 **Acceptance Criteria**:
-- [ ] Goal: 본 세션 3 누락 케이스 transcript 분석으로 review 응답 패턴 특정 (분석 서술 → 결론 verdict 순? 또는 verdict 누락 후 본문만?)
+- [x] Goal: 본 세션 4 누락 케이스 패턴 특정 (분석 서술 → 결론 verdict 순? 또는 verdict 누락 후 본문만?)
   검증:
     review: skip
     tests: 없음
-    실측: 없음
-  **(작업 착수 시 채움)**
-- [ ] git log에서 `[review-form-warn]` 태그 빈도 측정 (전체 commit 대비)
+    실측: 본 세션 transcript에서 4/4 모두 "분석 본문 먼저 출력 → 1차 재호출에 verdict 헤더 부착" 패턴 일관 관찰
+- [x] 패턴 결론: review 에이전트가 reasoning과 출력을 분리 안 함 — 분석 사고를 본문에 leak. verdict는 결론부 후반에 출현
 
-### 2. prompt 재설계
+### 2. prompt 재설계 (prefill 패턴)
 
 **Acceptance Criteria**:
-- [ ] Goal: review prompt 마지막 줄을 `verdict: ` 만 박은 prefill 형태로
-  실험. 첫 토큰이 verdict 값이 되도록 강제
+- [x] Goal: commit/SKILL.md prompt 마지막 줄을 `## 리뷰 결과 / verdict: `로 끝내 prefill 효과. 모델이 다음 토큰부터 verdict 값 강제 출력
   검증:
     review: review
-    tests: 없음
-    실측: 본 wave 이후 5 commit 연속 1패스 성공 추적
-  **(작업 착수 시 채움)**
-- [ ] 또는 commit/SKILL.md "지시" 블록 끝에 "verdict 헤더 누락 시 자동 차단" 명시
+    tests: 없음 (운용 검증)
+    실측: 본 wave 이후 5 commit 연속 1패스 성공 추적 — 자동 검증 불가, 운용에서 확인
+- [x] commit/SKILL.md "지시" 블록 끝에 "출력 형식 — 절대 규칙" 섹션 추가. prompt 자체가 `verdict: `로 끝나도록 재배치
 
 ### 3. review.md 구조 정리
 
 **Acceptance Criteria**:
-- [ ] Goal: 형식 강제 메시지를 1곳(line 10~15)에 통합. 중복 제거
+- [x] Goal: 상단 헤더 박스를 더 강하게 — 자주 나오는 실수 명시 + "분석은 reasoning에서, 출력은 결론부터" 행동 가이드
   검증:
     review: review
     tests: 없음
-    실측: 없음
-  **(작업 착수 시 채움)**
+    실측: review.md line 10~ 강화 확인
+- [x] 두 군데 분산 메시지 정리 — 상단 헤더는 행동 가이드, line 201 SSOT는 형식 정의 (역할 분리)
 
 ## 결정 사항
-(작업하면서 채움)
+
+- **prefill 패턴 채택**: commit/SKILL.md prompt 마지막 줄을 `## 리뷰 결과 / verdict: `로
+  끝내 모델 다음 토큰을 verdict 값으로 강제. Anthropic prefill 권장 패턴 활용.
+  → 반영: commit/SKILL.md "## 출력 형식 — 절대 규칙" 섹션 + prompt 끝 `verdict: ` prefill
+- **review.md 헤더 강화**: 자주 나오는 실수 명시(분석 머릿말·"AC 항목 검증한다") +
+  "분석은 reasoning에서, 출력은 결론부터" 행동 가이드. 두 군데 분산 메시지의
+  역할 분리 — 상단(line 10~)은 행동 가이드, line 201은 형식 SSOT.
+  → 반영: review.md 상단 인용 박스 확장
+- **자동 검증 불가 영역 정직 고지**: prefill 효과는 운용에서 5 commit 1패스
+  성공률로 측정. 본 wave에서 자동 검증 불가 — 다음 commit부터 추적
+- CPS 갱신: 없음 (S2 메커니즘 강화 — 충족 기준 변경 X, prompt 패턴 개선)
 
 ## 메모
-- 본 세션 3 commit (v0.29.2·v0.30.0·v0.30.1) 모두 verdict 누락 → 1차 재호출 통과 패턴 일관
-- 영향: 매번 review 재호출 1회 비용 (tool call 1~2 + 시간 5~10초)
-- 차단으로 이어진 적 없음 — 1차 재호출이 작동. 단 prompt 토큰·시간 누적 부담
-- 우선순위: 매번 마찰이지만 동작 자체는 회복됨 — Phase 2-A 후속 wave와 함께 진행 가능
+
+- 본 세션 4 commit (v0.29.2·v0.30.0·v0.30.1·v0.30.2) 모두 verdict 누락 → 1차 재호출 통과 패턴 100% 일관
+- 영향: 매번 review 재호출 1회 비용 (tool call 1~2 + 시간 5~10초 + prompt 토큰)
+- 차단으로 이어진 적 없음 — 1차 재호출이 작동. 단 비용 누적 부담
+- prefill 패턴 근거: Anthropic API에서 assistant 메시지 prefill로 응답 시작
+  토큰 강제하는 표준 기법. sub-agent prompt에서도 마지막 줄이 다음 응답
+  시작점에 영향 — 실측 필요하나 강한 prior
+- 작은 변경 — review.md 인용 박스 1개·commit/SKILL.md "지시" 블록 1개 수정
+  (15~20줄). 작업 규모 small

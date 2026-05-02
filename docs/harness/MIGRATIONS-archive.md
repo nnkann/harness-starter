@@ -43,6 +43,61 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.29.1 — Phase 2-A 2단계: AC + CPS 시스템 강제 (efficiency overhaul)
+
+### 변경 파일
+
+| 파일 | 처리 | 비고 |
+|------|------|------|
+| `.claude/scripts/pre_commit_check.py` | 3-way merge | frontmatter `problem`·`solution-ref` 검증 + AC `Goal:` + 검증 묶음 추출 + CPS 박제 감지 (normalize_quote·verify_solution_ref·parse_ac_block 신설). 외형 룰 (UPSTREAM_PAT·META_M_PAT·rename/meta/WIP/docs-5줄 단독 skip) 폐기. `wip_kind`·`has_impact_scope` 폐기, `wip_problem`·`wip_solution_ref`·`ac_review`·`ac_tests`·`ac_actual` 출력 |
+| `.claude/scripts/test_pre_commit.py` | 3-way merge | 외형 metric 테스트 (TestStageBasic 4개·TestIntegMoveCommit 전체) deprecate. 시크릿 게이트·standard 폴백 테스트만 유지 |
+| `docs/WIP/harness--hn_harness_efficiency_overhaul.md` | 사용자 전용 (skip) | 자기증명 적용 — solution-ref list + 검증 묶음 |
+
+### 적용 방법
+자동. `harness-upgrade` 실행 시 3-way merge로 적용.
+
+**다운스트림 필수 작업**:
+- 신규 WIP·decisions·incidents·guides 작성 시 frontmatter `problem: P#`·`solution-ref:` (list) + AC `Goal:` + `검증:` 묶음 (review·tests·실측 3 키) 작성. 누락 시 commit 차단.
+- 기존 50개 문서는 본 wave 밖 — 별 wave에서 backfill (점진).
+
+### 자기증명 통과
+본 commit 자체가 새 검증 시스템 통과:
+```
+pre_check_passed: true
+wip_problem: P2
+wip_solution_ref: S2 — "review tool call 평균 ≤4회 (부분)"; S2 — "docs-only 커밋이 skip 또는 micro로 분류됨"
+ac_review: review-deep
+ac_tests: pytest -m secret
+ac_actual: AKIA 더미 staged + HARNESS_DEV=1 git commit → exit 1, 차단 확인
+recommended_stage: deep
+```
+
+### 주의 — 외형 metric 폐기 영향
+- `.claude/scripts/**` → deep 자동 격상 → 폐기. AC `검증.review` 작성자 선언이 결정
+- `docs 5줄 이하` skip → 폐기. 줄 수 무관, AC 기반
+- `WIP 단독`·`meta 단독`·`rename 단독` skip → 폐기. AC 기반
+- 기존 WIP의 `> kind:` 마커, AC `영향 범위:` 항목 → 코드에서 더 이상 읽지 않음. 다운스트림 그대로 둬도 동작 무관
+
+### 한계 (별 wave)
+- eval/SKILL.md CPS 무결성 감시 (`--harness` 박제 발견) — 본 wave 밖
+- commit 스킬 5.3 자동 실행 코드 (tests·실측 화이트리스트 실행) — 본 wave 밖, 1단계에 SSOT 정의는 됨
+- legacy 50개 문서 frontmatter backfill — 별 wave (다운스트림 영향)
+- AC 미작성 진입점 결함 audit (write-doc·implementation 진입점) — 별 WIP
+
+### 회귀 위험
+- upstream 격리 환경 검증:
+  - `pytest -m "secret or stage"` 6/6 통과 + 4 skip (TestIntegMoveCommit deprecate)
+  - 본 commit 자체 자기증명 통과 (위 출력 참조)
+- staged WIP 없는 hot-fix 케이스: standard 폴백 (이전 외형 metric 추정 대신 보수)
+
+### 검증
+```bash
+python3 .claude/scripts/pre_commit_check.py
+pytest -m "secret or stage"
+```
+
+
+
 ## v0.29.0 — Phase 2-A 1단계: AC + CPS 시스템 정의 (efficiency overhaul)
 
 ### 변경 파일 (24개 — 시스템 정의 문서만, 코드 변경 0)
