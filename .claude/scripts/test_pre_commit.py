@@ -242,35 +242,23 @@ class TestSecretScan:
 
 @pytest.mark.stage
 class TestStageBasic:
-    def test_upstream_scripts_deep(self):
-        """업스트림 위험 경로 → deep"""
+    """Phase 2-A 외형 metric 폐기 후 (v0.29.1) — 모든 stage 결정은 AC + CPS.
+
+    외형 metric 룰 (UPSTREAM_PAT·docs 5줄·WIP 단독·rename/meta 단독)은 통합 테스트
+    (TestIntegMoveCommit·TestACBasedStage)로 이전. 단위 테스트는 시크릿 게이트만.
+    """
+
+    def test_secret_line_confirmed_deep(self):
+        """시크릿 line-confirmed → deep (보안 게이트, AC 무관)"""
         out = run_check(
-            name_status="M .claude/scripts/foo.sh",
-            numstat="1 0 .claude/scripts/foo.sh",
-            diff_u0="+#!/bin/bash\n",
+            name_status="M src/foo.ts",
+            numstat="1 0 src/foo.ts",
+            diff_u0="+const k = 'AKIAIOSFODNN7EXAMPLE';\n",
         )
         assert stage(out) == "deep"
 
-    def test_wip_only_skip(self):
-        """WIP 단독 → skip"""
-        out = run_check(
-            name_status="M docs/WIP/decisions--hn_foo.md",
-            numstat="3 0 docs/WIP/decisions--hn_foo.md",
-            diff_u0="+내용\n",
-        )
-        assert stage(out) == "skip"
-
-    def test_docs_5lines_skip(self):
-        """docs 5줄 이하 → skip"""
-        out = run_check(
-            name_status="M docs/guides/hn_foo.md",
-            numstat="1 0 docs/guides/hn_foo.md",
-            diff_u0="+한 줄\n",
-        )
-        assert stage(out) == "skip"
-
-    def test_no_wip_standard(self):
-        """WIP 없는 일반 파일 → standard"""
+    def test_no_wip_no_secret_standard(self):
+        """staged WIP 없고 시크릿 없으면 standard 폴백 (보수)"""
         out = run_check(
             name_status="M src/foo.ts",
             numstat="2 0 src/foo.ts",
@@ -510,6 +498,7 @@ class TestIntegRelatesTo:
         _reset(repo)
 
 
+@pytest.mark.skip(reason="외형 metric 룰 (rename 단독·meta 단독·docs 5줄) 폐기 — v0.29.1 Phase 2-A. AC + CPS 의미 기반으로 전환됨. 신규 테스트는 TestACBasedStage (별 wave)")
 @pytest.mark.stage
 class TestIntegMoveCommit:
     """T39: 각 테스트가 독립적인 파일명 사용 — module sandbox 상태 오염 방지."""

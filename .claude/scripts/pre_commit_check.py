@@ -103,6 +103,157 @@ def resolve_path(base_dir: str, link: str) -> str:
 
 
 # ─────────────────────────────────────────────────────────
+# CPS·AC 메타데이터 파싱 (Phase 2-A 2단계 — v0.29.1)
+# ─────────────────────────────────────────────────────────
+
+CPS_DOC = "docs/guides/project_kickoff.md"
+# CPS 면제 — frontmatter problem·solution-ref 강제 안 함
+CPS_EXEMPT_PATHS = re.compile(r"^docs/guides/project_kickoff\.md$")
+
+
+def normalize_quote(s: str) -> str:
+    """CPS 인용 비교용 normalize. 공백 통일·줄바꿈 제거·backtick 제거."""
+    s = s.replace("\n", " ").replace("`", "")
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+
+def parse_frontmatter(text: str) -> tuple[dict, int]:
+    """frontmatter 파싱 → (dict, body_start_line). frontmatter 없으면 ({}, 0)."""
+    lines_ = text.splitlines()
+    if not lines_ or lines_[0].strip() != "---":
+        return {}, 0
+    fm: dict = {}
+    end = -1
+    for i, line in enumerate(lines_[1:], start=1):
+        if line.strip() == "---":
+            end = i
+            break
+    if end < 0:
+        return {}, 0
+
+    cur_key = None
+    list_buf: list = []
+    for line in lines_[1:end]:
+        m = re.match(r"^([a-zA-Z_-]+):\s*(.*)$", line)
+        if m:
+            if cur_key and list_buf:
+                fm[cur_key] = list_buf
+                list_buf = []
+            cur_key = m.group(1)
+            val = m.group(2).strip()
+            if val:
+                fm[cur_key] = val
+                cur_key = None
+            else:
+                list_buf = []
+        elif cur_key and re.match(r"^\s+-\s+(.+)$", line):
+            item = re.match(r"^\s+-\s+(.+)$", line).group(1).strip()
+            list_buf.append(item)
+    if cur_key and list_buf:
+        fm[cur_key] = list_buf
+    return fm, end + 1
+
+
+def parse_solution_ref(entry: str) -> tuple[str, str, bool]:
+    """solution-ref 항목 파싱 → (solution_id, quote, is_partial).
+    형식: 'S2 — "원문"' 또는 'S2 — "요약 (부분)"'.
+    """
+    # quote가 따옴표로 감싸짐. backtick·single quote도 허용
+    m = re.match(r'^(S\d+)\s*[—\-]\s*[`"\']([^`"\'\n]+)[`"\']\s*$', entry.strip())
+    if not m:
+        return "", "", False
+    sid, quote = m.group(1), m.group(2)
+    is_partial = False
+    if quote.endswith(" (부분)"):
+        quote = quote[: -len(" (부분)")]
+        is_partial = True
+    return sid, quote, is_partial
+
+
+_CPS_TEXT_CACHE: str | None = None
+
+
+def get_cps_text() -> str:
+    """CPS 본문 Read (캐싱). normalize 적용."""
+    global _CPS_TEXT_CACHE
+    if _CPS_TEXT_CACHE is None:
+        try:
+            _CPS_TEXT_CACHE = normalize_quote(Path(CPS_DOC).read_text(encoding="utf-8"))
+        except Exception:
+            _CPS_TEXT_CACHE = ""
+    return _CPS_TEXT_CACHE
+
+
+def parse_ac_block(body: str) -> dict:
+    """AC 블록에서 Goal·검증 묶음 추출.
+    형식:
+        - [ ] Goal: <1줄>
+          검증:
+            review: skip|self|review|review-deep
+            tests: <명령 또는 "없음">
+            실측: <명령 또는 "없음">
+    반환: {goal: str, ac_review: str, ac_tests: str, ac_actual: str}
+    누락 항목은 빈 문자열.
+    """
+    result = {"goal": "", "ac_review": "", "ac_tests": "", "ac_actual": ""}
+    in_ac = False
+    in_verify = False
+    for line in body.splitlines():
+        if "Acceptance Criteria" in line and "**" in line:
+            in_ac = True
+            continue
+        if not in_ac:
+            continue
+        if line.startswith("## ") or line.startswith("### "):
+            break
+        # Goal 항목
+        m = re.match(r"^\s*-\s*\[.\]\s*Goal:\s*(.+)$", line)
+        if m and not result["goal"]:
+            result["goal"] = m.group(1).strip()
+            continue
+        # 검증 블록 진입
+        if re.match(r"^\s+검증:\s*$", line):
+            in_verify = True
+            continue
+        if in_verify:
+            mr = re.match(r"^\s+review:\s*(.+)$", line)
+            mt = re.match(r"^\s+tests:\s*(.+)$", line)
+            ma = re.match(r"^\s+실측:\s*(.+)$", line)
+            if mr:
+                result["ac_review"] = mr.group(1).strip()
+            elif mt:
+                result["ac_tests"] = mt.group(1).strip()
+            elif ma:
+                result["ac_actual"] = ma.group(1).strip()
+            elif re.match(r"^\s*-\s*\[.\]", line):
+                # 다음 AC 항목 → 검증 블록 종료
+                in_verify = False
+    return result
+
+
+def verify_solution_ref(sol_refs: list, cps_text: str) -> list[str]:
+    """solution-ref 인용을 CPS 본문과 비교. 박제 의심 경고 list 반환.
+    형식 위반·CPS 미매칭 모두 경고.
+    """
+    warnings = []
+    for entry in sol_refs:
+        sid, quote, is_partial = parse_solution_ref(entry)
+        if not sid:
+            warnings.append(f"형식 위반: {entry}")
+            continue
+        if len(quote) > 50 and not is_partial:
+            warnings.append(
+                f"{sid} 인용 50자 초과인데 (부분) 마커 없음 — 원문 그대로 또는 요약+부분 마커"
+            )
+            continue
+        nq = normalize_quote(quote)
+        if nq and nq not in cps_text:
+            warnings.append(f"{sid} 인용 박제 의심 (CPS 본문 미매칭): \"{quote[:60]}\"")
+    return warnings
+
+
+# ─────────────────────────────────────────────────────────
 # 입력 수집
 # ─────────────────────────────────────────────────────────
 
@@ -493,119 +644,124 @@ def main() -> int:
         pass
 
     # ─────────────────────────────────────────────────────────
-    # 6. WIP에서 AC kind 읽기 (stage 판단용) — task 블록 단위
+    # 6. AC + CPS 메타데이터 추출 (Phase 2-A — v0.29.1)
     # ─────────────────────────────────────────────────────────
     #
-    # staged 파일이 영향을 주는 task만 골라서 그 task의 kind / has_impact_scope를 본다.
-    # WIP 파일 전체 스캔 금지 — 다른 task의 `영향 범위:` 항목이 섞이면 오판.
+    # staged WIP·decisions·incidents·guides의 frontmatter problem·solution-ref +
+    # AC Goal·검증 묶음 추출. 누락 시 차단. 외형 metric 폐기.
 
-    wip_kind = ""
-    has_impact_scope = False
+    wip_problem = ""
+    wip_solution_ref = ""  # ";" 구분 list-style
+    ac_review = ""
+    ac_tests = ""
+    ac_actual = ""
+    cps_text = get_cps_text()
 
-    try:
-        sys.path.insert(0, str(Path(__file__).parent))
-        from task_groups import parse_wip_tasks  # type: ignore
+    DOCS_REQUIRED_PAT = re.compile(r"^docs/(WIP|decisions|incidents|guides|harness)/.+\.md$")
+    # CPS 자체는 면제. legacy 50개 문서 보강은 별 wave (frontmatter 강제 안 함)
 
-        tasks = parse_wip_tasks()  # {(slug, task_id): {kind, impact_files, has_impact_scope}}
+    # staged WIP만 frontmatter 강제 (신규 문서 진입점이 WIP)
+    staged_wip = [f for f in staged_files
+                  if f.startswith("docs/WIP/") and f.endswith(".md")
+                  and not CPS_EXEMPT_PATHS.match(f)]
 
-        matched_tasks: list[dict] = []
+    for wip in staged_wip:
+        try:
+            text = Path(wip).read_text(encoding="utf-8")
+        except Exception:
+            continue
+        fm, body_start = parse_frontmatter(text)
+        body = "\n".join(text.splitlines()[body_start:])
 
-        for f in staged_files:
-            # staged WIP 파일 자체 → 그 슬러그의 모든 task 영향 후보
-            if f.startswith("docs/WIP/") and f.endswith(".md"):
-                slug = Path(f).stem
-                if "--" in slug:
-                    slug = slug.split("--", 1)[1]
-                for (s, _), info in tasks.items():
-                    if s == slug:
-                        matched_tasks.append(info)
-                continue
+        # frontmatter problem 검증
+        prob = fm.get("problem", "")
+        if isinstance(prob, list):
+            prob = prob[0] if prob else ""
+        if not prob:
+            err(f"❌ {wip}: frontmatter `problem` 누락. CPS Problem ID (P#) 명시 필수.")
+            ERRORS += 1
+            continue
+        if not re.match(r"^P\d+$", prob.strip()):
+            err(f"❌ {wip}: frontmatter `problem` 형식 위반 ('{prob}'). 'P1'·'P2' 형식.")
+            ERRORS += 1
+            continue
+        wip_problem = prob.strip()
 
-            # 일반 staged 파일 → impact_files 매칭
-            fbn = Path(f).name
-            for (_, _), info in tasks.items():
-                for pattern in info["impact_files"]:
-                    pbn = Path(pattern).name
-                    if f == pattern or f.endswith("/" + pattern) or fbn == pbn:
-                        matched_tasks.append(info)
-                        break
+        # frontmatter solution-ref 검증
+        sol_refs = fm.get("solution-ref", [])
+        if isinstance(sol_refs, str):
+            sol_refs = [sol_refs]
+        if not sol_refs:
+            err(f"❌ {wip}: frontmatter `solution-ref` 누락. Solution 충족 기준 인용 필수.")
+            ERRORS += 1
+            continue
+        wip_solution_ref = "; ".join(sol_refs)
 
-        # 매칭된 task들 중 kind 결정 (가장 강한 stage 유도하는 kind 우선: refactor/feature > bug > docs/chore)
-        KIND_PRIO = {"refactor": 4, "feature": 3, "bug": 2, "docs": 1, "chore": 1}
-        if matched_tasks:
-            best = max(matched_tasks, key=lambda t: KIND_PRIO.get(t["kind"], 0))
-            wip_kind = best["kind"]
-            # has_impact_scope는 매칭된 task에서 OR
-            has_impact_scope = any(t["has_impact_scope"] for t in matched_tasks)
-    except Exception:
-        pass
+        # 박제 감지 (경고만, 차단 아님)
+        if cps_text:
+            warns = verify_solution_ref(sol_refs, cps_text)
+            for w in warns:
+                err(f"⚠ {wip}: solution-ref 박제 의심 — {w}")
+
+        # AC Goal·검증 묶음 추출
+        ac = parse_ac_block(body)
+        if not ac["goal"]:
+            err(f"❌ {wip}: AC `Goal:` 항목 누락.")
+            ERRORS += 1
+            continue
+        if not ac["ac_review"]:
+            err(f"❌ {wip}: AC `검증.review` 누락. (skip|self|review|review-deep)")
+            ERRORS += 1
+            continue
+        if ac["ac_review"] not in ("skip", "self", "review", "review-deep"):
+            err(f"❌ {wip}: AC `검증.review` 값 위반 ('{ac['ac_review']}').")
+            ERRORS += 1
+            continue
+        if not ac["ac_tests"]:
+            err(f"❌ {wip}: AC `검증.tests` 누락. (pytest 명령 또는 \"없음\")")
+            ERRORS += 1
+            continue
+        if not ac["ac_actual"]:
+            err(f"❌ {wip}: AC `검증.실측` 누락. (구체 명령 또는 \"없음\")")
+            ERRORS += 1
+            continue
+        ac_review = ac["ac_review"]
+        ac_tests = ac["ac_tests"]
+        ac_actual = ac["ac_actual"]
 
     # ─────────────────────────────────────────────────────────
-    # Stage 결정 (AC kind 기반)
+    # Stage 결정 (AC + CPS 단일 룰)
     # ─────────────────────────────────────────────────────────
-
-    UPSTREAM_PAT = re.compile(
-        r"^(?:\.claude/scripts/|\.claude/agents/|\.claude/hooks/|\.claude/settings\.json$|h-setup\.sh$)"
-    )
-    META_M_PAT = re.compile(
-        r"^docs/clusters/|^\.claude/HARNESS\.json$|^\.claude/memory/|^CHANGELOG\.md$"
-    )
+    #
+    # 외형 룰 (UPSTREAM_PAT·META_M_PAT·docs 5줄·rename/meta 단독·WIP 단독) 폐기.
+    # 단일 룰: 시크릿(보안 게이트) > CPS Problem 변경 > AC 검증.review 그대로.
 
     stage = ""
 
-    # 룰 1: 업스트림 위험 경로 → deep
-    if not stage and any(UPSTREAM_PAT.match(f) for f in staged_files):
+    # 룰 1: 시크릿 line-confirmed → deep (보안 게이트, 작성자 선언 무시)
+    if s1_level == "line-confirmed":
         stage = "deep"
 
-    # 룰 2: 시크릿 line-confirmed → deep
-    if not stage and s1_level == "line-confirmed":
+    # 룰 2: CPS Problem 정의 자체 staged → deep (cascade 영향)
+    if not stage and any(CPS_EXEMPT_PATHS.match(f) for f in staged_files):
+        # CPS 면제 파일이 staged면 그게 곧 CPS 본문 변경
         stage = "deep"
 
-    # 룰 3: skip 조건
+    # 룰 3: AC 검증.review 그대로 stage 결정
     if not stage:
-        rename_count = non_move = m_non_meta = 0
-        for status, path in ns_parsed:
-            if status.startswith("R"):
-                rename_count += 1
-            elif status == "M":
-                if not META_M_PAT.match(path):
-                    m_non_meta += 1
-            else:
-                non_move += 1
+        if ac_review:
+            REVIEW_TO_STAGE = {
+                "skip": "skip", "self": "micro",
+                "review": "standard", "review-deep": "deep",
+            }
+            stage = REVIEW_TO_STAGE.get(ac_review, "")
 
-        is_meta_only = all(
-            META_M_PAT.match(p) for st, p in ns_parsed if not st.startswith("R")
-        ) if ns_parsed else False
-
-        # 이동 커밋 (rename 단독)
-        if rename_count > 0 and non_move == 0 and m_non_meta == 0:
-            stage = "skip"
-        # 메타 단독
-        elif is_meta_only and rename_count == 0 and non_move == 0:
-            stage = "skip"
-        # WIP 단독
-        elif (all(f.startswith("docs/WIP/") for f in staged_files)
-              and staged_files
-              and not any(f.startswith(".claude/skills/") or f.startswith(".claude/agents/")
-                          for f in staged_files)):
-            stage = "skip"
-        # docs 5줄 이하
-        elif (all(f.endswith(".md") for f in staged_files)
-              and staged_files
-              and total_lines <= 5):
-            stage = "skip"
-
-    # 룰 4: AC kind 기반 판단
-    if not stage:
-        if wip_kind in ("docs", "chore"):
-            stage = "micro"
-        elif wip_kind == "bug":
-            stage = "standard" if has_impact_scope else "micro"
-        elif wip_kind in ("feature", "refactor"):
-            stage = "deep" if has_impact_scope else "standard"
-        else:
-            # WIP 없거나 kind 미지정 → standard
-            stage = "standard"
+    # 폴백: staged WIP 없는 경우 (코드만 staged 가능 — 정당 케이스)
+    # 예: 본 commit (1단계 SSOT) 또는 hot fix
+    # stage = "" 이면 wip_problem·wip_solution_ref도 ""
+    # default standard로 폴백 (외형 metric 회피, 작성자 선언 부재 시 보수)
+    if not stage and not staged_wip:
+        stage = "standard"
 
     # ─────────────────────────────────────────────────────────
     # 커밋 분리 판정
@@ -704,8 +860,11 @@ def main() -> int:
     print(f"pre_check_passed: {'false' if ERRORS > 0 else 'true'}")
     print(f"already_verified: {ALREADY_VERIFIED}")
     print(f"diff_stats: {diff_stats}")
-    print(f"wip_kind: {wip_kind or 'none'}")
-    print(f"has_impact_scope: {'true' if has_impact_scope else 'false'}")
+    print(f"wip_problem: {wip_problem or 'none'}")
+    print(f"wip_solution_ref: {wip_solution_ref or 'none'}")
+    print(f"ac_review: {ac_review or 'none'}")
+    print(f"ac_tests: {ac_tests or 'none'}")
+    print(f"ac_actual: {ac_actual or 'none'}")
     print(f"recommended_stage: {stage}")
     print(f"s1_level: {s1_level}")
     print(f"split_plan: {split_plan}")
