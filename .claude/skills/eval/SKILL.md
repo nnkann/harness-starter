@@ -205,6 +205,35 @@ CLAUDE.md, .claude/rules/ 전체, .claude/skills/ 전체를 읽는다.
 - rules/에 있지만 린터로 강제할 수 있는 것 → 승격 제안
 - CLAUDE.md에 있지만 rules/에 있어야 하는 것 → 이동 제안
 
+**5. CPS 무결성** — CPS = 마스터, 다른 모든 문서는 단방향 인용. 인용 박제·
+Problem 인플레이션을 전수 감시한다. pre-check은 commit 시점 staged만 검증
+하므로 누적 박제는 eval만 잡는다.
+
+#### 실행
+
+```bash
+python3 .claude/scripts/eval_cps_integrity.py
+```
+
+스크립트가 `pre_commit_check.py`의 `verify_solution_ref`·`get_cps_text`·
+`parse_frontmatter`를 import 재사용한다 (코드 중복 X). docs/ 하위 모든
+.md 파일의 frontmatter `solution-ref` 인용을 CPS 본문과 grep:
+
+- 50자 이내 인용 → 원문 그대로 매칭 필요
+- 50자 초과 인용 → `(부분)` 마커 + substring 매칭
+- 미매칭 시 박제 의심 보고 (path:warning)
+
+CPS Problem 6개 초과 시 인플레이션 경고 — 근접 Problem 병합 검토.
+
+#### 결과 해석
+
+- **박제 의심 0건**: CPS 본문이 진화한 만큼 인용도 정합. 통과
+- **박제 의심 N건**: 작성자가 인용 후 CPS 본문이 의도적으로 진화했거나,
+  반대로 인용이 박제(본문이 바뀐 줄 모르고 옛 표현 유지). path:line 제시
+  → 작성자 판단 (본문 갱신 vs 인용 수정)
+- **Problem 인플레이션**: 6개 초과면 의미 거리 가까운 Problem 병합 후보
+  검토. write-doc으로 CPS 갱신
+
 ### 보고
 
 ```
@@ -221,9 +250,26 @@ CLAUDE.md, .claude/rules/ 전체, .claude/skills/ 전체를 읽는다.
 
 ### 강제력 배치
 - rules/coding.md: "console.log 금지" → 린터(no-console)로 승격 가능
+
+### CPS 무결성
+- 스캔 문서: 80개
+- Problem 수: 6개 ✅ (임계 6 이하)
+- 박제 의심: 0건 ✅
+- Problem 인용 빈도: P2=2건, P5=4건
+- 인용 0건 Problem: P1, P3, P4, P6 ⚠ (정체 의심 — 6개월 이상이면 폐기·병합 검토)
 ```
 
 문제없으면 "하네스 정상. ✅"
+
+#### --deep 활용 (Problem 진전 측정)
+
+`eval --deep`은 위 출력의 "Problem 인용 빈도"를 시계열로 비교한다 (이전
+실행과의 delta). 본 starter는 단일 시점만 보여주지만, 운용에서는 다음
+지표 추적:
+
+- 인용 빈도 증가 = Problem이 활발히 다뤄지는 중 (정상)
+- 빈도 변화 없음 + 6개월 경과 = 정체 신호 → Problem 정의 재검토
+- 인용 0건 Problem = 정의 자체 사용 안 됨 → write-doc으로 CPS 갱신 검토
 
 ---
 
