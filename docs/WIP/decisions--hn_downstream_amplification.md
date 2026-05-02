@@ -65,15 +65,16 @@ created: 2026-05-02
 WIP cluster miss, glob 미스매치)이 드러남. Phase 4-B AC를 (a)~(d)로
 재구성 — 원안의 cluster 게이팅은 (c)로 흡수, 나머지 셋이 신규 항목.
 
-**샘플 한계 명시**: 다운스트림 N=1 (StageLink, 도메인 18). 중간 규모(5~10)
+**샘플 한계 명시**: 다운스트림 N=1 (도메인 18 환경). 중간 규모(5~10)
 baseline 부재. 자연 발생 대기.
 
 ### 2026-05-02 — starter baseline 측정 (meta 단독 시나리오)
 
-`.measurements/harness_v0.33.0_baseline_starter_meta_only_20260502.md` 참조.
+원본 측정 데이터는 starter 로컬 `.measurements/`(gitignore)에 보존.
+다운스트림 오염 회피 위해 본문에 핵심 수치만 인라인.
 
 **판단 갱신**:
-- **(a) init drift 게이트 결함 확정** — starter 4.85s vs StageLink 19.7s
+- **(a) init drift 게이트 결함 확정** — starter 4.85s vs 다운스트림 19.7s
   = 4.1x. 도메인 수 무관. **선행 착수 우선순위 1** (다운스트림 추가 보고 무관)
 - **(c) meta skip 효과 입증** — meta 단독 변경에서 23.7s 절감 가능
   (28.55s → 4.85s). **선행 착수 우선순위 2**
@@ -85,69 +86,62 @@ baseline 부재. 자연 발생 대기.
 
 ## 메모
 
-### baseline — StageLink (2026-05-02, v0.27.2 → v0.33.0 업그레이드 직후)
+### baseline — 다운스트림 N=1 (2026-05-02, 도메인 18 환경)
 
-> 보고 1차 갱신본은 프로젝트명을 "Issen"으로 잘못 표기. 실제 측정 환경은
-> StageLink (K-POP 공연 정보 플랫폼, Next.js 15 + Express + Supabase + n8n
-> 모노레포). 2차 보고에서 정정.
+> 다운스트림 고유명사 면제 범위는 incidents `symptom-keywords`만.
+> 본 WIP는 decisions/로 전파되므로 placeholder(`<도메인 N>` 등) 사용.
+> 원본 측정 데이터는 starter 로컬 `.measurements/`에 보존(gitignore).
 
-- **환경**: 도메인 18개 (1:1 abbr), docs 총 359 (WIP 4 / decisions 85 / guides 56 / incidents 95 / harness 37 / clusters 18 / archived 64)
-- **측정 작업**: lk(link) 도메인 DB 스키마 마이그레이션 — tag_axes/tags/concert_tags 등 7개 테이블 신설
+- **환경**: 도메인 18개, docs 총 ~360
+- **측정 작업**: 단일 도메인 DB 스키마 마이그레이션 (실제 차기 작업)
 - **implementation Step 0 진입**: tool=8회, wall=83.4s
 - **시간 분포** (큰 순):
   - SSOT 3단계: 34.4s (41%)
   - init check false-block: 19.7s (24%)
   - doc-finder fast scan: 12.3s (15%)
   - 나머지: 측정 오버헤드
-- **doc-finder fast scan**: 3 calls (Glob×2 + Grep×1) / 12.3s / hit 1 (`decisions--lk_domain_architecture.md`)
+- **doc-finder fast scan**: 3 calls (Glob×2 + Grep×1) / 12.3s / hit 1
 - **SSOT 3단계**:
-  - cluster scan (`clusters/link.md`): 5.6s, hit 0 (link cluster 비어 있음 — WIP 미포함 설계)
+  - cluster scan: 5.6s, hit 0 (해당 도메인 cluster 비어 있음 — WIP 미포함 설계)
   - keyword grep (본문 2회): 12.6s, unique hit 6
   - 후보 Read: 6.2s, 1 파일 (50줄)
 - **commit clusters 갱신** (최근 5 commit):
-  - v0.33.0 업그레이드 commit (142ae2f): 18/18 전 도메인 재생성
+  - v0.33.0 업그레이드 commit: 18/18 전 도메인 재생성
   - v0.27.x 업그레이드·기타: 0건
-  - **결론**: 상시 N 비례 갱신 아님. docs_ops.py 본체 변경 시에만 전수 mtime 갱신 트리거 (출력 포맷 변화로 추정)
+  - **결론**: 상시 N 비례 갱신 아님. docs_ops.py 본체 변경 시에만 전수 mtime 갱신 트리거
 
 **관찰 — 가장 비싼 단계 셋**:
-1. **SSOT 3단계 (34.4s, 41%)** — 가장 큰 wall time 소비. cluster scan은
-   link cluster 비어 hit 0(WIP 미포함 설계의 부작용), grep만 의미 있는 결과
-2. **init check false-block (19.7s, 24%)** — CLAUDE.md `## 환경`에
+1. **SSOT 3단계 (34.4s, 41%)** — 가장 큰 wall time 소비
+2. **init check false-block (19.7s, 24%)** — CLAUDE.md `## 환경`의
    `패키지 매니저:` 키 부재(다운스트림 자체 양식). project_kickoff.md도
-   sample만 존재. starter 양식 강제 vs 다운스트림 자유도 트레이드오프.
-   starter 단독 재현 가능성 있음
+   sample만 존재. starter 양식 강제 vs 다운스트림 자유도 트레이드오프
 3. **WIP cluster miss** — WIP가 cluster 미포함 설계라 in-progress 작업은
    cluster scan 항상 miss → grep으로 폴백
-4. **Glob 패턴 미스매치** — `lk_*` glob이 `decisions--lk_*` WIP 못 잡음.
-   라우팅 태그 `--` 때문. naming.md "Cluster 자동 매핑 — 직교 파싱"은
-   cluster 매핑만 다루고 사용자·스킬 glob 검색은 통과 못 함
+4. **Glob 패턴 미스매치** — `<abbr>_*` glob이 `decisions--<abbr>_*` WIP
+   못 잡음. 라우팅 태그 `--` 때문
 
 **체감 — 도메인 수 비례 비용**: 부분 Y.
 - **Y**: cluster 재생성 비용(N개 파일 I/O), cluster scan hit rate 저하
-  (도메인 많을수록 빈 cluster 만날 확률↑)
-- **N**: keyword grep(ripgrep 자체가 빠름), doc-finder fast scan(고정 호출 수)
+- **N**: keyword grep(ripgrep 효율), doc-finder fast scan(고정 호출 수)
 - **추정 amplification**: SSOT 34.4s vs 추정 starter 12s = 약 2.8x
 
-**측정 한계** (보고 명시):
+**측정 한계**:
 - N=1 단일 작업
-- wall time에 Bash 타임스탬프 호출 오버헤드 포함
+- wall에 Bash 타임스탬프 오버헤드 포함
 - 인간 사고·LLM reasoning 시간 미포함
-- starter baseline 부재 — amplification 배수는 추정값
 
 ### baseline — harness-starter (2026-05-02, meta 단독 시나리오)
 
-원본: `.measurements/harness_v0.33.0_baseline_starter_meta_only_20260502.md`
-
 - **환경**: 도메인 2개 (harness, meta), docs ~140
-- **측정 작업**: `.measurements/` 디렉토리 신설 + README (meta 단독)
+- **측정 작업**: 로컬 측정 디렉토리 신설 + README (meta 단독)
 - **Step 0 wall**: 28.55s (5 tool calls)
   - init check: 4.85s (drift 없음 — `패키지 매니저:` 키 존재)
   - doc-finder: 9.96s
   - SSOT 3단계: 13.74s
 
-**StageLink 대비 비교**:
-| 항목 | starter | StageLink | 비율 | 도메인 수 비율 |
-|------|---------|-----------|------|---------------|
+**다운스트림 N=1 대비 비교**:
+| 항목 | starter | 다운스트림 | 비율 | 도메인 수 비율 |
+|------|---------|------------|------|---------------|
 | Step 0 wall | 28.55s | 83.4s | 2.9x | 9x |
 | init check | 4.85s | 19.7s | **4.1x** | 9x |
 | doc-finder | 9.96s | 12.3s | 1.2x | 9x |
@@ -163,6 +157,6 @@ baseline 부재. 자연 발생 대기.
 - 본 wave는 v0.29.1 hn_harness_efficiency_overhaul.md에서 분리됨
 - 측정 게이트 필수 — 추측 기반 적용 금지
 - starter 단독 측정으로는 효과 검증 어려움. 다운스트림 1개 이상 필수
-- 다음 다운스트림 보고 수령 시 본 섹션에 `### baseline — <프로젝트명>` 추가
-- StageLink 추가 시나리오 측정 후보 (보고 제안): meta 도메인 단독 변경
-  (README 수정·메모리 인덱스 갱신 등) — Phase 4-B (a) `meta skip` 효과 검증용
+- 다음 다운스트림 보고 수령 시 본 섹션에 `### baseline — 다운스트림 N=N` 형식으로 추가 (고유명사 박지 마라 — incident hn_downstream_name_leak 패턴)
+- 추가 시나리오 측정 후보: meta 도메인 단독 변경 (README 수정·메모리 인덱스 갱신 등) — Phase 4-B (a) `meta skip` 효과 검증용
+- **starter 운영 데이터 보존 위치**: 로컬 `.measurements/` (gitignore — 다운스트림 오염 회피). 본 WIP·decisions는 placeholder만 사용

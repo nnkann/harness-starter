@@ -9,3 +9,6 @@
 .claude/.test-sandbox/
 **/__pycache__/
 *.pyc
+
+# Baseline trace 측정 데이터 (로컬 운영 데이터, 다운스트림 오염 방지)
+.measurements/
