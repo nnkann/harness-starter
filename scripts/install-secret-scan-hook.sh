@@ -82,6 +82,24 @@ $SCAN_BLOCK
 EOF
   chmod +x "$HOOK_FILE"
   echo "✅ pre-commit hook 신규 설치 완료: $HOOK_FILE"
+
+  # HARNESS.json hook_installed 플래그 갱신 (있으면)
+  HARNESS_JSON="$REPO_ROOT/.claude/HARNESS.json"
+  if [ -f "$HARNESS_JSON" ]; then
+    python3 - "$HARNESS_JSON" <<'PY'
+import json, sys
+p = sys.argv[1]
+with open(p, encoding="utf-8") as f:
+    d = json.load(f)
+if d.get("hook_installed") is not True:
+    d["hook_installed"] = True
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump(d, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+    print(f"✅ {p} hook_installed=true 갱신")
+PY
+  fi
+
   exit 0
 fi
 
@@ -98,3 +116,20 @@ fi
 chmod +x "$HOOK_FILE"
 echo "✅ 기존 pre-commit hook에 secret-scan 섹션 추가 완료."
 echo "   확인: cat $HOOK_FILE"
+
+# HARNESS.json hook_installed 플래그 갱신 (있으면)
+HARNESS_JSON="$REPO_ROOT/.claude/HARNESS.json"
+if [ -f "$HARNESS_JSON" ]; then
+  python3 - "$HARNESS_JSON" <<'PY'
+import json, sys
+p = sys.argv[1]
+with open(p, encoding="utf-8") as f:
+    d = json.load(f)
+if d.get("hook_installed") is not True:
+    d["hook_installed"] = True
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump(d, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+    print(f"✅ {p} hook_installed=true 갱신")
+PY
+fi
