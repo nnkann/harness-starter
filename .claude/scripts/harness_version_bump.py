@@ -138,5 +138,91 @@ def main() -> int:
     return 0
 
 
+def archive_old_versions(keep: int = 5) -> int:
+    """MIGRATIONS.md에서 최신 `keep`개 본문 섹션만 유지, 나머지를 MIGRATIONS-archive.md 상단으로 이동.
+
+    버전 섹션 식별: 라인이 정확히 `## v\\d+\\.\\d+\\.\\d+`로 시작.
+    템플릿 예시(`## v0.X → v0.Y`)는 무시.
+
+    이동된 섹션은 archive 파일의 헤더 직후에 prepend (최신 archive가 위).
+    아무 변경 없으면 0 반환.
+    """
+    main_path = Path("docs/harness/MIGRATIONS.md")
+    arch_path = Path("docs/harness/MIGRATIONS-archive.md")
+    if not main_path.exists():
+        print("archive: MIGRATIONS.md 없음", file=sys.stderr)
+        return 0
+    text = main_path.read_text(encoding="utf-8")
+    lines = text.splitlines()
+
+    version_re = re.compile(r"^## v\d+\.\d+\.\d+\s")
+    starts: list[int] = [i for i, l in enumerate(lines) if version_re.match(l)]
+    if len(starts) <= keep:
+        print(f"archive: 본문 {len(starts)}개 ≤ {keep}, 이동 불필요")
+        return 0
+
+    # keep개 유지 → keep번째 인덱스부터가 archive 대상
+    cut_start = starts[keep]
+    archive_block_lines = lines[cut_start:]
+    main_block_lines    = lines[:cut_start]
+
+    # 본문 끝 trailing `---` 정리
+    while main_block_lines and main_block_lines[-1].strip() in ("", "---"):
+        main_block_lines.pop()
+    main_block_lines.append("")  # 끝 빈 줄 1개
+
+    # archive 헤더 + 기존 archive 본문 합치기
+    if arch_path.exists():
+        arch_text = arch_path.read_text(encoding="utf-8")
+        arch_lines = arch_text.splitlines()
+        # frontmatter 끝 + 인트로 마지막 `---` 다음 위치 찾기
+        sep_count = 0
+        intro_end = 0
+        for i, l in enumerate(arch_lines):
+            if l.strip() == "---":
+                sep_count += 1
+                if sep_count == 3:  # frontmatter 2 + 인트로 끝 1
+                    intro_end = i + 1
+                    break
+        if intro_end == 0:
+            print("archive: 기존 archive 헤더 파싱 실패 — 수동 확인", file=sys.stderr)
+            return 2
+        new_arch = (
+            arch_lines[:intro_end]
+            + [""]
+            + archive_block_lines
+            + [""]
+            + arch_lines[intro_end:]
+        )
+    else:
+        # archive 신설
+        header = [
+            "---",
+            "title: 다운스트림 마이그레이션 가이드 — 아카이브",
+            "domain: harness",
+            "tags: [migration, upgrade, downstream, archive]",
+            "status: completed",
+            "created: 2026-05-02",
+            "---",
+            "",
+            "# 다운스트림 마이그레이션 가이드 — 아카이브",
+            "",
+            "MIGRATIONS.md는 최신 5개만 유지. 이전 버전은 본 파일에 누적.",
+            "",
+            "---",
+        ]
+        new_arch = header + [""] + archive_block_lines
+
+    arch_path.write_text("\n".join(new_arch) + "\n", encoding="utf-8")
+    main_path.write_text("\n".join(main_block_lines) + "\n", encoding="utf-8")
+
+    moved = len(starts) - keep
+    print(f"archive: {moved}개 섹션 이동 → MIGRATIONS-archive.md")
+    return 0
+
+
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "--archive":
+        keep = int(sys.argv[2]) if len(sys.argv) > 2 else 5
+        sys.exit(archive_old_versions(keep))
     sys.exit(main())

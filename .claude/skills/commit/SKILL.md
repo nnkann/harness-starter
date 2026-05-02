@@ -331,7 +331,7 @@ python3 .claude/scripts/harness_version_bump.py
 
 **`version_bump: none`** → Step 5로 진행.
 
-**`version_bump: patch|minor`** → 사용자 확인 후 아래 4개를 **한 번에** 처리:
+**`version_bump: patch|minor`** → 사용자 확인 후 아래 5개를 **한 번에** 처리:
 
 1. **HARNESS.json** — `version` 필드를 `next_version` 값으로 갱신
 2. **MIGRATIONS.md** — `docs/harness/MIGRATIONS.md` 상단(기존 섹션 위)에 새 버전 섹션 삽입.
@@ -339,8 +339,17 @@ python3 .claude/scripts/harness_version_bump.py
    - 변경 내용: staged diff에서 다운스트림 영향 변경 추출
    - 적용 방법: 자동/수동 분류. 수동 없으면 `없음` 명시 (생략 금지)
    - 검증: 확인 명령어 (생략 가능)
-3. **README.md** — 상단 `현재 버전: **vX.Y.Z**` 번호 갱신 + 변경 이력 섹션 상단에 항목 추가
-4. **git add** — `HARNESS.json`, `MIGRATIONS.md`, `README.md` 일괄 스테이징
+3. **MIGRATIONS archive 자동화** — 새 섹션 추가 후 즉시 실행:
+   ```bash
+   python3 .claude/scripts/harness_version_bump.py --archive
+   ```
+   본문 6개째부터 `MIGRATIONS-archive.md`로 자동 이동. 5개 이하면 멱등성
+   유지(이동 안 함). 매번 호출 — staged 추가 후 자동 archive로 본문 비대화
+   방지 (v0.30.1 정책).
+4. **README.md** — 상단 `현재 버전: **vX.Y.Z**` 번호 갱신 + 변경 이력 섹션
+   상단에 항목 추가. **최신 5개만 유지** — 6번째 섹션 추가 시 가장 오래된
+   섹션 삭제 (수동, archive로 안 옮김 — README 변경 이력은 git log + MIGRATIONS-archive로 충분).
+5. **git add** — `HARNESS.json`, `MIGRATIONS.md`, `MIGRATIONS-archive.md`(있으면), `README.md` 일괄 스테이징
 
 > **과거 `docs/harness/promotion-log.md` 폐기 (v0.20.7)**: git log가 유일 SSOT.
 
