@@ -606,6 +606,21 @@ class TestSecretScan:
         assert out.get("s1_level", "") == ""
         assert out.get("pre_check_passed") == "true"
 
+    def test_supabase_migration_sql_exempt(self):
+        """supabase/migrations/*.sql의 PostgreSQL role 이름 service_role은 line 스캔 면제"""
+        out = run_check(
+            name_status="M supabase/migrations/20240101_rls.sql",
+            numstat="3 0 supabase/migrations/20240101_rls.sql",
+            diff_u0=(
+                "diff --git a/supabase/migrations/20240101_rls.sql b/supabase/migrations/20240101_rls.sql\n"
+                "+GRANT EXECUTE ON FUNCTION public.foo() TO service_role;\n"
+                "+REVOKE ALL ON TABLE public.bar FROM service_role;\n"
+                "+CREATE POLICY \"svc\" ON tbl FOR ALL USING ((auth.jwt() ->> 'role') = 'service_role');\n"
+            ),
+        )
+        assert out.get("s1_level", "") == ""
+        assert out.get("pre_check_passed") == "true"
+
 
 # ─────────────────────────────────────────────────────────
 # Stage 기본 단위 테스트 (AC kind 기반)

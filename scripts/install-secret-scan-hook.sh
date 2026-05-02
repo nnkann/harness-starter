@@ -57,6 +57,7 @@ else
     EXEMPT_RE="$EXEMPT_RE"'|^docs/(WIP|incidents|decisions|guides|harness)/'
     EXEMPT_RE="$EXEMPT_RE"'|^scripts/install-secret-scan-hook\.sh$'
     EXEMPT_RE="$EXEMPT_RE"'|^[^/]+\.md$'
+    EXEMPT_RE="$EXEMPT_RE"'|^supabase/migrations/.*\.sql$'
     HITS=$(echo "$STAGED" | while IFS= read -r f; do
       [ -z "$f" ] && continue
       if echo "$f" | grep -qE "$EXEMPT_RE"; then continue; fi

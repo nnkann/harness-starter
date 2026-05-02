@@ -9,7 +9,7 @@ symptom-keywords:
   - "threat-analyst.md"
 status: completed
 created: 2026-05-01
-updated: 2026-05-01
+updated: 2026-05-03
 ---
 
 # pre-check 시크릿 line 면제 갭
@@ -112,6 +112,26 @@ S1_LINE_EXEMPT = re.compile(r"^\.claude/(scripts|agents|rules|skills|memory)/")
 - 회귀 검증: `pytest -m secret` 4/4 통과 (`test_harness_doc_line_exempt` 신규).
 - 별개 환경 이슈: `pytest -m docs_ops` 다수 fail은 본 변경 전(git stash)
   에도 동일 발생 → 본 작업 차단 사유 아님. 별도 추적 필요.
+
+## 변경 이력
+
+### v0.34.5 — supabase/migrations/*.sql PostgreSQL role 오탐 면제 (2026-05-03)
+
+`supabase/migrations/*.sql`에 PostgreSQL DCL(`GRANT ... TO service_role`,
+`REVOKE ... FROM service_role`, `CREATE POLICY ... 'service_role'`)이 포함된
+경우 `service_role(?![A-Z_])` lookahead가 `;`·`,`·공백 뒤를 통과해 line-confirmed 차단.
+
+**원인**: `S1_LINE_EXEMPT`에 `supabase/migrations/` 경로 누락.
+v0.34.4에서 환경변수 이름(`SUPABASE_SERVICE_ROLE_KEY`)은 lookahead로 커버했지만
+SQL DCL role 이름 사용은 커버 못 함.
+
+**해결**: `S1_LINE_EXEMPT`에 `^supabase/migrations/.*\.sql$` 추가 +
+`install-secret-scan-hook.sh` EXEMPT_RE 동기화 (857ce38 정책 준수).
+회귀 테스트: `test_supabase_migration_sql_exempt` (`pytest -m secret` 5/5).
+
+**잔여 위험**: `supabase/migrations/`에서 진짜 시크릿 키(`sb_secret_*` 등)
+라인이 포함돼도 line-confirmed 미적용. 다만 migration SQL에 시크릿 리터럴을
+넣는 것은 정상 워크플로우 아님 — 잔여 위험 낮음.
 
 ## 추가 발견 — docs_ops.py move untracked WIP fallback 갭
 

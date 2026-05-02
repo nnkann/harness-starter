@@ -667,6 +667,7 @@ def main() -> int:
         r"|^docs/(WIP|incidents|decisions|guides|harness)/"
         r"|^scripts/install-secret-scan-hook\.sh$"
         r"|^[^/]+\.md$"
+        r"|^supabase/migrations/.*\.sql$"
     )
 
     s1_file_hit = any(

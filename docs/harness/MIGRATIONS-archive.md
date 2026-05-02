@@ -43,6 +43,59 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.34.0 — implementation init 게이트 의미 재정의 (A4)
+
+### 변경 파일
+
+- `.claude/skills/implementation/SKILL.md` 라인 69~85 — Step 0 게이트 로직 재서술
+- `.claude/scripts/check_init_done.sh` (신설) — 판정 로직 추출 (회귀 테스트 가능 + 다운스트림 자가 점검 용도)
+- `.claude/scripts/tests/test_pre_commit.py` — TestInitGate 5 케이스 신규 추가
+
+### 다운스트림 영향
+
+implementation Step 0의 init 미완료 감지 로직이 변경됨.
+
+**이전 (v0.33.x까지)**:
+- CLAUDE.md `## 환경`의 `패키지 매니저:` 키 1개만 검사
+- 비어있으면 차단
+- 다운스트림 baseline 측정에서 false-block 입증 (15~19s 헛돔)
+
+**v0.34.0 (A4 의미 재정의)**:
+- `docs/guides/project_kickoff.md` 부재 OR `status: sample` 단독 → 차단
+- CLAUDE.md `## 환경` drift는 차단 사유 아님 (다운스트림 자율)
+
+**다운스트림 자유도 회복**:
+- C++/CMake처럼 `패키지 매니저:` 키가 N/A인 환경도 정상 통과
+- 다운스트림이 자기 양식·언어로 CLAUDE.md `## 환경` 채울 자유 확보
+
+**여전히 차단되는 케이스 (의도)**:
+- `harness-adopt` 끝났지만 `harness-init` 안 돈 다운스트림 (sample만 존재)
+- `project_kickoff.md` 자체가 없는 신규 프로젝트
+
+### 적용 방법
+
+자동. `harness-upgrade` 후 추가 작업 불필요.
+
+`harness-init` 정상 완료한 다운스트림은 영향 없음. `harness-adopt`만 돌고
+`harness-init` 미실행한 다운스트림은 본 v0.34.0부터 implementation Step 0
+가 차단됨 — `/harness-init` 실행 후 작업 진행.
+
+### 검증
+
+- `pytest -m gate` (TestInitGate 6/6 신규 통과 — 인라인 주석 케이스 포함)
+- pytest 전체 64 passed (기존 58 + 신규 6, 회귀 0)
+- starter `check_init_done.sh` 비용 측정: 5회 평균 ~0.07s (max 0.15s) —
+  ≤2s 게이트 27x 여유
+- 회귀 위험: upstream Windows/Git Bash 환경 검증 범위. 다른 다운스트림
+  환경(POSIX bash·다른 CPS 위치) 재발 시 본 incident 갱신 필요
+
+### 결정 근거
+
+`docs/decisions/hn_init_gate_redesign.md` (이동 후) — advisor 4 대안
+weighted matrix 평가 결과 A4 채택 (96점 / A1 82 / A3 62 / A2 40).
+
+
+
 ## v0.33.1 — SEALED 면제 (MIGRATIONS류 자기 운영 파일)
 
 ### 변경 파일
