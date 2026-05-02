@@ -126,6 +126,27 @@ AC 없으면 이 검증 스킵 → 2·3번으로.
 
 **예외:** 단순 타이포(1줄), `docs/**` 전용, settings.json 단일 키-값.
 
+### 7. wave scope 무단 확장 감지 (2026-05-02 v0.31.x 자기증명 사고 대응)
+
+**감지:** staged WIP가 status: completed → in-progress로 reopen된 흔적 없이
+본문이 staged WIP의 작업 목록·AC 명시 범위 밖 변경.
+
+직접 신호:
+- staged 파일 중 `docs/decisions/`·`docs/guides/`·`docs/incidents/`·`docs/harness/`
+  하위 문서가 modify(M)인데 status: completed → reopen 절차 없음 (pre-check이
+  이미 차단하지만 review가 추가 감지)
+- staged WIP의 `## 작업` 섹션 AC 항목과 변경된 파일 목록 mismatch
+
+**행동:** [차단] "completed 봉인 무단 변경 — `docs_ops.py reopen` 절차 의무"
+또는 [주의] "wave scope 이탈 의심" (mismatch 정도에 따라).
+
+**예외:**
+- `## 변경 이력` 섹션 추가/갱신 (의도된 누적)
+- frontmatter `updated:`·`status:` 필드만 변경
+- rename·delete (이동·archive)
+
+**관련:** `.claude/rules/anti-defer.md`·`.claude/scripts/pre_commit_check.py` 3.5번 게이트
+
 ## 도구 선택 원칙
 
 순서: AC prompt 확인 → Read/Grep으로 영향 파일 → 필요할 때만 diff.

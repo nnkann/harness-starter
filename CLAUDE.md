@@ -31,6 +31,8 @@
 ## 절대 규칙
 - worktree 생성 금지. Agent 호출 시 `isolation: "worktree"` 사용 금지.
 - Bash는 복합 파이프라인·git·스크립트 실행만. 단일 조회는 Glob·Read·Grep. (LSP 가능하면 LSP 우선)
+- 미루기 회피 사유 ("측정 후·다음 세션·데이터 누적 필요" 등) 단독 사용 금지 — `.claude/rules/anti-defer.md` SSOT
+- completed 문서 본문 무단 변경 금지 — `docs_ops.py reopen`으로 in-progress 전환 후 수정. pre-check이 차단
 
 ## 진입점
 

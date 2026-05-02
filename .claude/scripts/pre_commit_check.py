@@ -551,6 +551,99 @@ def main() -> int:
         ERRORS += 1
 
     # ─────────────────────────────────────────────────────────
+    # 3.5. completed 봉인 보호 — status: completed 문서 본문 무단 변경 차단
+    # ─────────────────────────────────────────────────────────
+    # 자기증명 (2026-05-02 v0.31.x): wave WIP가 completed로 이동된 후 같은
+    # 세션에서 본문 무단 확장 → "최악 패턴" 사고. completed = 결정 봉인.
+    # 변경하려면 docs_ops.py reopen으로 in-progress 전환이 의무.
+    SEALED_FOLDERS = ("docs/decisions/", "docs/guides/", "docs/incidents/", "docs/harness/")
+    sealed_violations: list[str] = []
+    for status_char, path in ns_parsed:
+        if status_char not in ("M",):  # rename(R)·delete(D)·add(A) 면제 — 이동/archive/신설은 OK
+            continue
+        if not path.endswith(".md"):
+            continue
+        if not any(path.startswith(folder) for folder in SEALED_FOLDERS):
+            continue
+        try:
+            content = Path(path).read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            continue
+        # frontmatter status 추출
+        if not re.search(r"^status:\s*completed\s*$", content, re.MULTILINE):
+            continue
+        # 면제 판정 — 변경 이력 섹션 신규 항목 추가는 허용
+        # 1. `## 변경 이력` 헤더가 본 commit에 추가됐거나 이미 존재
+        # 2. 본 commit의 변경이 모두 그 섹션 이후 라인이거나 updated/빈 줄
+        has_history_section = bool(re.search(r"^##\s*변경\s*이력\s*$", content, re.MULTILINE))
+        diff_for_file = run(["git", "diff", "--cached", "-U0", "--", path])
+
+        # diff hunk 시작 라인 번호 추출 (post-image)
+        history_section_line = None
+        if has_history_section:
+            for i, line in enumerate(content.splitlines(), start=1):
+                if re.match(r"^##\s*변경\s*이력\s*$", line):
+                    history_section_line = i
+                    break
+
+        body_changed = False
+        current_post_line = 0
+        in_post_block = False
+        for diff_line in diff_for_file.splitlines():
+            # hunk header: @@ -A,B +C,D @@
+            m = re.match(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@", diff_line)
+            if m:
+                current_post_line = int(m.group(1))
+                in_post_block = True
+                continue
+            if not in_post_block:
+                continue
+            if diff_line.startswith("+++") or diff_line.startswith("---"):
+                in_post_block = False
+                continue
+            if diff_line.startswith("+"):
+                # 변경 이력 섹션 이후 라인이면 면제
+                if history_section_line and current_post_line > history_section_line:
+                    current_post_line += 1
+                    continue
+                stripped = diff_line[1:].strip()
+                # updated·status 필드·빈 줄·변경 이력 헤더 자체 면제
+                if re.match(r"^updated:\s*\d{4}-\d{2}-\d{2}\s*$", stripped):
+                    current_post_line += 1
+                    continue
+                if re.match(r"^status:\s*\w+\s*$", stripped):
+                    current_post_line += 1
+                    continue
+                if not stripped:
+                    current_post_line += 1
+                    continue
+                if re.match(r"^##\s*변경\s*이력\s*$", stripped):
+                    current_post_line += 1
+                    continue
+                body_changed = True
+                break
+            elif diff_line.startswith("-"):
+                # 삭제도 본문 변경 (변경 이력 섹션 위 본문 삭제는 차단)
+                # post-image line은 증가 안 함
+                continue
+            else:
+                # context line (-U0이라 거의 없음)
+                current_post_line += 1
+        if body_changed:
+            sealed_violations.append(path)
+
+    if sealed_violations:
+        err("❌ completed 문서 본문 무단 변경 감지:")
+        for p in sealed_violations:
+            err(f"   {p}")
+        err("   completed = 결정 봉인. 변경하려면 다음 절차:")
+        err("     1. python3 .claude/scripts/docs_ops.py reopen <파일>  (status → in-progress, WIP로 이동)")
+        err("     2. 변경 작업")
+        err("     3. /commit 으로 다시 completed 처리")
+        err("   변경 이력 섹션 추가는 면제 — `## 변경 이력` 헤더 아래 누적은 허용")
+        ERRORS += 1
+
+    # ─────────────────────────────────────────────────────────
     # 4. WIP completed/abandoned 잔재
     # ─────────────────────────────────────────────────────────
 

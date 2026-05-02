@@ -175,6 +175,110 @@ created: 2026-04-19
 
 
 # ─────────────────────────────────────────────────────────
+# T42: completed 봉인 게이트 (v0.31.x 자기증명 사고 대응)
+# ─────────────────────────────────────────────────────────
+
+@pytest.fixture(scope="function")
+def sealed_repo(tmp_path_factory):
+    """completed 봉인 테스트 sandbox: 본 repo clone + completed 문서 1개 commit."""
+    tmp = tmp_path_factory.mktemp("sealed")
+    repo = tmp / "repo"
+    subprocess.run(["git", "clone", "-q", str(REPO_ROOT), str(repo)],
+                   capture_output=True, check=True)
+    src = REPO_ROOT / ".claude" / "scripts" / "pre_commit_check.py"
+    dst = repo / ".claude" / "scripts" / "pre_commit_check.py"
+    if src.exists():
+        shutil.copy2(src, dst)
+    # completed 문서 신규 추가 (clean baseline)
+    target = repo / "docs/decisions/hn_t42_seal.md"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(
+        "---\ntitle: T42 sealed\ndomain: harness\nproblem: P5\n"
+        "solution-ref:\n  - S5 — \"테스트 픽스처 (부분)\"\n"
+        "status: completed\ncreated: 2026-05-02\n---\n\n"
+        "# T42\n\n## 결정\n원본 본문.\n",
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "-C", str(repo), "add", str(target)], capture_output=True, check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "T42 prep sealed"],
+                   capture_output=True, check=True)
+    yield repo, target
+
+
+@pytest.mark.gate
+class TestCompletedSeal:
+    """T42: completed 봉인 — status: completed 문서 본문 무단 변경 차단."""
+
+    def test_body_change_blocks(self, sealed_repo):
+        """본문 줄 추가 → exit 2 차단."""
+        repo, target = sealed_repo
+        text = target.read_text(encoding="utf-8")
+        target.write_text(text + "\n무단 본문 추가.\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(repo), "add", str(target)], capture_output=True)
+        r = subprocess.run(
+            [sys.executable, ".claude/scripts/pre_commit_check.py"],
+            cwd=repo, capture_output=True, text=True,
+        )
+        assert r.returncode == 2, f"exit={r.returncode} stderr={r.stderr}"
+        assert "completed 문서 본문 무단 변경 감지" in (r.stderr + r.stdout)
+
+    def test_change_history_section_exempt(self, sealed_repo):
+        """## 변경 이력 섹션 신규 항목 추가 → 면제."""
+        repo, target = sealed_repo
+        text = target.read_text(encoding="utf-8")
+        new_text = text + "\n## 변경 이력\n\n### v0.31.3 (2026-05-02)\n새 갱신 항목.\n"
+        target.write_text(new_text, encoding="utf-8")
+        subprocess.run(["git", "-C", str(repo), "add", str(target)], capture_output=True)
+        r = subprocess.run(
+            [sys.executable, ".claude/scripts/pre_commit_check.py"],
+            cwd=repo, capture_output=True, text=True,
+        )
+        # 본 게이트는 통과해야 함 (다른 게이트 fail은 무관)
+        assert "completed 문서 본문 무단 변경 감지" not in (r.stderr + r.stdout), f"output: {r.stderr + r.stdout}"
+
+    def test_updated_field_only_exempt(self, sealed_repo):
+        """frontmatter updated 필드만 변경 → 면제."""
+        repo, target = sealed_repo
+        text = target.read_text(encoding="utf-8")
+        new_text = text.replace("created: 2026-05-02\n",
+                                "created: 2026-05-02\nupdated: 2026-05-03\n")
+        target.write_text(new_text, encoding="utf-8")
+        subprocess.run(["git", "-C", str(repo), "add", str(target)], capture_output=True)
+        r = subprocess.run(
+            [sys.executable, ".claude/scripts/pre_commit_check.py"],
+            cwd=repo, capture_output=True, text=True,
+        )
+        assert "completed 문서 본문 무단 변경 감지" not in (r.stderr + r.stdout), f"output: {r.stderr + r.stdout}"
+
+    def test_rename_exempt(self, sealed_repo):
+        """파일 rename (이동) → 면제 (M이 아닌 R)."""
+        repo, target = sealed_repo
+        new_path = target.parent.parent / "archived" / target.name
+        new_path.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["git", "-C", str(repo), "mv", str(target), str(new_path)],
+                       capture_output=True)
+        r = subprocess.run(
+            [sys.executable, ".claude/scripts/pre_commit_check.py"],
+            cwd=repo, capture_output=True, text=True,
+        )
+        assert "completed 문서 본문 무단 변경 감지" not in (r.stderr + r.stdout), f"output: {r.stderr + r.stdout}"
+
+    def test_in_progress_not_blocked(self, sealed_repo):
+        """status: in-progress 문서 본문 변경 → 통과 (게이트 미적용)."""
+        repo, target = sealed_repo
+        text = target.read_text(encoding="utf-8").replace(
+            "status: completed", "status: in-progress"
+        )
+        target.write_text(text + "\n자유 변경.\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(repo), "add", str(target)], capture_output=True)
+        r = subprocess.run(
+            [sys.executable, ".claude/scripts/pre_commit_check.py"],
+            cwd=repo, capture_output=True, text=True,
+        )
+        assert "completed 문서 본문 무단 변경 감지" not in (r.stderr + r.stdout), f"output: {r.stderr + r.stdout}"
+
+
+# ─────────────────────────────────────────────────────────
 # 시크릿 스캔 단위 테스트
 # ─────────────────────────────────────────────────────────
 

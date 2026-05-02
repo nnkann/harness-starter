@@ -43,6 +43,36 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.30.5 — review 응답 JSON 규격화 + AC 매핑 의무 (verdict 100% 누락 대응)
+
+### 변경 파일
+
+| 파일 | 처리 | 비고 |
+|------|------|------|
+| `.claude/agents/review.md` | 3-way merge | 출력 형식 SSOT를 markdown 템플릿 → raw JSON 1개 객체. 스키마: `{verdict, ac_check[{goal,result,evidence}], blockers[{ac_index}], warnings, axis_check, solution_regression, early_stop, conclusion}`. AC 매핑 의무(prompt N개 ↔ ac_check N개 1:1). duplicate key 금지 명시 |
+| `.claude/skills/commit/SKILL.md` | 3-way merge | review prompt prefill을 `{"verdict":"`로 변경. 응답 처리부 markdown grep → JSON 파싱(`json.loads` + `object_pairs_hook` duplicate key 감지). 종료 코드별 재호출 메시지 분기 (exit 1 파싱 실패 / exit 2 verdict 위반 / exit 3 ac_check 정합성 위반) |
+
+### 적용 방법
+자동. `harness-upgrade` 실행 시 3-way merge로 적용.
+
+### 회귀 위험
+- 본 세션 직전 5 commit (v0.29.2~v0.30.4) 모두 markdown 형식으로는 verdict
+  100% 누락 → 1차 재호출 회복 패턴. v0.30.3 prefill만으로 부족 확인.
+  JSON 스키마 강제로 형식 위반 자체를 invalid로 만들고, AC 매핑 의무로
+  review의 구조화된 사고 강제
+- dry test 통과: 정상 + 4가지 위반 시나리오 (필드 누락·dup key·정합성 위반·완전 invalid) 모두 정확 분기
+- 다음 commit부터 효과 측정 — 자동 검증 불가, 운용 5 commit 1패스 성공률 추적
+- review 영역 변경이라 본 commit은 자기증명 불가 (review.md를 review가 검증해도 의미 약함)
+
+### 검증
+```bash
+# JSON 파싱·duplicate key·ac_check 정합성 dry test (별 스크립트 없음 — review 응답 받을 때 인라인 실행)
+# 다음 commit review 응답이 JSON 형식인지 관찰
+git log --grep "review-json-fail" --oneline  # 0건 기대
+```
+
+
+
 ## v0.30.4 — eval_cps_integrity 본문 인용 grep 보강 (proxy 정밀화)
 
 ### 변경 파일

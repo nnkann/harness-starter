@@ -8,7 +8,7 @@ tags: [rules, skills, ssot, duplication, apply]
 relates-to:
   - path: decisions/hn_rule_skill_ssot.md
     rel: caused-by
-status: pending
+status: completed
 created: 2026-05-02
 updated: 2026-05-02
 ---
