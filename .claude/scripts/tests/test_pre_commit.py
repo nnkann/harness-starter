@@ -891,6 +891,57 @@ class TestIntegMoveCommit:
 
 
 # ─────────────────────────────────────────────────────────
+# T45: verify-relates 전수 검사 — pre-check 통합 회귀
+# ─────────────────────────────────────────────────────────
+
+
+@pytest.mark.docs_ops
+class TestVerifyRelatesPrecheck:
+    """T45: pre-check 3.5단계 C — relates-to 전수 검사."""
+
+    def test_existing_ref_passes(self, integ_repo):
+        """T45.1: staged 외 파일의 relates-to가 유효 → 통과"""
+        repo = integ_repo
+        # 대상 파일 커밋
+        _write(repo / "docs/t45_target/hn_t45_dest.md",
+               "---\ntitle: dest\ndomain: harness\nstatus: completed\ncreated: 2026-05-02\n---\n")
+        _git(["add", "docs/t45_target/hn_t45_dest.md"], repo)
+        _commit(repo, "prep T45.1 target")
+        # 참조 파일 커밋 (관계 정상)
+        _write(repo / "docs/t45_src/hn_t45_ref.md",
+               "---\ntitle: ref\ndomain: harness\nrelates-to:\n"
+               "  - path: ../t45_target/hn_t45_dest.md\n    rel: references\n"
+               "status: completed\ncreated: 2026-05-02\n---\n")
+        _git(["add", "docs/t45_src/hn_t45_ref.md"], repo)
+        _commit(repo, "prep T45.1 ref")
+        # 무관한 파일만 staged — 기존 relates-to는 유효해야 통과
+        _write(repo / "docs/t45_other/hn_t45_other.md",
+               "---\ntitle: other\ndomain: harness\nstatus: in-progress\ncreated: 2026-05-02\n---\n")
+        _git(["add", "docs/t45_other/hn_t45_other.md"], repo)
+        out = _run_precheck(repo)
+        assert out.get("pre_check_passed") == "true"
+        _reset(repo)
+
+    def test_broken_ref_in_committed_file_blocks(self, integ_repo):
+        """T45.2: 기커밋 파일의 relates-to가 깨져있으면 → 차단"""
+        repo = integ_repo
+        # 참조 파일 먼저 커밋 (대상 없는 broken ref)
+        _write(repo / "docs/t45b_src/hn_t45b_broken.md",
+               "---\ntitle: broken\ndomain: harness\nrelates-to:\n"
+               "  - path: ../t45b_nowhere/hn_ghost.md\n    rel: references\n"
+               "status: completed\ncreated: 2026-05-02\n---\n")
+        _git(["add", "docs/t45b_src/hn_t45b_broken.md"], repo)
+        _commit(repo, "prep T45.2 broken ref")
+        # 무관한 파일 staged → pre-check이 전수 검사에서 기커밋 broken ref를 잡아야 함
+        _write(repo / "docs/t45b_other/hn_t45b_unrelated.md",
+               "---\ntitle: unrelated\ndomain: harness\nstatus: in-progress\ncreated: 2026-05-02\n---\n")
+        _git(["add", "docs/t45b_other/hn_t45b_unrelated.md"], repo)
+        out = _run_precheck(repo)
+        assert out.get("pre_check_passed") == "false"
+        _reset(repo)
+
+
+# ─────────────────────────────────────────────────────────
 # T40: docs_ops.py wip-sync abbr 기반 보조 매칭
 # ─────────────────────────────────────────────────────────
 

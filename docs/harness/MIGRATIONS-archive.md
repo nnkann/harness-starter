@@ -43,6 +43,44 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.32.0 — 약속 박제 보호 (completed 봉인 + anti-defer 룰)
+
+### 변경 파일
+
+- `.claude/scripts/pre_commit_check.py` — completed 봉인 게이트 신설 (3.5번 섹션). status: completed 문서 본문 무단 변경 시 exit 2 차단
+- `.claude/rules/anti-defer.md` (신설) — 미루기 회피 사유 블랙리스트 + 사용자 명시 처리 지시 우선 규칙
+- `.claude/agents/review.md` — 검증 루프 7번 "wave scope 무단 확장 감지" 추가
+- `CLAUDE.md` — 절대 규칙에 anti-defer + completed 봉인 명시
+- `.claude/scripts/tests/test_pre_commit.py` — TestCompletedSeal 5 케이스 신설
+- `docs/decisions/hn_session_test_results.md` (reopen) — 우선순위 5 측정 결과 누적 후 재 completed 처리
+- `docs/WIP/decisions--hn_promise_protection.md` (신설) — 본 wave WIP
+
+### 변경 내용
+
+**자기증명 사고 (2026-05-02)**: v0.31.2 commit 후 완료된 wave WIP를 같은 세션에서 무단 확장 시도 → "최악 패턴" 사고. 다음 시스템 보호 메커니즘 신설:
+
+1. **completed 봉인 게이트 (메커니즘)**: status: completed 문서 본문 변경을 pre-check이 차단. 변경하려면 `docs_ops.py reopen`으로 in-progress 전환 의무. `## 변경 이력` 섹션·updated/status 필드·rename은 면제.
+
+2. **anti-defer 룰 (자율 신뢰 보강)**: "측정 후·다음 세션·데이터 누적 필요" 같은 미루기 회피 사유의 사용자 승인 없는 단독 사용 금지. 별 wave 분리는 정상 흐름이지만 처리 시점이 "후속"이면 미루기로 간주.
+
+3. **review 자동 감지**: review.md 검증 루프에 wave scope 무단 확장 감지 추가.
+
+**자기증명 검증**: 본 commit 작성 중 우선순위 5 측정을 `decisions/hn_session_test_results.md` (completed)에 직접 수정 → 본 게이트가 즉시 차단 → reopen 절차 거쳐 정상 처리. 메커니즘 정확 작동.
+
+### 적용 방법
+
+자동. harness-upgrade 후 별도 작업 없음. 다운스트림이 completed 문서 수정 시 `docs_ops.py reopen` 절차 의무.
+
+### 검증
+
+```bash
+pytest -m gate
+```
+
+회귀 위험: TestCompletedSeal 5/5 통과. 본 commit이 자기증명 — 봉인 게이트가 본 작업 자체를 차단해 reopen 절차 거치게 함.
+
+
+
 ## v0.31.2 — commit/SKILL.md Step 7 staging.md SSOT link로 단순화
 
 ### 변경 파일

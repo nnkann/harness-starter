@@ -11,6 +11,7 @@ pre-commit 검사.
   2: 차단 (ERRORS > 0)
 """
 
+import io
 import json
 import os
 import re
@@ -491,63 +492,28 @@ def main() -> int:
                         f"   {current_path} → {link} (resolved: {resolved_path}, 파일 없음)"
                     )
 
-    # C. frontmatter relates-to dead link
-    if modified_md:
-        for md_src in modified_md:
-            if not Path(md_src).exists():
-                continue
-            try:
-                content = Path(md_src).read_text(encoding="utf-8", errors="ignore")
-            except Exception:
-                continue
-            # frontmatter 추출
-            fm_lines: list[str] = []
-            in_fm = False
-            dash_count = 0
-            for line in content.splitlines():
-                if line.strip() == "---":
-                    dash_count += 1
-                    if dash_count == 2:
-                        break
-                    in_fm = True
-                    continue
-                if in_fm:
-                    fm_lines.append(line)
-
-            # relates-to 블록 파싱
-            in_rt = False
-            for fm_line in fm_lines:
-                if re.match(r"^relates-to:\s*$", fm_line):
-                    in_rt = True
-                    continue
-                if in_rt and fm_line and not fm_line[0].isspace():
-                    in_rt = False
-                if in_rt:
-                    m = re.match(r"^\s+-\s+path:\s*(.+)", fm_line)
-                    if not m:
-                        continue
-                    rt_path = m.group(1).strip().strip("'\"")
-                    rt_path = re.sub(r"\s*#.*$", "", rt_path)
-                    if not rt_path:
-                        continue
-                    if rt_path.startswith("/"):
-                        continue
-                    if rt_path.startswith(("../", "./")):
-                        resolved = resolve_path(str(Path(md_src).parent), rt_path)
-                    else:
-                        resolved = f"docs/{rt_path}"
-                    resolved_path = resolved.split("#")[0]
-                    if resolved_path and not Path(resolved_path).exists():
-                        dead_links.append(
-                            f"   {md_src} frontmatter relates-to: {rt_path} "
-                            f"(resolved: {resolved_path}, 파일 없음)"
-                        )
-
     if dead_links:
         err("❌ dead link 감지 (이번 커밋이 유발):")
         for dl in dead_links:
             err(dl)
         err("   대응: 링크를 수정하거나, 이동된 파일의 새 경로로 갱신")
+        ERRORS += 1
+
+    # C. frontmatter relates-to 전수 검사 (docs/ 전체)
+    # cmd_verify_relates stdout을 suppress해 pre-check key:value 출력 오염 방지
+    _vr_buf = io.StringIO()
+    _vr_old_stdout = sys.stdout
+    sys.stdout = _vr_buf
+    try:
+        _vr_rc = _docs_ops.cmd_verify_relates()
+    finally:
+        sys.stdout = _vr_old_stdout
+    if _vr_rc:
+        err("❌ frontmatter relates-to 미연결 건 감지 (전수 검사):")
+        for line in _vr_buf.getvalue().splitlines():
+            if line.strip():
+                err(f"   {line}")
+        err("   대응: docs_ops.py verify-relates 로 상세 확인 후 경로 수정 또는 항목 제거")
         ERRORS += 1
 
     # ─────────────────────────────────────────────────────────
