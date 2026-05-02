@@ -15,6 +15,7 @@ updated: 2026-05-02
 
 - [코드 SSOT 서더링 감사 — 중복 정의·동기화 부담 정리](../decisions/hn_code_ssot_audit.md)
 - [commit 스킬 5.3 — AC 검증 묶음 자동 실행 (tests·실측 화이트리스트)](../decisions/hn_commit_auto_verify.md)
+- [commit 흐름 자동화 — wip-sync + git commit wrapper](../decisions/hn_commit_finalize_wrapper.md)
 - [CPS Problem 인용 빈도 검토 — P1·P3·P4·P6 정체 의심 판정](../decisions/hn_cps_problem_inflation_review.md)
 - [문서 네이밍 전면 개편 — 도메인 약어 + 통합 원칙](../decisions/hn_doc_naming.md)
 - [eval CPS 무결성 감시 — 박제 감지·Problem 인플레이션](../decisions/hn_eval_cps_integrity.md)

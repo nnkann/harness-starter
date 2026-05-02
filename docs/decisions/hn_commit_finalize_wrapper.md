@@ -8,7 +8,7 @@ tags: [commit, wip-sync, automation, atomic]
 relates-to:
   - path: decisions/hn_promise_protection.md
     rel: extends
-status: pending
+status: completed
 created: 2026-05-02
 updated: 2026-05-02
 ---
