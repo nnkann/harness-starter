@@ -596,6 +596,11 @@ def main() -> int:
                 if re.match(r"^##\s*변경\s*이력\s*$", stripped):
                     current_post_line += 1
                     continue
+                # frontmatter relates-to.path 경로 수정 면제 — dead-link 복구에 필수
+                # (WIP 이동 후 역참조 미갱신 케이스에서 completed 문서가 막히는 루프 방지)
+                if re.match(r"^-\s+path:\s+\S+", stripped):
+                    current_post_line += 1
+                    continue
                 body_changed = True
                 break
             elif diff_line.startswith("-"):

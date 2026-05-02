@@ -360,6 +360,47 @@ class TestCompletedSeal:
         )
         assert "completed 문서 본문 무단 변경 감지" not in (r.stderr + r.stdout), f"output: {r.stderr + r.stdout}"
 
+    def test_relates_to_path_fix_exempt(self, sealed_repo):
+        """T42.6: completed 문서의 relates-to path 경로 수정 → 봉인 통과 (dead-link 복구 허용).
+
+        WIP 이동 후 역참조 미갱신으로 dead-link가 생긴 경우, completed 봉인이
+        경로 수정을 막으면 영구 루프 발생 — path: 라인 변경은 면제.
+        """
+        repo, _ = sealed_repo
+        # relates-to 있는 completed 문서 추가
+        doc = repo / "docs/decisions/hn_t42_6_rt.md"
+        target = repo / "docs/decisions/hn_t42_6_target.md"
+        target.write_text(
+            "---\ntitle: target\ndomain: harness\nstatus: completed\n"
+            "created: 2026-05-03\n---\n# target\n",
+            encoding="utf-8"
+        )
+        doc.write_text(
+            "---\ntitle: T42.6 relates-to path fix\ndomain: harness\nproblem: P3\n"
+            "solution-ref:\n  - S3 — \"test\"\n"
+            "relates-to:\n  - path: WIP/decisions--hn_t42_6_old.md\n    rel: references\n"
+            "status: completed\ncreated: 2026-05-03\n---\n\n# T42.6\n본문.\n",
+            encoding="utf-8"
+        )
+        subprocess.run(["git", "-C", str(repo), "add", str(doc), str(target)], capture_output=True)
+        subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "T42.6 prep"],
+                       capture_output=True)
+        # dead-link 복구: WIP 경로 → decisions/ 경로로 수정
+        doc.write_text(
+            "---\ntitle: T42.6 relates-to path fix\ndomain: harness\nproblem: P3\n"
+            "solution-ref:\n  - S3 — \"test\"\n"
+            "relates-to:\n  - path: decisions/hn_t42_6_target.md\n    rel: references\n"
+            "status: completed\ncreated: 2026-05-03\n---\n\n# T42.6\n본문.\n",
+            encoding="utf-8"
+        )
+        subprocess.run(["git", "-C", str(repo), "add", str(doc)], capture_output=True)
+        r = subprocess.run(
+            [sys.executable, ".claude/scripts/pre_commit_check.py"],
+            cwd=repo, capture_output=True, text=True,
+        )
+        assert "completed 문서 본문 무단 변경 감지" not in (r.stderr + r.stdout), \
+            f"relates-to path 수정이 봉인에서 차단됨. output: {r.stderr + r.stdout}"
+
     def test_migrations_md_exempt(self, sealed_repo):
         """T42.5: docs/harness/MIGRATIONS.md status: completed + 본문 변경 → 통과.
 

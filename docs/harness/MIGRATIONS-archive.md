@@ -43,6 +43,49 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.33.0 — commit_finalize wrapper (wip-sync + git commit 단일 흐름)
+
+### 변경 파일
+
+- `.claude/scripts/commit_finalize.sh` (신설) — wip-sync → git commit 단일 흐름 wrapper
+- `.claude/skills/commit/SKILL.md` Step 7.5·8·커밋 메시지 작성 — wrapper 호출 1줄로 단순화
+- `.claude/scripts/tests/test_pre_commit.py` — TestCommitFinalize 3 케이스 신설
+
+### 변경 내용
+
+자기증명 사고 (2026-05-02): SKILL.md SSOT는 "git commit **직전** wip-sync"
+명시했으나 Claude가 git commit 먼저 호출 → wip-sync → 별 이동 commit
+패턴 반복. 8 commit 중 3건 위반 (37.5%).
+
+자율 신뢰만으로는 부족 → 메커니즘 차단으로 전환:
+
+- `git commit` 직접 호출 금지. wrapper 경유 의무
+- wrapper 내부: VERDICT != block 이면 wip-sync 호출 → wip 이동·cluster·
+  역참조 갱신 모두 staging → `git commit "$@"` 단일 호출
+- 결과: 1 wave = 1 commit. 별 이동 commit 사라짐
+
+### 적용 방법
+
+자동. harness-upgrade 후 commit 흐름 자동 변경.
+
+호출 형식:
+```bash
+VERDICT="$VERDICT" HARNESS_DEV=1 \
+  bash .claude/scripts/commit_finalize.sh \
+    -m "feat: [제목]" -m "[본문]"
+```
+
+### 검증
+
+```bash
+pytest -m gate  # TestCommitFinalize 3 케이스
+```
+
+회귀 위험: TestCommitFinalize 3/3 통과 (HARNESS_DEV 차단·simple commit·
+block skip wip-sync). 본 commit 자체가 자기증명 — wrapper 사용해 commit.
+
+
+
 ## v0.32.0 — 약속 박제 보호 (completed 봉인 + anti-defer 룰)
 
 ### 변경 파일
