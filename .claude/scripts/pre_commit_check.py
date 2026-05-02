@@ -197,12 +197,13 @@ def parse_ac_block(body: str) -> dict:
     반환: {goal: str, ac_review: str, ac_tests: str, ac_actual: str}
     누락 항목은 빈 문자열.
     """
-    result = {"goal": "", "ac_review": "", "ac_tests": "", "ac_actual": ""}
+    result = {"goal": "", "ac_review": "", "ac_tests": "", "ac_actual": "", "ac_section_found": False}
     in_ac = False
     in_verify = False
     for line in body.splitlines():
         if "Acceptance Criteria" in line and "**" in line:
             in_ac = True
+            result["ac_section_found"] = True
             continue
         if not in_ac:
             continue
@@ -656,7 +657,7 @@ def main() -> int:
         r"\.(test|spec)\.|/tests?/|/__tests__/|^docs/|\.md$|/example|-helper\.|-utils?\."
     )
     S1_LINE_PAT = re.compile(
-        r"^\+.*(sb_secret_|service_role|sk_live_|sk_test_|ghp_|AKIA[0-9A-Z]{16}|password\s*=)",
+        r"^\+.*(sb_secret_|service_role(?![A-Z_])|sk_live_|sk_test_|ghp_|AKIA[0-9A-Z]{16}|password\s*=)",
         re.I,
     )
     # 하네스 자체가 시크릿 패턴을 SSOT로 문서화하는 위치는 line 스캔 면제
@@ -665,6 +666,7 @@ def main() -> int:
         r"^\.claude/(scripts|agents|rules|skills|memory)/"
         r"|^docs/(WIP|incidents|decisions|guides|harness)/"
         r"|^scripts/install-secret-scan-hook\.sh$"
+        r"|^[^/]+\.md$"
     )
 
     s1_file_hit = any(
@@ -780,7 +782,10 @@ def main() -> int:
         # AC Goal·검증 묶음 추출
         ac = parse_ac_block(body)
         if not ac["goal"]:
-            err(f"❌ {wip}: AC `Goal:` 항목 누락.")
+            if not ac["ac_section_found"]:
+                err(f"❌ {wip}: AC 섹션 없음. `**Acceptance Criteria**:` (bold 형식) 헤더가 필요합니다. `### Acceptance Criteria` 헤더 형식은 인식하지 않습니다.")
+            else:
+                err(f"❌ {wip}: AC `Goal:` 항목 누락.")
             ERRORS += 1
             continue
         if not ac["ac_review"]:

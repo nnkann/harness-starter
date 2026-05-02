@@ -43,6 +43,36 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.33.1 — SEALED 면제 (MIGRATIONS류 자기 운영 파일)
+
+### 변경 파일
+
+- `.claude/scripts/pre_commit_check.py` — `SEALED_PATH_EXEMPT` 추가 (MIGRATIONS.md / MIGRATIONS-archive.md / migration-log.md 3개 path 화이트리스트)
+- `.claude/scripts/tests/test_pre_commit.py` — T42.5 회귀 테스트 추가
+
+### 다운스트림 영향
+
+v0.32.0 (약속 박제 보호)에서 도입한 SEALED(completed 봉인) 룰이 starter
+자기 운영 누적 파일을 면제하지 않아, 다운스트림이 `harness-upgrade`로
+v0.33.0을 fetch한 직후 `/commit` 시 MIGRATIONS.md가 차단되는 결함이
+발견됨 (incident 2026-05-02 다운스트림 보고).
+
+본 fix로 MIGRATIONS.md / MIGRATIONS-archive.md / migration-log.md는
+SEALED 검사에서 면제. 다운스트림 정상 흐름 복귀.
+
+### 적용 방법
+
+자동. `harness-upgrade` 후 추가 작업 불필요.
+
+### 검증
+
+- pytest -m gate (T42.5 신규 포함, 11/11 통과)
+- pytest 전체 58 passed (기존 57 + 신규 1, 회귀 0)
+- 회귀 위험: upstream Windows/Git Bash 환경 검증 범위. 다운스트림 환경
+  재발 시 본 incident 갱신 필요
+
+
+
 ## v0.33.0 — commit_finalize wrapper (wip-sync + git commit 단일 흐름)
 
 ### 변경 파일
