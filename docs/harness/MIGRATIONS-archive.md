@@ -43,6 +43,31 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.30.6 — Step 7.5 Stage 0 skip 우회 결함 수정 (자기증명 사고 대응)
+
+### 변경 파일
+
+| 파일 | 처리 | 비고 |
+|------|------|------|
+| `.claude/skills/commit/SKILL.md` | 3-way merge | Step 7.5 wip-sync 실행 조건 변경 — "Stage 0 skip도 스킵"에서 "block만 차단, skip·pass·warn 모두 실행"으로. wip-sync는 staged 확정 상태 기반이지 review LLM 호출 여부와 무관 |
+| `docs/decisions/hn_review_verdict_compliance.md` | 수동 이동 (v0.30.5에서 누락) + 변경 이력 추가 | v0.30.5 commit에서 AC 모두 [x]였음에도 Stage 0 skip이 wip-sync를 가로챘던 사고 기록. 본 commit이 자기증명 — 결함 수정 + 누락 수습 함께 |
+
+### 적용 방법
+자동. `harness-upgrade` 실행 시 3-way merge로 적용.
+
+### 회귀 위험
+- 변경 작음 — Step 7.5 분기 조건 1줄 + 본문 명시. 다음 commit부터 Stage 0 skip이어도 AC 완료 WIP가 자동 이동
+- 운용 추적: `git log --oneline`에서 WIP 파일 자동 이동 누락 사례 0건 기대
+- v0.30.5의 review 영역 변경이 우연히 Stage 0 skip을 트리거 → 본 결함 노출 → 즉시 수정. 자기증명 + 즉시 대응 패턴
+
+### 검증
+```bash
+# 다음 commit에서 wip-sync 실행 여부 stdout 확인
+# `wip_sync_matched`·`wip_sync_moved` 출력 누락 없어야
+```
+
+
+
 ## v0.30.5 — review 응답 JSON 규격화 + AC 매핑 의무 (verdict 100% 누락 대응)
 
 ### 변경 파일

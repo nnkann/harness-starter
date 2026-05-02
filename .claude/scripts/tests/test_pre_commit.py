@@ -175,6 +175,89 @@ created: 2026-04-19
 
 
 # ─────────────────────────────────────────────────────────
+# T43: commit_finalize.sh wrapper (v0.32.x 메커니즘 차단)
+# ─────────────────────────────────────────────────────────
+
+@pytest.fixture(scope="function")
+def finalize_repo(tmp_path_factory):
+    """commit_finalize.sh 테스트 sandbox: 본 repo clone + wrapper 복사."""
+    tmp = tmp_path_factory.mktemp("finalize")
+    repo = tmp / "repo"
+    subprocess.run(["git", "clone", "-q", str(REPO_ROOT), str(repo)],
+                   capture_output=True, check=True)
+    # wrapper + docs_ops가 working tree에만 있을 수 있어 복사
+    for name in ("commit_finalize.sh", "docs_ops.py"):
+        src = REPO_ROOT / ".claude" / "scripts" / name
+        dst = repo / ".claude" / "scripts" / name
+        if src.exists():
+            shutil.copy2(src, dst)
+            if name.endswith(".sh"):
+                os.chmod(dst, 0o755)
+    subprocess.run(["git", "-C", str(repo), "config", "user.email", "test@test"],
+                   capture_output=True, check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.name", "test"],
+                   capture_output=True, check=True)
+    yield repo
+
+
+@pytest.mark.gate
+class TestCommitFinalize:
+    """T43: wrapper가 wip-sync + git commit 단일 흐름 처리."""
+
+    def _run_wrapper(self, repo, env_extra: dict, *args) -> subprocess.CompletedProcess:
+        # Windows subprocess env 전달 결함 회피 — 명시 env 합치고 inline 인자로
+        prefix_parts = ["HARNESS_DEV=1"]
+        for k, v in env_extra.items():
+            prefix_parts.append(f"{k}={v}")
+        prefix = " ".join(prefix_parts)
+        # 인자 escape (테스트 메시지는 단순)
+        arg_str = " ".join(f'"{a}"' for a in args)
+        cmd = f"{prefix} bash .claude/scripts/commit_finalize.sh {arg_str}"
+        return subprocess.run(
+            ["bash", "-c", cmd],
+            cwd=repo, capture_output=True, text=True,
+        )
+
+    def test_no_harness_dev_blocks(self, finalize_repo):
+        """HARNESS_DEV 누락 → exit 2."""
+        repo = finalize_repo
+        env = {k: v for k, v in os.environ.items() if k != "HARNESS_DEV"}
+        r = subprocess.run(
+            ["bash", ".claude/scripts/commit_finalize.sh", "-m", "test"],
+            cwd=repo, env=env, capture_output=True, text=True,
+        )
+        assert r.returncode == 2
+        assert "HARNESS_DEV=1" in (r.stderr + r.stdout)
+
+    def test_simple_commit_passes(self, finalize_repo):
+        """staged 변경 + wrapper 호출 → 단일 commit 생성."""
+        repo = finalize_repo
+        target = repo / "test_file.txt"
+        target.write_text("hello\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(repo), "add", str(target)], capture_output=True, check=True)
+        before = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"],
+                                capture_output=True, text=True).stdout.strip()
+        r = self._run_wrapper(repo, {"VERDICT": "pass"}, "-m", "test commit")
+        assert r.returncode == 0, f"output: {r.stderr + r.stdout}"
+        after = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"],
+                               capture_output=True, text=True).stdout.strip()
+        assert before != after, "commit이 생성 안 됨"
+
+    def test_block_skips_wip_sync(self, finalize_repo):
+        """VERDICT=block이면 wip-sync skip하지만 git commit은 진행."""
+        repo = finalize_repo
+        target = repo / "test_block.txt"
+        target.write_text("blocked\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(repo), "add", str(target)], capture_output=True, check=True)
+        r = self._run_wrapper(repo, {"VERDICT": "block"}, "-m", "block test")
+        assert r.returncode == 0, f"output: {r.stderr + r.stdout}"
+        # wip_sync_matched 출력이 stdout에 없으면 wip-sync skip된 것
+        assert "wip_sync_matched" not in (r.stderr + r.stdout), (
+            f"VERDICT=block인데 wip-sync 실행됨:\n{r.stderr + r.stdout}"
+        )
+
+
+# ─────────────────────────────────────────────────────────
 # T42: completed 봉인 게이트 (v0.31.x 자기증명 사고 대응)
 # ─────────────────────────────────────────────────────────
 

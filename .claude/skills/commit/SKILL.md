@@ -551,51 +551,49 @@ bash .claude/scripts/split-commit.sh
 - **`pass`**: 그대로 다음 단계로.
 - **추출 실패** (exit 1): pass|warn|block 단어 없음 — 재호출 1회. 재실패 시 사용자 보고.
 
-### 7.5. WIP 진척도 자동 갱신 (audit #3, 2026-04-22 / 구현 2026-04-25)
+### 7.5·8. WIP 진척도 자동 갱신 + 커밋 (commit_finalize wrapper)
 
-**실행 시점**: `git commit` 직전. **Stage와 무관하게 실행** (v0.30.6
-설계 결함 수정).
+**자동화 (v0.32.x 메커니즘 차단)**: `git commit` 직접 호출 금지. 대신
+`commit_finalize.sh` wrapper 사용 — 내부에서 wip-sync → git commit 단일
+흐름 처리. 위반 불가능.
 
-- `verdict: pass` → 실행
-- `verdict: warn` → 실행 (block만 차단이고 warn은 진행이므로 wip-sync 정합)
-- **Stage 0 (skip)** → 실행 (review 호출 안 한 것이지 진척도 갱신은 별 사안)
-- `verdict: block` → 실행 안 함 (커밋 자체 차단되므로)
+**배경**: SKILL.md SSOT가 "git commit 직전 wip-sync"라 명시했지만 Claude
+가 git commit 먼저 호출 → wip-sync → 별 이동 commit 패턴 반복 위반
+(2026-05-02 자기증명 사고: 8 commit 중 3건 위반, 37.5%). 자율 신뢰 부족
+→ 메커니즘 차단으로 전환.
 
-**v0.30.5 이전 결함**: Stage 0 skip이 wip-sync 흐름을 가로채 AC 모두 [x]인
-WIP가 자동 이동 안 됨. v0.30.5 commit 직후 hn_review_verdict_compliance.md
-수동 이동 필요했던 사례. wip-sync는 staged 확정 상태 기반이므로 review
-호출 여부와 독립.
-
-**구현**: `docs_ops.py wip-sync` 호출.
+**호출**:
 
 ```bash
-# block이 아니면 실행 (skip·pass·warn 모두 진행)
-if [ "$VERDICT" != "block" ]; then
-  STAGED_FILES=$(git diff --cached --name-only | tr '\n' ' ')
-  if [ -n "$STAGED_FILES" ]; then
-    python3 .claude/scripts/docs_ops.py wip-sync $STAGED_FILES 2>&1
-  fi
-fi
+VERDICT="$VERDICT" HARNESS_DEV=1 \
+  bash .claude/scripts/commit_finalize.sh \
+    -m "feat: [제목]" \
+    -m "[본문 — 🔍 review 라인 포함]"
 ```
 
-Stage 0 skip 흐름에서는 `VERDICT` 변수 미설정 → 빈 문자열 → `!= "block"`
-조건 통과. `git diff --cached --name-only`로 실제 staged만 처리.
+**환경 변수**:
+- `VERDICT`: `pass`/`warn`/`block`/`""`. block이면 wip-sync skip (커밋
+  자체는 진행 — 호출자가 차단 판단). Stage 0 skip은 빈 문자열로 통과
+- `HARNESS_DEV=1`: bash-guard.sh 통과용 필수
 
-**동작** (docs_ops.py wip-sync 내부):
+**wrapper 내부 동작**:
+1. VERDICT != block 이면 staged 파일 추출 → `docs_ops.py wip-sync` 호출
+2. wip-sync가 ✅ 마킹·move·cluster·역참조 갱신 자체 staging (내부 git add)
+3. `git commit "$@"` 단일 호출 → wip 이동·cluster 갱신·역참조 모두 1 commit
 
-1. staged 파일 경로·basename이 언급된 WIP 체크리스트 항목에 ✅ 추가
-2. 갱신된 WIP의 frontmatter `updated` 오늘 날짜로 갱신 + `git add`
-3. 해당 WIP의 모든 체크리스트 항목이 ✅이면 `docs_ops.py move` 자동 실행
-   - 차단 키워드 있으면 이동 skip + stderr 경고
-   - 이동 성공 시 `cluster-update` 자동 호출
-4. stdout: `wip_sync_matched: N`, `wip_sync_moved: N`
+**docs_ops.py wip-sync 동작**:
+1. staged 파일 경로·basename이 언급된 WIP 체크리스트에 ✅ 추가
+2. WIP frontmatter `updated` 오늘 날짜 + git add
+3. AC 모두 ✅이면 `docs_ops.py move` 자동 실행 (git mv → rename staging)
+4. cluster-update + 역참조 갱신 자동 호출
+5. stdout: `wip_sync_matched: N`, `wip_sync_moved: N`
 
-**원칙**:
-- 매칭 안 되면 변경 없음. stdout 수치로만 인지
-- 이 단계의 staged 추가는 review 재호출 유발 안 함
+**block 시 처리**: VERDICT=block 환경에서 wrapper 호출하면 wip-sync skip
+하고 git commit만 진행. 호출자(commit 스킬)는 block이면 애초에 wrapper
+호출 안 하는 게 정합 — block은 사용자에게 차단 사유 전달 후 수정 사이클.
 
-**위치 근거**: Step 2로는 review block 시 ✅ 덮어쓰기 발생. Step 7.5(review
-직후)가 "staged 확정된 최종 상태". v0.30.6에서 Stage 0 skip 우회 결함 수정.
+**Stage 0 skip 흐름**: VERDICT 미설정 → 빈 문자열 → `!= "block"` 통과
+→ wip-sync 정상 실행. v0.30.6 결함 수정 정신 유지.
 
 #### git log 추적성 (모든 stage 공통)
 
@@ -635,8 +633,13 @@ Conventional Commits 규약 준수 (feat:, fix:, refactor: 등).
 - 연관 문서 경로 (있으면)
 
 ```bash
-HARNESS_DEV=1 git commit -m "feat: [제목]" -m "[본문]"
+VERDICT="$VERDICT" HARNESS_DEV=1 \
+  bash .claude/scripts/commit_finalize.sh \
+    -m "feat: [제목]" -m "[본문]"
 ```
+
+**`git commit` 직접 호출 금지** — wrapper 경유 의무. wip-sync 누락 사고
+(2026-05-02 자기증명) 차단 메커니즘.
 
 ### downstream 한 줄 (scripts/** 또는 agents/rules/settings 변경 시)
 

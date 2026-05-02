@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# commit_finalize.sh — wip-sync + git commit 단일 흐름 wrapper.
+#
+# 배경: SKILL.md Step 7.5는 "git commit 직전 wip-sync" SSOT인데 Claude가
+# git commit 먼저 호출 → wip-sync → 별 이동 commit 패턴 반복 위반. 흐름
+# 자체를 자동화해 위반 불가능하게 만든다 (메커니즘 차단).
+#
+# 사용법:
+#   commit_finalize.sh -m "<title>" -m "<body>"
+#
+# 환경 변수:
+#   VERDICT=pass|warn|block|""  — review 결과. block이면 wip-sync skip
+#                                  (커밋 자체는 진행 — 호출자가 차단 판단)
+#   HARNESS_DEV=1                — bash-guard.sh 통과용 (호출자가 설정)
+#
+# 동작:
+#   1. VERDICT != block 이면 staged 파일 추출 → docs_ops.py wip-sync 실행
+#   2. wip-sync가 변경한 파일 자동 git add (move·cluster·역참조 갱신 포함)
+#   3. git commit "$@" 단일 호출
+#
+# 산출물: 1 commit (wip 이동·cluster 갱신·역참조 갱신 모두 포함)
+
+set -euo pipefail
+
+if [ -z "${HARNESS_DEV:-}" ]; then
+  echo "❌ HARNESS_DEV=1 prefix 필수 (bash-guard.sh 통과)" >&2
+  exit 2
+fi
+
+if [ "$#" -eq 0 ]; then
+  echo "사용법: HARNESS_DEV=1 commit_finalize.sh -m \"<title>\" [-m \"<body>\"]" >&2
+  exit 1
+fi
+
+VERDICT="${VERDICT:-}"
+
+# 1. wip-sync (block이 아닐 때만)
+#    docs_ops.py wip-sync 내부:
+#      - ✅ 마킹된 WIP: write_text 후 git add 자체 호출
+#      - move (AC 모두 [x]): cmd_move가 git mv 호출 → rename 자동 staging
+#      - cluster-update: cmd_cluster_update가 git add 호출
+#      - 역참조 갱신 (relates_to_rewritten): cmd_move 내부 git add 호출
+#    → 외부 git add 불필요. wrapper는 단순 호출만.
+if [ "$VERDICT" != "block" ]; then
+  STAGED_FILES=$(git diff --cached --name-only | tr '\n' ' ')
+  if [ -n "$STAGED_FILES" ]; then
+    python3 .claude/scripts/docs_ops.py wip-sync $STAGED_FILES 2>&1 || true
+  fi
+fi
+
+# 2. git commit
+git commit "$@"
