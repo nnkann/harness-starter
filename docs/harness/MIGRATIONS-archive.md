@@ -43,6 +43,31 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.29.2 — commit 5.3 자동 실행 코드 구체화 (efficiency overhaul follow-up)
+
+### 변경 파일
+
+| 파일 | 처리 | 비고 |
+|------|------|------|
+| `.claude/skills/commit/SKILL.md` | 3-way merge | Step 5.3 코드 블록 구체화 — `PRE_CHECK_OUTPUT`에서 `AC_TESTS`/`AC_ACTUAL` 변수 추출, 화이트리스트 정규식 SSOT (`^(pytest\|bash -n\|python -m\|grep)\b`), `run_ac_check` 공유 함수 (tests·실측 동일 분기), `HARNESS_SPLIT_SUB=1` sub-커밋 재실행 가드 |
+
+### 적용 방법
+자동. `harness-upgrade` 실행 시 3-way merge로 적용.
+
+### 회귀 위험
+- upstream 격리 환경(Windows/PowerShell + bash)에서 6 케이스(pytest·grep·bash -n·python -m·rm -rf·none) 분기 시뮬레이션 통과
+- pytest -m stage 2 passed
+- 다운스트림 환경(Linux/macOS) 미테스트
+- 화이트리스트 외 명령은 자동 실행 skip — 보안
+
+### 검증
+```bash
+# stage 회귀 가드
+python -m pytest .claude/scripts/test_pre_commit.py -m stage -q
+```
+
+
+
 ## v0.29.1 — Phase 2-A 2단계: AC + CPS 시스템 강제 (efficiency overhaul)
 
 ### 변경 파일

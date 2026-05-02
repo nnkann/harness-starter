@@ -42,10 +42,39 @@ def count_cps_problems(cps_text_normalized: str) -> int:
     return len(ids)
 
 
+# CPS 의미의 P# 인용 패턴 (본문 grep용 — 자체 우선순위 라벨과 disambiguation)
+#
+# 활용 사례 (2026-05-02 본문 grep 분석):
+#   "CPS 연결: P1(LLM 추측 수정)·P2(review 과잉 비용)" — CPS 인용 (잡힘)
+#   "P6 → S6 해결 기준 충족" — CPS 인용 (잡힘)
+#   "**P3**: 3 (스킬 질의)" — 자체 우선순위 라벨 (자연스럽게 제외)
+#   "### P3. write-doc 확장" — 자체 라벨 (자연스럽게 제외)
+#
+# 포지티브 매칭만 사용 — CPS 의미 신호가 있는 패턴만 잡고, 자체 라벨은
+# 매칭 안 되므로 제외 패턴 불필요. 본 starter 실측에서 false positive 0건.
+CPS_REF_PATTERNS = [
+    re.compile(r"CPS\s*연결[:\s]*[^\n]*?\b(P\d)\b"),       # "CPS 연결: P1·P2"
+    re.compile(r"\b(P\d)\s*\([^)]*?(?:추측|review|다운스트림|매처|컨텍스트|검증|LLM|hook|MCP)[^)]*?\)"),  # "P1(LLM 추측...)"
+    re.compile(r"\b(P\d)\s*→\s*S\d"),                       # "P6 → S6"
+    re.compile(r"\b(P\d)\s*(?:충족|재발|연관|해결)"),         # "P6 충족"
+]
+
+
+def detect_cps_problem_refs(body: str) -> set[str]:
+    """본문에서 CPS 의미의 P# 인용을 추출 (포지티브 매칭만).
+    문서당 한 Problem은 1번만 카운트 (set 반환).
+    """
+    refs: set[str] = set()
+    for pat in CPS_REF_PATTERNS:
+        for m in pat.finditer(body):
+            refs.add(m.group(1))
+    return refs
+
+
 def scan_doc(path: Path, cps_text: str, problem_refs: dict) -> list[str]:
-    """단일 문서 frontmatter 검사.
+    """단일 문서 frontmatter + 본문 검사.
     - solution-ref 박제 grep
-    - problem 카운트 누적 (problem_refs dict mutate)
+    - problem 카운트 누적 (frontmatter + 본문 인용, 문서당 Problem 1회)
     path:warning 형식 list 반환.
     """
     try:
@@ -53,13 +82,24 @@ def scan_doc(path: Path, cps_text: str, problem_refs: dict) -> list[str]:
     except Exception as e:
         return [f"{path}: read 실패 ({e})"]
 
-    fm, _ = parse_frontmatter(text)
+    fm, body_start = parse_frontmatter(text)
+    body = "\n".join(text.splitlines()[body_start:])
 
-    # problem 카운트 (진전 측정 — Problem별 인용 빈도 proxy)
+    # 문서별 hit set — frontmatter + 본문 합쳐 중복 제거
+    doc_refs: set[str] = set()
+
+    # 1. frontmatter problem 인용
     prob = fm.get("problem", "")
     if isinstance(prob, str) and re.match(r"^P\d+$", prob.strip()):
-        problem_refs.setdefault(prob.strip(), 0)
-        problem_refs[prob.strip()] += 1
+        doc_refs.add(prob.strip())
+
+    # 2. 본문 CPS 인용 (자체 라벨 제외)
+    doc_refs.update(detect_cps_problem_refs(body))
+
+    # 누적
+    for pid in doc_refs:
+        problem_refs.setdefault(pid, 0)
+        problem_refs[pid] += 1
 
     sol_refs = fm.get("solution-ref", [])
     if not sol_refs:
