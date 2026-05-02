@@ -556,6 +556,21 @@ def cmd_wip_sync(staged_files: list[str]) -> int:
             if wip_abbr and wip_abbr in staged_abbrs:
                 abbr_to_wips.setdefault(wip_abbr, []).append(wip)
 
+    # 의미 매칭 게이트 (2026-05-02 v0.30.7) — staged WIP의 problem 집합
+    # 간접 매칭(body_referenced·abbr)에 적용. 어휘 일치를 의미 일치로 오인하는
+    # false positive 차단 (`hn_session_test_results.md` 우선순위 2 사례).
+    # 직접 체크박스 매칭(파일명 명시)은 작성자 의도 신호 강해 게이트 면제.
+    staged_problems: set[str] = set()
+    for sf in staged_files:
+        if not sf:
+            continue
+        sf_path = Path(sf)
+        if sf_path.exists() and sf.endswith(".md") and "WIP" in sf.replace("\\", "/"):
+            fm = extract_frontmatter(sf_path)
+            p = fm.get("problem", "").strip()
+            if p:
+                staged_problems.add(p)
+
     for wip in sorted(wip_dir.glob("*.md")):
         text = wip.read_text(encoding="utf-8")
         new_text = text
@@ -612,10 +627,46 @@ def cmd_wip_sync(staged_files: list[str]) -> int:
                 new_text = "\n".join(marked_lines) + ("\n" if new_text.endswith("\n") else "")
                 file_matched = True
 
+        # 의미 게이트 — staged WIP의 problem과 일치할 때만 매칭 인정
+        # 어휘 일치 ≠ 의미 일치 false positive 차단 (v0.30.6 자기증명 사례:
+        # `hn_rule_skill_ssot.md` AC 본문 "commit/SKILL.md" 어휘 hit).
+        wip_fm = extract_frontmatter(wip)
+        wip_problem = wip_fm.get("problem", "").strip()
+
+        def _passes_problem_gate() -> bool:
+            # staged WIP에 problem이 하나도 없으면 게이트 skip (비-WIP 커밋)
+            if not staged_problems:
+                return True
+            # 본 WIP가 직접 staged면 자기 자신이라 게이트 skip (작성자 직접 의도)
+            try:
+                if wip.resolve() in {Path(sf).resolve() for sf in staged_files if sf}:
+                    return True
+            except (OSError, ValueError):
+                pass
+            # 본 WIP의 problem이 staged 집합에 있으면 인정
+            return wip_problem in staged_problems
+
+        # 1차 직접 매칭 결과(file_matched)도 게이트 통과 의무
+        if file_matched and not _passes_problem_gate():
+            print(
+                f"🛑 의미 게이트 차단 (직접 매칭): {wip} "
+                f"(wip problem={wip_problem!r}, staged problems={sorted(staged_problems)})",
+                file=sys.stderr,
+            )
+            file_matched = False
+            new_text = text  # ✅ 추가 롤백
+
         # Phase 3 (2026-05-02): file_matched 안 됐어도 본문 언급 + AC 전부 [x]면 자동 이동
         # 사용자가 미리 [x] 마킹한 케이스 (이전 wip-sync는 ✅ 추가만 트리거)
         if not file_matched and body_referenced:
-            file_matched = True
+            if _passes_problem_gate():
+                file_matched = True
+            else:
+                print(
+                    f"🛑 의미 게이트 차단 (body_referenced): {wip} "
+                    f"(wip problem={wip_problem!r}, staged problems={sorted(staged_problems)})",
+                    file=sys.stderr,
+                )
 
         # 2차: abbr 기반 보조 매칭 (체크리스트 없는 incidents 등)
         abbr_matched = False
@@ -628,6 +679,12 @@ def cmd_wip_sync(staged_files: list[str]) -> int:
                     print(
                         f"⚠️  abbr '{wip_abbr}' WIP {len(candidates)}개 — 자동 매칭 skip"
                         f" (수동 확인 필요: {', '.join(str(c) for c in candidates)})",
+                        file=sys.stderr,
+                    )
+                elif not _passes_problem_gate():
+                    print(
+                        f"🛑 의미 게이트 차단 (abbr): {wip} "
+                        f"(wip problem={wip_problem!r}, staged problems={sorted(staged_problems)})",
                         file=sys.stderr,
                     )
                 else:

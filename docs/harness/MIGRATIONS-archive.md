@@ -43,6 +43,40 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.30.2 — MIGRATIONS·README 슬림화 + archive 자동화 (효율 개선)
+
+### 변경 파일
+
+| 파일 | 처리 | 비고 |
+|------|------|------|
+| `docs/harness/MIGRATIONS.md` | 자동 (slim) | 759줄(24개) → 240줄(5개). 6번째 이전 18개 섹션은 신규 archive로 이동. 정책 갱신 — "최신 5개 본문만 유지" |
+| `docs/harness/MIGRATIONS-archive.md` | 신규 | 18개 섹션 누적 (v0.28.8 이전). 보존용·갱신 없음 |
+| `README.md` | 자동 (slim) | 420줄 → 297줄. "최근 주요 변경" 섹션 31개 → 5개. 자세한 이력은 MIGRATIONS·archive·git log로 안내 |
+| `.claude/scripts/harness_version_bump.py` | 3-way merge | `--archive [keep=5]` 서브커맨드 신설. MIGRATIONS.md 6번째 이전 섹션 자동 이동. 멱등성 보장 |
+| `.claude/skills/commit/SKILL.md` | 3-way merge | Step 4에 `harness_version_bump.py --archive` 호출 추가 (5개 → 4개). 매번 자동 archive로 본문 비대화 방지 |
+
+### 적용 방법
+자동. `harness-upgrade` 실행 시 3-way merge로 적용. 다운스트림이 자기 환경
+MIGRATIONS.md를 슬림화하려면 `python3 .claude/scripts/harness_version_bump.py --archive`
+1회 실행.
+
+### 회귀 위험
+- upstream 격리 환경에서 archive 멱등성·keep=4 시뮬 동작 확인
+- 다운스트림이 마지막 upgrade 이후 6개 이상 누적된 경우 본 정책 적용 시
+  archive로 일부 이동 — 본문은 최신 5개만 보임. 더 오래된 항목은 archive 참조
+- README 변경 이력은 archive로 옮기지 않음 (git log + MIGRATIONS-archive로 충분)
+
+### 검증
+```bash
+# archive 멱등성
+python3 .claude/scripts/harness_version_bump.py --archive
+
+# 본문 5개 + archive 18개 (본 시점 기준)
+grep -c "^## v0\." docs/harness/MIGRATIONS.md docs/harness/MIGRATIONS-archive.md
+```
+
+
+
 ## v0.30.1 — wip-sync 매칭 정밀화 + 위임 트리거 강화 (자기증명 사고 대응)
 
 ### 변경 파일

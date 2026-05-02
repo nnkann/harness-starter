@@ -2,5 +2,5 @@
 
 
 def pytest_configure(config):
-    for m in ("secret", "gate", "stage", "enoent", "docs_ops"):
+    for m in ("secret", "gate", "stage", "enoent", "docs_ops", "review"):
         config.addinivalue_line("markers", f"{m}: {m} 영역 테스트")

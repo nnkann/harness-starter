@@ -569,7 +569,12 @@ DOCS_OPS_PY = REPO_ROOT / ".claude" / "scripts" / "docs_ops.py"
 
 @pytest.fixture(scope="function")
 def wipsync_repo(tmp_path_factory):
-    """T40 전용 sandbox: git clone + docs_ops.py + naming.md 최신 복사. function-scope로 격리."""
+    """T40 전용 sandbox: git clone + docs_ops.py + naming.md 최신 복사. function-scope로 격리.
+
+    starter repo의 docs/WIP/는 비움 — abbr 매칭 시 starter의 hn WIP 갯수에
+    의존하면 "복수 → skip" 분기로 빠져 false negative. fixture가 자기 WIP만
+    써야 의도 명확.
+    """
     tmp = tmp_path_factory.mktemp("wipsync")
     repo = tmp / "repo"
     subprocess.run(["git", "clone", "-q", str(REPO_ROOT), str(repo)],
@@ -584,21 +589,33 @@ def wipsync_repo(tmp_path_factory):
         dst = repo / ".claude" / "rules" / name
         if src.exists():
             shutil.copy2(src, dst)
+    wip_dir = repo / "docs" / "WIP"
+    if wip_dir.exists():
+        for f in wip_dir.glob("*.md"):
+            f.unlink()
+        subprocess.run(["git", "-C", str(repo), "add", "-A"],
+                       capture_output=True, check=True)
+        subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "fixture: clear WIP"],
+                       capture_output=True, check=True)
     yield repo
 
 
 def _run_wip_sync(repo: Path, staged_files: list[str]) -> tuple[dict[str, str], str]:
-    """docs_ops.py wip-sync 실행. (stdout key:value dict, stderr str) 반환."""
+    """docs_ops.py wip-sync 실행. (stdout key:value dict, stderr+stdout 원문) 반환.
+
+    Windows subprocess가 stderr를 stdout에 흡수하는 케이스 대비 — 호출자가
+    경고 메시지 검사하려면 양쪽 텍스트를 합쳐서 받아야 안전.
+    """
     r = subprocess.run(
         [sys.executable, ".claude/scripts/docs_ops.py", "wip-sync"] + staged_files,
         cwd=repo, capture_output=True, text=True,
     )
     out: dict[str, str] = {}
     for line in r.stdout.splitlines():
-        if ": " in line:
+        if re.match(r"^[a-z_]+: ", line):
             k, v = line.split(": ", 1)
             out[k] = v
-    return out, r.stderr
+    return out, r.stderr + "\n" + r.stdout
 
 
 def _add_path_domain_map(repo: Path, mapping_lines: str) -> None:
@@ -667,9 +684,9 @@ class TestWipSyncAbbrMatch:
         _git(["add", str(wip1), str(wip2)], repo)
         _commit(repo, "T40.2 prep WIP x2")
 
-        out, stderr = _run_wip_sync(repo, ["src/t40b/serviceB.ts"])
-        assert out.get("wip_sync_matched") == "0", f"stderr: {stderr}"
-        assert "skip" in stderr.lower() or "2개" in stderr, f"stderr: {stderr}"
+        out, combined = _run_wip_sync(repo, ["src/t40b/serviceB.ts"])
+        assert out.get("wip_sync_matched") == "0", f"output: {combined}"
+        assert "skip" in combined.lower() or "2개" in combined, f"output: {combined}"
         assert wip1.exists() and wip2.exists()
 
         _git(["reset", "HEAD", "."], repo)
@@ -772,6 +789,111 @@ class TestWipSyncMatchPrecision:
         assert "Goal: docs_ops.py 매칭 정밀화 ✅" in after, f"정상 매칭 누락:\n{after}"
         # 다른 항목에는 추가 안 됨
         assert "다른 항목 ✅" not in after
+
+        _git(["reset", "HEAD", "."], repo)
+        _git(["clean", "-fdq"], repo)
+
+
+# ─────────────────────────────────────────────────────────
+# T40c: wip-sync 의미 게이트 — staged WIP problem 일치만 인정 (v0.30.7)
+# ─────────────────────────────────────────────────────────
+
+@pytest.mark.docs_ops
+class TestWipSyncProblemGate:
+    """v0.30.7 의미 게이트: 어휘 일치 ≠ 의미 일치 false positive 차단.
+
+    배경: hn_session_test_results.md 우선순위 2 — `hn_rule_skill_ssot.md`
+    AC 본문에 "commit/SKILL.md"가 등장. 본 commit이 commit/SKILL.md를
+    수정하면 어휘 매칭 hit → 우연 ✅ 추가. problem 게이트로 차단.
+    """
+
+    def test_problem_mismatch_blocks_body_referenced(self, wipsync_repo):
+        """staged WIP problem(P2)과 후보 WIP problem(P5) 불일치 → body_referenced 차단."""
+        repo = wipsync_repo
+        # 후보 WIP — P5, 본문에 staged 파일명 포함 ([x] 마킹된 줄)
+        candidate = repo / "docs/WIP/decisions--hn_t40c_candidate.md"
+        candidate.write_text(
+            "---\ntitle: candidate\ndomain: harness\nproblem: P5\n"
+            "status: in-progress\ncreated: 2026-05-02\n---\n\n"
+            "# candidate\n\n**Acceptance Criteria**:\n"
+            "- [x] Goal: foo.py 정밀화\n",
+            encoding="utf-8",
+        )
+        # staged WIP — P2 (현 작업의 problem)
+        staged_wip = repo / "docs/WIP/decisions--hn_t40c_current.md"
+        staged_wip.write_text(
+            "---\ntitle: current\ndomain: harness\nproblem: P2\n"
+            "status: in-progress\ncreated: 2026-05-02\n---\n\n"
+            "# current\n\n**Acceptance Criteria**:\n"
+            "- [ ] Goal: 다른 작업\n",
+            encoding="utf-8",
+        )
+        _git(["add", str(candidate), str(staged_wip)], repo)
+        _commit(repo, "T40c prep")
+
+        # foo.py + staged_wip 둘 다 staged
+        out, combined = _run_wip_sync(
+            repo, ["foo.py", "docs/WIP/decisions--hn_t40c_current.md"]
+        )
+        # candidate는 차단되어야 함 (problem 불일치)
+        assert candidate.exists(), f"candidate가 자동 이동됨 — 게이트 미작동:\n{combined}"
+        assert "의미 게이트 차단" in combined, f"게이트 메시지 누락:\n{combined}"
+
+        _git(["reset", "HEAD", "."], repo)
+        _git(["clean", "-fdq"], repo)
+
+    def test_problem_match_passes_body_referenced(self, wipsync_repo):
+        """staged WIP problem과 후보 WIP problem 일치 → body_referenced 인정."""
+        repo = wipsync_repo
+        candidate = repo / "docs/WIP/decisions--hn_t40c_match.md"
+        candidate.write_text(
+            "---\ntitle: candidate match\ndomain: harness\nproblem: P2\n"
+            "status: in-progress\ncreated: 2026-05-02\n---\n\n"
+            "# candidate\n\n**Acceptance Criteria**:\n"
+            "- [x] Goal: foo.py 작업\n",
+            encoding="utf-8",
+        )
+        staged_wip = repo / "docs/WIP/decisions--hn_t40c_current2.md"
+        staged_wip.write_text(
+            "---\ntitle: current\ndomain: harness\nproblem: P2\n"
+            "status: in-progress\ncreated: 2026-05-02\n---\n\n"
+            "# current\n\n**Acceptance Criteria**:\n"
+            "- [ ] Goal: 작업\n",
+            encoding="utf-8",
+        )
+        _git(["add", str(candidate), str(staged_wip)], repo)
+        _commit(repo, "T40c match prep")
+
+        out, combined = _run_wip_sync(
+            repo, ["foo.py", "docs/WIP/decisions--hn_t40c_current2.md"]
+        )
+        # candidate가 자동 이동되어야 함 (problem 일치 + AC [x] 전부)
+        assert not candidate.exists() or "의미 게이트" not in combined, (
+            f"problem 일치인데 게이트 차단됨:\n{combined}"
+        )
+
+        _git(["reset", "HEAD", "."], repo)
+        _git(["clean", "-fdq"], repo)
+
+    def test_no_staged_wip_skips_gate(self, wipsync_repo):
+        """staged에 WIP 없음 → 게이트 skip (코드만 staged인 케이스 — 회귀 가드)."""
+        repo = wipsync_repo
+        candidate = repo / "docs/WIP/decisions--hn_t40c_nogate.md"
+        candidate.write_text(
+            "---\ntitle: nogate\ndomain: harness\nproblem: P2\n"
+            "status: in-progress\ncreated: 2026-05-02\n---\n\n"
+            "# nogate\n\n**Acceptance Criteria**:\n"
+            "- [x] Goal: foo.py 작업\n",
+            encoding="utf-8",
+        )
+        _git(["add", str(candidate)], repo)
+        _commit(repo, "T40c nogate prep")
+
+        out, combined = _run_wip_sync(repo, ["foo.py"])
+        # staged WIP 없으므로 게이트 skip → body_referenced로 매칭 통과
+        assert "의미 게이트 차단" not in combined, (
+            f"staged WIP 없는데 게이트 차단됨:\n{combined}"
+        )
 
         _git(["reset", "HEAD", "."], repo)
         _git(["clean", "-fdq"], repo)

@@ -158,3 +158,37 @@ commit/SKILL.md prompt 끝에도 명시. 그럼에도 100% 누락.
   - `block`만 차단 (커밋 자체 불가)
   - `pass`·`warn`·skip(verdict 미설정) 모두 wip-sync 실행
 - 본 문서 자체가 자기증명 사례 — v0.30.5 후속 v0.30.6에서 수동 이동 + 결함 수정 함께 처리
+
+
+### v0.30.7 (2026-05-02) — JSON 스키마 폐기, verdict 단어 추출 단순화
+
+본 세션 v0.30.5~v0.30.6 운용 결과: JSON 스키마·AC 매핑 의무·duplicate
+key 강제에도 **5/5 markdown 머릿말 leak 지속**. fallback regex가 첫
+`{...}` 블록을 추출해 실용 통과 중이었으나 SSOT "첫 토큰 `{`" 박제
+유지가 부담.
+
+debug-specialist 진단 (2026-05-02):
+- **H1 확정**: Anthropic Agent tool sub-agent 호출에서 assistant prefill
+  미작동. prompt 끝 `{"verdict":"`은 user message 텍스트 일부일 뿐
+- **보조 H3 확정**: commit/SKILL.md prefill 위치가 prompt 본문 중간
+  (line 166, line 168~ 평문 계속)으로 prompt 끝조차 아님
+- 형식 강제 메커니즘 자체가 무력 → 강제 박제 폐기
+
+**v0.30.7 단순화**:
+- review.md 출력 형식 SSOT: "raw JSON 1개 객체" 강제 → "verdict:
+  pass|warn|block 한 단어 포함" (형식 자유)
+- AC 매핑 의무·duplicate key 검증·ac_check 정합성·early_stop 등 스키마
+  필드 다 폐기 (호출자 commit이 파싱 안 함)
+- 신규 스크립트 `.claude/scripts/extract_review_verdict.py` (10줄):
+  정규식 `\b(pass|warn|block)\b` 첫 매칭 추출
+- commit/SKILL.md Step 7 inline python heredoc (~80줄) → 1줄 호출
+- 테스트 `test_extract_review_verdict.py` (`pytest -m review`) — markdown
+  leak 5종 + verdict 미존재 케이스 6/6 통과
+
+**부가 정보 처리**:
+- blockers·warnings 같은 부가 정보는 review가 응답 본문에 자유 형식 서술
+- commit이 파싱하지 않고 그대로 사용자에게 노출 (block 차단 사유·warn
+  경고 사유로 git log 본문 인용)
+
+**원칙**: 형식 강제 ≪ 의미 추출. sub-agent 호출에서 형식 강제는 메커니즘
+자체가 약함 — 추출 가능한 시그널 1개에 집중하고 형식 자유.
