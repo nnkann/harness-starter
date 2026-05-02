@@ -392,25 +392,86 @@ s1_level: ""|file-only|line-confirmed             # 시크릿 강도
 
 ### 5.3. AC 검증 묶음 자동 실행 (Phase 2-A)
 
-pre-check 출력 `ac_tests`·`ac_actual` 값으로 분기:
+pre-check stdout에서 `ac_tests`·`ac_actual` 값을 추출해 화이트리스트 기반
+자동 실행. 작성자가 AC `검증.tests`·`검증.실측`에 자가 선언한 명령은
+회귀 가드이므로 통과 의무 — 실패 시 commit 차단.
 
-**`ac_tests`**:
-- `없음` → 실행 안 함
-- 화이트리스트 명령 (`pytest`·`bash -n`·`python -m`·`grep`) → 자동 실행
-- 그 외 → 가이드만 표시 + 사용자 승인 후 실행
+**sub-커밋 예외**: `HARNESS_SPLIT_SUB=1`이면 부모 커밋에서 이미 실행됐으므로
+재실행하지 않는다 (Step 5의 PRE_CHECK_OUTPUT 재사용 원칙과 동일).
+
+#### 변수 추출
 
 ```bash
-case "$AC_TESTS" in
-  "없음") echo "tests: 없음 (선언)" ;;
-  pytest*|"bash -n"*|"python -m"*|grep*) eval "$AC_TESTS" || exit 1 ;;
-  *) echo "⚠ tests 명령 화이트리스트 외: $AC_TESTS"
-     echo "  사용자 승인 후 수동 실행. 자동 실행 skip." ;;
-esac
+if [ -z "$HARNESS_SPLIT_SUB" ]; then
+  AC_TESTS=$(echo "$PRE_CHECK_OUTPUT" | sed -n 's/^ac_tests: //p')
+  AC_ACTUAL=$(echo "$PRE_CHECK_OUTPUT" | sed -n 's/^ac_actual: //p')
+fi
 ```
 
-**`ac_actual`**: 동일 분기. 화이트리스트만 자동, 그 외 가이드.
+`pre-check` 출력 규약:
+- `ac_tests: none` (또는 `ac_actual: none`) — staged WIP 없거나 AC `검증.tests` 값이 `없음`
+- `ac_tests: pytest -m stage` 등 — 작성자가 선언한 명령 원문
 
-실패 시 commit 차단. 작성자가 회귀 가드 자가 보고했으므로 통과 의무.
+#### 화이트리스트 (정규식 SSOT)
+
+```
+^(pytest|bash -n|python -m|grep)\b
+```
+
+- `pytest ...` (markers·경로 포함)
+- `bash -n <path>` (구문 검사)
+- `python -m <module> ...`
+- `grep ...`
+
+화이트리스트 외 명령(`rm -rf`·`curl`·임의 실행 파일 등)은 자동 실행 금지 —
+보안. 가이드만 출력하고 사용자 승인 후 수동 실행.
+
+#### 분기 로직 (ac_tests·ac_actual 동일 처리)
+
+```bash
+run_ac_check() {
+  local label="$1"
+  local cmd="$2"
+  case "$cmd" in
+    ""|none|"없음")
+      echo "  $label: 없음 (작성자 선언)"
+      return 0
+      ;;
+    pytest*|"bash -n "*|"python -m "*|grep*)
+      echo "🔍 $label 자동 실행: $cmd"
+      if eval "$cmd"; then
+        echo "  ✅ $label 통과"
+        return 0
+      else
+        echo "  🚫 $label 실패 — commit 차단"
+        return 1
+      fi
+      ;;
+    *)
+      echo "⚠ $label 화이트리스트 외 명령: $cmd"
+      echo "  자동 실행 skip. 사용자 승인 후 수동 실행 권장."
+      echo "  화이트리스트: pytest | bash -n | python -m | grep"
+      return 0
+      ;;
+  esac
+}
+
+if [ -z "$HARNESS_SPLIT_SUB" ]; then
+  run_ac_check "tests" "$AC_TESTS" || exit 1
+  run_ac_check "실측"  "$AC_ACTUAL" || exit 1
+fi
+```
+
+#### 실패 시 처리
+
+- 화이트리스트 명령이 비-0 exit → commit 차단, stderr 그대로 사용자에게 전달
+- 사용자는 (a) 코드 수정 후 재커밋, 또는 (b) AC를 정밀화해 재선언
+
+#### 화이트리스트 외 케이스
+
+자동 실행하지 않고 가이드만 출력. 작성자가 수동 검증 후 재커밋. commit log
+`🔍 review:` 라인의 자가 보고 시스템(staging.md)이 사후 audit 대상으로
+표시함.
 
 ### 5.5. 커밋 분리 판정 (audit #18 — 글로벌 원칙, 1 커밋 = 1 논리 단위)
 
