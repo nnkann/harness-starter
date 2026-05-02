@@ -33,6 +33,7 @@ updated: 2026-05-02
 - [starter 전용 스킬 격리 — harness-dev 스킬 신설](../decisions/hn_starter_skill_isolation.md)
 - [테스트 다이어트 + 트리거 좁힘 — AC 기반 시스템과 중복 제거](../decisions/hn_test_diet.md)
 - [Harness-Starter 업그레이드 계획](../decisions/hn_upgrade.md)
+- [docs_ops.py wip-sync 부분 매칭 버그 — 매칭 정밀화](../decisions/hn_wip_sync_match_precision.md)
 - [문서 탐색 프로토콜](../guides/hn_doc_search_protocol.md)
 - [eval --deep 보안 강화 패치 타 프로젝트 이식 가이드](../guides/hn_eval_security_patch_port.md)
 - [외부 자료 조사 패턴 — Context7·공식 문서](../guides/hn_external_research_patterns.md)

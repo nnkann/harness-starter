@@ -693,6 +693,91 @@ class TestWipSyncAbbrMatch:
 
 
 # ─────────────────────────────────────────────────────────
+# T40b: wip-sync 부분 매칭 false positive 방지 (2026-05-02 자기증명 사고)
+# ─────────────────────────────────────────────────────────
+
+@pytest.mark.docs_ops
+class TestWipSyncMatchPrecision:
+    """T40b: 매칭 정밀화 — 사전 준비·frontmatter false positive 차단."""
+
+    def test_no_match_in_preparation_section(self, wipsync_repo):
+        """staged 파일명이 `## 사전 준비` 자연어 줄에 있어도 ✅ 추가 안 됨."""
+        repo = wipsync_repo
+        wip = repo / "docs/WIP/decisions--hn_t40b_prep.md"
+        content = (
+            "---\ntitle: T40b prep\ndomain: harness\n"
+            "status: pending\ncreated: 2026-05-02\n---\n\n"
+            "# T40b\n\n## 사전 준비\n"
+            "- 읽을 문서: `.claude/scripts/docs_ops.py` (wip-sync)\n\n"
+            "**Acceptance Criteria**:\n"
+            "- [ ] Goal: 다른 작업\n"
+        )
+        _write(wip, content)
+        _git(["add", str(wip)], repo)
+        _commit(repo, "T40b prep WIP")
+
+        out, _ = _run_wip_sync(repo, [".claude/scripts/docs_ops.py"])
+        after = wip.read_text(encoding="utf-8")
+        # 본 WIP 자체에는 ✅ 추가되면 안 됨 (sandbox 다른 WIP는 무관)
+        assert "✅" not in after, f"false positive ✅ 추가됨:\n{after}"
+
+        _git(["reset", "HEAD", "."], repo)
+        _git(["clean", "-fdq"], repo)
+
+    def test_no_match_in_frontmatter_relates_to(self, wipsync_repo):
+        """frontmatter `relates-to:` YAML 리스트에 staged 파일 경로 있어도 ✅ 안 됨."""
+        repo = wipsync_repo
+        wip = repo / "docs/WIP/decisions--hn_t40b_fm.md"
+        content = (
+            "---\ntitle: T40b fm\ndomain: harness\n"
+            "relates-to:\n"
+            "  - path: decisions/hn_t40b_other.md\n"
+            "    rel: caused-by\n"
+            "status: pending\ncreated: 2026-05-02\n---\n\n"
+            "# T40b\n\n**Acceptance Criteria**:\n"
+            "- [ ] Goal: 작업\n"
+        )
+        _write(wip, content)
+        _git(["add", str(wip)], repo)
+        _commit(repo, "T40b fm WIP")
+
+        out, _ = _run_wip_sync(repo, ["decisions/hn_t40b_other.md"])
+        after = wip.read_text(encoding="utf-8")
+        # frontmatter `path:` 줄에 ✅ 추가되면 안 됨
+        for line in after.splitlines():
+            if "path:" in line and "decisions/hn_t40b_other" in line:
+                assert "✅" not in line, f"frontmatter false positive: {line}"
+
+        _git(["reset", "HEAD", "."], repo)
+        _git(["clean", "-fdq"], repo)
+
+    def test_marks_only_checkbox_lines(self, wipsync_repo):
+        """체크박스 라인의 staged 파일 언급은 정상 매칭 (회귀 가드)."""
+        repo = wipsync_repo
+        wip = repo / "docs/WIP/decisions--hn_t40b_normal.md"
+        content = (
+            "---\ntitle: T40b normal\ndomain: harness\n"
+            "status: pending\ncreated: 2026-05-02\n---\n\n"
+            "# T40b\n\n**Acceptance Criteria**:\n"
+            "- [ ] Goal: docs_ops.py 매칭 정밀화\n"
+            "- [ ] 다른 항목\n"
+        )
+        _write(wip, content)
+        _git(["add", str(wip)], repo)
+        _commit(repo, "T40b normal WIP")
+
+        out, _ = _run_wip_sync(repo, [".claude/scripts/docs_ops.py"])
+        after = wip.read_text(encoding="utf-8")
+        # Goal 줄에 ✅ 정확히 추가
+        assert "Goal: docs_ops.py 매칭 정밀화 ✅" in after, f"정상 매칭 누락:\n{after}"
+        # 다른 항목에는 추가 안 됨
+        assert "다른 항목 ✅" not in after
+
+        _git(["reset", "HEAD", "."], repo)
+        _git(["clean", "-fdq"], repo)
+
+
+# ─────────────────────────────────────────────────────────
 # T41: docs_ops.py move untracked WIP fallback (incident hn_secret_line_exempt_gap)
 # ─────────────────────────────────────────────────────────
 

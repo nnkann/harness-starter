@@ -108,29 +108,39 @@ if git remote | grep -qx harness-upstream 2>/dev/null; then
   fi
 fi
 
-# 7. 연속 fix 커밋 감지 — 동일 파일에 fix가 2커밋 연속이면 debug-specialist 강제 호출
+# 7. 연속 동일 파일 수정 감지 — 동일 파일이 2 커밋 연속 수정되면 debug-specialist 강제 호출
+#
+# 정밀화 (2026-05-02 자기증명): prefix 의존 폐기. fix·feat·refactor 무관하게
+# 같은 파일이 연속 2회 수정됐다는 사실 자체가 "동일 영역 반복 수정" 신호.
+# v0.29.2(feat:) + v0.30.0(feat:) 케이스에서 fix prefix 미발화 인지 후 확장.
+#
+# 본 트리거가 wip-sync 부분 매칭 false positive 같은 시스템 동작 이슈도
+# 잡도록 — 사용자 키워드 의존(debug-guard.sh)과 보완.
 if git rev-parse --is-inside-work-tree &>/dev/null; then
-  # 최근 2커밋 메시지 둘 다 fix 포함인지 확인
-  msg1=$(git log -1 --format="%s" 2>/dev/null)
-  msg2=$(git log -2 --format="%s" 2>/dev/null | tail -1)
-  # fix 단어 경계 앵커링 — prefix/config 등 포함 단어 오탐 방지
-  if echo "$msg1" | grep -qiE '(^|[[:space:]]|:)fix([[:space:]]|$|[^a-z])' && \
-     echo "$msg2" | grep -qiE '(^|[[:space:]]|:)fix([[:space:]]|$|[^a-z])'; then
-    # 두 커밋에 공통으로 등장하는 파일 확인
-    files1=$(git diff-tree --no-commit-id -r --name-only HEAD 2>/dev/null)
-    files2=$(git diff-tree --no-commit-id -r --name-only HEAD~1 2>/dev/null)
-    repeated=$(comm -12 <(echo "$files1" | sort) <(echo "$files2" | sort))
+  files1=$(git diff-tree --no-commit-id -r --name-only HEAD 2>/dev/null)
+  files2=$(git diff-tree --no-commit-id -r --name-only HEAD~1 2>/dev/null)
+  if [ -n "$files1" ] && [ -n "$files2" ]; then
+    # 메타 파일(버전 범프 결과)은 자연 동반 변경 — 신호 노이즈로 제외
+    repeated=$(comm -12 <(echo "$files1" | sort) <(echo "$files2" | sort) \
+      | grep -vE '^(\.claude/HARNESS\.json|README\.md|docs/harness/MIGRATIONS\.md|docs/clusters/.*\.md)$')
     if [ -n "$repeated" ]; then
+      msg1=$(git log -1 --format="%s" 2>/dev/null)
+      msg2=$(git log -2 --format="%s" 2>/dev/null | tail -1)
       echo ""
-      echo "⛔ 연속 fix 감지: 아래 파일이 2커밋 연속 수정됐습니다." >&2
+      echo "⛔ 연속 동일 파일 수정 감지: 아래 파일이 최근 2 커밋 연속 수정됐습니다." >&2
       echo ""
-      echo "⛔ 연속 fix 감지: 아래 파일이 2커밋 연속 수정됐습니다."
+      echo "⛔ 연속 동일 파일 수정 감지: 아래 파일이 최근 2 커밋 연속 수정됐습니다."
+      echo "  HEAD:   $msg1"
+      echo "  HEAD~1: $msg2"
       echo "$repeated" | while read f; do echo "  - $f"; done
       echo ""
       echo "<important>"
-      echo "debug-specialist 에이전트를 지금 즉시 호출하라."
-      echo "Agent 도구를 사용해 subagent_type: \"debug-specialist\" 로 호출한다."
-      echo "호출 전에 사용자에게 증상·재현 조건·직전 수정 내용을 확인하라."
+      echo "동일 영역 반복 수정 = no-speculation.md \"동일 수정 2회 이상\" 트리거."
+      echo "직접 수정 전 debug-specialist 에이전트를 즉시 호출하라."
+      echo "Agent 도구로 subagent_type: \"debug-specialist\" 호출 — 호출 전에 증상·재현 조건·직전 수정 내용을 명시하라."
+      echo ""
+      echo "예외: 메타 파일(HARNESS.json·README.md·MIGRATIONS.md·clusters)은 이미 제외됨."
+      echo "그 외에도 단순 docs 갱신·버전 범프 동반 변경이 명확하면 사용자에게 알리고 진행 가능."
       echo "</important>"
     fi
   fi

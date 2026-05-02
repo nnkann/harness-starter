@@ -562,7 +562,21 @@ def cmd_wip_sync(staged_files: list[str]) -> int:
         file_matched = False
         body_referenced = False  # 본문에 staged 파일 언급 (Phase 3 — AC 전부 [x] 자동 이동 트리거)
 
-        # 1차: 체크리스트 문자열 매칭 (기존 로직)
+        # frontmatter 구간 인덱스 계산 — 마킹 대상에서 제외
+        # 자기증명 사례(2026-05-02): frontmatter `relates-to:` YAML 리스트가
+        # `^\s*-\s` 정규식에 매칭돼 잘못된 ✅ 추가됨. 본문만 마킹 대상.
+        _all_lines = text.splitlines()
+        _fm_end = 0
+        if _all_lines and _all_lines[0].strip() == "---":
+            for _i, _l in enumerate(_all_lines[1:], start=1):
+                if _l.strip() == "---":
+                    _fm_end = _i + 1  # 닫는 --- 다음 줄부터 본문
+                    break
+
+        # 1차: 체크박스 라인 매칭 (정밀화 — 2026-05-02)
+        # 이전 정규식 `^\s*([-*]|\d+\.)\s`는 모든 리스트 라인에 매칭돼
+        # `## 사전 준비`의 "읽을 문서:" 줄에 false positive 다수 발생.
+        # `^\s*[-*]\s+\[[ xX]\]\s` 로 좁혀 AC 체크박스만 대상.
         # splitlines()로 비교해 trailing newline 차이에 의한 오탐 방지
         for sf in staged_files:
             if not sf:
@@ -571,19 +585,28 @@ def cmd_wip_sync(staged_files: list[str]) -> int:
             _sf, _sfbn = sf, sfbn  # 루프 변수 클로저 캡처용 지역 변수
 
             # 본문 어딘가 언급되면 body_referenced=True (체크박스 추가 X 케이스 자동이동용)
-            if (sf in text or sfbn in text) and sfbn:
-                body_referenced = True
+            # 정밀화 (2026-05-02): frontmatter + 자연어 줄 false positive 방지를
+            # 위해 **이미 [x] 마킹된 체크박스** 라인의 staged 파일 언급만 인정.
+            # 자연어 설명(`## 사전 준비`의 "읽을 문서:")이나 `relates-to`는 자동
+            # 이동 트리거로 부적절 — 의도된 시나리오는 "사용자가 미리 [x] 마킹한
+            # 케이스"이므로 체크박스 라인 한정이 의미 정합.
+            for _bl in _all_lines[_fm_end:]:
+                if re.match(r"^\s*[-*]\s+\[[xX]\]\s", _bl) and (sf in _bl or sfbn in _bl):
+                    body_referenced = True
+                    break
 
             def _mark_line(line: str, _sf: str = _sf, _sfbn: str = _sfbn) -> str:
                 if "✅" in line:
                     return line
-                if re.match(r"^\s*([-*]|\d+\.)\s", line):
+                # 체크박스 라인 한정 — `- [ ]` 또는 `- [x]`/`- [X]`
+                if re.match(r"^\s*[-*]\s+\[[ xX]\]\s", line):
                     if _sf in line or _sfbn in line:
                         return line.rstrip() + " ✅"
                 return line
 
             orig_lines = new_text.splitlines()
-            marked_lines = [_mark_line(l) for l in orig_lines]
+            # frontmatter 구간은 _mark_line 적용 제외 — 그대로 보존
+            marked_lines = orig_lines[:_fm_end] + [_mark_line(l) for l in orig_lines[_fm_end:]]
             if marked_lines != orig_lines:
                 # trailing newline 보존
                 new_text = "\n".join(marked_lines) + ("\n" if new_text.endswith("\n") else "")
