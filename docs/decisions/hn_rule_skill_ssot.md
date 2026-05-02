@@ -8,8 +8,9 @@ tags: [rules, skills, ssot, duplication]
 relates-to:
   - path: harness/hn_harness_efficiency_overhaul.md
     rel: caused-by
-status: pending
+status: completed
 created: 2026-05-02
+updated: 2026-05-02
 ---
 
 # 룰-스킬 중복 제거
