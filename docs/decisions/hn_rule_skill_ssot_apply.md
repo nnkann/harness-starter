@@ -10,6 +10,7 @@ relates-to:
     rel: caused-by
 status: pending
 created: 2026-05-02
+updated: 2026-05-02
 ---
 
 # 룰-스킬 SSOT 적용 (Task 2 wave)
@@ -25,7 +26,7 @@ staging.md 갱신 시 SKILL.md 동기화 누락 위험 제거.
 ## 작업
 
 **Acceptance Criteria**:
-- [x] Goal: commit/SKILL.md Step 7에서 staging.md 본문 재진술 제거 → SSOT link로 단순화
+- [x] Goal: commit/SKILL.md Step 7에서 staging.md 본문 재진술 제거 → SSOT link로 단순화 ✅
   검증:
     review: review
     tests: pytest -m stage
