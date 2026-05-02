@@ -54,25 +54,25 @@ implementation Step 0의 init check 게이트가 다운스트림 환경 양식 d
 ### 2. 권장안 구현
 
 **Acceptance Criteria**:
-- [ ] Goal: starter init check wall ≤2s (현재 4.85s) + 다운스트림 drift 환경에서 15~19s → 차단 또는 통과 명확
+- [x] Goal: starter init check wall ≤2s (현재 4.85s) + 다운스트림 drift 환경에서 15~19s → 차단 또는 통과 명확
   검증:
     review: review-deep
-    tests: pytest -m stage
-    실측: starter `/implementation` 발화로 Step 0 wall 재측정 (목표 ≤2s)
-- [ ] `.claude/skills/implementation/SKILL.md` Step 0 게이트 로직 갱신
-- [ ] starter 자기 영향 검토 (incident hn_sealed_migrations_exempt_gap 형제 패턴 회피)
-- [ ] 회귀 테스트 1개 이상 (init 안 돈 케이스 차단·init 완료 통과·drift 케이스 권장안에 따른 동작)
+    tests: pytest -m gate
+    실측: check_init_done.sh 5회 평균 ~0.07s (max 0.15s) — 게이트 ≤2s 대비 27x 여유
+- [x] `.claude/skills/implementation/SKILL.md` Step 0 게이트 로직 갱신 (라인 69~85 → A4 의미 재정의) ✅
+- [x] starter 자기 영향 검토 — `.claude/scripts/check_init_done.sh` 신설(자기 운영 파일 신설 아님, 판정 로직 추출만). incident hn_sealed_migrations_exempt_gap 형제 패턴 회피 ✅
+- [x] 회귀 테스트 6개 추가 (TestInitGate: kickoff_missing_blocks·sample_only_blocks·in_progress_passes·completed_passes·drift_does_not_block + sample_with_inline_comment_blocks — review-deep 지적 반영). pytest 64 passed (기존 58 + 신규 6)
 
 ### 3. 다운스트림 영향 명시
 
 **Acceptance Criteria**:
-- [ ] Goal: MIGRATIONS.md에 다운스트림 영향 1줄 + 적용 방법 명시
+- [x] Goal: MIGRATIONS.md에 다운스트림 영향 1줄 + 적용 방법 명시 ✅
   검증:
     review: self
     tests: 없음
-    실측: harness-upgrade 시뮬 또는 다운스트림 1건 fetch 보고
-- [ ] 양식 변경이 필요한 다운스트림은 명시 (예: `## 환경` 키 추가)
-- [ ] 자동 적용 vs 수동 적용 분류
+    실측: MIGRATIONS.md v0.34.0 섹션 작성 완료 — 다음 다운스트림 fetch 보고로 운영 검증
+- [x] 양식 변경이 필요한 다운스트림은 명시 — **양식 변경 불필요**. drift는 차단 사유 아님으로 의미 재정의했으므로 다운스트림이 양식 안 따라도 무관 (오히려 다운스트림 자유도 회복)
+- [x] 자동 적용 vs 수동 적용 분류 — **자동**. `harness-upgrade` 후 추가 작업 불필요. 단 `harness-adopt`만 돌고 `harness-init` 미실행한 다운스트림은 본 v0.34.0부터 implementation Step 0에서 차단됨 → `/harness-init` 실행 필요 (의도된 동작, (e) 별 wave 보완 흐름 대기)
 
 ## 결정 사항
 
@@ -100,6 +100,10 @@ implementation Step 0의 init check 게이트가 다운스트림 환경 양식 d
 **보존 — A1 (폐기) fallback**:
 A4 구현 중 sample 판정 비용이 ≥2s로 측정되면 A1로 즉시 fallback. WIP AC
 `실측` 항목이 ≤2s 명시했으므로 측정 게이트 의무.
+
+→ **측정 결과 (2026-05-02)**: starter `check_init_done.sh` 5회 평균
+~0.07s (max 0.15s). 게이트 ≤2s 대비 27x 여유. **A4 정착 확정, A1 fallback
+트리거 안 됨**.
 
 **adopt-without-init과의 의미 분리** (병목 (e), 별 wave 후보):
 - (a) A4: 수동적 차단 게이트 — implementation 진입 시점에 init 안 돈 상태면 차단

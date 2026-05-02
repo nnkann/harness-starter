@@ -43,6 +43,33 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.31.1 — scripts/tests 폴더 분리 (운영/테스트 혼재 해소)
+
+### 변경 파일
+
+- `.claude/scripts/tests/` (신설 폴더) — `test_pre_commit.py`·`test_extract_review_verdict.py`·`conftest.py` 이동
+- `.claude/scripts/downstream-readiness.sh` — 회귀 스크립트 존재 검사 경로 갱신
+- `.claude/settings.json` — pytest 권한 패턴 갱신
+- `CLAUDE.md` — 빌드 명령어 경로 갱신
+
+### 변경 내용
+
+운영 코드(`pre_commit_check.py`·`docs_ops.py` 등)와 테스트 코드가 같은 `.claude/scripts/`에 섞여 있어 IDE 노이즈·분리 원칙 위반. `tests/` 하위로 분리. 다운스트림 영향 0 — `pytest .claude/scripts/`도 재귀로 작동.
+
+### 적용 방법
+
+자동. harness-upgrade 후 별도 작업 없음. 다운스트림이 자체 테스트를 추가했다면 `tests/` 하위로 옮길지 자율 결정.
+
+### 검증
+
+```bash
+pytest .claude/scripts/tests/ -q
+```
+
+회귀 위험: import 경로(`Path(__file__).parent`)가 한 단계 깊어진 만큼 `parent.parent`로 수정. 49/49 통과 확인.
+
+
+
 ## v0.31.0 — review verdict 추출 단순화 + wip-sync 의미 게이트
 
 ### 변경 파일

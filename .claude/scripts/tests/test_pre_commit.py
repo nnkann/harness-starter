@@ -7,7 +7,7 @@ self-verify·review가 그 marker만 실행. 회귀 가드는 CI/eval --deep 트
 
 영역 marker:
 - secret    : 시크릿 스캔 (3) — gitleaks 폴백 회귀 가드
-- gate      : completed 전환 차단 룰 (2)
+- gate      : completed 전환 차단 룰 + completed 봉인 + init 게이트 (>10)
 - stage     : pre_commit_check.py stage 결정 (4)
 - enoent    : 린터 ENOENT 정규식 회귀 가드 (12)
 - docs_ops  : dead link / relates-to / move commit / wip-sync (19)
@@ -390,6 +390,118 @@ class TestCompletedSeal:
         )
         assert "completed 문서 본문 무단 변경 감지" not in (r.stderr + r.stdout), \
             f"MIGRATIONS.md가 SEALED 면제되어야 함. output: {r.stderr + r.stdout}"
+
+
+# ─────────────────────────────────────────────────────────
+# implementation Step 0 init 게이트 (A4 의미 재정의, v0.34.0)
+# ─────────────────────────────────────────────────────────
+
+@pytest.mark.gate
+class TestInitGate:
+    """check_init_done.sh — A4 의미 재정의 회귀 가드.
+
+    decisions/hn_init_gate_redesign.md ADR. drift 감지가 아닌
+    "init 안 돈 신규 프로젝트만 차단".
+    """
+
+    SCRIPT_SRC = REPO_ROOT / ".claude" / "scripts" / "check_init_done.sh"
+
+    @pytest.fixture
+    def init_repo(self, tmp_path):
+        """tmp 작업 디렉토리에 docs/guides/ + 스크립트 복사."""
+        (tmp_path / "docs" / "guides").mkdir(parents=True)
+        script_dir = tmp_path / ".claude" / "scripts"
+        script_dir.mkdir(parents=True)
+        shutil.copy(self.SCRIPT_SRC, script_dir / "check_init_done.sh")
+        return tmp_path
+
+    def test_kickoff_missing_blocks(self, init_repo):
+        """project_kickoff.md 부재 → exit 2."""
+        r = subprocess.run(
+            ["bash", ".claude/scripts/check_init_done.sh"],
+            cwd=init_repo, capture_output=True, text=True,
+        )
+        assert r.returncode == 2, f"부재 시 차단되어야 함. output: {r.stderr}"
+        assert "부재" in r.stderr
+
+    def test_kickoff_sample_only_blocks(self, init_repo):
+        """project_kickoff.md status: sample 단독 → exit 2."""
+        kickoff = init_repo / "docs" / "guides" / "project_kickoff.md"
+        kickoff.write_text(
+            "---\ntitle: kickoff sample\nstatus: sample\ncreated: 2026-04-16\n---\n\n# sample\n",
+            encoding="utf-8"
+        )
+        r = subprocess.run(
+            ["bash", ".claude/scripts/check_init_done.sh"],
+            cwd=init_repo, capture_output=True, text=True,
+        )
+        assert r.returncode == 2, f"sample 단독 시 차단되어야 함. output: {r.stderr}"
+        assert "sample" in r.stderr
+
+    def test_kickoff_in_progress_passes(self, init_repo):
+        """project_kickoff.md status: in-progress → exit 0."""
+        kickoff = init_repo / "docs" / "guides" / "project_kickoff.md"
+        kickoff.write_text(
+            "---\ntitle: real kickoff\nstatus: in-progress\ncreated: 2026-04-16\n---\n",
+            encoding="utf-8"
+        )
+        r = subprocess.run(
+            ["bash", ".claude/scripts/check_init_done.sh"],
+            cwd=init_repo, capture_output=True, text=True,
+        )
+        assert r.returncode == 0, f"in-progress 통과 실패: {r.stderr}"
+
+    def test_kickoff_completed_passes(self, init_repo):
+        """project_kickoff.md status: completed → exit 0."""
+        kickoff = init_repo / "docs" / "guides" / "project_kickoff.md"
+        kickoff.write_text(
+            "---\ntitle: completed kickoff\nstatus: completed\ncreated: 2026-04-16\n---\n",
+            encoding="utf-8"
+        )
+        r = subprocess.run(
+            ["bash", ".claude/scripts/check_init_done.sh"],
+            cwd=init_repo, capture_output=True, text=True,
+        )
+        assert r.returncode == 0, f"completed 통과 실패: {r.stderr}"
+
+    def test_kickoff_sample_with_inline_comment_blocks(self, init_repo):
+        """status: sample # comment (YAML 인라인 주석) → exit 2.
+
+        review 지적사항 회귀 가드 (2026-05-02). YAML 스펙상 인라인 주석
+        허용이라 status 값 뒤에 주석이 와도 차단 정상 작동해야.
+        """
+        kickoff = init_repo / "docs" / "guides" / "project_kickoff.md"
+        kickoff.write_text(
+            "---\ntitle: kickoff\nstatus: sample  # placeholder\ncreated: 2026-04-16\n---\n",
+            encoding="utf-8"
+        )
+        r = subprocess.run(
+            ["bash", ".claude/scripts/check_init_done.sh"],
+            cwd=init_repo, capture_output=True, text=True,
+        )
+        assert r.returncode == 2, f"인라인 주석 sample도 차단되어야 함: {r.stderr}"
+
+    def test_drift_does_not_block(self, init_repo, tmp_path):
+        """CLAUDE.md `## 환경` 양식 drift는 차단 사유 아님.
+
+        다운스트림이 자기 양식으로 채울 자유. 본 스크립트는 CLAUDE.md를
+        검사하지 않는다 — kickoff만 본다.
+        """
+        kickoff = init_repo / "docs" / "guides" / "project_kickoff.md"
+        kickoff.write_text(
+            "---\ntitle: real kickoff\nstatus: in-progress\ncreated: 2026-04-16\n---\n",
+            encoding="utf-8"
+        )
+        # CLAUDE.md를 비정상 양식(키 부재)으로 만들어도 영향 없어야
+        (init_repo / "CLAUDE.md").write_text(
+            "# CLAUDE\n## 환경\n- 언어: C++17\n- 빌드: CMake\n",
+            encoding="utf-8"
+        )
+        r = subprocess.run(
+            ["bash", ".claude/scripts/check_init_done.sh"],
+            cwd=init_repo, capture_output=True, text=True,
+        )
+        assert r.returncode == 0, f"drift는 차단 사유 아님: {r.stderr}"
 
 
 # ─────────────────────────────────────────────────────────
