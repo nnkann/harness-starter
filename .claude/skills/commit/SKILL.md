@@ -136,52 +136,119 @@ WIP AC를 검증 기준으로 삼아라. AC 항목을 하나씩 확인하고,
 diff가 필요하면 `git diff --cached`를 직접 실행해서 확인해도 된다.
 
 ## 출력 형식 — 절대 규칙
-응답의 **첫 토큰부터** 다음 형식. 분석 요약·서론·"AC 항목 확인"·
-"검증 시작" 같은 머릿말 금지. 분석은 reasoning에서, 출력은 결론부터.
+응답은 **raw JSON 1개 객체**. 첫 토큰 `{`, 마지막 토큰 `}`. markdown 코드
+블록·서론·요약 일체 금지. 분석은 reasoning에서, 출력은 JSON 1개.
 
+스키마 (요약 — 상세는 review.md "## 출력 형식"):
+```json
+{
+  "verdict": "pass|warn|block",
+  "ac_check": [
+    {"goal": "AC Goal 본문", "result": "pass|fail", "evidence": "검증 근거 1줄"}
+  ],
+  "blockers": [{"ac_index": 0, "location": "...", "issue": "..."}],
+  "warnings": [{"category": "...", "note": "..."}],
+  "axis_check": {"contract": "pass|<발견>", "scope": "pass|<발견>"},
+  "solution_regression": "pass|risk|fail|n/a",
+  "early_stop": false,
+  "conclusion": "한 문장"
+}
 ```
-## 리뷰 결과
-verdict: pass | warn | block
 
-[그 다음 본문]
-```
+**AC 매핑 의무**: prompt의 AC 항목 N개 → `ac_check` 배열 N개 1:1. 각 `goal`은
+prompt AC 본문에서 추출. 누락 시 invalid.
 
-이 형식 위반 시 호출자가 재호출 — 비용 낭비. 첫 줄 = `## 리뷰 결과`,
-둘째 줄 = `verdict: <값>`, 셋째 줄 빈 줄, 넷째 줄부터 본문.
+응답 예 (pass 조기 중단, AC 2개):
+`{"verdict":"pass","ac_check":[{"goal":"매칭 정밀화","result":"pass","evidence":"테스트 3 통과"},{"goal":"위임 트리거","result":"pass","evidence":"bash -n 통과"}],"blockers":[],"warnings":[],"axis_check":{"contract":"pass","scope":"pass"},"solution_regression":"n/a","early_stop":true,"conclusion":"AC 2/2 충족"}`
 
-본문 형식은 review.md "## 출력 형식 (SSOT)" 참조. 지금부터 응답 시작:
+상세 스키마는 review.md "## 출력 형식 (SSOT)" 참조. 지금부터 응답 시작:
 
-## 리뷰 결과
-verdict: ```
+{"verdict":"```
 
 review 에이전트는 AC를 기준으로 필요한 파일을 Read/Glob/Grep으로 확인하고,
 필요 시 `git diff --cached`를 직접 실행한다. AC가 검증 스코프를 선언하므로
 diff 전체를 미리 전달하지 않는다.
 
-### 응답 처리 (review.md SSOT 출력 파싱)
+### 응답 처리 (JSON 파싱 — v0.30.5)
 
-review 응답의 **첫 2줄**이 다음 형태여야 한다 (review.md "## 출력 형식"
-SSOT):
+review 응답을 raw JSON으로 파싱한다. duplicate key 감지 + ac_check 정합성
+검증 포함.
 
+```bash
+RESP_JSON=$(echo "$REVIEW_RESPONSE" | python3 -c "
+import sys, json, re
+
+text = sys.stdin.read()
+
+def detect_dup(pairs):
+    keys = [k for k, _ in pairs]
+    if len(keys) != len(set(keys)):
+        raise ValueError(f'duplicate key: {keys}')
+    return dict(pairs)
+
+def try_parse(s):
+    return json.loads(s, object_pairs_hook=detect_dup)
+
+# 1. raw JSON 우선
+stripped = text.strip()
+if stripped.startswith('{'):
+    try:
+        obj = try_parse(stripped)
+        print(json.dumps(obj, ensure_ascii=False))
+        sys.exit(0)
+    except Exception: pass
+
+# 2. 코드 블록·서론 fallback (첫 매칭 1개만)
+m = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', text, re.DOTALL)
+if m:
+    try:
+        obj = try_parse(m.group(0))
+        print(json.dumps(obj, ensure_ascii=False))
+        sys.exit(0)
+    except Exception: pass
+
+sys.exit(1)
+")
+
+# verdict 추출
+VERDICT=$(echo "$RESP_JSON" | python3 -c "
+import sys, json
+try:
+    obj = json.loads(sys.stdin.read())
+    v = obj.get('verdict', '')
+    if v not in ('pass', 'warn', 'block'):
+        sys.exit(2)
+    # ac_check 검증 — 필드 자체 존재 + 배열 + 각 항목 goal/result 존재
+    if 'ac_check' not in obj:
+        sys.exit(3)
+    ac = obj['ac_check']
+    if not isinstance(ac, list):
+        sys.exit(3)
+    for item in ac:
+        if not isinstance(item, dict) or 'result' not in item or 'goal' not in item:
+            sys.exit(3)
+    print(v)
+except Exception:
+    sys.exit(1)
+")
 ```
-## 리뷰 결과
-verdict: pass | warn | block
-```
 
-**정상 경로**: `verdict:` 값으로 분기:
-- `verdict: block` → 커밋 차단. [차단] 섹션을 사용자에게 전달, 수정 후 재시도.
-- `verdict: warn` → 경고 표시 후 진행. [주의] 섹션을 커밋 메시지에 요약.
-- `verdict: pass` → 그대로 진행.
+**정상 경로**: `verdict` 값으로 분기:
+- `block` → 커밋 차단. `blockers` 배열 + `ac_check` fail 항목을 사용자에게 전달
+- `warn` → 경고 표시 후 진행. `warnings` 배열을 커밋 메시지에 요약
+- `pass` → 그대로 진행
 
-**verdict 누락 시 (폼 위반)**: 다음 순서로 처리. 내용만 보고 임의 판정 금지.
+**`ac_check[].evidence` 신뢰도 검증** (선택, deep stage 권고):
+- "확인됨"·"OK" 같은 공허 evidence는 자가 보고 시스템(staging.md) 신뢰
+- 반복 시 eval --deep 사후 audit으로 추적
 
-1. **1차 재호출**: 같은 입력을 review에 재전달하며 "이전 응답에 verdict
-   헤더가 누락됐다. review.md '## 출력 형식' SSOT 따라 첫 2줄 `## 리뷰
-   결과` + `verdict: X`로 시작해 다시 응답하라" 명시.
-2. **재호출도 누락**: 사용자에게 보고 + 진행 여부 확인. 내용이 명확히
-   pass면 사용자 승인 받고 진행 가능. block·warn이면 반드시 재수정.
-3. 이 케이스를 commit 메시지 본문에 `[review-form-warn]` 태그로 기록해
-   추적 가능하게 한다.
+**JSON 파싱·스키마 실패 시**: 종료 코드별 재호출 메시지 분기:
+
+1. **exit 1 (JSON 파싱 실패)**: "raw JSON 1개 객체만 출력. 첫 토큰 `{`, 마지막 `}`. 코드 블록·서론·duplicate key 금지"
+2. **exit 2 (verdict 누락 또는 enum 위반)**: "verdict 필드 필수, pass|warn|block 중 1개"
+3. **exit 3 (ac_check 정합성 위반)**: "ac_check는 객체 배열, 각 항목에 goal·result 필수"
+
+재호출도 실패 → 사용자 보고 + 커밋 메시지에 `[review-json-fail]` 태그.
 
 ### 투명성
 

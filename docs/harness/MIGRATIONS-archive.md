@@ -43,6 +43,33 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.30.0 — eval --harness CPS 무결성 감시 + commit 잔여 정정 (efficiency overhaul follow-up)
+
+### 변경 파일
+
+| 파일 | 처리 | 비고 |
+|------|------|------|
+| `.claude/scripts/eval_cps_integrity.py` | 신규 (3-way merge) | docs/ 전수 frontmatter solution-ref 박제 grep + Problem 인플레이션·인용 빈도 측정. `pre_commit_check.py` (verify_solution_ref·get_cps_text·parse_frontmatter) 동적 import 재사용 (코드 중복 0) |
+| `.claude/skills/eval/SKILL.md` | 3-way merge | `--harness` 점검 항목 5(CPS 무결성) 신설 + 보고 형식·`--deep` 활용 가이드 추가 |
+| `docs/decisions/hn_commit_auto_verify.md` | 자동 (status 정정) | v0.29.2 wip-sync 흐름 잔여 — in-progress → completed |
+
+### 적용 방법
+자동. `harness-upgrade` 실행 시 3-way merge로 적용.
+
+### 회귀 위험
+- upstream 격리 환경에서 `eval_cps_integrity.py` 박제 감지·인플레이션 경고·인용 0건 검출 시뮬레이션 통과
+- 본 starter 실측: P1·P3·P4·P6 frontmatter 인용 0건 발견 (정체 의심 — Problem 정의 자체 검토 신호, 자동 조치 X)
+- 다운스트림 환경(Linux/macOS) 미테스트
+- `eval --harness` 사용자가 본 SKILL.md 절차에 따라 수동 실행해야 작동 (자동 hook 아님)
+
+### 검증
+```bash
+# CPS 무결성 1회 실행
+python3 .claude/scripts/eval_cps_integrity.py
+```
+
+
+
 ## v0.29.2 — commit 5.3 자동 실행 코드 구체화 (efficiency overhaul follow-up)
 
 ### 변경 파일

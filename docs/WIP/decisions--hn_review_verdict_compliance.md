@@ -84,6 +84,48 @@ commit/SKILL.md prompt 끝에도 명시. 그럼에도 100% 누락.
   성공률로 측정. 본 wave에서 자동 검증 불가 — 다음 commit부터 추적
 - CPS 갱신: 없음 (S2 메커니즘 강화 — 충족 기준 변경 X, prompt 패턴 개선)
 
+### Phase 4 결정 (2026-05-02, prefill 1차 시험 후) — JSON 규격화
+
+**prefill 1차 시험 결과 (v0.30.4 commit)**:
+- 1차 응답 "지시 1~3 확인 완료. 이제 archive 자동화 확인" 한 줄로 끊김
+- prefill로 응답 시작 형식은 영향이 약함 — 응답 절단·길이 폭주 별 패턴
+- 본 세션 5/5 markdown 강제 실패 누적 → markdown으론 안 통한다는 강한 신호
+
+**JSON 규격화 채택 (v0.30.5)**:
+- review.md 출력 형식 SSOT 변경 — markdown 템플릿 → raw JSON 1개 객체
+- 스키마 v2 (사용자 지적 반영 — AC 매핑 명확화):
+  ```
+  {verdict, ac_check[{goal, result, evidence}], blockers[{ac_index}],
+   warnings, axis_check, solution_regression, early_stop, conclusion}
+  ```
+- `ac_check`가 **AC 항목별 객체 배열** — 인덱스 의존 폐기, 텍스트 매칭으로 자동
+- `blockers[].ac_index`로 어느 AC와 연결되는지 명시 (사용자 즉시 확인 가능)
+- duplicate key 감지 (`object_pairs_hook`) — `{"verdict":"pass","verdict":"block"}` 같은 모델 실수 reject
+- prompt prefill `{"verdict":"`로 변경 (markdown 헤더 → JSON 시작 토큰)
+- commit/SKILL.md 종료 코드별 재호출 메시지 분기:
+  - exit 1: JSON 파싱 실패
+  - exit 2: verdict 필드 누락·enum 위반
+  - exit 3: ac_check 정합성 위반 (필드 누락·배열 아님·항목 goal/result 누락)
+- 5+5 케이스 dry test 통과 (raw·코드 블록·서론·dup key·ac_check 정합성)
+
+**중첩 호출 영향 확인 (사용자 질문 1)**:
+- review의 `tools: Read, Glob, Grep, Bash` — Agent tool 없음. sub-agent의 sub-agent 없음
+- verdict 흐름 단방향 1-hop: review → commit. 다른 sub-agent로 전달 안 됨
+- 변경 영향 범위 review.md + commit/SKILL.md 둘만
+
+**중복 verdict 시나리오 (사용자 질문 2)**:
+- 본문에 verdict 단어 산재: 영향 없음 (regex `\{...\}` 매칭으로 JSON 객체만 추출)
+- JSON 객체 2개 출현: 첫 매칭만 사용 (`re.search` 단방향)
+- duplicate key: `object_pairs_hook`으로 reject → 재호출 트리거
+- nested JSON: 본 스키마 1단계까지만 — 안전. 미래 깊어지면 강건 파서 필요
+
+**AC 매핑 의무 (사용자 질문 3)**:
+- 이전 스키마 약점: `ac_check.items: ["pass", "fail"]` 인덱스 의존
+- v2: `ac_check: [{goal, result, evidence}]` AC 항목별 객체
+- AC 추가/삭제 시 인덱스 어긋남 차단 — `goal` 텍스트로 매핑
+- `evidence` 필드로 검증 근거 명시 (자가 보고 신뢰도 추적 가능)
+- review가 AC 하나씩 채우는 구조화된 사고 — verdict 결정 전 모든 AC 처리 강제
+
 ## 메모
 
 - 본 세션 4 commit (v0.29.2·v0.30.0·v0.30.1·v0.30.2) 모두 verdict 누락 → 1차 재호출 통과 패턴 100% 일관
