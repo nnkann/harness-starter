@@ -43,6 +43,32 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.30.4 — eval_cps_integrity 본문 인용 grep 보강 (proxy 정밀화)
+
+### 변경 파일
+
+| 파일 | 처리 | 비고 |
+|------|------|------|
+| `.claude/scripts/eval_cps_integrity.py` | 3-way merge | `CPS_REF_PATTERNS` 4종 정규식 + `detect_cps_problem_refs` 함수 신설. frontmatter `problem` 필드만 카운트하던 한계를 본문 CPS 의미 인용("CPS 연결: P#"·"P#(...)"·"P# → S#"·"P# 충족")까지 확장. 자체 우선순위 라벨(`**P#**:`·`### P#.`)은 포지티브 매칭만 사용해 자연스럽게 제외 |
+
+### 적용 방법
+자동. `harness-upgrade` 실행 시 3-way merge로 적용.
+
+### 회귀 위험
+- 본 starter 실측: P1 0→4, P2 2→8, P5 4→9, P6 0→2 (false positive 해소).
+  P3·P4만 진짜 정체로 남음 — 수동 검토 결론과 100% 일치
+- 자체 라벨 false positive 0건 (검증 통과)
+- 정규식 휴리스틱이라 future 표기 패턴이 새로 생기면 누락 가능. 운용에서 추적
+
+### 검증
+```bash
+# 보강 효과 확인
+python3 .claude/scripts/eval_cps_integrity.py
+# 기대: P1·P2·P5·P6 0건 아님, P3·P4만 정체
+```
+
+
+
 ## v0.30.3 — review verdict prefill 패턴 (효율 개선)
 
 ### 변경 파일

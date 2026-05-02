@@ -521,37 +521,14 @@ bash .claude/scripts/split-commit.sh
 `git diff --cached`로 스테이징된 변경 내역을 읽고,
 어떤 파일에서 어떤 로직이 어떻게 수정되었는지 파악한다.
 
-### 7. 리뷰 (Stage 분기 — `.claude/rules/staging.md` 참조)
+### 7. 리뷰 (Stage 분기)
 
-pre-check stdout의 `recommended_stage` 값에 따라 분기. `--no-review`/
-`--quick`/`--deep` 플래그가 있으면 자동 분류 오버라이드.
+**SSOT 위임**: Stage 결정 우선순위·플래그 충돌 처리·Stage별 행동·거대
+커밋 정책은 모두 `.claude/rules/staging.md` 참조. 이 스킬은 `recommended_stage`
+값을 받아 review를 호출하는 역할만 한다.
 
-#### Stage 결정 우선순위
-
-```
-1. --no-review → Stage 0 (skip), 메시지에 [skip-review] 태그
-2. --quick     → Stage 1 (micro) 강제
-3. --deep      → Stage 3 (deep) 강제
-4. recommended_stage (pre-check 결과)
-```
-
-**충돌 처리**: 둘 이상 동시 입력 시 **번호가 낮은 쪽이 우선**. 예:
-`--no-review --deep` → `--no-review` 이김 (1번). `--quick --deep` →
-`--quick` 이김 (2번 vs 3번). 사용자에게 충돌 사실 1줄 알림:
-> 🔧 플래그 충돌: --no-review와 --deep 동시 입력 → --no-review 우선 (우선순위 1 < 3)
-
-#### Stage별 행동
-
-Stage별 시간·tool·행동 정의는 **`staging.md` "## Stage" 섹션 SSOT** 참조.
-이 스킬은 stage 값을 받아 review를 호출하는 역할만 한다.
-
-요약 (상세는 staging.md):
-- **Stage 0 (skip)**: review 호출 안 함. 커밋 메시지에 `🔍 review: skip` 한 줄
-- **Stage 1 (micro)**: review 호출, `recommended_stage: micro` 명시. S3 신규 파일 모드
-- **Stage 2 (standard)**: review 호출, `recommended_stage: standard` 명시
-- **Stage 3 (deep)**: review 호출, `recommended_stage: deep` 명시
-
-**거대 커밋 정책** — `staging.md` "거대 커밋 정책" 섹션 SSOT 참조.
+플래그 충돌 발생 시 사용자에게 1줄 알림:
+> 🔧 플래그 충돌: --no-review와 --deep 동시 입력 → --no-review 우선 (staging.md 우선순위 1 < 3)
 
 #### 호출 시점·선행 조건
 
