@@ -52,8 +52,14 @@ else
     PATTERN="$PATTERN"'|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}'  # JWT (3-part)
     PATTERN="$PATTERN"'|-----BEGIN ((RSA|EC|DSA|OPENSSH|PGP) )?PRIVATE KEY-----'
     PATTERN="$PATTERN"'|(api[_-]?key|secret|token|password)[[:space:]]*[:=][[:space:]]*["'\''\`][^"'\''\`]{8,}["'\''\`]'
+    # S1_LINE_EXEMPT 동기화: pre_commit_check.py S1_LINE_EXEMPT와 동일 면제 목록 유지
+    EXEMPT_RE='^\.claude/(scripts|agents|rules|skills|memory)/'
+    EXEMPT_RE="$EXEMPT_RE"'|^docs/(WIP|incidents|decisions|guides|harness)/'
+    EXEMPT_RE="$EXEMPT_RE"'|^scripts/install-secret-scan-hook\.sh$'
+    EXEMPT_RE="$EXEMPT_RE"'|^[^/]+\.md$'
     HITS=$(echo "$STAGED" | while IFS= read -r f; do
       [ -z "$f" ] && continue
+      if echo "$f" | grep -qE "$EXEMPT_RE"; then continue; fi
       git diff --cached -- "$f" 2>/dev/null
     done | grep -En "$PATTERN" || true)
     if [ -n "$HITS" ]; then
