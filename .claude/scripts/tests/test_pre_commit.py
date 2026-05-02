@@ -360,6 +360,37 @@ class TestCompletedSeal:
         )
         assert "completed 문서 본문 무단 변경 감지" not in (r.stderr + r.stdout), f"output: {r.stderr + r.stdout}"
 
+    def test_migrations_md_exempt(self, sealed_repo):
+        """T42.5: docs/harness/MIGRATIONS.md status: completed + 본문 변경 → 통과.
+
+        다운스트림 harness-upgrade가 MIGRATIONS.md를 정기적으로 덮어쓰는
+        upstream 운영 누적 파일이라 SEALED 면제 (incident 2026-05-02 다운스트림 보고).
+        """
+        repo, _ = sealed_repo
+        mig = repo / "docs" / "harness" / "MIGRATIONS.md"
+        mig.parent.mkdir(parents=True, exist_ok=True)
+        mig.write_text(
+            "---\ntitle: MIGRATIONS\ndomain: harness\nstatus: completed\n"
+            "created: 2026-04-16\n---\n\n## v0.33.0\n초기 본문.\n",
+            encoding="utf-8"
+        )
+        subprocess.run(["git", "-C", str(repo), "add", str(mig)], capture_output=True)
+        subprocess.run(["git", "-C", str(repo), "commit", "-m", "init MIGRATIONS"],
+                       capture_output=True, env={**os.environ, "HARNESS_DEV": "1"})
+        # upstream 덮어쓰기 시뮬: 새 버전 섹션 추가
+        mig.write_text(
+            "---\ntitle: MIGRATIONS\ndomain: harness\nstatus: completed\n"
+            "created: 2026-04-16\n---\n\n## v0.34.0\n신규 변경.\n\n## v0.33.0\n초기 본문.\n",
+            encoding="utf-8"
+        )
+        subprocess.run(["git", "-C", str(repo), "add", str(mig)], capture_output=True)
+        r = subprocess.run(
+            [sys.executable, ".claude/scripts/pre_commit_check.py"],
+            cwd=repo, capture_output=True, text=True,
+        )
+        assert "completed 문서 본문 무단 변경 감지" not in (r.stderr + r.stdout), \
+            f"MIGRATIONS.md가 SEALED 면제되어야 함. output: {r.stderr + r.stdout}"
+
 
 # ─────────────────────────────────────────────────────────
 # 시크릿 스캔 단위 테스트

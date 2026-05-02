@@ -43,6 +43,43 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.31.0 — review verdict 추출 단순화 + wip-sync 의미 게이트
+
+### 변경 파일
+
+- `.claude/scripts/extract_review_verdict.py` (신설) — review 응답에서 verdict 단어만 추출하는 10줄 스크립트
+- `.claude/scripts/test_extract_review_verdict.py` (신설) — markdown leak 5종 + 미존재 케이스 회귀 가드 (`pytest -m review`)
+- `.claude/scripts/conftest.py` — `review` marker 등록
+- `.claude/agents/review.md` — JSON 스키마·AC 매핑 의무·duplicate key 강제 폐기. "verdict 단어 포함" 한 줄로 단순화
+- `.claude/skills/commit/SKILL.md` — Step 7 inline python heredoc(~80줄) → 1줄 호출 교체
+- `.claude/scripts/docs_ops.py` wip-sync — frontmatter `problem` 의미 게이트 추가. 직접·body_referenced·abbr 매칭 모두 staged WIP의 problem 일치 의무
+- `.claude/scripts/test_pre_commit.py` — TestWipSyncProblemGate 3 케이스 신설. wipsync_repo fixture WIP 비우기 보강 (T40 회귀). `_run_wip_sync` 반환값에 stdout 포함
+
+### 변경 내용
+
+**review verdict 추출 단순화 (Agent tool sub-agent prefill 미작동 대응)**:
+- v0.30.5 JSON 스키마 강제는 5/5 markdown 머릿말 leak 실측 — debug-specialist 진단으로 sub-agent prefill 메커니즘 자체가 작동 안 함을 확인
+- 형식 강제 폐기 + verdict 단어(`pass|warn|block`) 추출만으로 분기. 부가 정보(blockers·warnings·ac_check)는 응답 본문 그대로 사용자에게 노출
+
+**wip-sync 의미 게이트 (어휘 일치 ≠ 의미 일치 false positive 차단)**:
+- v0.30.6 자기증명 사례: `hn_rule_skill_ssot.md` AC 본문 "commit/SKILL.md" 어휘 hit으로 우연 ✅ 추가됨
+- staged WIP의 frontmatter `problem` 집합 수집 → 후보 WIP의 `problem`이 그 집합에 있을 때만 매칭 인정
+- 자기 자신 staged·staged WIP 부재 시 게이트 skip (작성자 직접 의도·코드 단독 commit 면제)
+
+### 적용 방법
+
+자동. harness-upgrade 후 별도 작업 없음.
+
+### 검증
+
+```bash
+pytest -m "review or docs_ops"
+```
+
+회귀 위험: upstream 격리 환경(Windows/Git Bash)에서 관찰된 범위 내에서는 기존 review·wip-sync 호출 흐름과 호환. Linux/macOS subprocess stderr 동작 차이는 미테스트.
+
+
+
 ## v0.30.6 — Step 7.5 Stage 0 skip 우회 결함 수정 (자기증명 사고 대응)
 
 ### 변경 파일

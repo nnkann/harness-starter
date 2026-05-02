@@ -557,6 +557,14 @@ def main() -> int:
     # 세션에서 본문 무단 확장 → "최악 패턴" 사고. completed = 결정 봉인.
     # 변경하려면 docs_ops.py reopen으로 in-progress 전환이 의무.
     SEALED_FOLDERS = ("docs/decisions/", "docs/guides/", "docs/incidents/", "docs/harness/")
+    # 운영 누적 파일 — 다운스트림 harness-upgrade 흐름이 정기적으로 덮어쓰는
+    # starter 자기 운영 명세. completed 봉인 대상 아님.
+    # (incident: 2026-05-02 다운스트림 v0.33.0 fetch 시 MIGRATIONS.md 차단 보고)
+    SEALED_PATH_EXEMPT = (
+        "docs/harness/MIGRATIONS.md",
+        "docs/harness/MIGRATIONS-archive.md",
+        "docs/harness/migration-log.md",
+    )
     sealed_violations: list[str] = []
     for status_char, path in ns_parsed:
         if status_char not in ("M",):  # rename(R)·delete(D)·add(A) 면제 — 이동/archive/신설은 OK
@@ -564,6 +572,8 @@ def main() -> int:
         if not path.endswith(".md"):
             continue
         if not any(path.startswith(folder) for folder in SEALED_FOLDERS):
+            continue
+        if path in SEALED_PATH_EXEMPT:
             continue
         try:
             content = Path(path).read_text(encoding="utf-8", errors="ignore")
