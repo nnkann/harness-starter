@@ -560,6 +560,7 @@ def cmd_wip_sync(staged_files: list[str]) -> int:
         text = wip.read_text(encoding="utf-8")
         new_text = text
         file_matched = False
+        body_referenced = False  # 본문에 staged 파일 언급 (Phase 3 — AC 전부 [x] 자동 이동 트리거)
 
         # 1차: 체크리스트 문자열 매칭 (기존 로직)
         # splitlines()로 비교해 trailing newline 차이에 의한 오탐 방지
@@ -568,6 +569,10 @@ def cmd_wip_sync(staged_files: list[str]) -> int:
                 continue
             sfbn = Path(sf).name
             _sf, _sfbn = sf, sfbn  # 루프 변수 클로저 캡처용 지역 변수
+
+            # 본문 어딘가 언급되면 body_referenced=True (체크박스 추가 X 케이스 자동이동용)
+            if (sf in text or sfbn in text) and sfbn:
+                body_referenced = True
 
             def _mark_line(line: str, _sf: str = _sf, _sfbn: str = _sfbn) -> str:
                 if "✅" in line:
@@ -583,6 +588,11 @@ def cmd_wip_sync(staged_files: list[str]) -> int:
                 # trailing newline 보존
                 new_text = "\n".join(marked_lines) + ("\n" if new_text.endswith("\n") else "")
                 file_matched = True
+
+        # Phase 3 (2026-05-02): file_matched 안 됐어도 본문 언급 + AC 전부 [x]면 자동 이동
+        # 사용자가 미리 [x] 마킹한 케이스 (이전 wip-sync는 ✅ 추가만 트리거)
+        if not file_matched and body_referenced:
+            file_matched = True
 
         # 2차: abbr 기반 보조 매칭 (체크리스트 없는 incidents 등)
         abbr_matched = False
@@ -606,12 +616,13 @@ def cmd_wip_sync(staged_files: list[str]) -> int:
             continue
 
         if not abbr_matched:
-            # 체크리스트 매칭: ✅ 갱신 후 미완료 항목 검사
-            wip.write_text(new_text, encoding="utf-8")
-            write_frontmatter_field(wip, "updated", today)
-            subprocess.run(["git", "add", str(wip)], capture_output=True)
+            # 체크리스트 매칭 OR 본문 참조: 변경 있으면 갱신 후 미완료 항목 검사
+            if new_text != text:
+                wip.write_text(new_text, encoding="utf-8")
+                write_frontmatter_field(wip, "updated", today)
+                subprocess.run(["git", "add", str(wip)], capture_output=True)
+                print(f"✅ 갱신: {wip}", file=sys.stderr)
             matched_wips += 1
-            print(f"✅ 갱신: {wip}", file=sys.stderr)
 
             body_lines = []
             dash = 0
@@ -622,9 +633,11 @@ def cmd_wip_sync(staged_files: list[str]) -> int:
                 if dash >= 2:
                     body_lines.append(line)
 
+            # 미완료 항목 = `- [ ]` 또는 `* [ ]` (빈 체크박스). ✅ 마킹된 리스트는 완료
+            # Phase 3: 체크박스 패턴만 검사 — 일반 리스트 항목은 미완료 신호 아님
             pending = [l for l in body_lines
-                       if re.match(r"^\s*([-*]|\d+\.)\s", l) and "✅" not in l
-                       and l.strip()]
+                       if re.match(r"^\s*([-*])\s+\[\s\]", l)
+                       and "✅" not in l]
             if pending:
                 continue
         else:

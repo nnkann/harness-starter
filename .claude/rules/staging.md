@@ -68,6 +68,22 @@
 거대 커밋(파일 30+ 또는 diff 1500줄+)은 **스코프를 나눠 작은 커밋 여러
 개로 분리**한다. pre-check이 감지 시 stderr 경고만 출력. 강제 분기 없음.
 
+## split 옵트인 정책 (Phase 3 — v0.28.x)
+
+**기본은 단일 커밋** (atomic commit 표준). 분할은 다음 모두 만족 시에만:
+
+1. char 다양성 ≥ 2 (성격 다른 그룹 2개 이상)
+2. `HARNESS_SPLIT_OPT_IN=1` 명시 OR 거대 커밋 임계 hit
+3. `recommended_stage`가 `skip` 아님 (skip이면 review 분산 효과 0)
+
+이전 동작 (char ≥ 2면 무조건 split)은 단일 결정을 N개 sub-커밋으로
+강제 분할해 5/5 skip 케이스 양산 + bisect·revert 단위 깨짐. atomic
+commit 원칙(researcher 보강) 위반.
+
+옵트인 트리거:
+- 사용자: `HARNESS_SPLIT_OPT_IN=1 /commit`
+- 자동: 거대 커밋(files>30·+>1500·->1500) + char 다양성 + non-skip stage
+
 ## git log 추적성
 
 커밋 메시지 본문에 자동 포함:

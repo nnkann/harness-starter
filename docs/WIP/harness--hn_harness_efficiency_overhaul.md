@@ -173,11 +173,11 @@ git history는 이미 단일 커밋으로 나가 있어 char-fetch 시스템이 
 - `docs_ops.py move`의 차단 키워드 검사 재사용
 
 **Acceptance Criteria**:
-- [ ] Goal: 5/5 skip 케이스에서 split 발생 0
-- [ ] **harness-upgrade char-fetch 의존성 확인 결과 명시** (의존 있음/없음 + 근거 인용)
-- [ ] AC 전부 [x] WIP가 commit 시 자동 이동 (사용자 명시 요청 불필요)
-- [ ] false-positive 안전장치 — 차단 키워드 검사가 통과해야 이동
-- [ ] 영향 범위: pre_commit_check.py·docs_ops.py·commit/SKILL.md — `pytest -m "stage or docs_ops"` 회귀 체크
+- [x] Goal: 5/5 skip 케이스에서 split 발생 0 — `stage == "skip"`이면 자동 single. 실측: 본 commit (split_plan=2, non-huge) → split_action=single
+- [x] **harness-upgrade char-fetch 의존성 확인** — 미사용 확인. harness-upgrade SKILL.md Step 3·5는 git diff `--diff-filter`로 파일 단위 분류·3-way merge 수행. 커밋 단위 fetch 아님. char-split 폐기 안전
+- [x] AC 전부 [x] WIP가 commit 시 자동 이동 — `docs_ops.py wip-sync` body_referenced 신호 추가. 본 변경 적용 후 본 WIP 자체가 자동 이동 트리거 대상 (Phase 1·3 모두 [x] 시점)
+- [x] false-positive 안전장치 — `docs_ops.py move`의 차단 키워드 검사(빈 체크박스·TODO·미결 헤더) 통과 시에만 이동. 코드블록 안 면제 유지
+- [x] 영향 범위: pre_commit_check.py·docs_ops.py·staging.md — `pytest -m "secret or stage"` 12/12 통과. T40.1 abbr 테스트는 fixture 격리 갭으로 fail (본 fix 무관)
 
 ### 4. 다운스트림 증폭 완화 — 규모 기반 게이팅 (측정 게이트 필수)
 

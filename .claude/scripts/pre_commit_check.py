@@ -109,6 +109,7 @@ def resolve_path(base_dir: str, link: str) -> str:
 TEST_MODE = os.environ.get("TEST_MODE", "0") == "1"
 HARNESS_EXPAND = os.environ.get("HARNESS_EXPAND", "0") == "1"
 HARNESS_SPLIT_SUB = os.environ.get("HARNESS_SPLIT_SUB", "0") == "1"
+HARNESS_SPLIT_OPT_IN = os.environ.get("HARNESS_SPLIT_OPT_IN", "0") == "1"
 VERBOSE = os.environ.get("VERBOSE", "")
 
 # ENOENT_PATTERNS는 test가 import하므로 module-level 유지
@@ -633,7 +634,20 @@ def main() -> int:
                     parts_g = g.split(":")
                     if len(parts_g) >= 3:
                         chars.add(f"char:{parts_g[2]}")
-            split_action = "split" if len(chars) >= 2 else "single"
+
+            # split 옵트인 강등 (Phase 3 — 2026-05-02)
+            # 기본: 단일 결정 = 단일 커밋 (atomic). 분할은 명시 옵트인.
+            # 자동 분할 케이스: 거대 커밋 + char 다양성 (사용자 인지 부담 분산 가치 있을 때)
+            #
+            # 분할 트리거 조건 (모두 만족):
+            #   1. char 다양성 >= 2
+            #   2. HARNESS_SPLIT_OPT_IN=1 (사용자 명시) OR 거대 커밋 (files>30 OR +>1500 OR ->1500)
+            #   3. stage가 skip 아님 (skip이면 review 분산 효과 0이므로 분할 무의미)
+            is_huge = total_files > 30 or added_lines > 1500 or deleted_lines > 1500
+            if len(chars) >= 2 and stage != "skip" and (HARNESS_SPLIT_OPT_IN or is_huge):
+                split_action = "split"
+            else:
+                split_action = "single"
 
     # ─────────────────────────────────────────────────────────
     # prior_session_files
