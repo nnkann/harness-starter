@@ -1032,8 +1032,11 @@ def wipsync_repo(tmp_path_factory):
             f.unlink()
         subprocess.run(["git", "-C", str(repo), "add", "-A"],
                        capture_output=True, check=True)
-        subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "fixture: clear WIP"],
-                       capture_output=True, check=True)
+        status = subprocess.run(["git", "-C", str(repo), "status", "--porcelain"],
+                                capture_output=True, check=True)
+        if status.stdout.strip():
+            subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "fixture: clear WIP"],
+                           capture_output=True, check=True)
     yield repo
 
 

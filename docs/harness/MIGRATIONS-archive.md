@@ -43,6 +43,60 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.34.1 — amplification 후속 4 wave 처리 (cluster 게이팅·WIP 가시성·glob 가이드·adopt 안내)
+
+### 변경 파일
+
+- `.claude/scripts/docs_ops.py` — `cmd_cluster_update` 결정적 출력 + WIP 수집
+- `.claude/scripts/tests/test_pre_commit.py` — `TestClusterUpdateGating` 3 케이스 신규
+- `.claude/rules/docs.md` — "## 문서 탐색 > 기본 경로" 양쪽 wildcard + cluster 진입점 격상
+- `.claude/rules/naming.md` — "왜 — 파일명이 곧 인덱스" bullet 갱신
+- `.claude/skills/harness-adopt/SKILL.md` — Step 8 "다음 할 일" `/harness-init` 강조
+
+### 다운스트림 영향
+
+#### (c) cluster 재생성 게이팅 — 결정적 출력 + diff 비교
+- `cluster-update`가 동일 본문이면 write skip → mtime noise 0
+- cluster 양식·인터페이스 무변경. 자동 이행
+
+#### (b) WIP cluster 가시성 — 진행 중 섹션 자동 등록
+- cluster 본문에 `## 진행 중 (WIP)` 섹션 신규 (기존 `## 문서` 무변경)
+- 사용자·에이전트가 cluster scan 한 번에 completed + 진행 중 발견
+- 첫 호출 시 WIP 있는 도메인 cluster만 1회 갱신 후 안정. 추가 작업 불필요
+
+#### (d) Glob 라우팅 태그 가이드 — 양쪽 wildcard 명시
+- `docs.md`·`naming.md` 가이드 문구만 변경 (라우팅 태그 폐기 안 함)
+- 사용자·에이전트가 `docs/**/*<abbr>_*` 양쪽 wildcard로 WIP 포함 발견 가능
+- 다운스트림 WIP 양식 마이그레이션 불필요
+
+#### (e) adopt-without-init 사전 안내 강화
+- `harness-adopt` Step 8 "다음 할 일"에 `/harness-init` 미실행 시 implementation 차단됨을 명시
+- (a) v0.34.0 차단 메시지와 이중 안전망 (사전 + 사후)
+- 기존 adopt 완료 + init 미완료 다운스트림은 (a) 차단 메시지로 사후 안내. 추가 작업 불필요
+
+### 적용 방법
+
+자동. `harness-upgrade` 후 추가 작업 불필요.
+
+다운스트림은 v0.34.1 적용 후 첫 commit 1회에 cluster 본문에 `## 진행 중 (WIP)`
+섹션이 추가되며 (WIP 있는 도메인만), 이후 호출은 영향 도메인만 갱신.
+
+### 검증
+
+- `pytest -m docs_ops` 25/25 통과 (기존 22 + 신규 3)
+- starter 실측: 멱등 호출 시 skip 2/2, 단일 cluster stale 시 영향 cluster만 갱신
+- 회귀 위험: upstream Windows/Git Bash 환경 검증 범위. POSIX bash 또는 다른
+  파일시스템(mtime 정밀도)에서 멱등성 재발 시 본 섹션 갱신 필요
+
+### 결정 근거
+
+- `docs/decisions/hn_cluster_update_gating.md`
+- `docs/decisions/hn_wip_cluster_visibility.md`
+- `docs/decisions/hn_glob_routing_tag.md`
+- `docs/decisions/hn_adopt_without_init_guard.md`
+
+
+
 ## v0.34.0 — implementation init 게이트 의미 재정의 (A4)
 
 ### 변경 파일

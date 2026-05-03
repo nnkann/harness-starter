@@ -34,6 +34,48 @@ CPS_DOC             = _pcc.CPS_DOC
 PROBLEM_INFLATION_THRESHOLD = 6
 
 
+def extract_cps_solution_ids(cps_text: str) -> list[str]:
+    """CPS 본문에서 S# Solution ID 목록을 순서대로 추출.
+    "### S1 ..." 헤더 패턴 사용.
+    """
+    ids = re.findall(r"###\s+(S\d+)\b", cps_text)
+    # 순서 유지 + 중복 제거
+    seen: set[str] = set()
+    result = []
+    for sid in ids:
+        if sid not in seen:
+            seen.add(sid)
+            result.append(sid)
+    return result
+
+
+def count_solution_refs(docs_root: Path) -> dict[str, int]:
+    """docs/ 하위 모든 .md 파일의 frontmatter solution-ref에서 S# 카운트.
+    parse_frontmatter는 YAML 리스트 항목의 `- ` 마크를 제거해 반환.
+    따라서 각 항목은 "S2 — ..." 형식 (앞 하이픈 없음).
+    Returns: {S1: 3, S2: 12, ...}
+    """
+    pat = re.compile(r"^S(\d+)\b")
+    counts: dict[str, int] = {}
+    for md in sorted(docs_root.rglob("*.md")):
+        try:
+            text = md.read_text(encoding="utf-8")
+        except Exception:
+            continue
+        fm, _ = parse_frontmatter(text)
+        sol_refs = fm.get("solution-ref", [])
+        if not sol_refs:
+            continue
+        if isinstance(sol_refs, str):
+            sol_refs = [sol_refs]
+        for ref in sol_refs:
+            m = pat.match(str(ref).strip())
+            if m:
+                sid = f"S{m.group(1)}"
+                counts[sid] = counts.get(sid, 0) + 1
+    return counts
+
+
 def count_cps_problems(cps_text_normalized: str) -> int:
     """CPS 본문에서 P# 패턴 고유 개수 카운트.
     normalize_quote 후라 줄바꿈은 공백. P1·P2... 패턴 grep.
@@ -123,6 +165,7 @@ def main() -> int:
         return 2
 
     problem_count = count_cps_problems(cps_text)
+    solution_ids = extract_cps_solution_ids(cps_text)
 
     all_warnings: list[str] = []
     problem_refs: dict = {}  # P# → 인용 문서 수 (진전 신호 proxy)
@@ -132,6 +175,8 @@ def main() -> int:
             continue
         scanned += 1
         all_warnings.extend(scan_doc(md, cps_text, problem_refs))
+
+    solution_counts = count_solution_refs(docs_root)
 
     print(f"## CPS 무결성 감시")
     print(f"")
@@ -163,6 +208,23 @@ def main() -> int:
             print(f"")
             print(f"⚠ 인용 0건 Problem (정체 의심): {', '.join(unreferenced)}")
             print(f"  6개월 이상 인용 0이면 Problem 폐기 또는 병합 검토 권고")
+
+    # Solution 충족 인용 분포
+    if solution_ids:
+        print(f"")
+        print(f"### Solution 충족 인용 분포")
+        zero_solutions = []
+        for sid in solution_ids:
+            count = solution_counts.get(sid, 0)
+            if count == 0:
+                print(f"- {sid}: 0건 ⚠")
+                zero_solutions.append(sid)
+            else:
+                print(f"- {sid}: {count}건")
+        if zero_solutions:
+            print(f"")
+            print(f"  인용 0건 Solution: {', '.join(zero_solutions)}")
+            print(f"  (미충족 의심 — 최근 등록·구현 전·문서화 지연 등 맥락 확인 필요. 사람 판단)")
 
     return 0
 

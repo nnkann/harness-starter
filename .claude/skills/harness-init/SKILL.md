@@ -216,6 +216,16 @@ created: {YYYY-MM-DD}
 ### Context
 [Step 2 — 배경, 제약, 프로젝트 중요도]
 
+### User Needs
+> 선택적 섹션. 도메인 5개+ 또는 decisions 30+ 규모에서 활성화 권장.
+> "왜 만드는가"를 사용자 관점으로 보존 — 작업이 쌓일수록 방향 확인 기준점.
+
+#### Personas
+[주요 사용자 유형과 현재 해결 방식]
+
+#### Success Metrics
+[정량·정성 기준 — "X가 Y 이내에 Z를 할 수 있다" 형식 권장]
+
 ### Problem
 [Step 2 — 핵심 문제 1~3개]
 
@@ -382,6 +392,21 @@ created: {YYYY-MM-DD}
 📋 다음: 이 문서의 status를 in-progress로 바꾸고 구현 시작.
    바로 시작하시겠습니까?
 ```
+
+---
+
+## 규모별 선택적 레이어 (완료 후 권고)
+
+init 완료 후 프로젝트 규모가 커지면 다음 레이어 활성화를 권장한다.
+**강제 사항 아님** — 운용하면서 필요성이 느껴질 때 도입한다.
+
+| 신호 | 권장 레이어 | 방법 |
+|------|-----------|------|
+| 도메인 5개+ 또는 decisions 30+ 누적 | `docs/guides/milestones.md` 마일스톤 추적 | `docs/guides/milestones_sample.md`를 `milestones.md`로 복사해 에픽 정의 |
+| "왜 만들고 있었지?"가 자주 생길 때 | CPS `### User Needs` 섹션 활성화 | `project_kickoff.md`의 `### Context` 아래 User Needs 섹션 작성 |
+| eval Solution 충족 인용 0건이 지속될 때 | `/eval --harness` 주기 실행 | Solution별 충족 분포 확인 후 방향 재점검 |
+
+에픽 설계 원칙: 에픽은 사용자 가치 중심으로. "Database Setup", "API Development" 같은 기술 레이어명 에픽은 사용자 가치가 없다 — `docs/guides/milestones_sample.md` 참조.
 
 ## 주의
 
