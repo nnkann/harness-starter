@@ -549,9 +549,10 @@ def main() -> int:
         # frontmatter status 추출
         if not re.search(r"^status:\s*completed\s*$", content, re.MULTILINE):
             continue
-        # 면제 판정 — 변경 이력 섹션 신규 항목 추가는 허용
-        # 1. `## 변경 이력` 헤더가 본 commit에 추가됐거나 이미 존재
-        # 2. 본 commit의 변경이 모두 그 섹션 이후 라인이거나 updated/빈 줄
+        # 면제 판정 — 변경 이력 섹션 신규 항목 추가, frontmatter 수정은 허용
+        # 1. `## 변경 이력` 헤더 이후 라인 추가
+        # 2. frontmatter 블록 내 변경 (--- ~ --- 사이) — reopen 절차 후 solution-ref 등 정정 허용
+        # 3. updated/status/빈 줄/변경 이력 헤더 자체
         has_history_section = bool(re.search(r"^##\s*변경\s*이력\s*$", content, re.MULTILINE))
         diff_for_file = run(["git", "diff", "--cached", "-U0", "--", path])
 
@@ -561,6 +562,15 @@ def main() -> int:
             for i, line in enumerate(content.splitlines(), start=1):
                 if re.match(r"^##\s*변경\s*이력\s*$", line):
                     history_section_line = i
+                    break
+
+        # frontmatter 끝 라인 번호 (1-based) — 두 번째 "---" 위치
+        frontmatter_end_line = 0
+        lines_content = content.splitlines()
+        if lines_content and lines_content[0].strip() == "---":
+            for i, line in enumerate(lines_content[1:], start=2):
+                if line.strip() == "---":
+                    frontmatter_end_line = i
                     break
 
         body_changed = False
@@ -581,6 +591,10 @@ def main() -> int:
             if diff_line.startswith("+"):
                 # 변경 이력 섹션 이후 라인이면 면제
                 if history_section_line and current_post_line > history_section_line:
+                    current_post_line += 1
+                    continue
+                # frontmatter 블록 내 변경 면제 — reopen 절차 후 메타데이터(solution-ref 등) 정정 허용
+                if frontmatter_end_line and current_post_line <= frontmatter_end_line:
                     current_post_line += 1
                     continue
                 stripped = diff_line[1:].strip()

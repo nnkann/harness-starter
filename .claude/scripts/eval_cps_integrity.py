@@ -36,9 +36,9 @@ PROBLEM_INFLATION_THRESHOLD = 6
 
 def extract_cps_solution_ids(cps_text: str) -> list[str]:
     """CPS 본문에서 S# Solution ID 목록을 순서대로 추출.
-    "### S1 ..." 헤더 패턴 사용.
+    "### S1 ..." 헤더 패턴 및 "**S1**" 굵은 글씨 패턴 모두 지원.
     """
-    ids = re.findall(r"###\s+(S\d+)\b", cps_text)
+    ids = re.findall(r"(?:###\s+|\*\*)(S\d+)\b", cps_text)
     # 순서 유지 + 중복 제거
     seen: set[str] = set()
     result = []
@@ -171,7 +171,11 @@ def main() -> int:
     problem_refs: dict = {}  # P# → 인용 문서 수 (진전 신호 proxy)
     scanned = 0
     for md in sorted(docs_root.rglob("*.md")):
-        if str(md).replace("\\", "/") == CPS_DOC:
+        md_posix = str(md).replace("\\", "/")
+        if md_posix == CPS_DOC:
+            continue
+        # docs/harness/ 는 upstream CPS를 참조하는 하네스 자체 문서 — 다운스트림 CPS와 대조 시 항상 오탐
+        if md_posix.startswith("docs/harness/") or "/docs/harness/" in md_posix:
             continue
         scanned += 1
         all_warnings.extend(scan_doc(md, cps_text, problem_refs))

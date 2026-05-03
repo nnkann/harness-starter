@@ -43,6 +43,44 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.34.2 — verify-relates pre-check 통합 (커밋 시 relates-to 전수 검사)
+
+### 변경 파일
+
+- `.claude/scripts/pre_commit_check.py` — 3.5단계 섹션 C 재설계: 기존 staged 파일 단독 검사 → `cmd_verify_relates` 전수 호출로 교체
+- `.claude/scripts/tests/test_pre_commit.py` — `TestVerifyRelatesPrecheck` T45.1·T45.2 신규
+
+### 다운스트림 영향
+
+pre-check 3.5단계 C 동작 변경:
+
+**이전**: staged 파일 자신의 frontmatter `relates-to`만 검사 (inbound 역검색 없음)
+
+**v0.34.2**: `docs/` 전체 모든 파일의 `relates-to` 전수 검사. **기존 커밋된 파일의 깨진 ref도 차단**.
+
+**영향**:
+- 다운스트림에 사전 dead relates-to 부채가 있으면 첫 커밋 시 차단됨
+- `python3 .claude/scripts/docs_ops.py verify-relates`로 상세 확인 후 경로 수정 또는 항목 제거
+- 비용: docs/ 전체 검사 0.13s (다운스트림 N=18 환경 기준 — v0.34.1 다운스트림 검증 실측치)
+
+### 적용 방법
+
+`harness-upgrade` 후 즉시 `python3 .claude/scripts/docs_ops.py verify-relates` 실행. 미연결 건이 있으면 수정 후 커밋.
+
+**수동 적용 필요**: 사전 부채 있는 다운스트림은 upgrade 후 첫 커밋 전 `verify-relates` 실행·수정 필수.
+
+### 검증
+
+- `pytest -m docs_ops` 27/27 통과 (기존 25 + 신규 2 — T45.1·T45.2)
+- 실측: 깨진 ref 인위 생성 후 pre-check 차단 확인
+- 회귀 위험: upstream Windows/Git Bash 환경 검증 범위. 다른 파일시스템·인코딩 환경 재발 시 본 섹션 갱신
+
+### 결정 근거
+
+`docs/decisions/hn_verify_relates_precheck.md` — 다운스트림 v0.34.1 검증에서 relates-to dead link 7건 발견 후 debug-specialist 진단. H3 박제 ref 확정, 전수화가 근본 해결로 판단.
+
+
+
 ## v0.34.1 — amplification 후속 4 wave 처리 (cluster 게이팅·WIP 가시성·glob 가이드·adopt 안내)
 
 ### 변경 파일
