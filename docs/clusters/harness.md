@@ -13,6 +13,7 @@ updated: 2026-05-04
 
 ## 문서
 
+- [harness-adopt 레거시 문서 정비 지원 — doc-health 진단 플로우](../decisions/hn_adopt_legacy_doc_health.md)
 - [adopt-without-init 다운스트림 능동 유도 — harness-init 자동 트리거](../decisions/hn_adopt_without_init_guard.md)
 - [cluster 재생성 게이팅 — 본체 변경 시 전수 갱신 패턴 분리](../decisions/hn_cluster_update_gating.md)
 - [코드 SSOT 서더링 감사 — 중복 정의·동기화 부담 정리](../decisions/hn_code_ssot_audit.md)
@@ -44,6 +45,7 @@ updated: 2026-05-04
 - [스킬·에이전트 역할 분담 감사 — 라우터 패턴 전방위 적용](../decisions/hn_skill_agent_role_audit.md)
 - [Review Staging 거버넌스 — 신호 추가 게이트와 알려진 한계](../decisions/hn_staging_governance.md)
 - [starter 전용 스킬 격리 — harness-dev 스킬 신설](../decisions/hn_starter_skill_isolation.md)
+- [starter_skills 필터링 미구현 — harness-upgrade 폴더 복사 제외 + harness-dev 등록](../decisions/hn_starter_skills_filter.md)
 - [테스트 다이어트 + 트리거 좁힘 — AC 기반 시스템과 중복 제거](../decisions/hn_test_diet.md)
 - [Harness-Starter 업그레이드 계획](../decisions/hn_upgrade.md)
 - [verify-relates pre-check 통합 — 커밋 시 relates-to 전수 검사](../decisions/hn_verify_relates_precheck.md)
@@ -103,8 +105,3 @@ updated: 2026-05-04
 - [starter 12커밋 push 누락 — 다운스트림이 업스트림 변경 못 봄](../incidents/hn_starter_push_skipped.md)
 - [린터 도구 실종 — T13이 우연히 가시화한 환경 이슈](../incidents/hn_test_isolation_git_log_leak.md)
 - [wip-sync incidents WIP 자동 완료 미동작 — 체크리스트 없는 문서 abbr 매칭 누락](../incidents/hn_wip_sync_incidents_gap.md)
-
-## 진행 중 (WIP)
-
-- [harness-adopt 레거시 문서 정비 지원 — doc-health 진단 플로우](../WIP/decisions--hn_adopt_legacy_doc_health.md)
-- [starter_skills 필터링 미구현 — harness-upgrade 폴더 복사 제외 + harness-dev 등록](../WIP/decisions--hn_starter_skills_filter.md)

@@ -8,8 +8,9 @@ tags: [harness-upgrade, starter_skills, harness-dev, isolation]
 relates-to:
   - path: decisions/hn_starter_skill_isolation.md
     rel: extends
-status: in-progress
+status: completed
 created: 2026-05-04
+updated: 2026-05-04
 ---
 
 # starter_skills 필터링 미구현
