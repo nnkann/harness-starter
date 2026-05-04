@@ -432,6 +432,70 @@ class TestCompletedSeal:
         assert "completed 문서 본문 무단 변경 감지" not in (r.stderr + r.stdout), \
             f"MIGRATIONS.md가 SEALED 면제되어야 함. output: {r.stderr + r.stdout}"
 
+    def test_body_link_path_replace_exempt(self, sealed_repo):
+        """T42.7: completed 문서 본문의 마크다운 링크 경로 교체 → 봉인 통과.
+
+        archived 이동 후 dead-link 복구 케이스: 기존 링크 라인을 삭제하고
+        같은 텍스트·다른 경로로 교체할 때 봉인에서 차단되지 않아야 한다.
+        """
+        repo, _ = sealed_repo
+        doc = repo / "docs/decisions/hn_t42_7_link.md"
+        doc.parent.mkdir(parents=True, exist_ok=True)
+        doc.write_text(
+            "---\ntitle: T42.7 link\ndomain: harness\nproblem: P5\n"
+            "solution-ref:\n  - S5 — \"테스트 픽스처 (부분)\"\n"
+            "status: completed\ncreated: 2026-05-04\n---\n\n"
+            "자세한 내용은 [이전 결정](decisions/hn_old_decision.md)을 참고.\n",
+            encoding="utf-8"
+        )
+        subprocess.run(["git", "-C", str(repo), "add", str(doc)], capture_output=True, check=True)
+        subprocess.run(["git", "-C", str(repo), "commit", "-m", "T42.7 prep link"],
+                       capture_output=True, env={**os.environ, "HARNESS_DEV": "1"}, check=True)
+        # archived로 이동 후 링크 경로만 교체
+        new_text = doc.read_text(encoding="utf-8").replace(
+            "[이전 결정](decisions/hn_old_decision.md)",
+            "[이전 결정](../archived/hn_old_decision.md)"
+        )
+        doc.write_text(new_text, encoding="utf-8")
+        subprocess.run(["git", "-C", str(repo), "add", str(doc)], capture_output=True)
+        r = subprocess.run(
+            [sys.executable, ".claude/scripts/pre_commit_check.py"],
+            cwd=repo, capture_output=True, text=True,
+        )
+        assert "completed 문서 본문 무단 변경 감지" not in (r.stderr + r.stdout), \
+            f"링크 경로 교체가 봉인에서 차단됨. output: {r.stderr + r.stdout}"
+
+    def test_body_link_new_addition_blocks(self, sealed_repo):
+        """T42.8: completed 문서 본문에 새 링크 줄 추가(교체 아님) → 봉인 차단.
+
+        삭제(-) 없이 순수 추가(+)인 경우는 링크라도 차단해야 한다.
+        """
+        repo, _ = sealed_repo
+        doc = repo / "docs/decisions/hn_t42_8_newlink.md"
+        doc.parent.mkdir(parents=True, exist_ok=True)
+        doc.write_text(
+            "---\ntitle: T42.8 newlink\ndomain: harness\nproblem: P5\n"
+            "solution-ref:\n  - S5 — \"테스트 픽스처 (부분)\"\n"
+            "status: completed\ncreated: 2026-05-04\n---\n\n"
+            "기존 본문.\n",
+            encoding="utf-8"
+        )
+        subprocess.run(["git", "-C", str(repo), "add", str(doc)], capture_output=True, check=True)
+        subprocess.run(["git", "-C", str(repo), "commit", "-m", "T42.8 prep newlink"],
+                       capture_output=True, env={**os.environ, "HARNESS_DEV": "1"}, check=True)
+        # 순수 추가: 기존 본문 유지 + 새 링크 줄 추가
+        doc.write_text(
+            doc.read_text(encoding="utf-8") + "\n새로 추가된 [링크](decisions/hn_new.md).\n",
+            encoding="utf-8"
+        )
+        subprocess.run(["git", "-C", str(repo), "add", str(doc)], capture_output=True)
+        r = subprocess.run(
+            [sys.executable, ".claude/scripts/pre_commit_check.py"],
+            cwd=repo, capture_output=True, text=True,
+        )
+        assert "completed 문서 본문 무단 변경 감지" in (r.stderr + r.stdout), \
+            f"새 링크 추가가 봉인에서 통과되면 안 됨. output: {r.stderr + r.stdout}"
+
 
 # ─────────────────────────────────────────────────────────
 # implementation Step 0 init 게이트 (A4 의미 재정의, v0.34.0)

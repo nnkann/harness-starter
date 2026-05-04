@@ -43,6 +43,49 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.34.3 — completed 봉인 relates-to path 수정 면제 (dead-link 복구 루프 해소)
+
+### 변경 파일
+
+- `.claude/scripts/pre_commit_check.py` — 봉인 게이트 면제 목록에 `- path: <경로>` 라인 추가
+- `.claude/scripts/tests/test_pre_commit.py` — T42.6 회귀 테스트 신규
+
+### 다운스트림 영향
+
+**v0.34.2 업그레이드 후 발생하는 루프 해소**:
+
+v0.34.2의 verify-relates 전수 검사와 기존 completed 봉인이 충돌해 영구
+차단 루프가 발생했음 — completed 문서의 dead relates-to를 수정하면 봉인이
+차단, 차단 상태로는 수정 불가.
+
+v0.34.3부터 completed 문서의 `- path: <경로>` 라인 변경은 봉인 면제.
+**dead-link 복구(경로 수정·항목 제거)가 즉시 가능**.
+
+### 적용 방법
+
+자동. `harness-upgrade` 후 relates-to 경로 직접 수정 후 커밋 가능.
+
+`verify-relates`로 확인 후 수정:
+```bash
+python3 .claude/scripts/docs_ops.py verify-relates
+# 경로 수정 또는 항목 제거
+git add <수정한 파일>
+git commit ...
+```
+
+### 검증
+
+- `pytest -m gate` 18/18 통과 (T42.6 신규 포함)
+- 실측: completed 문서 `path:` 라인 수정 시 봉인 통과 + verify-relates 차단만 남음
+- 회귀 위험: `path:` 면제가 봉인 우회로 악용될 가능성 낮음 — frontmatter 내 구조화된 경로 값이므로 본문 의미 변경과 구분 가능
+
+### 결정 근거
+
+다운스트림 보고: v0.34.2 upgrade 후 모든 커밋 차단. debug-specialist 진단
+후 completed 봉인 면제 화이트리스트에 `path:` 추가로 해소.
+
+
+
 ## v0.34.2 — verify-relates pre-check 통합 (커밋 시 relates-to 전수 검사)
 
 ### 변경 파일

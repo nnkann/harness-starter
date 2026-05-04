@@ -576,12 +576,14 @@ def main() -> int:
         body_changed = False
         current_post_line = 0
         in_post_block = False
+        hunk_has_deletion = False
         for diff_line in diff_for_file.splitlines():
             # hunk header: @@ -A,B +C,D @@
             m = re.match(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@", diff_line)
             if m:
                 current_post_line = int(m.group(1))
                 in_post_block = True
+                hunk_has_deletion = False
                 continue
             if not in_post_block:
                 continue
@@ -616,11 +618,17 @@ def main() -> int:
                 if re.match(r"^-\s+path:\s+\S+", stripped):
                     current_post_line += 1
                     continue
+                # 본문 마크다운 링크 경로 교체 면제 — archived 이동 후 dead-link 복구
+                # 같은 hunk에 삭제(-) 라인이 있으면 교체. 순수 추가(삭제 없음)는 차단.
+                if hunk_has_deletion and re.search(r"\[.*?\]\(.*?\)", stripped):
+                    current_post_line += 1
+                    continue
                 body_changed = True
                 break
             elif diff_line.startswith("-"):
                 # 삭제도 본문 변경 (변경 이력 섹션 위 본문 삭제는 차단)
                 # post-image line은 증가 안 함
+                hunk_has_deletion = True
                 continue
             else:
                 # context line (-U0이라 거의 없음)
