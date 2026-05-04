@@ -43,6 +43,39 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.34.4 — pre-check false-block 2건 수정 (AC 에러 메시지·service_role 환경변수 이름)
+
+### 변경 파일
+
+- `.claude/scripts/pre_commit_check.py` — AC 섹션 미탐지 에러 메시지 개선, `service_role` 패턴 negative lookahead 추가
+
+### 다운스트림 영향
+
+**이슈 1 — AC `**Acceptance Criteria**:` 형식 누락 시 에러 메시지 개선**:
+
+`### Acceptance Criteria` 헤더 형식으로 AC 섹션을 작성하면 pre-check이
+`AC Goal: 항목 누락`으로 차단했으나 원인 파악이 어려웠음. v0.34.4부터
+"AC 섹션 없음. `**Acceptance Criteria**:` (bold 형식) 헤더가 필요합니다."
+메시지로 즉시 원인 파악 가능. docs.md SSOT(bold 형식) 변경 없음.
+
+**이슈 2 — `service_role` 환경변수 이름 참조 false-block 해소**:
+
+`process.env.SUPABASE_SERVICE_ROLE_KEY` 등 대문자+언더스코어가 뒤에 오는
+환경변수 이름이 `service_role` 시크릿 패턴에 걸려 line-confirmed 차단됐음.
+v0.34.4부터 `service_role(?![A-Z_])` negative lookahead로 변수 이름은 면제.
+`"service_role"` 값 리터럴·`role: service_role` 직접 노출은 계속 차단.
+
+### 적용 방법
+
+자동. `harness-upgrade` 후 별도 수동 적용 없음.
+
+### 검증
+
+- `pytest -m secret` 4/4 통과
+- 회귀 위험: `service_role(?![A-Z_])` 패턴이 실제 시크릿 값을 false-negative할 가능성 — 실제 JWT 등 키 값에는 `_`가 뒤에 오지 않으므로 위험 없음
+
+
+
 ## v0.34.3 — completed 봉인 relates-to path 수정 면제 (dead-link 복구 루프 해소)
 
 ### 변경 파일

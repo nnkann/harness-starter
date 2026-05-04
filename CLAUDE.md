@@ -45,6 +45,8 @@
 | 에러·예상 밖 동작 (1회 시도로 원인 불명, 또는 동일 수정 2회 이상 반복) | `/debug-specialist` 에이전트 즉시 |
 | 내부 자료 조사 | `doc-finder` 에이전트 |
 | 외부 자료 조사 | `researcher` 에이전트 |
+| 하네스 문서 품질 점검 (모호성·모순·CPS 무결성) | `/eval --harness` |
+| 레거시 문서 정비 (abbr·CPS frontmatter 누락) | `/doc-health` 스킬 |
 
 
 <important if="코드를 작성·수정·리팩토링하려 할 때">

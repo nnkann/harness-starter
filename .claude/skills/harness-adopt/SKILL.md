@@ -503,8 +503,10 @@ rm -rf .claude/skills/harness-adopt
       adopt는 구조 이식만 — Problem/Solution/Context는 init이 채웁니다.
 
   1. `/harness-init` 실행 (필수, 즉시)
-  2. relates-to 관계 채우기 — 문서 간 연결
-  3. coding-convention / naming-convention 스킬로 규칙 세분화
+  2. `/doc-health` 실행 (권장) — 하네스 도입 이전 레거시 문서가 있으면
+     abbr rename·CPS frontmatter 추가를 반자동화. eval --harness로 먼저 진단.
+  3. relates-to 관계 채우기 — 문서 간 연결
+  4. coding-convention / naming-convention 스킬로 규칙 세분화
 ```
 
 ## harness-init과의 관계

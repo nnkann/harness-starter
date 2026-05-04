@@ -267,6 +267,21 @@ CPS Problem 6개 초과 시 인플레이션 경고 — 근접 Problem 병합 검
   (0건 Solution: S1, S4 — 맥락 확인 필요. 사람 판단)
 ```
 
+#### doc-health 안내
+
+CPS 무결성 스캔 결과에서 다음 중 하나라도 해당하면 doc-health 실행을 권장한다:
+
+- abbr 없는 파일이 5개 이상
+- CPS frontmatter(`problem`/`solution-ref`) 없는 파일이 10개 이상
+- 박제 의심 3건 이상
+
+해당 시 보고 마지막에 추가:
+
+```
+⚠️ 레거시 문서 정비 권장: `/doc-health` 실행으로 abbr rename·CPS frontmatter
+   추가를 반자동화할 수 있습니다. (진단 결과를 그대로 이어받아 시작)
+```
+
 문제없으면 "하네스 정상. ✅"
 
 #### --deep 활용 (Problem 진전 측정)
