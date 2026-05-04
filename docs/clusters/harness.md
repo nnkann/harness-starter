@@ -4,7 +4,7 @@ domain: harness
 tags: [cluster, index]
 status: completed
 created: 2026-04-16
-updated: 2026-05-02
+updated: 2026-05-04
 ---
 
 # harness 클러스터
@@ -39,6 +39,7 @@ updated: 2026-05-02
 - [룰-스킬 중복 제거 — 룰 SSOT 강제 (Phase 5)](../decisions/hn_rule_skill_ssot.md)
 - [룰-스킬 SSOT 적용 — Phase 1 commit/SKILL.md](../decisions/hn_rule_skill_ssot_apply.md)
 - [Rules 파일 다이어트 — 분리한 메타·배경·자동 감지 상세](../decisions/hn_rules_metadata.md)
+- [completed 봉인 — 본문 마크다운 링크 경로 교체 면제](../decisions/hn_sealed_link_exempt.md)
 - [본 세션 시험 결과 종합 — review verdict + wip-sync false positive 누적 데이터](../decisions/hn_session_test_results.md)
 - [스킬·에이전트 역할 분담 감사 — 라우터 패턴 전방위 적용](../decisions/hn_skill_agent_role_audit.md)
 - [Review Staging 거버넌스 — 신호 추가 게이트와 알려진 한계](../decisions/hn_staging_governance.md)
@@ -74,8 +75,10 @@ updated: 2026-05-02
 - [LLM 실수 방지 가드레일 — 내부 자료 우선 + 추측 차단 + advisor 연동](../harness/hn_llm_mistake_guardrails.md)
 - [하네스 자잘한 버그 묶음 — MIGRATIONS 누락·starter_skills 오염·permissions.allow 미전파·h-setup.sh 오분류·신규설치 필터 누락·harness-sync 경계 불명확·docs/harness 전달 오염](../harness/hn_migrations_version_gap.md)
 - [Phase 구조 보강 — WIP AC 섹션 + Phase 6원칙 + escalate 에이전트 트리거 + WIP 실행 순서](../harness/hn_phase_agent_improvements.md)
+- [PRD 레이어 보강 — User Needs 섹션·milestones 샘플·harness-init 권고](../harness/hn_prd_layers.md)
 - [rules → docs 참조 화이트리스트 — 동적 탐색으로 대체](../harness/hn_review_whitelist_autodetect.md)
 - [하네스 단순화 — 추가 누적으로 인한 마찰 회수](../harness/hn_simplification.md)
+- [eval에 Solution 충족 인용 분포 집계 추가](../harness/hn_solution_ref_aggregation.md)
 - [split 커밋 sub-group review stage 재판정 — 그룹별 신호 기반 강도 결정](../harness/hn_split_commit_review_stage.md)
 - [split 성격 기반 그룹화 + commit 흐름 내 diff 참조 최적화](../harness/hn_split_diff_delivery.md)
 - [review staging 잔여 — S8 정밀화 + 5커밋 측정 + 폭증 게이트](../harness/hn_staging_remaining.md)
@@ -100,3 +103,8 @@ updated: 2026-05-02
 - [starter 12커밋 push 누락 — 다운스트림이 업스트림 변경 못 봄](../incidents/hn_starter_push_skipped.md)
 - [린터 도구 실종 — T13이 우연히 가시화한 환경 이슈](../incidents/hn_test_isolation_git_log_leak.md)
 - [wip-sync incidents WIP 자동 완료 미동작 — 체크리스트 없는 문서 abbr 매칭 누락](../incidents/hn_wip_sync_incidents_gap.md)
+
+## 진행 중 (WIP)
+
+- [harness-adopt 레거시 문서 정비 지원 — doc-health 진단 플로우](../WIP/decisions--hn_adopt_legacy_doc_health.md)
+- [starter_skills 필터링 미구현 — harness-upgrade 폴더 복사 제외 + harness-dev 등록](../WIP/decisions--hn_starter_skills_filter.md)

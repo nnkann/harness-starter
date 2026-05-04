@@ -1,0 +1,113 @@
+---
+title: harness-adopt 레거시 문서 정비 지원 — doc-health 진단 플로우
+domain: harness
+problem: P3
+solution-ref:
+  - S3 — "다운스트림 업그레이드 후 permissions.allow 항목이 upstream과 동기화됨 (부분)"
+tags: [harness-adopt, doc-health, legacy, abbr, frontmatter]
+relates-to:
+  - path: decisions/hn_adopt_without_init_guard.md
+    rel: extends
+  - path: decisions/hn_downstream_amplification.md
+    rel: references
+status: in-progress
+created: 2026-05-04
+---
+
+# harness-adopt 레거시 문서 정비 지원
+
+## 배경
+
+StageLink 다운스트림 실측 (2026-05-04): 하네스 도입 이전 문서 240개+를
+하루에 수동으로 정비. 정비 전에는 탐색 체인이 완전히 무력화된 상태였음.
+
+- abbr 없는 파일 230개+ → `ls docs/**/*co_*` 같은 cluster 탐색 0건
+- CPS frontmatter 없는 파일 233개 → eval --harness P/S 분포 분석 불가
+- archived 없이 SSOT 혼재 → grep 결과 오염
+
+**결론**: harness-adopt이 `.claude/` 이식은 해주지만, 기존 docs/ 레거시
+문서 정비는 다운스트림에 완전히 위임됨. 진입 비용이 크다.
+
+## 목표
+
+harness-adopt 스킬 또는 별도 "doc-health" 진단 스킬을 통해 레거시 문서
+정비를 가이드·반자동화한다.
+
+CPS 연결: P3 — 하네스 이식 후 docs/ 레거시 오염으로 탐색 체인·CPS 체계가
+무력화되는 사일런트 페일.
+
+## 작업 목록
+
+### 1. 설계 결정 — harness-adopt 내장 vs 별도 스킬
+
+**Acceptance Criteria**:
+- [ ] Goal: 접근법 결정 + 근거 기록
+  검증:
+    review: skip
+    tests: 없음
+    실측: 없음
+
+**후보 옵션**:
+
+**옵션 A — harness-adopt 내 선택적 단계 추가**
+- harness-adopt 종료 전 "docs/ 진단 실행할까요?" 프롬프트
+- 장: 이식 흐름과 자연스럽게 연결
+- 단: harness-adopt SKILL.md가 이미 복잡함. 레거시 정비는 이식과 별개로 필요하기도 함
+
+**옵션 B — 독립 `doc-health` 스킬 신설**
+- "doc-health", "문서 건강 진단" 요청 시 발화
+- harness-adopt 종료 시 "doc-health 실행 권장" 안내 추가
+- 장: 이미 이식된 프로젝트도 언제든 실행 가능. 단일 책임
+- 단: 스킬 1개 추가. 다운스트림 SKILL 목록 증가
+
+**옵션 C — eval --harness 확장**
+- eval --harness에 doc-health 진단 포함
+- 장: 이미 있는 진입점 재활용. "harness 상태 점검"으로 자연
+- 단: eval은 read-only 리포트. 정비(rename·frontmatter 추가)는 별도 스킬 필요
+
+**권장**: 옵션 B 우선 검토 — 독립 스킬이 재사용성·단일 책임 측면에서 우수.
+harness-adopt 종료 시 안내로 연결.
+
+### 2. doc-health 스킬 설계 (옵션 B 채택 시)
+
+**Acceptance Criteria**:
+- [ ] Goal: SKILL.md 초안 + 3단계 정비 플로우 정의
+  검증:
+    review: self
+    tests: 없음
+    실측: StageLink 정비 흐름 재현 가능한지 수동 확인
+
+**정비 3단계 (실측 기반)**:
+
+1. **진단** — eval --harness 또는 내장 스캔
+   - abbr 없는 파일 목록
+   - CPS frontmatter 없는 파일 목록
+   - archived 후보 (하네스 이전 초안·중간 보고서 패턴)
+
+2. **SSOT 선별 + archived** (인터랙티브)
+   - 도메인별 문서 목록 제시 → 사용자가 keep/archive 결정
+   - 결정 후 `docs_ops.py move` 자동 실행
+
+3. **rename + frontmatter 추가** (반자동)
+   - abbr 없는 파일 → naming.md 기준 rename 제안
+   - CPS frontmatter 없는 파일 → problem/solution-ref 1차 제안 (사용자 확인 후 적용)
+
+### 3. harness-adopt 연결 (공통, 옵션 무관)
+
+**Acceptance Criteria**:
+- [ ] Goal: harness-adopt 종료 흐름에 doc-health 안내 추가
+  검증:
+    review: self
+    tests: 없음
+    실측: harness-adopt 실행 후 안내 문구 확인
+
+## 결정 사항
+
+- 미결. 옵션 선택 후 기록.
+
+## 메모
+
+- 실측 케이스: StageLink, 2026-05-04. 정비 규모·효과는 project memory 참조
+  (`project_downstream_legacy_doc_cleanup.md`)
+- eval --harness가 이미 abbr 없는 파일·CPS 누락을 일부 감지 → 진단 단계 재사용 가능
+- 정비 자동화의 한계: SSOT 선별(archived 결정)은 사람이 해야 함. 스킬은 가이드·반자동화만

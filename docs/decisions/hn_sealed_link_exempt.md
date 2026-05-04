@@ -10,8 +10,9 @@ relates-to:
     rel: extends
   - path: decisions/hn_promise_protection.md
     rel: caused-by
-status: in-progress
+status: completed
 created: 2026-05-04
+updated: 2026-05-04
 ---
 
 # completed 봉인 — 본문 마크다운 링크 경로 교체 면제
