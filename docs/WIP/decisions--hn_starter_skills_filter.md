@@ -38,7 +38,7 @@ harness-upgrade의 실제 스킬 폴더 복사 시 필터링이 없다. `ADDED` 
 **영향 파일**: `.claude/HARNESS.json`
 
 **Acceptance Criteria**:
-- [ ] Goal: `starter_skills` 값이 `"harness-init,harness-adopt,harness-dev"`
+- [x] Goal: `starter_skills` 값이 `"harness-init,harness-adopt,harness-dev"`
   검증:
     review: skip
     tests: 없음
@@ -49,7 +49,7 @@ harness-upgrade의 실제 스킬 폴더 복사 시 필터링이 없다. `ADDED` 
 **영향 파일**: `.claude/skills/harness-upgrade/SKILL.md`
 
 **Acceptance Criteria**:
-- [ ] Goal: ADDED 파일 중 `.claude/skills/{starter_skills}/` 경로는 다운스트림 전달 제외
+- [x] Goal: ADDED 파일 중 `.claude/skills/{starter_skills}/` 경로는 다운스트림 전달 제외
   검증:
     review: self
     tests: 없음
@@ -65,7 +65,7 @@ harness-upgrade의 실제 스킬 폴더 복사 시 필터링이 없다. `ADDED` 
 **영향 파일**: `docs/harness/MIGRATIONS.md`
 
 **Acceptance Criteria**:
-- [ ] Goal: 기존 다운스트림에 이미 전달된 starter 스킬 폴더 정리 안내 추가
+- [x] Goal: 기존 다운스트림에 이미 전달된 starter 스킬 폴더 정리 안내 추가
   검증:
     review: skip
     tests: 없음

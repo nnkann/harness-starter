@@ -431,7 +431,27 @@ rm -rf "$TMPDIR"
 
 ### Step 6. 신규 파일 추가
 
-upstream에만 있는 파일을 처리한다:
+upstream에만 있는 파일을 처리한다. **단, `starter_skills` 목록의 스킬 폴더는 제외한다.**
+
+#### 6.0. starter_skills 필터
+
+HARNESS.json의 `starter_skills` 값을 읽어 다운스트림 전달 제외 목록을 구성한다:
+
+```bash
+STARTER_SKILLS=$(python3 -c "
+import json
+d = json.load(open('.claude/HARNESS.json'))
+print(d.get('starter_skills', 'harness-init,harness-adopt,harness-dev'))
+" 2>/dev/null || echo "harness-init,harness-adopt,harness-dev")
+
+# ADDED 파일 중 starter_skills 경로 제외
+# 예: starter_skills="harness-init,harness-adopt,harness-dev"
+# → .claude/skills/harness-init/**, .claude/skills/harness-adopt/**, .claude/skills/harness-dev/** 제외
+```
+
+ADDED 파일 목록에서 `.claude/skills/{starter_skill}/` 경로에 해당하는 파일은 **조용히 제외** (사용자에게 별도 알림 없음).
+
+#### 6.1. 적용
 
 ```bash
 MSYS_NO_PATHCONV=1 git show <upstream_ref>:<파일경로> > <파일경로>
@@ -443,6 +463,7 @@ MSYS_NO_PATHCONV=1 git show <upstream_ref>:<파일경로> > <파일경로>
 
   .claude/agents/doc-finder.md (신규 에이전트)
   .claude/skills/advisor/SKILL.md (신규 스킬)
+  (starter 전용 스킬 harness-init, harness-adopt, harness-dev 제외됨)
 
 → 추가 완료
 ```
