@@ -317,6 +317,22 @@ BIT가 이미 Q1/Q2/Q3로 중요도 판단을 완료했으므로, P# 매칭·추
 - [x] session-start.sh: "problem: NEW" 플래그 감지 시 "⚠️ CPS 신규 P# 검토 필요" 강조 ✅
 - [x] implementation/SKILL.md Step 0.8 "분리 불필요" 분기에 탐색 결과 기록 의무 1줄 추가 ✅
 
+### Phase 3 — eval --harness NEW 플래그 집계 + pre_commit_check.py CPS empty 경고
+
+**영향 파일**:
+- `.claude/skills/eval/SKILL.md` (--harness 보고 섹션)
+- `.claude/scripts/pre_commit_check.py` (get_cps_text 빈 문자열 처리)
+
+**Acceptance Criteria**:
+- [x] Goal: eval --harness가 미처리 NEW P# 플래그를 보고하고,
+       CPS empty 시 박제 감지 불가 사각지대를 경고로 노출
+  검증:
+    review: self
+    tests: pytest .claude/scripts/tests/ -q -x
+    실측: 없음
+- [x] eval/SKILL.md --harness CPS 무결성 섹션에 "NEW 플래그 미처리 집계" 항목 추가 ✅
+- [x] pre_commit_check.py get_cps_text() 빈 문자열 반환 시 stderr 경고 추가 ✅
+
 ## 구현 순서
 
 ```

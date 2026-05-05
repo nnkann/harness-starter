@@ -265,7 +265,19 @@ CPS Problem 6개 초과 시 인플레이션 경고 — 근접 Problem 병합 검
 - 인용 0건 Problem: P1, P3, P4, P6 ⚠ (정체 의심 — 6개월 이상이면 폐기·병합 검토)
 - Solution 충족 인용 분포: S1=0건 ⚠, S2=5건, S3=1건, S4=0건 ⚠, S5=14건, S6=1건
   (0건 Solution: S1, S4 — 맥락 확인 필요. 사람 판단)
+- NEW 플래그 미처리: 0건 ✅
 ```
+
+NEW 플래그 집계: docs/WIP/·docs/decisions/ 파일에서 `P#:.*NEW` 패턴을
+grep해 미처리 스코프 외 이슈 수를 집계한다. 1건 이상이면:
+
+```
+- NEW 플래그 미처리: N건 ⚠
+  - [파일명]: "[버그 설명]" (발견: Step/파일)
+  → implementation Step 0에서 CPS P# 매칭 필요
+```
+
+0건이면 `NEW 플래그 미처리: 0건 ✅` 한 줄만.
 
 #### doc-health 안내
 

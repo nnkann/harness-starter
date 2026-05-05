@@ -755,6 +755,8 @@ def main() -> int:
     ac_tests = ""
     ac_actual = ""
     cps_text = get_cps_text()
+    if not cps_text:
+        err("⚠ CPS 본문 없음 — solution-ref 박제 감지 불가 (harness-init 미완료 또는 project_kickoff.md 비어있음)")
 
     DOCS_REQUIRED_PAT = re.compile(r"^docs/(WIP|decisions|incidents|guides|harness)/.+\.md$")
     # CPS 자체는 면제. legacy 50개 문서 보강은 별 wave (frontmatter 강제 안 함)

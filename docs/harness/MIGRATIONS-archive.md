@@ -43,6 +43,37 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.35.1 — starter_skills 필터링 구현 + harness-dev 등록
+
+### 변경 파일
+
+- `.claude/HARNESS.json` — `starter_skills`에 `harness-dev` 추가 (`"harness-init,harness-adopt,harness-dev"`)
+- `.claude/skills/harness-upgrade/SKILL.md` — Step 6에 `starter_skills` 필터 로직 추가: ADDED 파일 중 `.claude/skills/{starter_skill}/` 경로는 다운스트림 전달 제외
+
+### 적용 방법
+
+자동 적용. 수동 작업 없음.
+
+### 선택적 정리 (기존 다운스트림)
+
+이전 버전에서 harness-upgrade를 통해 starter 전용 스킬 폴더를 받은 다운스트림은
+삭제해도 무방 (기능상 문제 없음 — 실행하지 않으면 무해):
+
+```bash
+rm -rf .claude/skills/harness-init/
+rm -rf .claude/skills/harness-adopt/
+rm -rf .claude/skills/harness-dev/
+```
+
+harness-sync는 다운스트림도 사용하므로 삭제하지 않는다.
+
+### 회귀 위험
+
+- `starter_skills` 필터는 SKILL.md 절차 문서 변경 — Claude가 Step 6 실행 시 이 절차를 따름
+- upstream 격리 환경에서 별도 테스트 없음. 운용 검증 필요
+
+
+
 ## v0.35.0 — doc-health 스킬 신설 + CLAUDE.md 진입점 추가
 
 ### 변경 파일
