@@ -36,22 +36,44 @@ fi
 if [ -d "docs/WIP" ] && [ "$(ls -A docs/WIP 2>/dev/null)" ]; then
   echo ""
   echo "📋 진행 중인 작업:"
+  bit_files=""   # BIT 스코프 외 이슈 감지용
   for f in docs/WIP/*.md; do
     [ -f "$f" ] || continue
     # awk: frontmatter 안의 status/title 우선, 없으면 본문 `> status:`·`# `로 fallback
+    # BIT 섹션 감지: "## 발견된 스코프 외 이슈" + "problem: NEW" 플래그
     line=$(awk '
-      BEGIN { in_fm=0; fm_done=0 }
+      BEGIN { in_fm=0; fm_done=0; in_bit=0; bit_count=0; has_new=0 }
       /^---$/ { if (in_fm) { in_fm=0; fm_done=1 } else if (!fm_done) in_fm=1; next }
       in_fm && /^status:/ { sub(/^status:[[:space:]]*/, ""); status=$0; next }
       in_fm && /^title:/  { sub(/^title:[[:space:]]*/, "");  title=$0;  next }
       fm_done && !status && /^> status:/ { sub(/^> status:[[:space:]]*/, ""); status=$0 }
       fm_done && !title  && /^# / { sub(/^# /, ""); title=$0 }
-      END { printf "%s\t%s", status, title }
+      /^## 발견된 스코프 외 이슈/ { in_bit=1; next }
+      in_bit && /^## / { in_bit=0 }
+      in_bit && /^\- / { bit_count++ }
+      in_bit && /P#:.*NEW/ { has_new=1 }
+      END { printf "%s\t%s\t%d\t%d", status, title, bit_count, has_new }
     ' "$f")
-    status="${line%%$'\t'*}"
-    title="${line#*$'\t'}"
+    status="${line%%$'\t'*}"; rest="${line#*$'\t'}"
+    title="${rest%%$'\t'*}"; rest="${rest#*$'\t'}"
+    bit_count="${rest%%$'\t'*}"
+    has_new="${rest#*$'\t'}"
     echo "  - [$status] $title ($(basename "$f"))"
+    # BIT 이슈 감지 시 파일 목록 누적
+    if [ "$bit_count" -gt 0 ]; then
+      bit_files="$bit_files\n  $(basename "$f"): ${bit_count}건$([ "$has_new" = "1" ] && echo " ⚠️ NEW P# 포함")"
+    fi
   done
+  # BIT 스코프 외 이슈 알림 (있을 때만)
+  if [ -n "$bit_files" ]; then
+    echo ""
+    echo "🐛 발견된 스코프 외 이슈 (bug-interrupt.md Q3 기록):"
+    echo -e "$bit_files"
+    if echo -e "$bit_files" | grep -q "NEW P#"; then
+      echo ""
+      echo "  ⚠️  CPS 신규 P# 검토 필요 — implementation Step 0에서 project_kickoff.md 갱신"
+    fi
+  fi
 else
   echo ""
   echo "📋 진행 중인 작업: 없음"

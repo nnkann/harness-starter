@@ -43,6 +43,31 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.35.0 — doc-health 스킬 신설 + CLAUDE.md 진입점 추가
+
+### 변경 파일
+
+- `.claude/skills/doc-health/SKILL.md` — 신규 스킬. 하네스 도입 이전 레거시 문서를 반자동 정비 (abbr rename·CPS frontmatter 추가·archived 이동). eval --harness 진단 결과를 이어받아 4단계로 진행
+- `.claude/skills/eval/SKILL.md` — `--harness` 결과에 doc-health 호출 권장 안내 추가 (abbr 없는 파일 5개+·CPS 누락 10개+·박제 의심 3건+ 시 트리거)
+- `.claude/skills/harness-adopt/SKILL.md` — 완료 리포트 "다음 할 일"에 `/doc-health` 실행 권장 안내 추가
+- `CLAUDE.md` — 진입점 테이블에 `/eval --harness`, `/doc-health` 행 추가
+- `.claude/HARNESS.json` — `skills`에 `doc-health` 추가
+
+### 적용 방법
+
+자동 적용. 수동 작업 없음.
+
+### 다운스트림 권장
+
+레거시 문서(하네스 도입 이전 작성)가 많은 경우 `/eval --harness` → `/doc-health` 순으로 실행해 탐색 체인 정합성을 확보할 것.
+
+### 회귀 위험
+
+- 신규 스킬 추가만. 기존 스킬 로직 변경 없음
+- CLAUDE.md 진입점 행 추가는 기존 행에 영향 없음
+
+
+
 ## v0.34.8 — completed 봉인 — 본문 마크다운 링크 경로 교체 면제
 
 ### 변경 파일

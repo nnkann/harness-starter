@@ -297,6 +297,26 @@ BIT가 이미 Q1/Q2/Q3로 중요도 판단을 완료했으므로, P# 매칭·추
 - [x] implementation/SKILL.md Step 3에 "스코프 외 버그 발견 시 bug-interrupt.md 적용" 참조 추가 ✅
 - [x] docs.md CPS 변경 권한 표 — "Problem 추가: Claude 단독 (BIT Q3 경로 포함)" 명시 ✅
 
+### Phase 2 — session-start.sh 확장 + implementation Step 0.8 기록 의무
+
+**영향 파일**:
+- `.claude/scripts/session-start.sh` (블록 2 WIP 순회 확장)
+- `.claude/skills/implementation/SKILL.md` (Step 0.8 분리 불필요 분기)
+
+**Acceptance Criteria**:
+- [x] Goal: BIT Q3로 기록된 스코프 외 이슈가 세션 시작 시 자동 감지되고,
+       탐색 결과 소실 갭(갭 1)이 Step 0.8에서 차단됨
+  검증:
+    review: self
+    tests: 없음
+    실측: WIP 파일에 "## 발견된 스코프 외 이슈" 섹션 추가 후 session-start.sh
+          실행 시 알림 출력 확인. "problem: NEW" 포함 시 강조 확인.
+
+- [x] session-start.sh 블록 2: WIP 파일 내 "## 발견된 스코프 외 이슈" 섹션 감지 → ✅
+      파일명 + 이슈 수 알림 출력 ✅ (실측 확인)
+- [x] session-start.sh: "problem: NEW" 플래그 감지 시 "⚠️ CPS 신규 P# 검토 필요" 강조 ✅
+- [x] implementation/SKILL.md Step 0.8 "분리 불필요" 분기에 탐색 결과 기록 의무 1줄 추가 ✅
+
 ## 구현 순서
 
 ```
