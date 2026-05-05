@@ -296,9 +296,9 @@ hit 0건만이 "새로 만들어도 된다"의 전제. hit 있으면 아래 두 
 
 ### 완료 문서 재개 (역방향 이동)
 
-1. `git mv docs/{폴더}/{abbr}_{slug}.md docs/WIP/{원래접두사}--{abbr}_{slug}.md`
-2. `status: completed` → `in-progress`
-3. 완료 시 commit 스킬이 원래 폴더로 이동
+1. `python .claude/scripts/docs_ops.py reopen docs/{폴더}/{abbr}_{slug}.md`
+   (status → in-progress, WIP 이동, updated 갱신, cluster dead link 제거를 한 번에 처리)
+2. 완료 시 commit 스킬이 원래 폴더로 이동
 
 ## completed 전환 차단
 

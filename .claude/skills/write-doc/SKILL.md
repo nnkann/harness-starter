@@ -89,9 +89,9 @@ description: >-
 
 **완료 문서 재개**:
 ```bash
-git mv docs/{폴더}/{abbr}_{slug}.md docs/WIP/{원래접두사}--{abbr}_{slug}.md
+python .claude/scripts/docs_ops.py reopen docs/{폴더}/{abbr}_{slug}.md
 ```
-- 프론트매터 `status: completed` → `in-progress`, `updated` 갱신
+- `status: completed` → `in-progress`, `updated` 갱신, WIP로 이동, cluster dead link 제거를 한 번에 처리
 - 본문에 `## 변경 이력` 섹션 추가 (없으면)
 - 같은 내용을 새 WIP로 복제하지 마라 (SSOT 분열)
 
@@ -132,6 +132,9 @@ docs/WIP/에 문서를 만든다.
 ---
 title: {문서 제목}
 domain: {Step 1에서 결정한 domain}
+problem: P{번호}                  # 필수 (CPS 인용)
+solution-ref:                     # 필수 (CPS 인용, list)
+  - S{번호} — "{원문 또는 substring + (부분)}"
 tags: []
 relates-to: []
 status: in-progress
@@ -242,4 +245,4 @@ harness/:
 - docs/ 외의 위치에 문서를 만들지 않는다.
 - docs/ 하위에 새 폴더를 만들지 않는다.
 - naming.md에 없는 domain을 프론트매터에 쓰지 않는다.
-- 프론트매터 필수 필드(title, domain, status, created)가 누락되면 생성하지 않는다.
+- 프론트매터 필수 필드(title, domain, problem, solution-ref, status, created)가 누락되면 생성하지 않는다.

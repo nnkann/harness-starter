@@ -43,6 +43,21 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.36.1 — BIT Phase 2 — session-start.sh 이슈 감지 + Step 0.8 기록 의무 (2026-05-05)
+
+### 변경 내용
+- `session-start.sh` 블록 2: WIP 파일에 `## 발견된 스코프 외 이슈` 섹션 감지 시
+  세션 시작 알림. `problem: NEW` 플래그 있으면 "CPS 신규 P# 검토 필요" 강조
+- `implementation/SKILL.md` Step 0.8: "분리 불필요" 판정 시 탐색 결과 기록 의무 명시 (갭 1 차단)
+
+### 적용 방법
+자동 적용 (harness-upgrade가 scripts/·skills/ 갱신).
+
+### 수동 적용
+없음.
+
+
+
 ## v0.36.0 — BIT(Bug Interrupt Triage) 규칙 신설 + CPS 순환 루프 설계 (2026-05-05)
 
 ### 변경 내용
