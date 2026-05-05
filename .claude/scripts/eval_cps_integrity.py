@@ -31,9 +31,6 @@ verify_solution_ref = _pcc.verify_solution_ref
 CPS_DOC             = _pcc.CPS_DOC
 
 
-PROBLEM_INFLATION_THRESHOLD = 6
-
-
 def extract_cps_solution_ids(cps_text: str) -> list[str]:
     """CPS 본문에서 S# Solution ID 목록을 순서대로 추출.
     "### S1 ..." 헤더 패턴 및 "**S1**" 굵은 글씨 패턴 모두 지원.
@@ -166,6 +163,9 @@ def main() -> int:
 
     problem_count = count_cps_problems(cps_text)
     solution_ids = extract_cps_solution_ids(cps_text)
+    # 인플레이션 임계값: CPS Problem 수 기반 동적 계산 (고정 6 폐기)
+    # 기준: Problem 수 + 2 (소규모 추가 여유), 최소 8
+    inflation_threshold = max(8, problem_count + 2)
 
     all_warnings: list[str] = []
     problem_refs: dict = {}  # P# → 인용 문서 수 (진전 신호 proxy)
@@ -202,8 +202,8 @@ def main() -> int:
     print(f"")
     print(f"- 스캔 문서: {scanned}개")
     print(f"- CPS Problem 수: {problem_count}개")
-    if problem_count > PROBLEM_INFLATION_THRESHOLD:
-        print(f"  ⚠ Problem 인플레이션 의심 — {problem_count} > {PROBLEM_INFLATION_THRESHOLD}. "
+    if problem_count > inflation_threshold:
+        print(f"  ⚠ Problem 인플레이션 의심 — {problem_count} > {inflation_threshold} (동적 임계값). "
               f"근접 Problem 병합 검토 권고")
     print(f"- 박제 의심: {len(all_warnings)}건")
     if new_flag_items:

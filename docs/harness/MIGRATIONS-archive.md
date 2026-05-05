@@ -43,6 +43,20 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.36.2 — BIT Phase 3 — eval --harness NEW 플래그 집계 + pre-check CPS empty 경고 (2026-05-05)
+
+### 변경 내용
+- `eval/SKILL.md` --harness 보고 섹션: CPS 무결성에 `NEW 플래그 미처리` 집계 항목 추가
+- `pre_commit_check.py`: `get_cps_text()` 빈 문자열 반환 시 "CPS 본문 없음 — 박제 감지 불가" 경고 추가 (harness-init 미완료 환경 사각지대 차단)
+
+### 적용 방법
+자동 적용 (harness-upgrade가 scripts/·skills/ 갱신).
+
+### 수동 적용
+없음.
+
+
+
 ## v0.36.1 — BIT Phase 2 — session-start.sh 이슈 감지 + Step 0.8 기록 의무 (2026-05-05)
 
 ### 변경 내용

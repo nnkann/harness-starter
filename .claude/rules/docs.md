@@ -1,6 +1,6 @@
 # Docs 규칙
 
-defends: P5
+defends: P7
 
 ## 핵심 원칙 — 파일명이 곧 인덱스
 

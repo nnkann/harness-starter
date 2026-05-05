@@ -1,6 +1,6 @@
 # 네이밍 규칙
 
-defends: P5
+defends: P7
 
 <!-- naming-convention 스킬 실행 후 채워진다 -->
 

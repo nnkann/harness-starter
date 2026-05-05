@@ -1,0 +1,195 @@
+# HARNESS_MAP.md — 하네스 신경망 허브
+
+> **이 파일에 등재된 모든 구성요소는 작업 전 관련 섹션을 전체 Read 필수.**
+> 부분 읽기·요약으로 판단 시작 금지.
+
+**Read 범위**: 작업 관련 섹션만 읽는다.
+Rules 변경 → Rules + CPS 섹션. Skills 추가 → Skills + CPS 섹션.
+
+---
+
+## 읽는 법
+
+- `defends`: 이 규칙이 지키는 CPS Problem
+- `defends-by`: 이 Problem을 지키는 규칙들 (역방향)
+- `serves`: 이 도구가 충족하는 CPS Solution
+- `serves-by`: 이 Solution을 충족하는 도구들 (역방향)
+- `enforced-by`: 이 규칙을 실행하는 도구
+- `enforced-by-inverse`: 이 도구가 실행하는 규칙들
+
+---
+
+## CPS (왜 — 최상위)
+
+원본: `docs/guides/project_kickoff.md`
+
+| Problem | 정의 1줄 | defends-by (규칙) | served-by (도구) |
+|---------|---------|-----------------|----------------|
+| P1 | LLM 추측 수정 반복 | no-speculation, internal-first, bug-interrupt, coding, external-experts | implementation, eval, debug-specialist |
+| P2 | review 과잉 비용 | staging | commit, review |
+| P3 | 다운스트림 사일런트 페일 | (규칙 없음 — 프로세스 방어) | harness-upgrade, downstream-readiness.sh |
+| P4 | hook 매처 fragility | hooks | bash-guard.sh |
+| P5 | MCP·플러그인 컨텍스트 팽창 | (조사 중) | — |
+| P6 | 검증망 스킵 | self-verify, pipeline-design | harness-dev, eval |
+| P7 | 구성요소 관계 불투명 | docs, naming, memory, anti-defer | eval_cps_integrity.py, (HARNESS_MAP.md 자체) |
+
+---
+
+## Rules (무엇을 지켜야 하는가)
+
+### Layer 0 — 원칙 (모든 행동에 적용)
+
+| 규칙 | 역할 1줄 | defends | enforced-by | 원본 |
+|-----|---------|---------|------------|------|
+| no-speculation | 관찰 먼저, 추측 금지 | P1 | review, debug-guard.sh | rules/no-speculation.md |
+| anti-defer | 명시 지시는 즉시 처리 | P7 | review | rules/anti-defer.md |
+
+### Layer 1 — 절차 (특정 흐름에 적용)
+
+| 규칙 | 역할 1줄 | defends | parent | children | enforced-by | 원본 |
+|-----|---------|---------|--------|---------|------------|------|
+| bug-interrupt | 발견 즉시 판단 (Q1/Q2/Q3) | P1 | no-speculation | — | review | rules/bug-interrupt.md |
+| internal-first | 내부 자료 우선 | P1 | no-speculation | external-experts | review | rules/internal-first.md |
+| self-verify | 완료 전 AC 검증 | P6 | — | — | pre_commit_check.py | rules/self-verify.md |
+| staging | review 강도 자동 결정 | P2 | — | — | pre_commit_check.py | rules/staging.md |
+
+### Layer 2 — 도메인 (특정 영역에 적용)
+
+| 규칙 | 역할 1줄 | defends | enforced-by | 원본 |
+|-----|---------|---------|------------|------|
+| hooks | hook 매처 fragility 방지 | P4 | bash-guard.sh, review | rules/hooks.md |
+| pipeline-design | 단계 설계 7항목 체크 | P6 | review | rules/pipeline-design.md |
+| coding | surgical changes 원칙 | P1 | review | rules/coding.md |
+| security | 시크릿 노출 방지 (다운스트림 선택) | P3 | pre_commit_check.py | rules/security.md |
+
+### Layer 3 — 관리 (시스템 유지에 적용)
+
+| 규칙 | 역할 1줄 | defends | enforced-by | 원본 |
+|-----|---------|---------|------------|------|
+| docs | 문서 체계 유지 | P7 | pre_commit_check.py, docs_ops.py | rules/docs.md |
+| naming | 네이밍·cluster 체계 | P7 | docs_ops.py | rules/naming.md |
+| memory | 세션 간 지식 유지 | P7 | stop-guard.sh | rules/memory.md |
+| external-experts | 외부 전문가 참조 캐시 | P1 | researcher | rules/external-experts.md |
+
+### 규칙 간 참조 맵
+
+```
+(eval --harness 실행 시 자동 삽입 예정 — Phase 1)
+```
+
+---
+
+## Skills (사용자가 어떻게 트리거하는가)
+
+| 스킬 | 역할 1줄 | serves | 위임 대상 | 원본 |
+|-----|---------|--------|---------|-----|
+| implementation | 작업 오케스트레이터·CPS 허브 | S1, S6 | codebase-analyst, researcher, advisor, review | skills/implementation/SKILL.md |
+| commit | 검증 게이트·문서 이동 | S2, S6 | pre_commit_check.py, review, commit_finalize.sh | skills/commit/SKILL.md |
+| write-doc | 문서 단독 생성 | S5 | docs_ops.py | skills/write-doc/SKILL.md |
+| eval | 주기적 건강 진단 | S1, S6 | eval_cps_integrity.py, advisor(--deep) | skills/eval/SKILL.md |
+| advisor | 기술 결정 종합 | S1 | researcher, codebase-analyst, risk-analyst | skills/advisor/SKILL.md |
+| harness-init | 신규 프로젝트 환경 구성 | S3 | check_init_done.sh | skills/harness-init/SKILL.md |
+| harness-upgrade | 다운스트림 업그레이드 | S3 | harness_version_bump.py, downstream-readiness.sh | skills/harness-upgrade/SKILL.md |
+| harness-adopt | 기존 프로젝트 이식 | S3 | docs_ops.py | skills/harness-adopt/SKILL.md |
+| harness-sync | 환경 동기화 | S3 | install-starter-hooks.sh | skills/harness-sync/SKILL.md |
+| harness-dev | starter 개발 전용 | S6 | harness_version_bump.py | skills/harness-dev/SKILL.md |
+| doc-health | 레거시 문서 정비 | S3 | docs_ops.py, eval_cps_integrity.py | skills/doc-health/SKILL.md |
+| check-existing | 중복 함수 확인 | S1 | Grep, codebase-analyst | skills/check-existing/SKILL.md |
+| coding-convention | 코딩 컨벤션 관리 | S1 | — | skills/coding-convention/SKILL.md |
+| naming-convention | 네이밍 컨벤션 관리 | S5 | — | skills/naming-convention/SKILL.md |
+
+---
+
+## Agents (Claude가 무엇에 위임하는가)
+
+| 에이전트 | 역할 1줄 | serves | 위임 주체 | 원본 |
+|---------|---------|--------|---------|-----|
+| advisor | 기술 결정·스택 선택 종합 | S1 | implementation, eval | agents/advisor.md |
+| codebase-analyst | 내부 코드 분석·패턴 | S1 | implementation, commit | agents/codebase-analyst.md |
+| researcher | 외부 자료 조사 | S1 | implementation, advisor | agents/researcher.md |
+| doc-finder | 내부 문서 탐색 | S1 | implementation, write-doc | agents/doc-finder.md |
+| review | 커밋 전 변경 검증 | S2 | commit | agents/review.md |
+| debug-specialist | 에러·예상 외 동작 진단 | S1 | 에러 1회 불명 시 자동 | agents/debug-specialist.md |
+| risk-analyst | 위험·반대 논거 | S6 | advisor, commit | agents/risk-analyst.md |
+| threat-analyst | 외부 공격면 검토 | S3 | eval --deep | agents/threat-analyst.md |
+| performance-analyst | 성능 병목 분석 | S2 | implementation | agents/performance-analyst.md |
+
+---
+
+## Scripts (자동화가 무엇을 실행하는가)
+
+### 자동 트리거 (hooks)
+
+| 스크립트 | hook 이벤트 | 역할 1줄 | enforced-by-inverse |
+|---------|-----------|---------|-------------------|
+| session-start.py | SessionStart | 세션 초기 상태·WIP 알림 | — |
+| debug-guard.sh | UserPromptSubmit | 에러 키워드 감지 | no-speculation |
+| stop-guard.sh | Stop | 세션 종료 memory 환기 | memory |
+| post-compact-guard.sh | PostCompact | 컴팩션 후 컨텍스트 복원 | — |
+| write-guard.sh | PreToolUse(Write) | docs/ WIP 직접 Write 차단 | docs |
+| bash-guard.sh | PreToolUse(Bash) | argument-constraint 패턴 차단 | hooks |
+| auto-format.sh | PostToolUse | 포맷 자동 적용 | coding |
+
+### 수동 호출 (스킬이 실행)
+
+| 스크립트 | 호출 스킬 | 역할 1줄 | enforced-by-inverse |
+|---------|---------|---------|-------------------|
+| pre_commit_check.py | commit | AC·CPS·staged 검증 + stage 결정 | self-verify, staging |
+| docs_ops.py | commit, write-doc, doc-health | 문서 이동·cluster 갱신·reopen | docs, naming |
+| eval_cps_integrity.py | eval, harness-dev | defends/serves 정합성 감사 | — |
+| harness_version_bump.py | harness-dev, commit | 버전 범프 | — |
+| commit_finalize.sh | commit | git commit 래퍼 | — |
+| split-commit.sh | commit | 커밋 분할 | — |
+| extract_review_verdict.py | commit | review verdict 파싱 | — |
+| task_groups.py | commit | 파일 그룹 분류 | — |
+| downstream-readiness.sh | harness-upgrade | 업그레이드 후 누락 진단 | — |
+| install-starter-hooks.sh | harness-sync | hooks 설치 | — |
+| check_init_done.sh | implementation, harness-init | init 완료 여부 | — |
+| validate-settings.sh | harness-upgrade | settings.json 검증 | — |
+| test-bash-guard.sh | harness-dev | bash-guard 회귀 테스트 | hooks |
+
+---
+
+## Domains & Clusters (탐색 진입점)
+
+| 도메인 | abbr | cluster 파일 | 주요 문서 유형 |
+|-------|------|------------|-------------|
+| harness | hn | docs/clusters/harness.md | 하네스 자체 설계·결정·이력 |
+| meta | mt | docs/clusters/meta.md | 프로젝트 전역 문서 |
+
+CPS 진입점: `docs/guides/project_kickoff.md`
+
+---
+
+## 역추적 활용 방법
+
+문제가 발생했을 때:
+
+```
+1. 증상 확인
+   → CPS 섹션에서 해당 Problem 찾기
+
+2. 어떤 규칙이 방어했어야 하는가
+   → Problem의 defends-by 컬럼 → 해당 규칙 전체 Read
+
+3. 어떤 도구가 실행했어야 하는가
+   → 규칙의 enforced-by → 해당 스크립트·에이전트 확인
+
+4. 어디서 실패했는가
+   → 도구 로그·git history → 원인 특정
+```
+
+개선할 때:
+
+```
+1. 새 규칙/도구 추가
+   → CPS 섹션에서 어떤 Problem을 defends하는지 판단
+   → Layer 0~3 중 위치 결정
+   → defends-by 업데이트
+
+2. eval_cps_integrity.py가 관계 그래프 단절 자동 감지 (Phase 1 완료 후)
+```
+
+---
+
+*임시 버전 (2026-05-06) — Phase 1 eval 확장 후 자동 검증 예정*

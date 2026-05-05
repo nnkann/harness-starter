@@ -92,6 +92,21 @@ permissions.allow 미전파, MIGRATIONS.md 공백, starter_skills 오염 등
 
 **승격 상태**: 4중 방어 (아래 S6 참조).
 
+### P7. 시스템 구성 요소 간 관계 불투명
+
+**증상**:
+- 규칙·스킬·에이전트·스크립트가 서로를 모름
+- 새 구성요소 추가 시 어디에 위치하는지 판단 기준 없음
+- defends/serves 오매핑이 수개월 방치됨 (anti-defer·docs·memory·naming이 P5를 defends 선언했으나 내용 무관)
+- 작업 전 어떤 문서를 읽어야 하는지 단일 진입점 없음
+
+**영향**:
+- P1 유발 — Claude가 규칙 간 관계를 추측으로 채움
+- P6 유발 — 잘못된 매핑이 검증 없이 커밋됨
+- 미완독 유발 — Read 강제 수단 없음 (SKILL.md 700줄+ 후반부 규칙이 묻힘)
+
+**승격 상태**: HARNESS_MAP.md 설계 완료 (2026-05-05~06 전수 조사). P7은 P1·P6의 구조적 원인.
+
 ## Solutions
 
 각 Problem의 현 접근. **해결 기준**: 이 조건이 충족돼야 Solution이 작동하는 것으로 판단.
