@@ -333,6 +333,23 @@ BIT가 이미 Q1/Q2/Q3로 중요도 판단을 완료했으므로, P# 매칭·추
 - [x] eval/SKILL.md --harness CPS 무결성 섹션에 "NEW 플래그 미처리 집계" 항목 추가 ✅
 - [x] pre_commit_check.py get_cps_text() 빈 문자열 반환 시 stderr 경고 추가 ✅
 
+### Phase 4 — CPS staged 경고 + implementation Step 0 NEW 플래그 자동 인식
+
+**영향 파일**:
+- `.claude/scripts/pre_commit_check.py` (CPS staged + solution-ref 미갱신 경고)
+- `.claude/skills/implementation/SKILL.md` (Step 0 Problem 매칭 NEW 플래그 인식)
+
+**Acceptance Criteria**:
+- [x] Goal: CPS가 staged될 때 solution-ref 미갱신 파일을 경고하고,
+       implementation Step 0에서 NEW 플래그를 P# 등록 후보로 자동 인식
+  검증:
+    review: self
+    tests: pytest .claude/scripts/tests/ -q -x
+    실측: 없음
+- [x] pre_commit_check.py: project_kickoff.md staged + 다른 staged 파일에 solution-ref 있으면 ✅
+      CPS 본문과 재비교 경고 출력 ✅
+- [x] implementation/SKILL.md Step 0 Problem 매칭 표에 NEW 플래그 인식 행 추가 ✅
+
 ## 구현 순서
 
 ```

@@ -43,6 +43,21 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.35.2 — CLAUDE.md 절대 규칙 + 진입점 보강 (2026-05-05)
+
+### 변경 내용
+- CLAUDE.md 절대 규칙에 `docs/WIP/ 파일 Write 직접 생성 금지` 추가
+- CLAUDE.md 진입점 표에 "문서 생성 (코드 작업 수반) → /implementation" 항목 추가
+- CLAUDE.md `<important>` 태그 조건에 Write 도구 직접 사용 명시
+
+### 적용 방법
+자동 적용 (harness-upgrade가 CLAUDE.md 갱신).
+
+### 수동 적용
+없음.
+
+
+
 ## v0.35.1 — starter_skills 필터링 구현 + harness-dev 등록
 
 ### 변경 파일

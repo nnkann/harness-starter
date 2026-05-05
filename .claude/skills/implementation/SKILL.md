@@ -110,6 +110,7 @@ docs/guides/에 CPS 문서(`project_kickoff.md`)를 Read.
 | **miss + 병합 후보** | 의미 거리 가까움이지만 정확 매칭 없음 → 기존 Problem 본문 확장. write-doc 위임. **단독 판단** |
 | **miss + 추가 후보** | 의미 거리 멀고 새 영역 → 신규 Problem 등록. write-doc 위임. **단독 판단** |
 | **Solution 충족 기준 변경** | 프로젝트 owner 승인 필수. 추측 금지 |
+| **BIT NEW 플래그** | WIP `## 발견된 스코프 외 이슈`의 `P#: NEW — "..."` 항목을 P# 등록 후보로 자동 인식. 작업 발화와 별개로 각 NEW 항목을 위 매칭 표에 적용해 처리한다. P# 추가는 Claude 단독 판단 가능 (docs.md "CPS 변경 권한" 참조) |
 
 판단 근거 1줄을 WIP `## 메모`에 기록.
 

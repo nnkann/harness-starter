@@ -850,6 +850,18 @@ def main() -> int:
     if not stage and any(CPS_EXEMPT_PATHS.match(f) for f in staged_files):
         # CPS 면제 파일이 staged면 그게 곧 CPS 본문 변경
         stage = "deep"
+        # CPS staged + 다른 staged 파일에 solution-ref 있으면 재비교 경고
+        # (CPS 본문이 바뀌었으므로 기존 인용이 박제될 수 있음)
+        non_cps_staged = [f for f in staged_files if not CPS_EXEMPT_PATHS.match(f)
+                          and f.endswith(".md")]
+        for f in non_cps_staged:
+            try:
+                txt = Path(f).read_text(encoding="utf-8")
+                fm = parse_frontmatter(txt)
+                if fm.get("solution-ref"):
+                    err(f"⚠ CPS 본문 변경 + {f} solution-ref 존재 — 인용 박제 재확인 필요")
+            except Exception:
+                pass
 
     # 룰 3: AC 검증.review 그대로 stage 결정
     if not stage:
