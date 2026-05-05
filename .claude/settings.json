@@ -55,7 +55,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/scripts/session-start.sh"
+            "command": "python3 .claude/scripts/session-start.py"
           }
         ]
       }

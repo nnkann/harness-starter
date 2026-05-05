@@ -43,6 +43,22 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.36.0 — BIT(Bug Interrupt Triage) 규칙 신설 + CPS 순환 루프 설계 (2026-05-05)
+
+### 변경 내용
+- `rules/bug-interrupt.md` 신설 — 스코프 외 버그 발견 시 Q1/Q2/Q3 결정 트리
+  자율 판단. 판단 기준 SSOT를 AC+CPS+security.md로 외부화
+- `implementation/SKILL.md` Step 3에 BIT 참조 추가
+- `rules/docs.md` CPS 변경 권한 — Problem 추가를 BIT Q3 경로에서도 Claude 단독 가능으로 명시
+
+### 적용 방법
+자동 적용 (harness-upgrade가 rules/ 갱신).
+
+### 수동 적용
+없음.
+
+
+
 ## v0.35.3 — CLAUDE.md 행동 원칙 AC·CPS 실질 내용으로 교체 (2026-05-05)
 
 ### 변경 내용
