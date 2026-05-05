@@ -123,7 +123,7 @@ BIT는 단방향 작업 흐름을 순환 구조로 연결하는 고리다:
 작업 중 발견
     ↓ BIT Q1/Q2/Q3 판단
 Q3=YES → WIP 기록 + CPS P# 즉시 매칭
-    ↓ 세션 시작마다 (session-start.sh — Phase 2 구현 예정)
+    ↓ 세션 시작마다 (session-start.sh — Phase 2 완료)
 "## 발견된 스코프 외 이슈" 섹션 감지 → 사용자 알림
     ↓ 다음 implementation Step 0
 NEW 플래그 → CPS 신규 P# 등록 후보 인식

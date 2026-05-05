@@ -43,6 +43,20 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.35.3 — CLAUDE.md 행동 원칙 AC·CPS 실질 내용으로 교체 (2026-05-05)
+
+### 변경 내용
+- CLAUDE.md "행동 원칙" 섹션을 추상 원칙(Think Before Coding·Goal-Driven Execution)에서
+  AC·CPS 실질 내용(형식·필수 필드·SSOT 링크)으로 교체
+
+### 적용 방법
+자동 적용 (harness-upgrade가 CLAUDE.md 갱신).
+
+### 수동 적용
+없음.
+
+
+
 ## v0.35.2 — CLAUDE.md 절대 규칙 + 진입점 보강 (2026-05-05)
 
 ### 변경 내용

@@ -182,6 +182,22 @@ def main() -> int:
 
     solution_counts = count_solution_refs(docs_root)
 
+    # BIT NEW 플래그 미처리 집계
+    # docs/WIP/ + docs/decisions/ 파일에서 "P#: NEW" 패턴 grep
+    new_flag_pat = re.compile(r"P#:\s*NEW\b")
+    new_flag_items: list[str] = []
+    for search_dir in [docs_root / "WIP", docs_root / "decisions"]:
+        if not search_dir.is_dir():
+            continue
+        for md in sorted(search_dir.glob("*.md")):
+            try:
+                text = md.read_text(encoding="utf-8")
+            except Exception:
+                continue
+            for line in text.splitlines():
+                if new_flag_pat.search(line):
+                    new_flag_items.append(f"  - {md.name}: {line.strip()}")
+
     print(f"## CPS 무결성 감시")
     print(f"")
     print(f"- 스캔 문서: {scanned}개")
@@ -190,6 +206,13 @@ def main() -> int:
         print(f"  ⚠ Problem 인플레이션 의심 — {problem_count} > {PROBLEM_INFLATION_THRESHOLD}. "
               f"근접 Problem 병합 검토 권고")
     print(f"- 박제 의심: {len(all_warnings)}건")
+    if new_flag_items:
+        print(f"- NEW 플래그 미처리: {len(new_flag_items)}건 ⚠")
+        for item in new_flag_items:
+            print(item)
+        print(f"  → implementation Step 0에서 CPS P# 매칭 필요")
+    else:
+        print(f"- NEW 플래그 미처리: 0건 ✅")
 
     if all_warnings:
         print(f"")
