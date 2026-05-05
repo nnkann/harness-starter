@@ -55,6 +55,64 @@ updated: 2026-04-16             # 선택
 `docs/guides/project_kickoff.md`(CPS 자체)는 `problem`·`solution-ref` 면제.
 CPS는 마스터이므로 자기 자신 인용 무의미. pre-check이 면제.
 
+## 하네스 구성요소 메타데이터 (rules·skills·agents 파일 상단)
+
+rules·skills·agents 파일 상단에 선언하는 관계 필드. **HARNESS_MAP.md의 양방향 관계 지도와 정합**해야 한다.
+
+### `defends:` — 규칙 파일 전용
+
+```
+defends: P#
+```
+
+이 규칙이 지키는 CPS Problem ID. 규칙 파일 본문 2번째 줄(제목 다음)에 선언.
+
+**매핑 판단 트리 (새 규칙 추가 시)**:
+
+```
+1. 이 규칙이 없으면 어떤 증상이 반복되는가?
+   → 그 증상이 CPS의 어느 Problem 정의와 일치하는가?
+   → 일치하면 → defends: P#
+
+2. 여러 Problem에 걸치면?
+   → 주된 Problem 1개만. 부수는 본문에서 언급.
+
+3. 어느 Problem에도 해당 없으면?
+   → CPS에 새 Problem 등록 후 defends: P# (docs.md "CPS 변경 권한" 참조)
+```
+
+**Layer 배치 기준** (HARNESS_MAP.md Rules 섹션):
+- Layer 0: 모든 행동에 적용되는 원칙 (no-speculation, anti-defer)
+- Layer 1: 특정 흐름에 적용되는 절차 (bug-interrupt, self-verify 등)
+- Layer 2: 특정 도메인 영역에 적용 (hooks, coding, pipeline-design)
+- Layer 3: 시스템 유지 관리 (docs, naming, memory, external-experts)
+
+### `serves:` — skills·agents 파일 전용
+
+```
+serves: S#
+```
+
+이 스킬·에이전트가 충족하는 CPS Solution ID. 파일 frontmatter에 선언.
+
+**매핑 판단 트리**:
+
+```
+1. 이 도구가 해결하는 Problem은 무엇인가?
+   → 그 Problem의 Solution이 S#
+   → serves: S#
+
+2. 여러 Solution에 걸치면?
+   → 쉼표 구분: serves: S1, S6
+```
+
+### `enforced-by:` — rules 파일 전용 (HARNESS_MAP.md 기록용)
+
+규칙을 실제로 실행·감지하는 도구. rules 파일 본문에 직접 선언하지 않고
+**HARNESS_MAP.md Rules 섹션의 enforced-by 컬럼**에만 기록한다.
+
+규칙 파일 본문에 "이 규칙을 누가 enforces하는가"가 명시됐으면 HARNESS_MAP.md와 정합 확인.
+
 ## CPS 인용 (frontmatter `problem`·`solution-ref`)
 
 CPS = `docs/guides/project_kickoff.md`가 마스터. 다른 모든 문서가 단방향 인용.

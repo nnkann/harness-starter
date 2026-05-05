@@ -6,6 +6,25 @@
 **Read 범위**: 작업 관련 섹션만 읽는다.
 Rules 변경 → Rules + CPS 섹션. Skills 추가 → Skills + CPS 섹션.
 
+## 유기체 구조
+
+```
+CPS (뇌)
+  목적·기준을 정의하는 판단 중추.
+  decisions/·incidents/ 문서에 축적된 성공·실패가 여기로 귀환해
+  Problem·Solution 정의를 갱신한다. 같은 실수가 반복되면 CPS가
+  그 기억을 흡수하지 못한 것 — 새 Problem 등록 또는 Solution 보완.
+
+HARNESS_MAP.md (대혈관)
+  CPS의 신호가 각 기관(rules·skills·agents·scripts)으로 흐르는
+  주요 혈관. 역방향(기관→CPS) 신호도 이 지도로 추적한다.
+
+docs/ — decisions/·incidents/·guides/ (미세혈관)
+  대혈관이 전달하지 못하는 프로젝트 고유 맥락을 채운다.
+  업스트림이 설계한 혈관망에 다운스트림이 자기 조직을 붙이는 것.
+  이 문서들 없이는 유기체가 starter 수준에 머문다.
+```
+
 ---
 
 ## 읽는 법
@@ -74,8 +93,11 @@ Rules 변경 → Rules + CPS 섹션. Skills 추가 → Skills + CPS 섹션.
 ### 규칙 간 참조 맵
 
 ```
-(eval --harness 실행 시 자동 삽입 예정 — Phase 1)
+no-speculation → (parent) bug-interrupt, internal-first
+internal-first → (children) external-experts
 ```
+
+*수동 편집 금지. 규칙 파일 본문의 parent/children 관계 기준.*
 
 ---
 
@@ -187,9 +209,6 @@ CPS 진입점: `docs/guides/project_kickoff.md`
    → Layer 0~3 중 위치 결정
    → defends-by 업데이트
 
-2. eval_cps_integrity.py가 관계 그래프 단절 자동 감지 (Phase 1 완료 후)
+2. eval_cps_integrity.py가 관계 그래프 단절 자동 감지
+   → `python3 .claude/scripts/eval_cps_integrity.py` 실행 후 "관계 그래프 점검" 섹션 확인
 ```
-
----
-
-*임시 버전 (2026-05-06) — Phase 1 eval 확장 후 자동 검증 예정*

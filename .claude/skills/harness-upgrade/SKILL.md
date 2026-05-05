@@ -582,6 +582,22 @@ bash .claude/scripts/docs_ops.py cluster-update     # clusters/ 자동 재생성
 문제가 발견되면 사용자에게 보고하고 수정을 제안한다.
 문제가 없으면 "docs/ 정합성 확인 완료"로 넘어간다.
 
+### Step 9.3. HARNESS_MAP.md 전파 확인
+
+업그레이드 후 `.claude/HARNESS_MAP.md`가 다운스트림에 존재하는지 확인한다.
+
+```bash
+if [ ! -f ".claude/HARNESS_MAP.md" ]; then
+  echo "⚠ HARNESS_MAP.md 없음 — 하네스 신경망 허브 미전파"
+  echo "  Step 6(신규 파일 추가)에서 자동 추가됐어야 함. 수동 추가 권장:"
+  echo "  upstream의 .claude/HARNESS_MAP.md를 복사"
+else
+  echo "✅ HARNESS_MAP.md 존재"
+fi
+```
+
+없으면 사용자에게 알리고 수동 복사를 안내한다. Step 6에서 신규 파일로 감지됐다면 이미 추가됐을 것.
+
 ### Step 9.5. 마이그레이션 액션 표시
 
 업스트림의 `docs/harness/MIGRATIONS.md`를 읽어 **수동 적용** 항목을

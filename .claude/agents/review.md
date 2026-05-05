@@ -147,6 +147,20 @@ AC 없으면 이 검증 스킵 → 2·3번으로.
 
 **관련:** `.claude/rules/anti-defer.md`·`.claude/scripts/pre_commit_check.py` 3.5번 게이트
 
+### 8. SSOT 문서 미완독 감지
+
+**감지:** diff에 `.claude/skills/*/SKILL.md` 또는 `.claude/rules/*.md` 변경 포함
+
+**행동:**
+- 변경된 SKILL.md·rules/*.md를 Read tool로 전체 읽었는가 확인
+- Read tool 호출 없이 판단한 흔적(diff 요약만으로 결론) → **[경고]** "SSOT 문서 미완독 의심 — 전체 Read 권장"
+- 부분 읽기·요약으로 판단 시작한 흔적 → **[경고]**
+
+**예외:** 단순 오타 1줄 수정, frontmatter 필드만 변경
+
+**역추적 진입점:** 문제 원인이 불명확할 때 `.claude/HARNESS_MAP.md`를 먼저 참조한다.
+CPS 섹션 → Problem 찾기 → defends-by 컬럼 → 해당 규칙 전체 Read → enforced-by → 도구 확인
+
 ## 도구 선택 원칙
 
 순서: AC prompt 확인 → Read/Grep으로 영향 파일 → 필요할 때만 diff.

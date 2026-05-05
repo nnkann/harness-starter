@@ -36,6 +36,17 @@
 - completed 문서 본문 무단 변경 금지 — `docs_ops.py reopen`으로 in-progress 전환 후 수정. pre-check이 차단
 - docs/WIP/ 파일 Write 직접 생성 금지 — `/write-doc` 또는 `/implementation` 스킬 발화 후에만. 스킬 없이 Write 도구로 WIP 파일 생성 시 즉각 삭제 후 스킬 재진입
 
+## 하네스 신경망 허브
+
+`.claude/HARNESS_MAP.md` — CPS·Rules·Skills·Agents·Scripts 간 양방향 관계 지도 (대혈관).
+
+작업 전 관련 섹션을 읽는다. Rules 변경 → Rules + CPS 섹션. Skills 추가 → Skills + CPS 섹션.
+"어떤 규칙이 P1을 defends하는가?", "이 스크립트를 누가 실행하는가?" → 여기서 출발.
+
+`docs/guides/project_kickoff.md` (CPS) 는 뇌다. decisions/·incidents/ 문서에 축적된
+성공·실패가 CPS로 귀환해 Problem·Solution을 갱신한다. 같은 실수가 반복되면
+CPS가 그 기억을 흡수하지 못한 것 — 새 Problem 등록 또는 Solution 보완이 필요하다.
+
 ## 진입점
 
 | 상황 | 진입 |

@@ -43,6 +43,20 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.36.3 — BIT Phase 4 — CPS staged 경고 + implementation Step 0 NEW 플래그 인식 (2026-05-05)
+
+### 변경 내용
+- `pre_commit_check.py` 룰 2: project_kickoff.md staged 시 다른 staged 파일 중 solution-ref 있으면 "인용 박제 재확인 필요" 경고 출력
+- `implementation/SKILL.md` Step 0 Problem 매칭 표: BIT NEW 플래그 항목 추가 — WIP `## 발견된 스코프 외 이슈`의 `P#: NEW` 항목을 P# 등록 후보로 자동 인식
+
+### 적용 방법
+자동 적용 (harness-upgrade가 scripts/·skills/ 갱신).
+
+### 수동 적용
+없음.
+
+
+
 ## v0.36.2 — BIT Phase 3 — eval --harness NEW 플래그 집계 + pre-check CPS empty 경고 (2026-05-05)
 
 ### 변경 내용
