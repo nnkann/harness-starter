@@ -11,22 +11,23 @@
 
 ## 행동 원칙
 
-### Think Before Coding
+### AC (Acceptance Criteria)
 
-구현 전에 가정을 명시한다.
+모든 작업의 완료 기준. implementation Step 1이 WIP 문서에 작성.
 
-- 요청에 해석이 여러 개라면 선택지를 먼저 제시하고 확인한다
-- 가장 단순한 접근을 먼저 말한다. 복잡한 설계는 단순 방법이 실패한 뒤에
-- 모호하면 멈추고 질문한다. 가정으로 달려가지 마라
-- "아마 X일 것"으로 수정을 시작하지 마라 → `no-speculation.md`
+- AC 없는 작업은 완료 선언 불가 — AC부터 작성
+- AC 체크박스 전부 [x] → self-verify → /commit
+- 필수 필드 4개: `Goal:` / `review: skip|self|review|review-deep` / `tests:` / `실측:`
+- AC 형식 SSOT: `.claude/rules/docs.md` "## AC 포맷"
 
-### Goal-Driven Execution
+### CPS (Context·Problem·Solution)
 
-성공 기준을 먼저 정의하고 구현한다.
+모든 작업은 `docs/guides/project_kickoff.md`의 Problem에 매핑된다.
 
-- "버그 고쳐" → AC 먼저 정의, AC 통과하게 구현
-- 다단계 작업은 `[단계] → verify: [AC 항목]` 형식으로 계획 수립
-- WIP task AC 체크박스가 완료 기준. 전부 [x] → self-verify → /commit
+- implementation Step 0이 작업 발화 → P# 매칭 → WIP frontmatter에 기록
+- WIP frontmatter 필수: `problem: P#` / `solution-ref: S# — "..."`
+- CPS 없으면 pre-check이 차단 (harness-init 미완료)
+- CPS 인용 형식 SSOT: `.claude/rules/docs.md` "## CPS 인용"
 
 ## 절대 규칙
 - worktree 생성 금지. Agent 호출 시 `isolation: "worktree"` 사용 금지.
@@ -39,9 +40,8 @@
 
 | 상황 | 진입 |
 |------|------|
-| 구현·버그수정·리팩토링 | `/implementation` 스킬 먼저 |
-| 문서 생성 (단독) | `/write-doc` 스킬 |
-| 문서 생성 (코드 작업 수반) | `/implementation` 스킬 |
+| 구현·버그수정·리팩토링·코드 수반 문서 생성 | `/implementation` 스킬 먼저 |
+| 문서 단독 생성 | `/write-doc` 스킬 |
 | 커밋 | `/commit` 스킬 |
 | 기술 결정·스택 선택 | `/advisor` 스킬 |
 | 에러·예상 밖 동작 (1회 시도로 원인 불명, 또는 동일 수정 2회 이상 반복) | `/debug-specialist` 에이전트 즉시 |
@@ -57,7 +57,6 @@
 </important>
 
 <important if="docs/ 하위에 새 문서·WIP 파일을 만들려 할 때, 또는 Write 도구로 docs/ 경로에 파일을 생성하려 할 때">
-스킬을 먼저 발화했는가? 문서 단독 생성은 `/write-doc`, 코드 작업 수반 시 `/implementation`. Write 도구 직접 사용은 절대 규칙 위반 — 즉시 스킬로 재진입.
-`.claude/rules/docs.md` "## SSOT 우선 + 분리 판단"을 먼저 읽어라.
-기존 문서가 있으면 갱신이 기본. 새 파일은 분리 근거가 있을 때만.
+1. 스킬을 먼저 발화했는가? — 문서 단독 생성은 `/write-doc`, 코드 작업 수반은 `/implementation`. Write 도구 직접 사용은 절대 규칙 위반 — 즉시 스킬로 재진입.
+2. SSOT 탐색 — `.claude/rules/docs.md` "## SSOT 우선 + 분리 판단" 적용. 기존 문서가 있으면 갱신이 기본. 새 파일은 분리 근거가 있을 때만.
 </important>
