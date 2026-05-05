@@ -363,6 +363,9 @@ created: {YYYY-MM-DD}
 - `## 메모`: 발견·변경 이유·specialist 응답 원문
 - 핸드오프 계약의 Record 축 준수
 
+**스코프 외 버그 발견 시**: 어느 Step에서든 스코프 외 이슈를 발견하면
+즉시 `.claude/rules/bug-interrupt.md` 적용. "나중에 처리" 금지.
+
 ### Step 4. 작업 완료 + CPS Context 업데이트
 
 `status: in-progress` → `status: completed`로 변경한다.
