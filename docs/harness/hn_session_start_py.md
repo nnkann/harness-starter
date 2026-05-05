@@ -6,7 +6,7 @@ solution-ref:
   - S6 — "행동 정의 문서 변경 효과가 검증 없이 커밋됨 (부분)"
 tags: [performance, session-start, python]
 relates-to: []
-status: in-progress
+status: completed
 created: 2026-05-05
 updated: 2026-05-05
 ---

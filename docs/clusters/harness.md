@@ -15,6 +15,7 @@ updated: 2026-05-05
 
 - [harness-adopt 레거시 문서 정비 지원 — doc-health 진단 플로우](../decisions/hn_adopt_legacy_doc_health.md)
 - [adopt-without-init 다운스트림 능동 유도 — harness-init 자동 트리거](../decisions/hn_adopt_without_init_guard.md)
+- [BIT(Bug Interrupt Triage) — 스코프 외 버그 자율 판단 시스템 설계](../decisions/hn_bug_interrupt_triage.md)
 - [cluster 재생성 게이팅 — 본체 변경 시 전수 갱신 패턴 분리](../decisions/hn_cluster_update_gating.md)
 - [코드 SSOT 서더링 감사 — 중복 정의·동기화 부담 정리](../decisions/hn_code_ssot_audit.md)
 - [commit 스킬 5.3 — AC 검증 묶음 자동 실행 (tests·실측 화이트리스트)](../decisions/hn_commit_auto_verify.md)
@@ -79,6 +80,7 @@ updated: 2026-05-05
 - [Phase 구조 보강 — WIP AC 섹션 + Phase 6원칙 + escalate 에이전트 트리거 + WIP 실행 순서](../harness/hn_phase_agent_improvements.md)
 - [PRD 레이어 보강 — User Needs 섹션·milestones 샘플·harness-init 권고](../harness/hn_prd_layers.md)
 - [rules → docs 참조 화이트리스트 — 동적 탐색으로 대체](../harness/hn_review_whitelist_autodetect.md)
+- [session-start.sh → session-start.py 전환 — spawn 비용 절감](../harness/hn_session_start_py.md)
 - [하네스 단순화 — 추가 누적으로 인한 마찰 회수](../harness/hn_simplification.md)
 - [eval에 Solution 충족 인용 분포 집계 추가](../harness/hn_solution_ref_aggregation.md)
 - [split 커밋 sub-group review stage 재판정 — 그룹별 신호 기반 강도 결정](../harness/hn_split_commit_review_stage.md)
@@ -105,7 +107,3 @@ updated: 2026-05-05
 - [starter 12커밋 push 누락 — 다운스트림이 업스트림 변경 못 봄](../incidents/hn_starter_push_skipped.md)
 - [린터 도구 실종 — T13이 우연히 가시화한 환경 이슈](../incidents/hn_test_isolation_git_log_leak.md)
 - [wip-sync incidents WIP 자동 완료 미동작 — 체크리스트 없는 문서 abbr 매칭 누락](../incidents/hn_wip_sync_incidents_gap.md)
-
-## 진행 중 (WIP)
-
-- [BIT(Bug Interrupt Triage) — 스코프 외 버그 자율 판단 시스템 설계](../WIP/decisions--hn_bug_interrupt_triage.md)
