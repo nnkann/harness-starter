@@ -10,7 +10,7 @@ relates-to:
     rel: extends
   - path: decisions/hn_downstream_amplification.md
     rel: references
-status: in-progress
+status: completed
 created: 2026-05-04
 updated: 2026-05-04
 ---

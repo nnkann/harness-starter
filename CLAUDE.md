@@ -33,13 +33,15 @@
 - Bash는 복합 파이프라인·git·스크립트 실행만. 단일 조회는 Glob·Read·Grep. (LSP 가능하면 LSP 우선)
 - 미루기 회피 사유 ("측정 후·다음 세션·데이터 누적 필요" 등) 단독 사용 금지 — `.claude/rules/anti-defer.md` SSOT
 - completed 문서 본문 무단 변경 금지 — `docs_ops.py reopen`으로 in-progress 전환 후 수정. pre-check이 차단
+- docs/WIP/ 파일 Write 직접 생성 금지 — `/write-doc` 또는 `/implementation` 스킬 발화 후에만. 스킬 없이 Write 도구로 WIP 파일 생성 시 즉각 삭제 후 스킬 재진입
 
 ## 진입점
 
 | 상황 | 진입 |
 |------|------|
 | 구현·버그수정·리팩토링 | `/implementation` 스킬 먼저 |
-| 문서 단독 생성 | `/write-doc` 스킬 |
+| 문서 생성 (단독) | `/write-doc` 스킬 |
+| 문서 생성 (코드 작업 수반) | `/implementation` 스킬 |
 | 커밋 | `/commit` 스킬 |
 | 기술 결정·스택 선택 | `/advisor` 스킬 |
 | 에러·예상 밖 동작 (1회 시도로 원인 불명, 또는 동일 수정 2회 이상 반복) | `/debug-specialist` 에이전트 즉시 |
@@ -54,7 +56,8 @@
 예외: 1줄 타이포·문서만 수정·settings.json 키-값 토글.
 </important>
 
-<important if="docs/ 하위에 새 문서·WIP 파일을 만들려 할 때">
+<important if="docs/ 하위에 새 문서·WIP 파일을 만들려 할 때, 또는 Write 도구로 docs/ 경로에 파일을 생성하려 할 때">
+스킬을 먼저 발화했는가? 문서 단독 생성은 `/write-doc`, 코드 작업 수반 시 `/implementation`. Write 도구 직접 사용은 절대 규칙 위반 — 즉시 스킬로 재진입.
 `.claude/rules/docs.md` "## SSOT 우선 + 분리 판단"을 먼저 읽어라.
 기존 문서가 있으면 갱신이 기본. 새 파일은 분리 근거가 있을 때만.
 </important>
