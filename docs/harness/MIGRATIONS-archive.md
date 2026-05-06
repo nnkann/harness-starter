@@ -43,6 +43,26 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.37.0 — session-start.py 신설 — bash spawn 제거로 세션 시작 66% 단축 (2026-05-05)
+
+### 변경 내용
+- `scripts/session-start.py` 신설 — session-start.sh의 완전 Python 재작성
+  bash spawn 23~25회 → git subprocess 최소화. 실행 시간 0.9초 → 0.28초 (66% 단축)
+- `settings.json` SessionStart hook: `bash session-start.sh` → `python3 session-start.py`
+
+### 적용 방법
+자동 적용 (harness-upgrade가 scripts/·settings.json 갱신).
+
+### 수동 적용
+없음. python3는 이미 필수 의존성.
+
+### 회귀 위험
+- session-start.sh는 삭제되지 않음 (이 버전). 롤백 필요 시 settings.json 복원.
+- src/ TODO 감지는 Python glob으로 대체 — bash grep과 동일 결과 확인됨.
+- upstream 격리 환경(Windows/Git Bash)에서 0.28초 실측. Linux/macOS 미테스트.
+
+
+
 ## v0.36.4 — BIT 루프 단절 수정 — eval_cps_integrity NEW 집계 + bug-interrupt 문서 부패 제거 (2026-05-05)
 
 ### 변경 내용

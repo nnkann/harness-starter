@@ -194,8 +194,9 @@ Stage는 **검증 심도의 상한**이자 **필수 실행 단계**를 정의.
 
 ## 한도
 
-- **maxTurns 6회** (frontmatter hard 상한).
-- **5회 사용 후 여유 1회 보존** — 남은 1회는 verdict 출력 여유분.
+- **maxTurns 10회** (frontmatter hard 상한).
+- **Read+Grep 합계 3회 이내** — 3회 안에 확신 못 하면 verdict: warn 즉시 출력.
+- **8회 사용 후 추가 Read·Grep 금지** — 남은 2회는 verdict 작성 여유분.
 - **verdict 없이 종료 절대 금지**.
 
 ## 입력

@@ -131,9 +131,11 @@ recommended_stage: deep
 s1_level:
 
 ## 지시
-WIP AC를 검증 기준으로 삼아라. AC 항목을 하나씩 확인하고,
-`영향 범위:` 항목이 있으면 해당 파일을 Read해서 회귀 체크.
-diff가 필요하면 `git diff --cached`를 직접 실행해서 확인해도 된다.
+WIP AC를 검증 기준으로 삼아라.
+**AC + 전제 컨텍스트만으로 판단 가능하면 즉시 verdict 출력 — 파일 Read 금지.**
+의심점이 명확할 때만 Read/Grep을 사용하되 **Read+Grep 합계 3회 이내**.
+3회 안에 확신 못 하면 "확인 못 함"으로 verdict: warn 보고 (추가 Read로 해결 시도 금지).
+스코프 이탈 의심 시에만 `git diff --cached` 1회.
 
 ## 출력 형식
 응답 본문에 `verdict: pass|warn|block` 한 단어 포함. 형식 자유 (markdown·
