@@ -43,6 +43,26 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.37.8 — memory 신호 파일 + session-start 컨텍스트 매칭 주입 (2026-05-06)
+
+### 변경 내용
+- `rules/memory.md` — 신호 파일(`signal_*.md`) 형식 정의: domain·strength·candidate_p 3필드. lifecycle(weak→medium→strong→incidents 등록→삭제) 명시
+- `scripts/session-start.py` — `section_signals()` 추가: 현재 WIP frontmatter domain과 매칭되는 신호만 출력. WIP 없으면 전체 출력.
+
+### 배경
+memory = 지속 신호 수집기 + CPS 보조 수단. incidents 등록 전 weak 신호를 보관하고, 같은 도메인 작업 시작 시 관련 신호만 선별 주입.
+
+### 적용 방법
+자동 적용.
+
+### 수동 적용
+없음.
+
+### 회귀 위험
+- upstream 격리 환경에서만 확인됨.
+
+
+
 ## v0.37.7 — HARNESS_MAP 연결 완성 — BIT·staging·implementation·review·harness-dev·eval·session-start (2026-05-06)
 
 ### 변경 내용

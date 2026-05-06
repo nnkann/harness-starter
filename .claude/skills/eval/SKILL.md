@@ -209,7 +209,15 @@ CLAUDE.md, .claude/rules/ 전체, .claude/skills/ 전체를 읽는다.
 Problem 인플레이션을 전수 감시한다. pre-check은 commit 시점 staged만 검증
 하므로 누적 박제는 eval만 잡는다.
 
-**6. 피드백 리포트 포맷** — 다운스트림 `docs/harness/migration-log.md`의
+**6. 방어 활성 기록** — `.claude/memory/signal_defense_success.md` 존재 여부와
+최근 기록을 확인한다. bash-guard.sh 차단 시 자동 append되는 파일.
+
+점검 방법:
+- 파일 존재 시: 최근 3개 항목 표시 + 총 기록 수
+- 파일 없음: "방어 기록 없음 (한 번도 차단 없었거나 Wave A 이전 버전)"
+- 정보 제공 목적 — 없다고 경고하지 않는다
+
+**7. 피드백 리포트 포맷** — 다운스트림 `docs/harness/migration-log.md`의
 `## Feedback Reports` 섹션이 규격(관점·약점·실천·심각도 4필드)을 준수하는지
 검증한다. 포맷 SSOT: `docs/harness/MIGRATIONS.md` "## Feedback Reports" 섹션.
 
@@ -277,6 +285,9 @@ CPS Problem 6개 초과 시 인플레이션 경고 — 근접 Problem 병합 검
 - Solution 충족 인용 분포: S1=0건 ⚠, S2=5건, S3=1건, S4=0건 ⚠, S5=14건, S6=1건
   (0건 Solution: S1, S4 — 맥락 확인 필요. 사람 판단)
 - NEW 플래그 미처리: 0건 ✅
+
+### 방어 활성 기록
+- 총 3건 | 최근: 2026-05-06 git commit 직접 호출 차단
 
 ### 피드백 리포트
 - 피드백 리포트: 없음 ✅

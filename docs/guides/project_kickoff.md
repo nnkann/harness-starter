@@ -194,8 +194,8 @@ P5를 악화시키는 역설. 해결 방향: HARNESS_MAP에 작업유형별 MVR(
 **제약**: claude-code matcher 동작이 공식 문서와 실측이 다를 때 있음.
 incident `hn_bash_n_flag_overblock` 참조.
 
-**추가 방어 레이어 (예정)**:
-6. **차단 성공 기록** — bash-guard.sh 차단 시 `.claude/memory/signal_defense_success.md`에 기록. "이 규칙은 여전히 유효하다"는 데이터 축적. eval --harness가 기록 존재 여부 검증.
+**추가 방어 레이어 (v0.38.3)**:
+6. **차단 성공 기록** — bash-guard.sh 차단 시 `.claude/memory/signal_defense_success.md`에 자동 append. "이 규칙은 여전히 유효하다"는 데이터 축적. eval --harness 항목 6번이 기록 확인.
 
 ### S5 (for P5): 압축 + 최소화
 

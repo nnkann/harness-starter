@@ -28,12 +28,26 @@ fi
 # 빈 명령은 통과
 [ -z "$COMMAND" ] && exit 0
 
+# 차단 성공 기록 함수 — background append, hook 실행시간 영향 없음
+# signal_defense_success.md: P4 방어 활성 데이터. eval --harness가 읽음.
+_record_defense() {
+  local reason="$1"
+  local sig_file=".claude/memory/signal_defense_success.md"
+  {
+    if [ ! -f "$sig_file" ]; then
+      printf -- "---\nsignal: bash-guard 차단 성공 기록\ndomain: harness\nkeywords: [bash-guard, defense, p4]\nstrength: medium\ncandidate_p: P4\n---\n\n" > "$sig_file"
+    fi
+    printf -- "- %s | %s\n" "$(date '+%Y-%m-%d')" "$reason" >> "$sig_file"
+  } 2>/dev/null &
+}
+
 # ─────────────────────────────────────────────
 # 검증 1: --no-verify 플래그 (commit/push hook 우회)
 # bash 내장 [[ =~ ]] 사용 — echo|grep 대비 ~10ms 절감 (매 Bash 호출마다)
 # ─────────────────────────────────────────────
 if [[ $COMMAND =~ (^|[[:space:]])--no-verify([[:space:]]|$) ]]; then
   echo "❌ --no-verify 금지 (pre-commit/pre-push hook 우회)." >&2
+  _record_defense "--no-verify 차단"
   exit 2
 fi
 
@@ -47,6 +61,7 @@ if [[ $COMMAND =~ ^[[:space:]]*git[[:space:]]+commit([[:space:]]|$) ]]; then
   UNQUOTED=$(echo "$COMMAND" | sed -E 's/"[^"]*"//g; s/'"'"'[^'"'"']*'"'"'//g')
   if [[ $UNQUOTED =~ (^|[[:space:]])-n([[:space:]]|$) ]]; then
     echo "❌ git commit -n 금지 (verify 우회). bash -n 같은 다른 -n은 영향 없음." >&2
+    _record_defense "git commit -n 차단"
     exit 2
   fi
 fi
@@ -60,6 +75,7 @@ if [[ $COMMAND =~ (^|[[:space:]])git[[:space:]]+worktree[[:space:]]+add([[:space
   echo "❌ git worktree add 금지 (CLAUDE.md 절대 규칙)." >&2
   echo "   근거: docs/incidents/hn_upstream_anomalies.md E 항목" >&2
   echo "   list/remove/prune은 허용." >&2
+  _record_defense "git worktree add 차단"
   exit 2
 fi
 
@@ -90,6 +106,7 @@ if [[ $COMMAND =~ (^|[[:space:]]|;|&&|\|)(eval|sh[[:space:]]+-c|bash[[:space:]]+
     echo "❌ 간접 실행(eval/sh -c/bash -c) 금지." >&2
     echo "   이유: git commit 등 차단 대상 명령의 우회 경로가 됨." >&2
     echo "   비상 이스케이프: HARNESS_DEV=1 <명령>" >&2
+    _record_defense "간접 실행 차단(eval/sh-c/bash-c)"
     exit 2
   fi
 fi
@@ -132,6 +149,7 @@ if [[ $UNQ_COMMAND =~ ^git[[:space:]]+commit([[:space:]]|$) ]]; then
   echo "   비상 이스케이프: HARNESS_DEV=1 git commit -m ..." >&2
   echo "   (시크릿 line-confirmed 가드는 git pre-commit hook이 항상 실행 — 우회 불가)" >&2
   echo "   근거: 스킬 우회 시 pre-check·review·진척도 갱신·추적 라인 누락" >&2
+  _record_defense "git commit 직접 호출 차단"
   exit 2
 fi
 
