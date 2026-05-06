@@ -74,6 +74,11 @@ permissions.allow 미전파, MIGRATIONS.md 공백, starter_skills 오염 등
 **승격 상태**: `rules/hooks.md` 금지 규칙 + `bash-guard.sh` 단일 hook
 통합 + `test-bash-guard.sh` 회귀.
 
+**운용 약점 (2026-05-06 식별)**: bash-guard.sh가 차단에 성공해도 그 사실이
+기록되지 않음. 방어 기전이 살아있는지 박제됐는지 판단 불가. eval --harness
+P4 인용 0건이 이를 방증 — "너무 잘 막혀서 존재를 잊는" 역설. S4에 "차단
+성공 기록" 레이어 추가 필요.
+
 ### P5. MCP·플러그인 컨텍스트 팽창
 
 **증상**: 서브에이전트 spawn 시 컨텍스트 3545k 토큰 보고.
@@ -81,6 +86,13 @@ permissions.allow 미전파, MIGRATIONS.md 공백, starter_skills 오염 등
 **영향**: 모든 review 호출이 비싸짐.
 
 **승격 상태**: 조사 진행 중. review.md `tools` allowlist 이미 적용.
+
+**구조적 원인 (2026-05-06 식별)**: MCP·플러그인 외에 업스트림 발 원인이
+있음. 하네스가 정교해질수록 에이전트가 읽어야 할 파일(MAP, Rules, SKILL.md)이
+증가하고, 이것이 다시 P5를 악화시키는 역설적 순환. "더 많은 문서화"로
+문제를 해결하려는 관성이 에이전트의 **미완독 회피 패턴**을 유발하는 근본
+원인. 해결 방향: 전체 문서 대신 "현재 작업에 필요한 최소 규칙셋(MVR)"만
+주입하는 압축 전략 (S5 방향 전환).
 
 ### P6. 검증망 스킵 패턴
 
@@ -106,6 +118,12 @@ permissions.allow 미전파, MIGRATIONS.md 공백, starter_skills 오염 등
 - 미완독 유발 — Read 강제 수단 없음 (SKILL.md 700줄+ 후반부 규칙이 묻힘)
 
 **승격 상태**: HARNESS_MAP.md 설계 완료 (2026-05-05~06 전수 조사). P7은 P1·P6의 구조적 원인.
+
+**미완독 회피 패턴 (2026-05-06 식별)**: SKILL.md·Rules 파일이 수백 줄을
+넘으면서 에이전트가 "전체를 읽었다"고 응답하지만 실제로는 후반부 규칙을
+무시하는 패턴 발생. P5(컨텍스트 팽창)와 상호 악화 — P7 해결(MAP 설계)이
+P5를 악화시키는 역설. 해결 방향: HARNESS_MAP에 작업유형별 MVR(최소 필수
+규칙셋) 매핑 컬럼 추가 (Wave B 대상).
 
 ## Solutions
 
@@ -146,7 +164,7 @@ permissions.allow 미전파, MIGRATIONS.md 공백, starter_skills 오염 등
 1. **MIGRATIONS.md** — upstream 소유 지시 문서. 버전별 "이번에 뭘 해야 하는가" 명시
 2. **harness-upgrade Step 8** — permissions.allow 동기화 (starter 신규 항목 추가 제안)
 3. **harness-upgrade Step 9.5** — 업그레이드 시 수동 액션 섹션 자동 표시
-4. **migration-log.md** — 다운스트림 소유 기록 문서. 업그레이드 충돌·이상 소견 기록 → upstream 전달 가능
+4. **migration-log.md** — 다운스트림 소유 기록 문서. 업그레이드 충돌·이상 소견 + **피드백 리포트** 기록 → upstream 전달 가능. 피드백 포맷: "관점 + 약점 + 실천" 구조로 규격화 (MIGRATIONS.md `## Feedback Reports` 섹션 SSOT)
 5. **downstream-readiness.sh** — 적용 후 누락 자가 진단
 
 **해결 기준**:
@@ -176,12 +194,23 @@ permissions.allow 미전파, MIGRATIONS.md 공백, starter_skills 오염 등
 **제약**: claude-code matcher 동작이 공식 문서와 실측이 다를 때 있음.
 incident `hn_bash_n_flag_overblock` 참조.
 
-### S5 (for P5): 조사 + 최소화
+**추가 방어 레이어 (예정)**:
+6. **차단 성공 기록** — bash-guard.sh 차단 시 `.claude/memory/signal_defense_success.md`에 기록. "이 규칙은 여전히 유효하다"는 데이터 축적. eval --harness가 기록 존재 여부 검증.
+
+### S5 (for P5): 압축 + 최소화
 
 **현재 가설 (미확정)**:
 - claude.ai 웹 통합 7개 → 사용자가 웹에서 해제 가능
 - enabledPlugins 5개 → 필요한 것만 on
 - 서브에이전트 `tools` allowlist → 이미 적용 (효과 실측 중)
+
+**방향 전환 (2026-05-06)**: MCP·플러그인 제거(외부 원인)와 별도로,
+업스트림 발 구조적 원인 대응 필요. 핵심 전략:
+- **MVR(Minimum Viable Rules)**: HARNESS_MAP에 작업유형별 "반드시 읽어야
+  할 최소 규칙셋" 매핑 컬럼 추가. "리팩토링 → Rules A, B만", "커밋 →
+  Rules C, D만" 식으로 에이전트가 지도를 접어서(Fold) 볼 수 있도록.
+- **문서 밀도 우선**: 문서 양 증가 대신 구조화·세그멘팅. 거대 SKILL.md
+  섹션 분리 또는 에이전트가 필요할 때만 읽는 구조 검토.
 
 **해결 기준**:
 - 서브에이전트 spawn 시 컨텍스트 < 500k 토큰 (현재 3545k)

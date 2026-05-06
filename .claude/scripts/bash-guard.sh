@@ -75,7 +75,27 @@ if [[ $COMMAND =~ \.claude/tmp/ ]]; then
 fi
 
 # ─────────────────────────────────────────────
-# 검증 4: `git commit` 직접 호출 차단 — commit 스킬 강제 경유 (audit #8)
+# 검증 4: 간접 실행 키워드 차단 (eval / sh -c / bash -c)
+#
+# 이유: eval $VAR, sh -c "git commit", bash -c "git commit" 등
+#       간접 실행 경로는 검증 4b의 git commit 패턴 매칭을 우회.
+#       간접 실행 자체를 차단해 우회 경로를 원천 봉쇄.
+#
+# 이스케이프: HARNESS_DEV=1 (사용자 긴급 시 명시적 사용).
+# ─────────────────────────────────────────────
+if [[ $COMMAND =~ (^|[[:space:]]|;|&&|\|)(eval|sh[[:space:]]+-c|bash[[:space:]]+-c)([[:space:]]|$) ]]; then
+  if [[ $COMMAND =~ (^|[[:space:]])HARNESS_DEV=1([[:space:]]|$) ]]; then
+    : # 이스케이프 해치 — 통과
+  else
+    echo "❌ 간접 실행(eval/sh -c/bash -c) 금지." >&2
+    echo "   이유: git commit 등 차단 대상 명령의 우회 경로가 됨." >&2
+    echo "   비상 이스케이프: HARNESS_DEV=1 <명령>" >&2
+    exit 2
+  fi
+fi
+
+# ─────────────────────────────────────────────
+# 검증 4b: `git commit` 직접 호출 차단 — commit 스킬 강제 경유 (audit #8)
 #
 # 이유: pre-check·review·진척도 갱신·추적 라인이 모두 commit 스킬에 있음.
 #       Bash `git commit` 직접 호출은 이 방어선 전체를 우회.
@@ -86,11 +106,16 @@ fi
 # commit 스킬도 `HARNESS_DEV=1`을 사용 — 이스케이프 경로 단일화.
 #
 # `git commit --help`·`git commit --dry-run`·`-h` 읽기 전용 호출은 통과.
+#
+# 이스케이프 우회 방지:
+# - 역슬래시 이스케이프(`git\ commit`) 정규화 후 검사
+# - 선행 환경변수 할당 제거 후 UNQ_COMMAND 기준 매칭
 # ─────────────────────────────────────────────
+# 역슬래시 이스케이프 정규화: `git\ commit` → `git commit`
+NORMALIZED_COMMAND=$(echo "$COMMAND" | sed 's/\\[[:space:]]/ /g')
+
 # 선행 환경변수 할당(`FOO=bar ... git commit`)을 벗겨낸 실행 명령 본문 추출.
-# `^[[:space:]]*git` 매칭으로는 `HARNESS_X=1 git commit`이 블록 진입조차
-# 못 함 — 과거 버그 (모든 prefix가 의도 없이 통과). UNQ_COMMAND 기준 매칭.
-UNQ_COMMAND=$(echo "$COMMAND" | sed -E 's/^[[:space:]]*([A-Z_][A-Z0-9_]*=[^[:space:]]*[[:space:]]+)+//')
+UNQ_COMMAND=$(echo "$NORMALIZED_COMMAND" | sed -E 's/^[[:space:]]*([A-Z_][A-Z0-9_]*=[^[:space:]]*[[:space:]]+)+//')
 
 if [[ $UNQ_COMMAND =~ ^git[[:space:]]+commit([[:space:]]|$) ]]; then
   # 읽기 전용 옵션은 통과

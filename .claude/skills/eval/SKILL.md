@@ -209,6 +209,16 @@ CLAUDE.md, .claude/rules/ 전체, .claude/skills/ 전체를 읽는다.
 Problem 인플레이션을 전수 감시한다. pre-check은 commit 시점 staged만 검증
 하므로 누적 박제는 eval만 잡는다.
 
+**6. 피드백 리포트 포맷** — 다운스트림 `docs/harness/migration-log.md`의
+`## Feedback Reports` 섹션이 규격(관점·약점·실천·심각도 4필드)을 준수하는지
+검증한다. 포맷 SSOT: `docs/harness/MIGRATIONS.md` "## Feedback Reports" 섹션.
+
+점검 방법:
+- `migration-log.md` 존재 여부 확인 (없으면 항목 skip — 다운스트림 전용)
+- `## Feedback Reports` 섹션 존재 시 FR 항목별 4개 필드 검사
+- 누락 필드 보고: `⚠️ FR-NNN: [필드명] 없음`
+- 항목 없음: `피드백 리포트: 없음 ✅`
+
 #### 실행
 
 ```bash
@@ -267,6 +277,16 @@ CPS Problem 6개 초과 시 인플레이션 경고 — 근접 Problem 병합 검
 - Solution 충족 인용 분포: S1=0건 ⚠, S2=5건, S3=1건, S4=0건 ⚠, S5=14건, S6=1건
   (0건 Solution: S1, S4 — 맥락 확인 필요. 사람 판단)
 - NEW 플래그 미처리: 0건 ✅
+
+### 피드백 리포트
+- 피드백 리포트: 없음 ✅
+```
+
+(Feedback Reports 항목이 있는 경우 예시:)
+```
+### 피드백 리포트
+- FR-001 ✅ (관점·약점·실천·심각도 모두 존재)
+- FR-002 ⚠️ 심각도 필드 없음
 ```
 
 NEW 플래그 집계: docs/WIP/·docs/decisions/ 파일에서 `P#:.*NEW` 패턴을

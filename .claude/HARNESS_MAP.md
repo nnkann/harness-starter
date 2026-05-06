@@ -53,8 +53,8 @@ docs/ — decisions/·incidents/·guides/ (미세혈관)
 | P1 | LLM 추측 수정 반복 | no-speculation, internal-first, bug-interrupt, coding, external-experts | implementation, eval, debug-specialist |
 | P2 | review 과잉 비용 | staging | commit, review |
 | P3 | 다운스트림 사일런트 페일 | (규칙 없음 — 프로세스 방어) | harness-upgrade, downstream-readiness.sh |
-| P4 | hook 매처 fragility | hooks | bash-guard.sh |
-| P5 | MCP·플러그인 컨텍스트 팽창 | (규칙 없음 — S5 조사 진행 중) | — |
+| P4 | hook 매처 fragility ⚠️ 차단 성공 기록 없음 | hooks | bash-guard.sh |
+| P5 | MCP·플러그인 + 업스트림 발 문서 팽창 (P7과 역설적 충돌) | (규칙 없음 — S5 MVR 전략으로 방향 전환) | — |
 | P6 | 검증망 스킵 | self-verify, pipeline-design | harness-dev, eval |
 | P7 | 구성요소 관계 불투명 | docs, naming, memory, anti-defer | eval_cps_integrity.py, (HARNESS_MAP.md 자체) |
 

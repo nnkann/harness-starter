@@ -43,6 +43,23 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.37.6 — normalize_quote `**` 제거 + 박제 인용 수정 (2026-05-06)
+
+### 변경 내용
+- `pre_commit_check.py` `normalize_quote()`: CPS 본문의 `**bold**` 마크다운을 제거하지 않아 박제 감지 오작동 → `**` 제거 추가
+- `docs/decisions/hn_verify_relates_precheck.md`: solution-ref `(부분)` 마커 제거 (50자 이내 원문)
+
+### 적용 방법
+자동 적용.
+
+### 수동 적용
+없음.
+
+### 회귀 위험
+- upstream 격리 환경에서만 확인됨.
+
+
+
 ## v0.37.5 — review tool call 과다 소모 근본 수정 (2026-05-06)
 
 ### 변경 내용

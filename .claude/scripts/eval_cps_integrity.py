@@ -373,7 +373,68 @@ def main() -> int:
             print(f"  인용 0건 Solution: {', '.join(zero_solutions)}")
             print(f"  (미충족 의심 — 최근 등록·구현 전·문서화 지연 등 맥락 확인 필요. 사람 판단)")
 
+    # 피드백 리포트 포맷 검증
+    fb_warnings = check_feedback_reports(docs_root)
+    print(f"")
+    print(f"## 피드백 리포트")
+    if fb_warnings is None:
+        print(f"- migration-log.md 없음 (다운스트림 전용) — skip ✅")
+    elif not fb_warnings:
+        print(f"- 피드백 리포트: 없음 ✅")
+    else:
+        fr_items = [w for w in fb_warnings if w.startswith("FR-")]
+        format_warnings = [w for w in fb_warnings if not w.startswith("FR-")]
+        if format_warnings:
+            for w in format_warnings:
+                print(f"- ⚠️ {w}")
+        else:
+            for w in fr_items:
+                print(f"- {w}")
+
     return 0
+
+
+def check_feedback_reports(docs_root: Path) -> list[str] | None:
+    """migration-log.md의 Feedback Reports 섹션 포맷 검증.
+
+    Returns:
+        None  — migration-log.md 없음 (다운스트림 전용 파일, skip)
+        []    — FR 항목 없음 또는 모두 정상
+        [str] — 포맷 경고 목록
+    """
+    log_path = docs_root / "harness" / "migration-log.md"
+    if not log_path.exists():
+        return None
+
+    try:
+        text = log_path.read_text(encoding="utf-8")
+    except Exception as e:
+        return [f"migration-log.md Read 실패: {e}"]
+
+    # ## Feedback Reports 섹션 추출
+    fb_section_m = re.search(r"## Feedback Reports(.*?)(?=^## |\Z)", text, re.DOTALL | re.MULTILINE)
+    if not fb_section_m:
+        return []  # 섹션 없음 = FR 항목 없음
+
+    fb_section = fb_section_m.group(1)
+
+    # FR-NNN 항목 추출
+    fr_blocks = re.split(r"(?=### FR-\d+)", fb_section)
+    warnings: list[str] = []
+    required_fields = ["**관점**", "**약점**", "**실천**", "**심각도**"]
+
+    for block in fr_blocks:
+        fr_m = re.match(r"### (FR-\d+)", block)
+        if not fr_m:
+            continue
+        fr_id = fr_m.group(1)
+        missing = [f for f in required_fields if f not in block]
+        if missing:
+            warnings.append(f"⚠️ {fr_id}: {', '.join(missing)} 없음")
+        else:
+            warnings.append(f"{fr_id} ✅")
+
+    return warnings
 
 
 if __name__ == "__main__":
