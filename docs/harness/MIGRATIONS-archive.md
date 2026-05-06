@@ -43,6 +43,28 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.37.3 — 하네스 유기체화 Phase 1~6 완료 (2026-05-06)
+
+### 변경 내용
+- `eval_cps_integrity.py` — `check_harness_map()` 추가: HARNESS_MAP.md vs 실제 파일 단절 감지 (rules/skills/agents/scripts 4섹션 + enforced-by 공백 + defends-by 공백)
+- `.claude/HARNESS_MAP.md` — 유기체 구조 섹션 추가 (CPS=뇌·MAP=대혈관·docs/=미세혈관), 규칙 간 참조 맵 갱신
+- `agents/review.md` — 카테고리 8 "SSOT 문서 미완독 감지" 추가 + HARNESS_MAP.md 역추적 진입점 절차
+- `rules/docs.md` — "하네스 구성요소 메타데이터" 섹션 추가: defends:/serves:/enforced-by: 필드 형식 + Layer 배치 기준 + 판단 트리
+- `skills/harness-upgrade/SKILL.md` — Step 9.3 신설: HARNESS_MAP.md 전파 확인
+- `scripts/downstream-readiness.sh` — 섹션 4-pre 추가: HARNESS_MAP.md 존재 체크
+- `CLAUDE.md` — "하네스 신경망 허브" 섹션 추가: HARNESS_MAP.md 참조 + CPS 기억 귀환 구조
+
+### 적용 방법
+자동 적용 (harness-upgrade가 파일 갱신).
+
+### 수동 적용
+없음.
+
+### 회귀 위험
+- upstream 격리 환경에서만 확인됨. 다운스트림 환경 미테스트.
+
+
+
 ## v0.37.2 — P7 신설 + HARNESS_MAP.md 임시 생성 + defends 매핑 정정 (2026-05-06)
 
 ### 변경 내용

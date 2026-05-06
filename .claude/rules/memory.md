@@ -28,6 +28,34 @@ defends: P7
 - 프로젝트 memory 디렉토리: `.claude/memory/`
 - 인덱스: `.claude/memory/MEMORY.md` (세션 시작 자동 로드)
 - 동적 snapshot: `.claude/memory/session-*.txt` (gitignore, 세션 한정)
+- **반복 신호**: `.claude/memory/signal_*.md` (아래 "신호 파일" 참조)
+
+## 신호 파일 (signal_*.md) — CPS 보조 수단
+
+incidents로 올라가지 않았지만 반복되는 낌새를 보관. CPS의 미약한 전조 신호.
+
+**형식**:
+```yaml
+---
+signal: 1줄 설명 (무슨 패턴인가)
+domain: harness
+keywords: [commit, eval]
+strength: weak | medium | strong
+candidate_p: P1
+---
+```
+
+**strength 기준**:
+- `weak` — 1회 관찰, 패턴인지 불명확
+- `medium` — 2~3회 반복, 패턴 의심
+- `strong` — 반복 확인됨, incidents 등록 후보
+
+**lifecycle**:
+1. 같은 신호가 또 나오면 → strength 올리고 사용자에게 의견 제시
+2. 사용자 확인 → incidents 등록 → signal 파일 삭제
+3. incidents 없이 오랫동안 재발 없으면 → 사용자 판단으로 삭제
+
+**session-start.py 연동**: 세션 시작 시 현재 WIP domain과 매칭되는 신호만 출력.
 
 ## 저장 대상 (정적 memory)
 

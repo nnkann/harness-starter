@@ -228,6 +228,57 @@ def section_upgrade(in_git: bool) -> None:
         print("╚════════════════════════════════════════════════════════════╝")
 
 
+def get_wip_domains() -> set[str]:
+    """현재 WIP 파일들의 frontmatter domain 값 수집. 없으면 빈 set."""
+    domains: set[str] = set()
+    wip_dir = Path("docs/WIP")
+    if not wip_dir.is_dir():
+        return domains
+    for f in wip_dir.glob("*.md"):
+        try:
+            text = f.read_text(encoding="utf-8")
+            m = re.search(r"^domain:\s*(\S+)", text, re.MULTILINE)
+            if m:
+                domains.add(m.group(1).strip())
+        except Exception:
+            pass
+    return domains
+
+
+def section_signals() -> None:
+    """현재 WIP domain과 매칭되는 신호만 출력."""
+    sig_dir = Path(".claude/memory")
+    if not sig_dir.is_dir():
+        return
+    signals = sorted(sig_dir.glob("signal_*.md"))
+    if not signals:
+        return
+    domains = get_wip_domains()
+    matched: list[str] = []
+    for f in signals:
+        try:
+            text = f.read_text(encoding="utf-8")
+            m_sig = re.search(r"^signal:\s*(.+)", text, re.MULTILINE)
+            m_dom = re.search(r"^domain:\s*(\S+)", text, re.MULTILINE)
+            m_str = re.search(r"^strength:\s*(\S+)", text, re.MULTILINE)
+            if not m_sig:
+                continue
+            sig_domain = m_dom.group(1).strip() if m_dom else ""
+            # domain 매칭: WIP domain과 일치하거나 WIP 없으면 전체
+            if domains and sig_domain and sig_domain not in domains:
+                continue
+            strength = m_str.group(1).strip() if m_str else "weak"
+            icon = {"weak": "🔸", "medium": "🔶", "strong": "🔴"}.get(strength, "🔸")
+            matched.append(f"  {icon} {m_sig.group(1).strip()}")
+        except Exception:
+            pass
+    if matched:
+        print()
+        print("📡 반복 신호 (memory):")
+        for line in matched:
+            print(line)
+
+
 def section_harness_map() -> None:
     if not Path(".claude/HARNESS_MAP.md").exists():
         print("\n⚠️  HARNESS_MAP.md 없음 — 하네스 신경망 허브 미생성")
@@ -309,6 +360,7 @@ def main() -> None:
     section_zombie()
     section_upgrade(in_git)
     section_harness_map()
+    section_signals()
     section_repeated_files(in_git)
     section_rules()
 
