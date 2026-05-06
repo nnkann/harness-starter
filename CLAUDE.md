@@ -38,9 +38,10 @@
 
 ## 하네스 신경망 허브
 
-`.claude/HARNESS_MAP.md` — CPS·Rules·Skills·Agents·Scripts 간 양방향 관계 지도 (대혈관).
+`.claude/HARNESS_MAP.md` — CPS·Rules·Skills·Agents·Scripts 간 관계 지도 (대혈관).
 
-작업 전 관련 섹션을 읽는다. Rules 변경 → Rules + CPS 섹션. Skills 추가 → Skills + CPS 섹션.
+**작업 전 (하향)**: CPS + 해당 Rules 섹션만 읽는다. 모든 작업이 통과.
+**문제 발생 시 (상향)**: MAP 전체 Read 불필요. 증상 → Problem → defends-by → enforced-by 순으로 필요한 노드만 탐색.
 "어떤 규칙이 P1을 defends하는가?", "이 스크립트를 누가 실행하는가?" → 여기서 출발.
 
 `docs/guides/project_kickoff.md` (CPS) 는 뇌다. decisions/·incidents/ 문서에 축적된

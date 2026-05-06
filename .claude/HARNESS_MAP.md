@@ -1,14 +1,20 @@
 # HARNESS_MAP.md — 하네스 신경망 허브
 
-> **이 파일에 등재된 모든 구성요소는 작업 전 관련 섹션을 전체 Read 필수.**
-> 부분 읽기·요약으로 판단 시작 금지.
-
-**Read 범위**: 작업 관련 섹션만 읽는다.
-Rules 변경 → Rules + CPS 섹션. Skills 추가 → Skills + CPS 섹션.
+> **하향 경로(작업 전)**: CPS + 관련 Rules 섹션을 읽는다. 모든 작업이 통과.
+> **상향 경로(문제 발생 시)**: 아래 "역추적 절차"를 따른다. MAP 전체 Read 불필요.
 
 ## 유기체 구조
 
 ```
+하향 (동맥) — 작업 전 항상 통과
+  CPS → Rules → Skills/Agents → Scripts
+  "무엇을 지켜야 하는가"를 내려보내는 경로.
+  작업 전 CPS + 해당 Rules 섹션만 읽으면 충분.
+
+상향 (정맥) — 문제 발생 시 필요한 경로만 거슬러 올라감
+  증상 → Problem → defends-by → enforced-by
+  전부 거칠 필요 없음. 증상에서 출발해 관련 노드만 탐색.
+
 CPS (뇌)
   목적·기준을 정의하는 판단 중추.
   decisions/·incidents/ 문서에 축적된 성공·실패가 여기로 귀환해
@@ -16,8 +22,8 @@ CPS (뇌)
   그 기억을 흡수하지 못한 것 — 새 Problem 등록 또는 Solution 보완.
 
 HARNESS_MAP.md (대혈관)
-  CPS의 신호가 각 기관(rules·skills·agents·scripts)으로 흐르는
-  주요 혈관. 역방향(기관→CPS) 신호도 이 지도로 추적한다.
+  하향 신호(CPS→기관)의 주요 혈관 지도.
+  상향 역추적은 MAP 전체가 아닌 절차 기반으로 필요한 노드만 탐색.
 
 docs/ — decisions/·incidents/·guides/ (미세혈관)
   대혈관이 전달하지 못하는 프로젝트 고유 맥락을 채운다.
@@ -183,22 +189,25 @@ CPS 진입점: `docs/guides/project_kickoff.md`
 
 ---
 
-## 역추적 활용 방법
+## 역추적 절차 (상향 경로 — 필요한 노드만)
 
-문제가 발생했을 때:
+MAP 전체를 읽지 않는다. 증상에서 출발해 관련 경로만 거슬러 올라간다.
 
 ```
-1. 증상 확인
-   → CPS 섹션에서 해당 Problem 찾기
+Step 1. 증상 → Problem 특정
+   CPS 테이블에서 증상과 일치하는 Problem 행만 찾는다.
+   (CPS 전체 Read 불필요 — 테이블 1행으로 충분)
 
-2. 어떤 규칙이 방어했어야 하는가
-   → Problem의 defends-by 컬럼 → 해당 규칙 전체 Read
+Step 2. Problem → 해당 Rules만 Read
+   defends-by 컬럼의 규칙 이름 확인
+   → 그 규칙 파일만 Read (나머지 규칙 Read 금지)
 
-3. 어떤 도구가 실행했어야 하는가
-   → 규칙의 enforced-by → 해당 스크립트·에이전트 확인
+Step 3. Rule → 실행 도구만 확인
+   enforced-by 컬럼 확인
+   → 해당 스크립트·에이전트만 확인
 
-4. 어디서 실패했는가
-   → 도구 로그·git history → 원인 특정
+Step 4. 실패 지점 특정
+   도구 로그·git history → 원인 특정
 ```
 
 개선할 때:
