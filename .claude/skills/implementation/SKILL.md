@@ -269,6 +269,7 @@ created: {YYYY-MM-DD}
 ## 사전 준비
 - 읽을 문서: (경로 목록 또는 "없음")
 - 이전 산출물: (이전 Phase 결과물 또는 "없음")
+- MAP 참조: (HARNESS_MAP.md에서 확인한 Rules/Skills/Agents 행 또는 "없음")
 
 ## 목표
 - 이 작업에서 결정하거나 만들 것

@@ -162,6 +162,26 @@ AC 없으면 이 검증 스킵 → 2·3번으로.
 **역추적 진입점:** 문제 원인이 불명확할 때 `.claude/HARNESS_MAP.md`를 먼저 참조한다.
 CPS 섹션 → Problem 찾기 → defends-by 컬럼 → 해당 규칙 전체 Read → enforced-by → 도구 확인
 
+### 9. Hooks 매처 argument-constraint 패턴 감지 (P4 방어)
+
+**감지:** diff에 `.claude/settings.json` 변경 포함
+
+**행동:** staged settings.json의 `hooks` 블록에서 `matcher` 또는 `if` 값이 아래 패턴을 포함하면 **[차단]**:
+- `Bash(*` 로 시작하며 ` --` 또는 ` -` 인자를 포함하는 매처 (argument-constraint 패턴)
+- 예: `"Bash(* --no-verify*)"`, `"Bash(* -n *)"`, `"Bash(git commit* -n*)"`
+
+**예외:** `permissions.allow` 블록의 `Bash(...)` 항목은 허용 목록이므로 이 검사 대상 아님.
+
+**관련:** `.claude/rules/hooks.md` — argument-constraint 매처 금지 SSOT
+
+### 10. commit_finalize.sh 외부 직접 호출 감지
+
+**감지:** diff에 `commit_finalize.sh`를 `/commit` 스킬 외부에서 호출하는 코드 포함
+
+**행동:** WIP 없음 + `.claude/scripts/commit_finalize.sh` 직접 호출 흔적 → **[경고]** "commit 스킬 경유 필요 — WIP 없어도 `/commit --no-review` 사용"
+
+**예외:** `.claude/skills/commit/SKILL.md` 내 명시된 wrapper 호출 패턴은 정상.
+
 ## 도구 선택 원칙
 
 순서: AC prompt 확인 → Read/Grep으로 영향 파일 → 필요할 때만 diff.

@@ -43,6 +43,26 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.37.5 — review tool call 과다 소모 근본 수정 (2026-05-06)
+
+### 변경 내용
+- `skills/commit/SKILL.md` — `## 지시` 블록: "영향 범위 파일 Read" 능동 권유 → "AC+컨텍스트로 판단 가능하면 Read 금지, Read+Grep 합계 3회 이내" 로 교체
+- `agents/review.md` — `## 한도`: maxTurns 6→10 텍스트 동기화, "Read+Grep 3회 이내·8회 사용 후 추가 Read 금지" 명시
+
+### 배경
+commit/SKILL.md `## 지시`의 "영향 범위 항목이 있으면 해당 파일 Read" 문구가 AC 항목 N개당 Read N회를 유도. review.md의 "Read 최대 2회" 제한이 user prompt에 없어서 시스템 프롬프트 제한이 무시됨. (incident hn_review_maxturns_verdict_miss 5번째 재발 후 근본 수정)
+
+### 적용 방법
+자동 적용.
+
+### 수동 적용
+없음.
+
+### 회귀 위험
+- upstream 격리 환경에서만 확인됨.
+
+
+
 ## v0.37.4 — review maxTurns 6→10 + enforced-by/defends-by 정규식 오탐 수정 (2026-05-06)
 
 ### 변경 내용

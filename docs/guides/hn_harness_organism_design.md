@@ -1,7 +1,7 @@
 ---
 title: 하네스 유기체화 설계 — HARNESS_MAP.md 신경망 허브 구현 방안
 domain: harness
-problem: P1
+problem: P7
 solution-ref:
   - S1 — "규칙 + 자동 차단 + 우회 장치"
 tags: [architecture, harness-map, organism, bidirectional, read-enforce]
