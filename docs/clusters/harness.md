@@ -4,7 +4,7 @@ domain: harness
 tags: [cluster, index]
 status: completed
 created: 2026-04-16
-updated: 2026-05-05
+updated: 2026-05-06
 ---
 
 # harness 클러스터
@@ -55,6 +55,7 @@ updated: 2026-05-05
 - [문서 탐색 프로토콜](../guides/hn_doc_search_protocol.md)
 - [eval --deep 보안 강화 패치 타 프로젝트 이식 가이드](../guides/hn_eval_security_patch_port.md)
 - [외부 자료 조사 패턴 — Context7·공식 문서](../guides/hn_external_research_patterns.md)
+- [하네스 유기체화 설계 — HARNESS_MAP.md 신경망 허브 구현 방안](../guides/hn_harness_organism_design.md)
 - [하네스 스타터 업그레이드 전파 전략](../guides/hn_upgrade_propagation.md)
 - [advisor 전면 재설계 — 의사결정 프레임 라이브러리 + 판단 경로 명시](../harness/hn_advisor_decision_framework.md)
 - [커밋 속도 최적화 — 단계 조건부 실행 + pre-check→리뷰 데이터 전달 + 모델 스위치](../harness/hn_commit_perf_optimization.md)

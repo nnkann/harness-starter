@@ -12,7 +12,7 @@ relates-to:
     rel: references
   - path: decisions/hn_rules_metadata.md
     rel: references
-status: in-progress
+status: completed
 created: 2026-05-05
 updated: 2026-05-06
 ---
