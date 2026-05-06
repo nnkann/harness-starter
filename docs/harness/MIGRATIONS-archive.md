@@ -43,6 +43,24 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.37.4 — review maxTurns 6→10 + enforced-by/defends-by 정규식 오탐 수정 (2026-05-06)
+
+### 변경 내용
+- `agents/review.md` — `maxTurns: 6` → `maxTurns: 10` (verdict 출력 턴 확보)
+- `eval_cps_integrity.py` — `enforced_empty_pat`: 마지막 컬럼이 아닌 중간 컬럼 구조 대응, 빈 문자열 always-match 제거
+- `eval_cps_integrity.py` — `no_rule_pat`: 빈 문자열 대안 제거, "—"/"-" 명시 감지만
+
+### 적용 방법
+자동 적용.
+
+### 수동 적용
+없음.
+
+### 회귀 위험
+- upstream 격리 환경에서만 확인됨.
+
+
+
 ## v0.37.3 — 하네스 유기체화 Phase 1~6 완료 (2026-05-06)
 
 ### 변경 내용
