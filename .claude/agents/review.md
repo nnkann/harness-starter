@@ -3,7 +3,7 @@ name: review
 description: 커밋 전 코드/문서 리뷰. commit 스킬이 staging 자동 판정(`recommended_stage`)으로 호출하거나, 사용자가 직접 리뷰를 요청할 때 사용. 자기가 쓴 코드를 독립적으로 검증한다.
 model: sonnet
 tools: Read, Glob, Grep, Bash
-maxTurns: 6
+maxTurns: 10
 serves: S2
 ---
 

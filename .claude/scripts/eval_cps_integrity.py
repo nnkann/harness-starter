@@ -219,10 +219,13 @@ def check_harness_map(claude_root: Path) -> list[str]:
         warnings.append(f"⚠ [Scripts] MAP 등재됐으나 파일 없음: scripts/{s}")
 
     # ── 5. enforced-by 없는 규칙 감지 ──────────────────────────────────
-    # Rules 테이블 마지막 컬럼(enforced-by)이 "—" 또는 비어 있는 행 감지
-    # Layer 1은 컬럼이 7개(parent·children 포함), 나머지는 4~5개 → 마지막 컬럼 기준
+    # HARNESS_MAP.md Rules 테이블 구조:
+    #   Layer 0/2/3: | 규칙 | 역할 | defends | enforced-by | 원본 |
+    #   Layer 1:     | 규칙 | 역할 | defends | parent | children | enforced-by | 원본 |
+    # enforced-by는 마지막에서 두 번째 컬럼 → 뒤에 "원본" 컬럼이 반드시 존재.
+    # "—" 또는 "-"만 감지 (빈 문자열 제외 → always-match 오탐 방지).
     enforced_empty_pat = re.compile(
-        r"^\|\s*([\w-]+)\s*\|(?:[^|]*\|)+\s*(?:—|-|)\s*\|\s*$",
+        r"^\|\s*([\w-]+)\s*\|(?:[^|\n]*\|)+\s*(?:—|-)\s*\|[^|\n]+\|\s*$",
         re.MULTILINE,
     )
     # Rules 섹션만 추출해서 검사 (## Rules ~ ## Skills 사이)
@@ -240,13 +243,16 @@ def check_harness_map(claude_root: Path) -> list[str]:
     cps_section_m = re.search(r"## CPS.*?(?=## Rules|$)", map_text, re.DOTALL)
     if cps_section_m:
         cps_section = cps_section_m.group(0)
-        # | P# | ... | (규칙 없음...) | ... | 형태
-        no_rule_pat = re.compile(r"^\|\s*(P\d+)\s*\|[^|]+\|\s*(\([^)]*\)|—|-|)\s*\|", re.MULTILINE)
+        # | P# | ... | defends-by 값 | ... | 형태
+        # 빈 문자열 대안 제거 → 명시적 "—" 또는 "-"만 감지 (always-match 방지)
+        # 괄호 값 "(규칙 없음...)"·"(조사 중...)"은 의도적 선언 → 별도 처리
+        no_rule_pat = re.compile(r"^\|\s*(P\d+)\s*\|[^|]+\|\s*([^|]*?)\s*\|", re.MULTILINE)
         for m in no_rule_pat.finditer(cps_section):
             pid = m.group(1)
             defends_by = m.group(2).strip()
-            # 명시적 "규칙 없음" 또는 "조사 중"은 의도적 — 경고 제외
-            if defends_by in ("—", "-", "") and pid:
+            # "—" 또는 "-"만 미선언으로 판정
+            # "(규칙 없음...)"·"(조사 중...)" 등 괄호 시작은 의도적 선언 — 제외
+            if defends_by in ("—", "-") and pid:
                 warnings.append(f"⚠ [defends-by 없음] {pid} — 방어 규칙 미선언")
 
     return warnings

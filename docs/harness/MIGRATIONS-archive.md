@@ -43,6 +43,20 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.36.4 — BIT 루프 단절 수정 — eval_cps_integrity NEW 집계 + bug-interrupt 문서 부패 제거 (2026-05-05)
+
+### 변경 내용
+- `eval_cps_integrity.py`: `P#:.*NEW` 패턴 grep 추가 — docs/WIP/·decisions/ 스캔 후 미처리 NEW 플래그 집계 출력. eval --harness 고리 4 단절 수정
+- `rules/bug-interrupt.md` 순환 루프 다이어그램: "Phase 2 구현 예정" → "Phase 2 완료" (문서 부패 제거)
+
+### 적용 방법
+자동 적용 (harness-upgrade가 scripts/·rules/ 갱신).
+
+### 수동 적용
+없음.
+
+
+
 ## v0.36.3 — BIT Phase 4 — CPS staged 경고 + implementation Step 0 NEW 플래그 인식 (2026-05-05)
 
 ### 변경 내용
