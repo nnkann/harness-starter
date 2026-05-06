@@ -3,7 +3,7 @@ title: verify-relates pre-check 통합 — 커밋 시 relates-to 전수 검사
 domain: harness
 problem: P3
 solution-ref:
-  - S3 — "downstream-readiness.sh — 적용 후 누락 자가 진단 (부분)"
+  - S3 — "downstream-readiness.sh — 적용 후 누락 자가 진단"
 tags: [pre-check, verify-relates, dead-link, relates-to]
 relates-to:
   - path: decisions/hn_downstream_amplification.md

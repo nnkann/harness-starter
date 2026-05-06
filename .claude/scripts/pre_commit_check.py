@@ -113,8 +113,8 @@ CPS_EXEMPT_PATHS = re.compile(r"^docs/guides/project_kickoff\.md$")
 
 
 def normalize_quote(s: str) -> str:
-    """CPS 인용 비교용 normalize. 공백 통일·줄바꿈 제거·backtick 제거."""
-    s = s.replace("\n", " ").replace("`", "")
+    """CPS 인용 비교용 normalize. 공백 통일·줄바꿈 제거·backtick·bold 마크다운 제거."""
+    s = s.replace("\n", " ").replace("`", "").replace("**", "")
     s = re.sub(r"\s+", " ", s).strip()
     return s
 

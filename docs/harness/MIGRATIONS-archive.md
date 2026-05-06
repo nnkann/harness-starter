@@ -43,6 +43,26 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.37.1 — write-doc CPS 필드 강제 + 재개 절차 단일화 + review 폐기 필드 제거 (2026-05-05)
+
+### 변경 내용
+- `skills/write-doc/SKILL.md` — Step 3 프론트매터에 `problem:·solution-ref:` 필드 추가, 필수 필드 목록 갱신
+- `skills/write-doc/SKILL.md` — Step 2 "완료 문서 재개" 절차를 `git mv` → `docs_ops.py reopen`으로 단일화
+- `rules/docs.md` — "완료 문서 재개" 절차 동일하게 `docs_ops.py reopen`으로 단일화
+- `agents/review.md` — "핸드오프 계약" Pass 행에서 폐기된 `wip_kind·has_impact_scope` 제거
+
+### 적용 방법
+자동 적용 (harness-upgrade가 파일 갱신).
+
+### 수동 적용
+없음.
+
+### 회귀 위험
+- write-doc으로 생성한 기존 WIP에 `problem·solution-ref`가 없으면 commit 시 pre-check 차단. 직접 frontmatter 추가 후 커밋.
+- upstream 격리 환경에서만 확인됨. 다운스트림 환경 미테스트.
+
+
+
 ## v0.37.0 — session-start.py 신설 — bash spawn 제거로 세션 시작 66% 단축 (2026-05-05)
 
 ### 변경 내용
