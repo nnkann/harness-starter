@@ -54,7 +54,7 @@ docs/ — decisions/·incidents/·guides/ (미세혈관)
 | P2 | review 과잉 비용 | staging | commit, review |
 | P3 | 다운스트림 사일런트 페일 | (규칙 없음 — 프로세스 방어) | harness-upgrade, downstream-readiness.sh |
 | P4 | hook 매처 fragility | hooks | bash-guard.sh |
-| P5 | MCP·플러그인 컨텍스트 팽창 | (조사 중) | — |
+| P5 | MCP·플러그인 컨텍스트 팽창 | (규칙 없음 — S5 조사 진행 중) | — |
 | P6 | 검증망 스킵 | self-verify, pipeline-design | harness-dev, eval |
 | P7 | 구성요소 관계 불투명 | docs, naming, memory, anti-defer | eval_cps_integrity.py, (HARNESS_MAP.md 자체) |
 
@@ -150,10 +150,10 @@ internal-first → (children) external-experts
 
 | 스크립트 | hook 이벤트 | 역할 1줄 | enforced-by-inverse |
 |---------|-----------|---------|-------------------|
-| session-start.py | SessionStart | 세션 초기 상태·WIP 알림 | — |
+| session-start.py | SessionStart | 세션 초기 상태·WIP 알림 | coding, naming, self-verify, internal-first (환기) |
 | debug-guard.sh | UserPromptSubmit | 에러 키워드 감지 | no-speculation |
 | stop-guard.sh | Stop | 세션 종료 memory 환기 | memory |
-| post-compact-guard.sh | PostCompact | 컴팩션 후 컨텍스트 복원 | — |
+| post-compact-guard.sh | PostCompact | 컴팩션 후 컨텍스트 복원 | coding, naming, self-verify (환기) |
 | write-guard.sh | PreToolUse(Write) | docs/ WIP 직접 Write 차단 | docs |
 | bash-guard.sh | PreToolUse(Bash) | argument-constraint 패턴 차단 | hooks |
 | auto-format.sh | PostToolUse | 포맷 자동 적용 | coding |
@@ -164,7 +164,7 @@ internal-first → (children) external-experts
 |---------|---------|---------|-------------------|
 | pre_commit_check.py | commit | AC·CPS·staged 검증 + stage 결정 | self-verify, staging |
 | docs_ops.py | commit, write-doc, doc-health | 문서 이동·cluster 갱신·reopen | docs, naming |
-| eval_cps_integrity.py | eval, harness-dev | defends/serves 정합성 감사 | — |
+| eval_cps_integrity.py | eval, harness-dev | defends/serves 정합성 감사 + MAP 단절 감지 | docs, naming, memory, anti-defer (P7 방어) |
 | harness_version_bump.py | harness-dev, commit | 버전 범프 | — |
 | commit_finalize.sh | commit | git commit 래퍼 | — |
 | split-commit.sh | commit | 커밋 분할 | — |
@@ -191,24 +191,31 @@ CPS 진입점: `docs/guides/project_kickoff.md`
 
 ## 역추적 절차 (상향 경로 — 필요한 노드만)
 
-MAP 전체를 읽지 않는다. 증상에서 출발해 관련 경로만 거슬러 올라간다.
+**트리거**: BIT Q3=YES (스코프 외 버그 발견) 또는 문제 사후 분석.
+MAP 전체를 읽지 않는다. 발생 위치에서 출발해 관련 경로만 거슬러 올라간다.
 
 ```
-Step 1. 증상 → Problem 특정
-   CPS 테이블에서 증상과 일치하는 Problem 행만 찾는다.
-   (CPS 전체 Read 불필요 — 테이블 1행으로 충분)
+Step 1. 발생 위치 → MAP에서 해당 구성요소 찾기
+   어느 파일·스킬·스크립트에서 발생했는가
+   → MAP의 Rules/Skills/Agents/Scripts 테이블에서 해당 행 찾기
+   → defends 컬럼 → Problem 특정 (CPS 전체 Read 불필요)
 
 Step 2. Problem → 해당 Rules만 Read
-   defends-by 컬럼의 규칙 이름 확인
+   CPS 테이블 defends-by 컬럼의 규칙 이름 확인
    → 그 규칙 파일만 Read (나머지 규칙 Read 금지)
 
 Step 3. Rule → 실행 도구만 확인
    enforced-by 컬럼 확인
    → 해당 스크립트·에이전트만 확인
 
-Step 4. 실패 지점 특정
+Step 4. 실패 지점 특정 + BIT 기록
    도구 로그·git history → 원인 특정
+   → BIT Q3=YES이면 WIP "## 발견된 스코프 외 이슈"에 P# 기록
+   → NEW이면 다음 implementation Step 0에서 CPS 등록 후보로 인식
 ```
+
+**BIT와 연계**: `rules/bug-interrupt.md` Q3 hit 시 이 절차가 P# 매칭 방법.
+발생 위치가 MAP에 없으면 `docs/guides/project_kickoff.md` Problems 섹션으로 폴백.
 
 개선할 때:
 

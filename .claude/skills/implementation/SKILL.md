@@ -104,6 +104,9 @@ docs/guides/에 CPS 문서(`project_kickoff.md`)를 Read.
 
 작업 발화 → 의도 1줄 추출 → CPS Problem(P1~P6 또는 다운스트림 정의)에 매칭.
 
+**매칭 진입점**: 먼저 `.claude/HARNESS_MAP.md` CPS 테이블(1줄 요약)에서 후보 확인.
+테이블로 특정 불가 시에만 `docs/guides/project_kickoff.md` 전체 Read.
+
 | 매칭 결과 | 행동 |
 |---------|------|
 | **hit** (의미 거리 가까움) | Problem ID 확정. WIP frontmatter `problem: P#`에 박음 |

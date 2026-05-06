@@ -228,6 +228,12 @@ def section_upgrade(in_git: bool) -> None:
         print("╚════════════════════════════════════════════════════════════╝")
 
 
+def section_harness_map() -> None:
+    if not Path(".claude/HARNESS_MAP.md").exists():
+        print("\n⚠️  HARNESS_MAP.md 없음 — 하네스 신경망 허브 미생성")
+        print("   `/eval --harness` 실행 후 HARNESS_MAP.md 확인 권장")
+
+
 def section_repeated_files(in_git: bool) -> None:
     if not in_git:
         return
@@ -302,6 +308,7 @@ def main() -> None:
     section_todo()
     section_zombie()
     section_upgrade(in_git)
+    section_harness_map()
     section_repeated_files(in_git)
     section_rules()
 

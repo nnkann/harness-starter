@@ -39,6 +39,7 @@ defends: P2
 3. AC Goal·검증 묶음 누락                             → 차단 (분류 불가)
 4. CPS Problem 정의 자체 staged                       → deep (cascade 영향)
    (docs/guides/project_kickoff.md Problems 섹션 변경)
+   → cascade 범위 확인: `.claude/HARNESS_MAP.md` CPS 테이블의 해당 Problem `defends-by` 컬럼
 5. AC `검증.review` 값 그대로 stage 결정              → skip|micro|standard|deep
 ```
 

@@ -43,6 +43,26 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.37.2 — P7 신설 + HARNESS_MAP.md 임시 생성 + defends 매핑 정정 (2026-05-06)
+
+### 변경 내용
+- `docs/guides/project_kickoff.md` — P7 "시스템 구성 요소 간 관계 불투명" 신설 (P1·P6의 구조적 원인)
+- `.claude/HARNESS_MAP.md` — 하네스 신경망 허브 임시 생성 (CPS·Rules·Skills·Agents·Scripts·Domains 양방향 관계 지도)
+- `.claude/rules/anti-defer.md`, `docs.md`, `memory.md`, `naming.md` — `defends: P5` → `defends: P7` 정정
+- `.claude/scripts/eval_cps_integrity.py` — `PROBLEM_INFLATION_THRESHOLD` 고정 6 → `max(8, problem_count + 2)` 동적 계산
+- `.claude/scripts/session-start.sh` — session-start.py로 완전 대체됨, 파일 삭제
+
+### 적용 방법
+자동 적용 (harness-upgrade가 파일 갱신).
+
+### 수동 적용
+- `security.md`는 다운스트림 앱 전용. 필요 시 `.claude/rules/security.md` 직접 추가 (starter_skills에 포함 안 됨)
+
+### 회귀 위험
+- upstream 격리 환경에서만 확인됨. 다운스트림 환경 미테스트.
+
+
+
 ## v0.37.1 — write-doc CPS 필드 강제 + 재개 절차 단일화 + review 폐기 필드 제거 (2026-05-05)
 
 ### 변경 내용
