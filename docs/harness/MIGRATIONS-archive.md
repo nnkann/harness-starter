@@ -43,6 +43,30 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.37.7 — HARNESS_MAP 연결 완성 — BIT·staging·implementation·review·harness-dev·eval·session-start (2026-05-06)
+
+### 변경 내용
+- `rules/bug-interrupt.md` — Q3 P# 매칭: HARNESS_MAP.md CPS 테이블 우선 진입 → 불가 시 project_kickoff.md 폴백. 관계 테이블에 HARNESS_MAP 추가
+- `rules/staging.md` — 룰 4(CPS staged): cascade 범위 확인을 HARNESS_MAP defends-by 컬럼으로 안내
+- `skills/implementation/SKILL.md` — Step 0 Problem 매칭: HARNESS_MAP CPS 테이블 우선 진입 명시
+- `agents/review.md` — Solution 충족 기준 회귀: HARNESS_MAP serves 컬럼 확인 후 CPS 본문 Read
+- `skills/harness-dev/SKILL.md` — 체크리스트에 HARNESS_MAP 정합 검증(eval_cps_integrity.py) 추가
+- `skills/eval/SKILL.md` — --harness 결과 해석에 "관계 그래프 단절 N건" 항목 추가
+- `HARNESS_MAP.md` — enforced-by-inverse 정정: session-start.py·post-compact-guard.sh·eval_cps_integrity.py. P5 표기 통일. 하향/상향 경로 분리. BIT 연계 역추적 절차
+- `scripts/session-start.py` — section_harness_map() 추가: 세션 시작 시 MAP 미존재 경고
+- `CLAUDE.md` — 하향/상향 경로 설명 갱신
+
+### 적용 방법
+자동 적용 (harness-upgrade가 파일 갱신).
+
+### 수동 적용
+없음.
+
+### 회귀 위험
+- upstream 격리 환경에서만 확인됨.
+
+
+
 ## v0.37.6 — normalize_quote `**` 제거 + 박제 인용 수정 (2026-05-06)
 
 ### 변경 내용

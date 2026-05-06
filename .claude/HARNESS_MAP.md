@@ -1,7 +1,12 @@
 # HARNESS_MAP.md — 하네스 신경망 허브
 
-> **하향 경로(작업 전)**: CPS + 관련 Rules 섹션을 읽는다. 모든 작업이 통과.
-> **상향 경로(문제 발생 시)**: 아래 "역추적 절차"를 따른다. MAP 전체 Read 불필요.
+> **⚡ 에이전트 빠른 진입 (MAP 전체를 읽지 마라)**
+> - 작업 전: `## MVR` 섹션 → 작업유형 찾기 → Rules 2~3개만 읽기
+> - 문제 발생: `## 역추적 절차` → 발생 위치에서 필요한 노드만 거슬러 올라가기
+> - 전체 구조 파악이 목적일 때만 아래 전체를 읽는다
+
+> **하향 경로(작업 전)**: MVR 섹션 → 해당 Rules만. CPS는 Problem 확인 시에만.
+> **상향 경로(문제 발생 시)**: 역추적 절차를 따른다. MAP 전체 Read 불필요.
 
 ## 유기체 구조
 
@@ -186,6 +191,26 @@ internal-first → (children) external-experts
 | meta | mt | docs/clusters/meta.md | 프로젝트 전역 문서 |
 
 CPS 진입점: `docs/guides/project_kickoff.md`
+
+---
+
+## MVR (작업유형별 최소 필수 규칙셋)
+
+> **에이전트 전용 진입점.** 전체 MAP을 읽지 마라.
+> 작업유형을 찾아 Rules 목록만 읽으면 충분. 나머지는 필요할 때만.
+
+| 작업유형 | 반드시 읽어야 할 Rules | 이유 |
+|---------|----------------------|------|
+| **구현** (새 기능·버그수정·리팩토링) | no-speculation, coding, bug-interrupt | 추측 수정·인접 코드 오염·스코프 외 버그 3대 위험 |
+| **커밋** | staging, self-verify | stage 결정 + AC 검증이 커밋의 전부 |
+| **디버그** (에러·예상 외 동작) | no-speculation, internal-first | 관찰 우선·내부 자료 먼저 — 추측 수정 금지 |
+| **문서 작성** | docs, naming | 폴더·파일명·frontmatter 체계 위반이 탐색 체인 파괴 |
+| **eval 실행** | anti-defer | 발견한 간극을 "나중에"로 미루는 패턴 차단 |
+| **harness-dev** (스킬·규칙·스크립트 수정) | staging, self-verify, docs | 검증망 스킵 + CPS 갱신 누락이 P6 재발 원인 |
+| **설정 변경** (hooks·settings.json) | hooks, security | argument-constraint 패턴 + 시크릿 노출 2대 위험 |
+
+**MVR 이후**: 작업 중 예상 밖 상황이 생기면 역추적 절차로 필요한 노드만 추가 탐색.
+**MVR 외 Rules**: 작업과 무관하면 읽지 않아도 된다.
 
 ---
 
