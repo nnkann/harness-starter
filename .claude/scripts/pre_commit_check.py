@@ -550,12 +550,21 @@ def main() -> int:
         # frontmatter status 추출
         if not re.search(r"^status:\s*completed\s*$", content, re.MULTILINE):
             continue
+        # reopen→move 정상 절차 면제:
+        # rename 두 번 상쇄로 git이 M으로 분류해도, docs_ops.py move가
+        # session-moved-docs.txt에 기록한 경로면 봉인 면제.
+        _session_moved = Path(".claude/memory/session-moved-docs.txt")
+        if _session_moved.exists():
+            _moved_paths = _session_moved.read_text(encoding="utf-8", errors="ignore").splitlines()
+            _path_unix = path.replace("\\", "/")
+            if _path_unix in _moved_paths:
+                continue
+        diff_for_file = run(["git", "diff", "--cached", "-U0", "--", path])
         # 면제 판정 — 변경 이력 섹션 신규 항목 추가, frontmatter 수정은 허용
         # 1. `## 변경 이력` 헤더 이후 라인 추가
         # 2. frontmatter 블록 내 변경 (--- ~ --- 사이) — reopen 절차 후 solution-ref 등 정정 허용
         # 3. updated/status/빈 줄/변경 이력 헤더 자체
         has_history_section = bool(re.search(r"^##\s*변경\s*이력\s*$", content, re.MULTILINE))
-        diff_for_file = run(["git", "diff", "--cached", "-U0", "--", path])
 
         # diff hunk 시작 라인 번호 추출 (post-image)
         history_section_line = None

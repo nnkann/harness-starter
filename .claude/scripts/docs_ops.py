@@ -341,6 +341,16 @@ def cmd_move(src_str: str) -> int:
     write_frontmatter_field(dest, "status", "completed")
     write_frontmatter_field(dest, "updated", today)
 
+    # reopen→move 절차 추적: pre_commit_check.py가 M 파일 봉인 면제에 사용
+    session_file = Path(".claude/memory/session-moved-docs.txt")
+    try:
+        existing = session_file.read_text(encoding="utf-8") if session_file.exists() else ""
+        dest_unix = str(dest).replace("\\", "/")
+        if dest_unix not in existing.splitlines():
+            session_file.write_text(existing + dest_unix + "\n", encoding="utf-8")
+    except OSError:
+        pass
+
     # 역참조 갱신: 다른 문서의 relates-to.path가 이동 전 경로를 가리키면 새 경로로 갱신
     old_rel = str(src).replace("\\", "/").removeprefix("docs/")   # e.g. WIP/harness--hn_foo.md
     new_rel = str(dest).replace("\\", "/").removeprefix("docs/")  # e.g. harness/hn_foo.md

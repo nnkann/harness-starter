@@ -85,12 +85,13 @@ commit 내부 경로는 Bash 변수 재사용 (파일 I/O 대기 없음).
 |------|------|-------|------|
 | `session-pre-check.txt` | pre-check stdout (recommended_stage 등) | Step 5 직후 background (`&`) | git hook이 커밋 메시지에 주입할 때 |
 | `session-start-unstaged.txt` | SessionStart 시점 `git diff --name-only` 목록 | SessionStart hook | pre-commit-check이 `prior_session_files` 신호 계산 시 |
+| `session-moved-docs.txt` | `docs_ops.py move`가 완료한 파일 경로 목록 | docs_ops.py move 완료 직후 | pre_commit_check.py completed 봉인 면제 판정 |
 
 **폐기 (audit #5, 2026-04-22)**:
 - `session-staged-diff.txt`: Bash 변수 `STAGED_DIFF`로 대체
 - `session-tree-hash.txt`: tree-hash 캐싱 자체 폐기 (I/O 대기 무의미)
 
-**확장 금지**: 2개 외 추가 원할 시 `hn_memory.md` 수정 후 재합의.
+**확장 금지**: 3개 외 추가 원할 시 `hn_memory.md` 수정 후 재합의.
 
 **라이프사이클**:
 - commit 성공 → 스킬 끝에서 `rm -f .claude/memory/session-*.txt`

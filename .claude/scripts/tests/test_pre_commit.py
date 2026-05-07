@@ -496,6 +496,81 @@ class TestCompletedSeal:
         assert "completed 문서 본문 무단 변경 감지" in (r.stderr + r.stdout), \
             f"새 링크 추가가 봉인에서 통과되면 안 됨. output: {r.stderr + r.stdout}"
 
+    def test_reopen_move_cycle_exempt(self, sealed_repo):
+        """T42.9: reopen→수정→move 정상 절차 경유 → 봉인 면제.
+
+        rename 두 번 상쇄로 git이 M으로 분류하더라도,
+        docs_ops.py move가 session-moved-docs.txt에 기록한 경로면 면제.
+        incidents/hn_sealed_reopen_false_block.md
+        """
+        repo, _ = sealed_repo
+        # completed 문서 생성
+        doc = repo / "docs/decisions/hn_t42_9_reopen.md"
+        doc.parent.mkdir(parents=True, exist_ok=True)
+        original = (
+            "---\ntitle: T42.9 reopen\ndomain: harness\nproblem: P6\n"
+            "solution-ref:\n  - S6 — \"테스트 픽스처 (부분)\"\n"
+            "status: completed\ncreated: 2026-05-08\n---\n\n"
+            "원본 본문.\n"
+        )
+        doc.write_text(original, encoding="utf-8")
+        subprocess.run(["git", "-C", str(repo), "add", str(doc)], capture_output=True, check=True)
+        subprocess.run(["git", "-C", str(repo), "commit", "-m", "T42.9 prep"],
+                       capture_output=True, env={**os.environ, "HARNESS_DEV": "1"}, check=True)
+
+        # reopen: git mv → WIP + status: in-progress
+        wip = repo / "docs/WIP/decisions--hn_t42_9_reopen.md"
+        (repo / "docs/WIP").mkdir(exist_ok=True)
+        subprocess.run(["git", "-C", str(repo), "mv",
+                        str(doc.relative_to(repo)), str(wip.relative_to(repo))],
+                       capture_output=True, check=True)
+        wip.write_text(original.replace("status: completed", "status: in-progress"), encoding="utf-8")
+        subprocess.run(["git", "-C", str(repo), "add", str(wip)], capture_output=True)
+
+        # 사용자 본문 수정
+        wip.write_text(wip.read_text(encoding="utf-8") + "\n새로운 본문 추가.\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(repo), "add", str(wip)], capture_output=True)
+
+        # move: git mv → decisions/ + status: completed
+        subprocess.run(["git", "-C", str(repo), "mv",
+                        str(wip.relative_to(repo)), str(doc.relative_to(repo))],
+                       capture_output=True, check=True)
+        doc.write_text(
+            doc.read_text(encoding="utf-8").replace("status: in-progress", "status: completed"),
+            encoding="utf-8"
+        )
+        subprocess.run(["git", "-C", str(repo), "add", str(doc)], capture_output=True)
+
+        # docs_ops.py move 효과 시뮬레이션: session-moved-docs.txt에 경로 기록
+        session_file = repo / ".claude/memory/session-moved-docs.txt"
+        session_file.parent.mkdir(parents=True, exist_ok=True)
+        session_file.write_text("docs/decisions/hn_t42_9_reopen.md\n", encoding="utf-8")
+
+        r = subprocess.run(
+            [sys.executable, ".claude/scripts/pre_commit_check.py"],
+            cwd=repo, capture_output=True, text=True,
+        )
+        assert "completed 문서 본문 무단 변경 감지" not in (r.stderr + r.stdout), \
+            f"reopen→move 정상 절차가 봉인에서 차단됨. output: {r.stderr + r.stdout}"
+
+    def test_status_change_without_reopen_blocks(self, sealed_repo):
+        """T42.10: reopen 없이 completed 문서 본문 수정 → 세션 파일 없으면 여전히 차단.
+
+        session-moved-docs.txt 없이 M 파일이 있으면 봉인 차단 유지.
+        """
+        repo, target = sealed_repo
+        # session-moved-docs.txt가 없는 상태에서 본문만 추가
+        original = target.read_text(encoding="utf-8")
+        target.write_text(original + "\n무단 추가.\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(repo), "add", str(target)], capture_output=True)
+
+        r = subprocess.run(
+            [sys.executable, ".claude/scripts/pre_commit_check.py"],
+            cwd=repo, capture_output=True, text=True,
+        )
+        assert "completed 문서 본문 무단 변경 감지" in (r.stderr + r.stdout), \
+            f"무단 본문 변경이 봉인에서 통과되면 안 됨. output: {r.stderr + r.stdout}"
+
 
 # ─────────────────────────────────────────────────────────
 # implementation Step 0 init 게이트 (A4 의미 재정의, v0.34.0)

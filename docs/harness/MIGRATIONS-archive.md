@@ -43,6 +43,23 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.37.9 — CLAUDE.md 커밋 스킬 우회 금지 절대 규칙 추가 + 신호 파일 등록 (2026-05-06)
+
+### 변경 내용
+- `CLAUDE.md` — 절대 규칙에 "커밋은 반드시 `/commit` 스킬 경유. WIP 없어도 `--no-review` 플래그. `commit_finalize.sh` 직접 호출 금지" 추가
+- `.claude/memory/signal_commit_skill_bypass.md` — 커밋 스킬 우회 반복 패턴 strong 신호 등록
+
+### 적용 방법
+자동 적용.
+
+### 수동 적용
+없음.
+
+### 회귀 위험
+- upstream 격리 환경에서만 확인됨.
+
+
+
 ## v0.37.8 — memory 신호 파일 + session-start 컨텍스트 매칭 주입 (2026-05-06)
 
 ### 변경 내용
