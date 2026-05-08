@@ -43,6 +43,31 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.38.0 — P4·P7 방어 실질화 + HARNESS_DEV 이스케이프 경계 명확화 (2026-05-06)
+
+### 변경 내용
+- `agents/review.md` — 카테고리 9 추가: settings.json `hooks` 블록 argument-constraint 패턴 감지 [차단] (P4 방어 실질화)
+- `agents/review.md` — 카테고리 10 추가: commit_finalize.sh 스킬 외부 직접 호출 감지 [경고]
+- `docs/guides/hn_harness_organism_design.md` — frontmatter `problem: P1` → `problem: P7` 수정 (P7 인용 0건 해소)
+- `skills/implementation/SKILL.md` — WIP 사전 준비 섹션에 "MAP 참조" 필드 추가 (MAP 활용 흔적 기록)
+- `memory/signal_commit_skill_bypass.md` — 합법/금지 경로 경계 명확화
+
+### 배경
+- P4: hooks.md가 review에 위임 선언했으나 review.md에 해당 검증 항목 없었음 — dangling reference 수정
+- P7: hn_harness_organism_design.md가 P7 작업인데 P1으로 잘못 등재됨 → P7 인용 0건의 직접 원인
+- HARNESS_DEV: 스킬 내부 사용(합법) vs 외부 직접 호출(금지) 경계가 텍스트로만 존재 → review 카테고리로 보강
+
+### 적용 방법
+자동 적용.
+
+### 수동 적용
+없음.
+
+### 회귀 위험
+- upstream 격리 환경에서만 확인됨.
+
+
+
 ## v0.37.9 — CLAUDE.md 커밋 스킬 우회 금지 절대 규칙 추가 + 신호 파일 등록 (2026-05-06)
 
 ### 변경 내용

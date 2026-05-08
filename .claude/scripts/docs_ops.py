@@ -21,6 +21,14 @@ import sys
 from datetime import date
 from pathlib import Path
 
+# Windows cp949 콘솔에서 한글/emoji 출력 시 UnicodeEncodeError·mojibake 차단.
+if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, OSError):
+        pass
+
 NAMING_MD = Path(".claude/rules/naming.md")
 DOCS_DIR  = Path("docs")
 

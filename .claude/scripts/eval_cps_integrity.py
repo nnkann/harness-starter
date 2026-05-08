@@ -19,6 +19,14 @@ import re
 import sys
 from pathlib import Path
 
+# Windows cp949 콘솔에서 emoji 출력 시 UnicodeEncodeError 차단.
+if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, OSError):
+        pass
+
 # pre_commit_check.py 동적 import (모듈명 - 포함 → 직접 import 불가)
 _PCC = Path(__file__).parent / "pre_commit_check.py"
 _spec = importlib.util.spec_from_file_location("pre_commit_check", _PCC)
