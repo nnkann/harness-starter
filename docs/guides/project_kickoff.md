@@ -227,13 +227,16 @@ incident `hn_bash_n_flag_overblock` 참조.
 5. **commit Step 4 MIGRATIONS.md 자동 작성** — 버전 범프 확정 후 MIGRATIONS.md 섹션 작성 절차 추가 (v0.26.2)
 6. **implementation Step 2.5 AC 강제화** — 자동화 가능 AC 실행 기록 의무, 불가 항목 명시 의무 (v0.26.2)
 7. **implementation Step 4 CPS 갱신 명시 의무** — "없음"도 WIP ## 결정 사항에 명기 (v0.26.2)
+8. **docs_ops.py move 신호 → pre-check 봉인 면제** — `docs_ops.py move`가 완료 시 `.claude/memory/session-moved-docs.txt`에 경로 기록. pre-check이 대조해 reopen→수정→move 정상 절차 경유 파일의 봉인 위반 오탐 차단 (v0.38.4)
 
 **해결 기준**:
 - SKILL.md·rules 변경 커밋에 `python3 -m pytest .claude/scripts/test_pre_commit.py -q` 실행 기록이 있음
 - SKILL.md 절차 변경 시 MIGRATIONS.md 해당 버전 섹션 동반
 - WIP AC 완료 후 CPS Solution 항목 갱신 여부가 명시적으로 확인됨
+- reopen→수정→move 정상 절차 경유 파일이 봉인 오탐 없이 통과 (T42.9·T42.10 회귀 테스트로 보장)
 
 **구현 완료 (2026-04-28, v0.26.2)**: 5·6·7번 방어 레이어 추가. 해결 기준 3개 모두 스킬 절차에 강제화됨.
+**구현 완료 (2026-05-08, v0.38.4)**: 8번 방어 레이어 추가. reopen→move 봉인 면제 메커니즘 — 정상 절차 인식 신호로 false-block 차단.
 실제 Claude 행동 변화는 운용에서 확인 필요 — "테스트 통과 = 검증됨"으로 포장 금지.
 
 **제약**: SKILL.md 변경의 실제 Claude 행동 변화는 자동 검증 불가 — 운용에서
