@@ -8,7 +8,7 @@ tags: [p8, starter, commit-flow, self-dependency, force-trigger, hook]
 relates-to:
   - path: decisions/hn_self_invocation_failure.md
     rel: caused-by
-status: in-progress
+status: completed
 created: 2026-05-10
 updated: 2026-05-10
 ---

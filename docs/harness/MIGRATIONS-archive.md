@@ -43,6 +43,24 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.38.3 — 침묵하는 방어 가시화 + harness-upgrade 지식 내면화 단계 (2026-05-06)
+
+### 변경 내용
+- `.claude/scripts/bash-guard.sh` — 차단 시 `.claude/memory/signal_defense_success.md`에 background append. P4 방어 활성 데이터 축적.
+- `skills/eval/SKILL.md` — `--harness` 항목 6번 추가: signal_defense_success.md 존재·최근 기록 표시 (기존 6번은 7번으로 번호 이동)
+- `skills/harness-upgrade/SKILL.md` — Step 10 완료 직후 방어 기전 설명 단계(6번) 추가: What이 아닌 Why 포함 강제
+- `docs/guides/project_kickoff.md` — S4 추가 방어 레이어 구현 완료 승격 상태 갱신
+
+### 적용 방법
+- **자동**: 파일 덮어쓰기로 적용됨
+- **수동**: 없음
+
+### 다운스트림 참고
+- 다음 harness-upgrade 시 Step 10 완료 직후 방어 기전 설명을 받게 됨 — "왜 이런 제약이 있는가" 이해 기회
+- `.claude/memory/signal_defense_success.md`가 자동 생성되어 eval --harness에서 방어 활성 상태 확인 가능
+
+
+
 ## v0.38.2 — HARNESS_MAP MVR 섹션 + 에이전트 빠른 진입 가이드 (2026-05-06)
 
 ### 변경 내용
