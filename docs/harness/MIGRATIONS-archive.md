@@ -43,6 +43,50 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.39.0 — BIT 강제 트리거 보강 (debug-guard.sh 키워드 사전 확장) (2026-05-10)
+
+### 변경 내용
+
+- CPS P8 신설: "자가 발화 의존 규칙의 일반 실패". 다운스트림에서 BIT
+  (bug-interrupt) 발화 0건 실측 기반 (LSP stale dist 결함 케이스에서 메커니즘
+  0 작동). S8 1차 초안 — "강제 트리거 우선 + 자가 의존 보조". 충족 기준
+  확정은 owner 승인 후
+- `.claude/scripts/debug-guard.sh`: 키워드 사전 17개로 확장 — 한국어 `에러|
+  버그|실패|오류|크래시|충돌`, 영어 `error|bug|fail|exception|panic|crash|
+  traceback|stacktrace|regression|broken|conflict`. hit 시 기존
+  debug-specialist 안내 + 신규 BIT Q1/Q2/Q3 적용 안내 둘 다 출력
+- `.claude/scripts/test-debug-guard.sh`: 신규 회귀 가드. 22/22 통과 (hit 17 +
+  miss 5, false-positive 가드 포함)
+- `.claude/rules/bug-interrupt.md`: "## 강제 트리거 (debug-guard.sh)" 절 추가.
+  키워드 SSOT는 hook 스크립트로 위임 (룰에 박지 않음)
+- `.claude/HARNESS_MAP.md`: CPS 테이블 P8 행 추가 (defends-by=bug-interrupt,
+  enforced-by=debug-guard.sh)
+
+### 적용 방법
+
+자동. `harness-upgrade` 실행 시 자동 반영. 수동 액션 없음.
+
+### 검증
+
+```bash
+bash .claude/scripts/test-debug-guard.sh
+# 22/22 통과 기대
+```
+
+다운스트림 운용에서 사용자가 증상 키워드 발화 시 두 안내 출력 확인.
+
+### 회귀 위험
+
+- Windows + Git Bash 격리 환경에서 22/22 통과 확인. Linux/macOS 미테스트
+- 키워드 사전 확장은 누적 — 기존 v0.38.5까지의 6개 키워드 모두 포함, 신규
+  11개 추가만. 기존 hit 케이스 회귀 없음
+- BIT 안내 추가 출력은 stdout 경로 — 기존 debug-specialist 안내와 충돌
+  없음 (둘 다 누적 출력)
+- false-positive 가드: "원인" 키워드 제외 ("원인 분석해줘"류 회피).
+  실측 누적 후 사전 재조정 가능
+
+
+
 ## v0.38.5 — Python 콘솔 인코딩 안전 처리 (Windows cp949 환경) (2026-05-08)
 
 ### 변경 내용

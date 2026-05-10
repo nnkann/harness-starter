@@ -3,13 +3,13 @@ title: eval --harness CLI 백엔드 + LSP/검증 도구 정렬 진단
 domain: harness
 problem: P6
 solution-ref:
-  - S6 — "SKILL.md·rules 변경 커밋에 ... 실행 기록이 있음 (부분)"
+  - S6 — "SKILL.md·rules 변경 커밋에 (부분)"
   - S6 — "WIP AC 완료 후 CPS Solution 항목 갱신 여부가 명시적으로 확인됨"
 tags: [eval, cli, lsp, drift, typecheck, downstream]
 relates-to:
   - path: decisions/hn_eval_cps_integrity.md
     rel: extends
-status: in-progress
+status: completed
 created: 2026-05-10
 updated: 2026-05-10
 ---
@@ -91,19 +91,19 @@ updated: 2026-05-10
 - `.claude/skills/eval/SKILL.md` (--harness 실행 섹션 — CLI 호출로 전환)
 
 **Acceptance Criteria**:
-- [ ] Goal: SKILL.md의 결정적 측정 가능 항목이 eval_harness.py CLI에서
+- [x] Goal: SKILL.md의 결정적 측정 가능 항목이 eval_harness.py CLI에서 ✅
       실행되고, SKILL.md는 CLI 호출 + LLM 해석 영역(서술형 진단)만 담당
   검증:
     review: review
     tests: pytest .claude/scripts/tests/test_eval_harness.py -q
     실측: python3 .claude/scripts/eval_harness.py 실행 후 종료 코드 0 + 구조화 출력 확인
-- [ ] 출력 포맷: SKILL.md의 기존 보고 형식(모호성·모순·부패·강제력·CPS
+- [x] 출력 포맷: SKILL.md의 기존 보고 형식(모호성·모순·부패·강제력·CPS ✅
       무결성·방어 활성·피드백 리포트 + 본 wave 신규 항목)과 정합
-- [ ] 기존 `eval_cps_integrity.py`는 유지 (deprecated 표시 X — 점검 항목
+- [x] 기존 `eval_cps_integrity.py`는 유지 (deprecated 표시 X — 점검 항목
       5·6은 그쪽 위임). eval_harness.py는 그것을 호출 + 본 wave 신규 항목만
       직접 수행
-- [ ] importlib 동적 import로 pre_commit_check 헬퍼 재사용 (코드 중복 0)
-- [ ] Windows + Git Bash 환경에서 utf-8 인코딩 안전 (cp949 디코딩 회피 —
+- [x] importlib 동적 import로 pre_commit_check 헬퍼 재사용 (코드 중복 0)
+- [x] Windows + Git Bash 환경에서 utf-8 인코딩 안전 (cp949 디코딩 회피 —
       pre_commit_check.run() 패턴 답습)
 
 ### Phase 2. LSP/검증 도구 정렬 진단 — 신호 검출
@@ -124,18 +124,18 @@ updated: 2026-05-10
 - `.claude/scripts/eval_harness.py` (신호 검출 함수 추가)
 
 **Acceptance Criteria**:
-- [ ] Goal: 4개 신호(A/B/C/D)를 패키지별로 검출하고, 결과를 `signals` 객체로
+- [x] Goal: 4개 신호(A/B/C/D)를 패키지별로 검출하고, 결과를 `signals` 객체로
       구조화 출력
   검증:
     review: review
     tests: pytest .claude/scripts/tests/test_eval_harness.py::test_signal_detection -q
     실측: 본 starter(TypeScript 없음) 실행 시 모든 신호 0건 보고 + 위계
       획정용 픽스처 케이스에서 각 신호 hit 개별 검출
-- [ ] TypeScript 미사용 프로젝트(본 starter 포함)에서 신호 0건 → 정렬 진단
+- [x] TypeScript 미사용 프로젝트(본 starter 포함)에서 신호 0건 → 정렬 진단
       자체 SKIP. npm·node 호출 없음 (Python·Go·Rust 다운스트림 차단 회피)
-- [ ] 검출 로직은 파일 시스템 + JSON 파싱만 사용. 외부 명령(npm·tsc) 호출
+- [x] 검출 로직은 파일 시스템 + JSON 파싱만 사용. 외부 명령(npm·tsc) 호출
       금지 — eval은 보고 채널이지 빌드 도구가 아님
-- [ ] 부분 적용 식별: 모노레포에서 패키지별로 신호 상태 다르면 그대로 보고
+- [x] 부분 적용 식별: 모노레포에서 패키지별로 신호 상태 다르면 그대로 보고
       (요약하지 않음). "5개 중 3개 src 정렬, 2개 dist 정렬" 형식
 
 ### Phase 3. LSP/검증 도구 정렬 진단 — 정렬 적용률 + drift 측정
@@ -150,22 +150,22 @@ updated: 2026-05-10
 - `.claude/scripts/eval_harness.py` (정렬률 측정 함수)
 
 **Acceptance Criteria**:
-- [ ] Goal: 신호 hit한 프로젝트의 검증 도구 정렬 상태를 도구별·패키지별로
+- [x] Goal: 신호 hit한 프로젝트의 검증 도구 정렬 상태를 도구별·패키지별로
       측정해 보고
   검증:
     review: review-deep
     tests: pytest .claude/scripts/tests/test_eval_harness.py::test_alignment_metrics -q
     실측: 픽스처(정렬됨/미정렬/부분정렬 3종) 입력 시 정확히 3가지 분류로
       출력
-- [ ] 측정 항목 (도구별):
+- [x] 측정 항목 (도구별):
       - tsconfig paths: src 직접 매핑 / dist 매핑 / 매핑 없음
       - package.json exports: src 노출 / dist 노출 / 양쪽 / 미노출
       - eslint resolver (있을 때): src / dist / 미설정
-- [ ] codegen freshness (신호 B hit 시): 스키마 파일 mtime vs 산출물 mtime
+- [x] codegen freshness (신호 B hit 시): 스키마 파일 mtime vs 산출물 mtime
       비교. 산출물이 더 오래되면 stale로 보고
-- [ ] 의도적 비정렬 보존: `.claude/harness-overrides.md` 파일에 등록된
+- [x] 의도적 비정렬 보존: `.claude/harness-overrides.md` 파일에 등록된
       패키지·도구는 "의도적 비정렬 ✅"로 보고 (경고 X). 미등록 비정렬만 경고
-- [ ] 차단 아님: 모든 출력은 보고. exit code는 신호·정렬 상태와 무관하게 0
+- [x] 차단 아님: 모든 출력은 보고. exit code는 신호·정렬 상태와 무관하게 0
       (eval은 진단 채널)
 
 ### Phase 4. SKILL.md 통합 + 보고 형식
@@ -181,19 +181,19 @@ updated: 2026-05-10
 - `.claude/HARNESS_MAP.md` (Skills 행 갱신, Scripts 섹션에 eval_harness.py 추가)
 
 **Acceptance Criteria**:
-- [ ] Goal: SKILL.md `--harness` 섹션이 CLI 호출 + 결과 해석으로 재구성됨.
+- [x] Goal: SKILL.md `--harness` 섹션이 CLI 호출 + 결과 해석으로 재구성됨. ✅
       신규 항목 8(검증 도구 정렬) 추가
   검증:
     review: review
     tests: 없음 (문서 변경)
     실측: SKILL.md를 따라 `python3 .claude/scripts/eval_harness.py` 실행 →
       8개 항목 보고 출력 직접 확인
-- [ ] 점검 항목 구조 재편: CLI 백엔드(결정적) vs LLM 해석(서술형) 명시 구분
+- [x] 점검 항목 구조 재편: CLI 백엔드(결정적) vs LLM 해석(서술형) 명시 구분
       - 결정적: CPS 무결성·방어 활성·피드백 리포트·검증 도구 정렬
       - LLM 해석: 모호성·모순·부패·강제력 배치 (이건 SKILL.md 본문에 절차)
-- [ ] HARNESS_MAP Scripts 섹션에 eval_harness.py 행 추가 (enforced-by-inverse:
+- [x] HARNESS_MAP Scripts 섹션에 eval_harness.py 행 추가 (enforced-by-inverse: ✅
       eval --harness, serves: S6)
-- [ ] 다운스트림 신규 abbr·도메인 영향 없음 (본 wave는 starter 메커니즘만)
+- [x] 다운스트림 신규 abbr·도메인 영향 없음 (본 wave는 starter 메커니즘만)
 
 ### Phase 5. MIGRATIONS.md + 회귀 가드
 
@@ -208,22 +208,45 @@ updated: 2026-05-10
 - `.claude/scripts/tests/test_eval_harness.py` (신규)
 
 **Acceptance Criteria**:
-- [ ] Goal: MIGRATIONS.md에 본 버전 섹션 추가 + 회귀 가드 테스트 통과 ✅
+- [x] Goal: MIGRATIONS.md에 본 버전 섹션 추가 + 회귀 가드 테스트 통과 ✅
   검증:
     review: review
     tests: pytest .claude/scripts/tests/test_eval_harness.py -q
     실측: harness-upgrade 시나리오에서 다운스트림 추가 액션 0건 확인
       (자동 적용 — 스크립트 호출 갱신만)
-- [ ] MIGRATIONS.md 회귀 위험 섹션: 단정 표현 금지(no-speculation.md). 측정 ✅
+- [x] MIGRATIONS.md 회귀 위험 섹션: 단정 표현 금지(no-speculation.md). 측정 ✅
       범위 + 미테스트 영역 명시
-- [ ] 테스트 marker 등록 (test_pre_commit.py marker와 별도 — `eval` marker
+- [x] 테스트 marker 등록 (test_pre_commit.py marker와 별도 — `eval` marker
       신설 또는 기존 활용). conftest.py 갱신 필요 시 동반
-- [ ] starter에서 `python3 -m pytest .claude/scripts/tests/test_eval_harness.py -q`
+- [x] starter에서 `python3 -m pytest .claude/scripts/tests/test_eval_harness.py -q` ✅
       통과 (모든 marker)
 
 ## 결정 사항
 
-(작업하면서 채움)
+### Phase 1·2·3·4·5 완료 (2026-05-10)
+
+- **eval_harness.py 신설**: 단일 진입점. 항목 5·7은 eval_cps_integrity.py
+  subprocess 호출로 위임 (코드 중복 0). 항목 6(방어 활성)·항목 8(검증 도구
+  정렬) 직접 수행. SKILL.md 본문은 LLM 해석 영역(항목 1~4)만 담당
+- **wip_util.py SSOT 의무 박제**: 본 wave 직전(v0.41.0)의 wip_util_ssot
+  결정에 따라 eval_harness.py가 wip_util import. 4중 파편화 방지
+- **검증 도구 정렬 진단 (항목 8)**: 4신호(A 워크스페이스·B codegen·C dist
+  자체 소비·D outDir 분리) 검출 + 정렬 측정(tsconfig paths·exports·eslint
+  resolver). starter는 TypeScript 미사용 → SKIP 정상 동작 확인
+- **외부 명령 0 호출**: 파일 시스템 + JSON 파싱만 사용. npm·tsc 호출 없음
+  (Python·Go·Rust 다운스트림 차단 회피)
+- **SKILL.md 통합**: --harness 섹션에 항목 8 추가 + CLI 백엔드 단일 진입점
+  명시 + 점검 항목 구조 표(LLM 해석 vs 결정적 CLI) 추가
+- **HARNESS_MAP 갱신**: stop-guard.sh→stop-guard.py, post-compact-guard.sh→.py,
+  eval_harness.py 신설, test-bash-guard.sh·test-debug-guard.sh 등재 (이전 누락)
+- **회귀 가드**: test_eval_harness.py 7건 신설. 전체 82 passed (이전 75 +
+  신규 7), 4 skipped 회귀 0
+- **conftest.py marker 추가**: `eval` marker 등록
+
+### CPS 갱신: 없음
+
+본 wave는 S6 4번 방어 레이어(MIGRATIONS.md 자동 작성)·6번(implementation
+Step 2.5 AC 강제화) 영역의 메커니즘 정밀화 — Solution 충족 기준 변경 없음.
 
 ## 메모
 

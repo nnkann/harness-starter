@@ -227,7 +227,43 @@ Problem 인플레이션을 전수 감시한다. pre-check은 commit 시점 stage
 - 누락 필드 보고: `⚠️ FR-NNN: [필드명] 없음`
 - 항목 없음: `피드백 리포트: 없음 ✅`
 
-#### 실행
+**8. 검증 도구 정렬 진단 (LSP/lint/tsc src vs dist)** — TypeScript/JavaScript
+프로젝트에서 검증 도구가 산출물(dist/build)이 아닌 소스를 직접 보도록
+보장. 4신호(A 워크스페이스·B codegen 의존·C 자체 dist 소비·D outDir 분리)
+검출 후 신호 hit 패키지의 정렬 상태(tsconfig paths·exports·eslint resolver)
+측정. 산출물:
+
+- 신호 0건: 정렬 진단 자체 SKIP (TypeScript 미사용 또는 위험 신호 없음)
+- 신호 hit: 패키지별 정렬 상태 보고. 의도적 비정렬은 `.claude/harness-overrides.md`
+  등록 시 ✅ 마킹
+- 외부 명령(npm·tsc) 호출 0건 — eval은 보고 채널 (Python·Go·Rust 다운스트림 차단 회피)
+
+#### 실행 (CLI 백엔드 — v0.41.0+)
+
+**단일 진입점**:
+
+```bash
+python3 .claude/scripts/eval_harness.py
+```
+
+내부에서 `eval_cps_integrity.py`를 호출 (항목 5·7 위임) + 항목 6(방어 활성)
++ 항목 8(검증 도구 정렬) 직접 실행. SKILL.md 본문은 LLM 해석 영역(항목
+1~4: 모호성·모순·부패·강제력 배치)만 담당.
+
+**점검 항목 구조**:
+
+| 항목 | 영역 | 처리 |
+|------|------|------|
+| 1 모호성 | LLM 해석 | SKILL.md 본문 절차 (위 "1. 모호성") |
+| 2 모순 | LLM 해석 | SKILL.md 본문 절차 |
+| 3 부패 | LLM 해석 | SKILL.md 본문 절차 |
+| 4 강제력 배치 | LLM 해석 | SKILL.md 본문 절차 |
+| 5 CPS 무결성 | 결정적 (CLI) | eval_harness.py → eval_cps_integrity.py |
+| 6 방어 활성 | 결정적 (CLI) | eval_harness.py |
+| 7 피드백 리포트 | 결정적 (CLI) | eval_harness.py → eval_cps_integrity.py |
+| 8 검증 도구 정렬 | 결정적 (CLI) | eval_harness.py |
+
+#### 구버전 호환 (직접 호출도 작동)
 
 ```bash
 python3 .claude/scripts/eval_cps_integrity.py

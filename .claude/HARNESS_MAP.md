@@ -99,7 +99,7 @@ docs/ — decisions/·incidents/·guides/ (미세혈관)
 |-----|---------|---------|------------|------|
 | docs | 문서 체계 유지 | P7 | pre_commit_check.py, docs_ops.py | rules/docs.md |
 | naming | 네이밍·cluster 체계 | P7 | docs_ops.py | rules/naming.md |
-| memory | 세션 간 지식 유지 | P7 | stop-guard.sh | rules/memory.md |
+| memory | 세션 간 지식 유지 | P7 | stop-guard.py | rules/memory.md |
 | external-experts | 외부 전문가 참조 캐시 | P1 | researcher | rules/external-experts.md |
 
 ### 규칙 간 참조 맵
@@ -158,8 +158,8 @@ internal-first → (children) external-experts
 |---------|-----------|---------|-------------------|
 | session-start.py | SessionStart | 세션 초기 상태·WIP 알림 | coding, naming, self-verify, internal-first (환기) |
 | debug-guard.sh | UserPromptSubmit | 에러 키워드 감지 | no-speculation |
-| stop-guard.sh | Stop | 세션 종료 memory 환기 | memory |
-| post-compact-guard.sh | PostCompact | 컴팩션 후 컨텍스트 복원 | coding, naming, self-verify (환기) |
+| stop-guard.py | Stop | 세션 종료 memory 환기 + A·B·C 조건 발화 | memory |
+| post-compact-guard.py | PostCompact | 컴팩션 후 컨텍스트 복원 | coding, naming, self-verify (환기) |
 | write-guard.sh | PreToolUse(Write) | docs/ WIP 직접 Write 차단 | docs |
 | bash-guard.sh | PreToolUse(Bash) | argument-constraint 패턴 차단 | hooks |
 | auto-format.sh | PostToolUse | 포맷 자동 적용 | coding |
@@ -171,12 +171,15 @@ internal-first → (children) external-experts
 | pre_commit_check.py | commit | AC·CPS·staged 검증 + stage 결정 | self-verify, staging |
 | docs_ops.py | commit, write-doc, doc-health | 문서 이동·cluster 갱신·reopen | docs, naming |
 | eval_cps_integrity.py | eval, harness-dev | defends/serves 정합성 감사 + MAP 단절 감지 | docs, naming, memory, anti-defer (P7 방어) |
+| eval_harness.py | eval | --harness CLI 백엔드 단일 진입점 (CPS·방어·정렬 진단) | self-verify (P6 방어) |
 | harness_version_bump.py | harness-dev, commit | 버전 범프 | — |
 | commit_finalize.sh | commit | git commit 래퍼 | — |
 | split-commit.sh | commit | 커밋 분할 | — |
 | extract_review_verdict.py | commit | review verdict 파싱 | — |
 | task_groups.py | commit | 파일 그룹 분류 | — |
 | downstream-readiness.sh | harness-upgrade | 업그레이드 후 누락 진단 | — |
+| test-bash-guard.sh | (수동/CI) | bash-guard 회귀 테스트 | — |
+| test-debug-guard.sh | (수동/CI) | debug-guard 회귀 테스트 | — |
 | install-starter-hooks.sh | harness-sync | hooks 설치 | — |
 | check_init_done.sh | implementation, harness-init | init 완료 여부 | — |
 | validate-settings.sh | harness-upgrade | settings.json 검증 | — |

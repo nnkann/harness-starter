@@ -6,7 +6,7 @@ solution-ref:
   - S8 — "강제 트리거 우선 + 자가 의존 보조"
 tags: [bit, self-invocation, downstream, debug-guard, hook]
 relates-to:
-  - path: WIP/decisions--hn_eval_harness_cli_lsp_drift.md
+  - path: decisions/hn_eval_harness_cli_lsp_drift.md
     rel: caused-by
 status: completed
 created: 2026-05-10
