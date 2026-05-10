@@ -43,6 +43,82 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.42.1 — harness-upgrade silent fail 차단 보강 (FR-001/002/003) (2026-05-10)
+
+### 변경 내용
+
+다운스트림 v0.42.0 upgrade 측정에서 보고된 silent fail 3건의 알고리즘 갭
+보강 (FR-001~003).
+
+- **FR-001 (Step 5)**: 3-way merge 직전 base↔ours sanity check 추가.
+  frontmatter `name:` 필드 변경 시 즉시 ALERT, base↔ours 라인 차이율 70%
+  이상 시 본체 swap 의심 confirm 강제. 3택 (Y 통과 / N theirs 강제 교체 /
+  S 파일 skip) 처리. 다운스트림 `eval/SKILL.md` 본체가 `implementation/SKILL.md`
+  로 swap된 채 3회 upgrade 통과한 사례 차단
+- **FR-002 (Step 9.6 신설)**: upstream 정합성 자동 검증 단계. starter 영역
+  한정 `git diff harness-upstream/main HEAD --name-only` 실행 후 USER_OWNED_FILES
+  / STARTER_SKILL_FILES / UNAPPLIED_FILES 3 카테고리 분류. 미적용 1건+ 시
+  사용자 알림 + 처리 옵션(재실행 / 무시 / 중단). 다운스트림 v0.42.0에서
+  30+ 파일이 silent 미적용 통과한 사례 차단
+- **FR-003 (Step 10)**: 완료 보고에 사용자 전용 / starter_skills / upstream
+  정합성 미도달 카운트 추가. Step 9.6 배열 length 그대로 주입(재계산 금지).
+  미도달 1건+ 강조 + 파일 목록 + migration-log.md `### 이상 소견`에 자동
+  append. 5+ 사용자 전용 항목은 요약 + 전체 보기 옵션
+- **MIGRATIONS.md 표준**: `## Feedback Reports` 절에 "버전 섹션 표준"
+  추가 — 6번 서브섹션 "다운스트림 보고 요청"(선택) 정의. 자동 검증 불가
+  영역 보강 시 사용
+
+근거 문서: `docs/decisions/hn_upgrade_silent_fail_guards.md` (이 wave 후 이동).
+
+### 자동 적용 항목
+
+- `.claude/skills/harness-upgrade/SKILL.md` (Step 5 본체 swap sanity check
+  + Step 9.6 신설 + Step 10 보고 포맷 갱신)
+- `docs/harness/MIGRATIONS.md` (`## Feedback Reports` 절에 버전 섹션 표준 추가)
+
+### 수동 적용 항목
+
+없음. 다음 upgrade 시 자동으로 새 절차 적용.
+
+### 검증
+
+```bash
+grep -nE "본체 swap|차이율|name:" .claude/skills/harness-upgrade/SKILL.md
+grep -nE "정합성 미도달|UNAPPLIED_FILES" .claude/skills/harness-upgrade/SKILL.md
+grep -nE "버전 섹션 표준|다운스트림 보고 요청" docs/harness/MIGRATIONS.md
+```
+
+### 회귀 위험
+
+- upstream 격리 환경에서 SKILL.md 절차 변경만 검증. 실제 3-way merge
+  sanity check 동작은 다음 다운스트림 upgrade에서 운용 측정 필요
+- base↔ours 차이율 70% 임계는 이론값. false-positive·false-negative 분포는
+  다운스트림 측정으로만 확인 가능 (의도된 대규모 리팩토링과 본체 swap
+  구분이 임계 안에서 가능한지 미실증)
+- Step 9.6 USER_OWNED_FILES 정의(naming/coding/docs.md 한정)가 다운스트림
+  실제 사용자 전용 영역과 정합한지 미실증. 다운스트림이 다른 파일을 정당
+  커스터마이징하면 미도달로 오분류 가능 — 보고 채널 1로 측정 예정
+
+### 다운스트림 보고 요청
+
+upstream이 본 변경의 운용 효과를 측정하기 위해 다음 관찰을 요청합니다.
+다음 upgrade 시 `docs/harness/migration-log.md` `## Feedback Reports` 섹션에 응답:
+
+1. **Step 5 본체 swap sanity check 발화 빈도**:
+   - 검사 1(`name:` 필드 변경 ALERT) 발화 횟수 / 검사 2(차이율 ≥70% 의심) 발화 횟수
+   - 사용자 3택 결과 분포: Y(통과) / N(theirs 강제) / S(skip)
+2. **Step 9.6 정합성 미도달 카운트**:
+   - USER_OWNED_FILES / STARTER_SKILL_FILES / UNAPPLIED_FILES 각 카운트
+   - 미도달 1건+ 시 사용자 선택: 재실행 / 무시 / 중단
+3. **Step 10 보고 가독성 + 자가 발화 의존 잔존 여부**:
+   - "정합성 미도달" 강조가 사용자 인지에 도달했는가
+   - 사용자가 보고를 보고 추가 액션을 취했는가
+   - silent 제외 카운트가 "이게 진짜 보존 맞나?" 검토를 유발했는가
+
+응답 형식: `migration-log.md` 본 버전 섹션 안에 FR 표준 포맷(관점·약점·실천·심각도).
+
+
+
 ## v0.42.0 — eval --harness CLI 백엔드 + 검증 도구 정렬 진단 (2026-05-10)
 
 ### 변경 내용

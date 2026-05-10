@@ -251,3 +251,52 @@ def test_feedback_reports_inline_header_severity(tmp_path):
 """)
     result = mod.check_feedback_reports(docs_root)
     assert result == ["FR-007 ✅"]
+
+
+@pytest.mark.eval
+def test_feedback_reports_bold_inner_paren(tmp_path):
+    """v0.42.6 — bold 마커 내부 괄호 보강어 양식 검출 (FR-010 응답).
+
+    다운스트림 실측 양식: `**약점 (부분 작동)**:` — 필드명 뒤에 괄호로
+    보강 설명을 붙이는 자연스러운 변형. v0.42.4까지는 bold 정규식이
+    `**X**:`로 좁아 미매칭 → 약점·실천·심각도 1건 누락 오경보 발생.
+    """
+    mod = _load_eval_cps_integrity()
+    docs_root = _write_log(tmp_path, """# migration-log
+
+## v0.42.5 → v0.42.6 (2026-05-11)
+
+### Feedback Reports
+
+#### FR-010 (2026-05-11)
+
+**관점 (다운스트림 검증)**: 양식 자율성 검증.
+**약점 (부분 작동)**: bold 내부 괄호 보강어 미인식.
+**실천 (정규식 보강)**: 필드명 뒤 선택적 괄호 그룹 허용.
+**심각도 (medium)**: 양식 갭으로 오경보 누적.
+""")
+    result = mod.check_feedback_reports(docs_root)
+    assert result == ["FR-010 ✅"]
+
+
+@pytest.mark.eval
+def test_feedback_reports_bold_inner_paren_does_not_match_prose(tmp_path):
+    """false-positive 가드 — 단순 산문 표현은 여전히 미매칭."""
+    mod = _load_eval_cps_integrity()
+    docs_root = _write_log(tmp_path, """# migration-log
+
+## v0.42.5 → v0.42.6 (2026-05-11)
+
+### Feedback Reports
+
+#### FR-011 (2026-05-11)
+
+이 FR은 약점에 대해 설명만 하고 필드 마커는 없다.
+관점이라는 단어가 산문에 들어가 있어도 필드로 인식되면 안 된다.
+""")
+    result = mod.check_feedback_reports(docs_root)
+    # 필드 마커 없음 → 4개 필드 모두 missing
+    assert len(result) == 1
+    assert result[0].startswith("⚠️ FR-011:")
+    for field in ["관점", "약점", "실천", "심각도"]:
+        assert field in result[0]
