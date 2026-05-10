@@ -49,6 +49,7 @@ updated: 2026-05-11
 - [본 세션 시험 결과 종합 — review verdict + wip-sync false positive 누적 데이터](../decisions/hn_session_test_results.md)
 - [스킬·에이전트 역할 분담 감사 — 라우터 패턴 전방위 적용](../decisions/hn_skill_agent_role_audit.md)
 - [Review Staging 거버넌스 — 신호 추가 게이트와 알려진 한계](../decisions/hn_staging_governance.md)
+- [starter 모호성 흡수 + CPS Problem 임계 상향 + S7 미정의 명시](../decisions/hn_starter_ambiguity_absorption.md)
 - [starter 전용 스킬 격리 — harness-dev 스킬 신설](../decisions/hn_starter_skill_isolation.md)
 - [starter_skills 필터링 미구현 — harness-upgrade 폴더 복사 제외 + harness-dev 등록](../decisions/hn_starter_skills_filter.md)
 - [stop-guard.sh → stop-guard.py 전환 (자기증식 차단)](../decisions/hn_stop_guard_py_migration.md)

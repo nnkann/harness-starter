@@ -7,6 +7,7 @@ solution-ref:
 tags: [cps, ambiguity, skill-md, self-violation]
 status: completed
 created: 2026-05-11
+updated: 2026-05-11
 ---
 
 # starter 모호성 흡수 + CPS Problem 임계 상향 + S7 미정의 명시
