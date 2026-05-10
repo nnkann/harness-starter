@@ -25,6 +25,10 @@ from pathlib import Path
 # 관찰됨 (Windows + Claude Code). __file__ 기준 repo root로 chdir.
 os.chdir(Path(__file__).resolve().parents[2])
 
+# wip_util SSOT (is_in_progress alias).
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from utils.wip_util import is_in_progress  # noqa: E402
+
 # Windows cp949 콘솔 안전 처리 (session-start.py 답습)
 if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
     try:
@@ -43,24 +47,6 @@ def run(cmd: list[str]) -> str:
         return r.stdout.strip()
     except Exception:
         return ""
-
-
-def is_in_progress(path: Path) -> bool:
-    """WIP frontmatter status: in-progress 확인."""
-    try:
-        text = path.read_text(encoding="utf-8", errors="replace")
-    except Exception:
-        return False
-    in_fm = False
-    for line in text.splitlines():
-        if line.strip() == "---":
-            if in_fm:
-                return False
-            in_fm = True
-            continue
-        if in_fm and re.match(r"^status:\s*in-progress", line):
-            return True
-    return False
 
 
 def section_uncommitted() -> int:

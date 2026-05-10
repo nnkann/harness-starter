@@ -43,6 +43,41 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.38.5 — Python 콘솔 인코딩 안전 처리 (Windows cp949 환경) (2026-05-08)
+
+### 변경 내용
+
+- `.claude/scripts/eval_cps_integrity.py`: 진입점에 `sys.stdout/stderr.reconfigure(encoding="utf-8")` 안전 처리 추가
+  - Windows cp949 콘솔에서 emoji `✅` 출력 시 `UnicodeEncodeError` 발생하던 결함 차단
+  - `PYTHONIOENCODING=utf-8` prefix 없이도 정상 동작
+- `.claude/scripts/session-start.py`: 동일 안전 처리 추가
+- `.claude/scripts/docs_ops.py`: 동일 안전 처리 추가 — 한글 mojibake 출력(`## ���� �̵�`) 정상화
+- 결함 자체는 v0.0~v0.38.4 전 기간 잠재. eval --harness 박제 의심 점검 중 노출
+
+### 적용 방법
+
+자동. `harness-upgrade` 실행 시 자동 반영.
+
+### 검증
+
+```bash
+# Windows cp949 환경에서 PYTHONIOENCODING 없이 실행
+python .claude/scripts/eval_cps_integrity.py
+# emoji ✅ 정상 출력 확인
+
+python .claude/scripts/docs_ops.py validate
+# 한글 정상 출력 확인 (mojibake 없음)
+```
+
+### 회귀 위험
+
+- Windows + Git Bash 격리 환경에서 3개 스크립트 실행 통과 확인
+- 콘솔 인코딩이 이미 utf-8(Linux/macOS·`PYTHONIOENCODING=utf-8` 설정 환경)이면 reconfigure 분기 미실행 — 기존 동작 유지
+- `sys.stdout.reconfigure`는 Python 3.7+ 필수. 미만 버전은 `except (AttributeError, OSError)` 분기로 silent fall-through (정상 환경에서는 도달 불가)
+- `errors="replace"` 모드 — 표현 불가 문자는 `?`로 치환 (raise보다 safer)
+
+
+
 ## v0.38.4 — completed 봉인 오탐 수정 — reopen→move 정상 절차 면제 (2026-05-08)
 
 ### 변경 내용

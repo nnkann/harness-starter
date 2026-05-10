@@ -14,6 +14,10 @@ from pathlib import Path
 # 안전망 (stop-guard.py와 동일 패턴).
 os.chdir(Path(__file__).resolve().parents[2])
 
+# wip_util SSOT (parse_wip_file). __init__.py 통한 패키지 import.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from utils.wip_util import parse_wip_file  # noqa: E402
+
 # Windows cp949 콘솔에서 emoji 출력 시 UnicodeEncodeError 차단.
 if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
     try:
@@ -76,52 +80,6 @@ def section_git(in_git: bool) -> None:
         (mem_dir / "session-start-unstaged.txt").write_text(
             unstaged_files, encoding="utf-8"
         )
-
-
-def parse_wip_file(path: Path) -> tuple[str, str, int, bool]:
-    """WIP 파일에서 (status, title, bit_count, has_new) 반환."""
-    try:
-        text = path.read_text(encoding="utf-8", errors="replace")
-    except Exception:
-        return "", path.stem, 0, False
-
-    lines = text.splitlines()
-    status = title = ""
-    in_fm = fm_done = False
-    in_bit = False
-    bit_count = 0
-    has_new = False
-
-    for line in lines:
-        if line.strip() == "---":
-            if in_fm:
-                in_fm = False
-                fm_done = True
-            elif not fm_done:
-                in_fm = True
-            continue
-        if in_fm:
-            if line.startswith("status:"):
-                status = line[7:].strip()
-            elif line.startswith("title:"):
-                title = line[6:].strip()
-        elif fm_done:
-            if not status and line.startswith("> status:"):
-                status = line[9:].strip()
-            if not title and line.startswith("# "):
-                title = line[2:].strip()
-            if line.startswith("## 발견된 스코프 외 이슈"):
-                in_bit = True
-                continue
-            if in_bit:
-                if line.startswith("## "):
-                    in_bit = False
-                elif line.startswith("- "):
-                    bit_count += 1
-                    if re.search(r"P#:.*NEW", line):
-                        has_new = True
-
-    return status, title, bit_count, has_new
 
 
 def section_wip() -> None:

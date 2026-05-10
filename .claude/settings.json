@@ -77,7 +77,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/scripts/post-compact-guard.sh"
+            "command": "python3 .claude/scripts/post-compact-guard.py"
           }
         ]
       }
