@@ -10,6 +10,7 @@ relates-to:
     rel: caused-by
 status: completed
 created: 2026-05-11
+updated: 2026-05-11
 ---
 
 # wip-sync 후 cluster·frontmatter 갱신 staging 누락 차단
