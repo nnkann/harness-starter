@@ -8,7 +8,7 @@ tags: [stop-guard, hook, python, migration, self-multiplication]
 relates-to:
   - path: decisions/hn_p8_starter_self_application.md
     rel: extends
-status: in-progress
+status: completed
 created: 2026-05-10
 updated: 2026-05-10
 ---

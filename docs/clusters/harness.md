@@ -49,6 +49,7 @@ updated: 2026-05-10
 - [Review Staging 거버넌스 — 신호 추가 게이트와 알려진 한계](../decisions/hn_staging_governance.md)
 - [starter 전용 스킬 격리 — harness-dev 스킬 신설](../decisions/hn_starter_skill_isolation.md)
 - [starter_skills 필터링 미구현 — harness-upgrade 폴더 복사 제외 + harness-dev 등록](../decisions/hn_starter_skills_filter.md)
+- [stop-guard.sh → stop-guard.py 전환 (자기증식 차단)](../decisions/hn_stop_guard_py_migration.md)
 - [테스트 다이어트 + 트리거 좁힘 — AC 기반 시스템과 중복 제거](../decisions/hn_test_diet.md)
 - [Harness-Starter 업그레이드 계획](../decisions/hn_upgrade.md)
 - [verify-relates pre-check 통합 — 커밋 시 relates-to 전수 검사](../decisions/hn_verify_relates_precheck.md)
