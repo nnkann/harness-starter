@@ -43,6 +43,36 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.38.4 — completed 봉인 오탐 수정 — reopen→move 정상 절차 면제 (2026-05-08)
+
+### 변경 내용
+
+- `pre_commit_check.py`: completed 봉인 보호 로직 오탐 수정
+  - reopen→move 절차 경유 파일이 rename 두 번 상쇄로 M(modify)으로 분류되어 차단되던 버그 수정
+  - `docs_ops.py move`가 완료 시 `session-moved-docs.txt`에 경로 기록, pre-check이 대조해 면제
+- `docs_ops.py`: `move` 완료 시 `.claude/memory/session-moved-docs.txt` 기록 추가
+- `rules/memory.md`: session 파일 목록 2→3개 갱신 (`session-moved-docs.txt` 추가)
+- 회귀 테스트 T42.9(면제), T42.10(무단 변경 차단) 추가
+
+### 적용 방법
+
+자동. `harness-upgrade` 실행 시 자동 반영.
+
+### 검증
+
+```bash
+python3 -m pytest .claude/scripts/tests/test_pre_commit.py -m gate -q
+# 22 passed 확인
+```
+
+### 회귀 위험
+
+- upstream 격리 환경(Windows)에서 gate 22 passed 확인
+- `session-moved-docs.txt` 미생성 환경(세션 첫 커밋)에서는 면제 미적용 → 기존 동작 유지
+- Linux/macOS 미테스트
+
+
+
 ## v0.38.3 — 침묵하는 방어 가시화 + harness-upgrade 지식 내면화 단계 (2026-05-06)
 
 ### 변경 내용

@@ -14,11 +14,16 @@ hook session-start.py와 일관성). 4개 동작 절 1:1 포팅:
 session-start.py `parse_wip_file()` 패턴 답습 (frontmatter 파싱 일관성).
 """
 
+import os
 import re
 import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+
+# cwd 보정 — Stop hook 실행 시 cwd가 .claude/scripts/로 들어오는 케이스
+# 관찰됨 (Windows + Claude Code). __file__ 기준 repo root로 chdir.
+os.chdir(Path(__file__).resolve().parents[2])
 
 # Windows cp949 콘솔 안전 처리 (session-start.py 답습)
 if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):

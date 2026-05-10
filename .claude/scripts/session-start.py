@@ -4,10 +4,15 @@
 session-start.sh의 Python 재작성 — bash spawn 비용 제거.
 """
 
+import os
 import re
 import subprocess
 import sys
 from pathlib import Path
+
+# cwd 보정 — hook 실행 시 cwd가 .claude/scripts/로 들어오는 케이스
+# 안전망 (stop-guard.py와 동일 패턴).
+os.chdir(Path(__file__).resolve().parents[2])
 
 # Windows cp949 콘솔에서 emoji 출력 시 UnicodeEncodeError 차단.
 if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
