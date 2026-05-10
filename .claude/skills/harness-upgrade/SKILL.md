@@ -718,11 +718,20 @@ DRIFT_FILES=$(git diff --name-only "$UPSTREAM_REF" HEAD -- \
 각 drift 파일을 다음 순서로 분류한다:
 
 1. **사용자 전용 (제외)** — 다운스트림이 정당하게 커스터마이징하는 영역.
-   변경되어 있어도 정상:
-   - `.claude/rules/naming.md` (도메인 목록·등급·약어)
-   - `.claude/rules/coding.md` (프로젝트 패턴·금지)
-   - `.claude/rules/docs.md` (다운스트림 폴더 구조 확장 시)
+   변경되어 있어도 정상. **디렉토리 단위로 광범위 인정** (v0.42.2 — FR-006
+   대응):
+   - `.claude/rules/*.md` — 모든 rules 파일. starter는 기본 패턴만 제공하고
+     다운스트림이 자기 도메인·금지 사항·메타데이터 규칙을 자유롭게 확장
+   - `.claude/agents/*.md` — 에이전트 정의는 starter 기본을 다운스트림이
+     `tools` allowlist·프롬프트·도메인 적합성으로 자체 customize 대상
    - 기타 SEALED_FOLDERS 영역 (Step 3 정의)
+
+   **starter 소유 명백 영역 — USER_OWNED 분류 금지** (false-negative 방어):
+   - `.claude/skills/*` — starter_skills는 별 카테고리에서 처리. 그 외 스킬은
+     starter 소유 (다운스트림은 자기 스킬 만들어 별도 폴더)
+   - `.claude/scripts/*` — starter 소유 스크립트
+   - `.claude/HARNESS_MAP.md`, `.claude/HARNESS.json` — starter 메타
+   - 위 영역의 차이는 진짜 미적용으로 간주 (UNAPPLIED 분류)
 2. **starter_skills (제외)** — `.claude/skills/<starter_skill>/` 경로
    (`STARTER_SKILLS` 변수 — Step 6.0 정의 재사용). 다운스트림 미전파 의도
 3. **그 외 (미적용 의심)** — 위 둘 어디에도 해당 안 하는 파일. starter가
@@ -735,7 +744,8 @@ UNAPPLIED_FILES=()
 
 for f in $DRIFT_FILES; do
   case "$f" in
-    .claude/rules/naming.md|.claude/rules/coding.md|.claude/rules/docs.md)
+    .claude/rules/*.md|.claude/agents/*.md)
+      # 다운스트림 정당 커스터마이징 영역 (디렉토리 단위)
       USER_OWNED_FILES+=("$f") ;;
     .claude/skills/*)
       # starter_skills 매칭
@@ -747,9 +757,12 @@ for f in $DRIFT_FILES; do
       if [ "$matched" -eq 1 ]; then
         STARTER_SKILL_FILES+=("$f")
       else
+        # starter_skills 외 .claude/skills/* 는 starter 소유
         UNAPPLIED_FILES+=("$f")
       fi ;;
     *)
+      # .claude/scripts/*·.claude/HARNESS*·docs/harness/MIGRATIONS.md 등
+      # starter 소유 영역 — 차이는 진짜 미적용
       UNAPPLIED_FILES+=("$f") ;;
   esac
 done

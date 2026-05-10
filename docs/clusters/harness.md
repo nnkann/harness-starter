@@ -117,3 +117,7 @@ updated: 2026-05-10
 - [starter 12커밋 push 누락 — 다운스트림이 업스트림 변경 못 봄](../incidents/hn_starter_push_skipped.md)
 - [린터 도구 실종 — T13이 우연히 가시화한 환경 이슈](../incidents/hn_test_isolation_git_log_leak.md)
 - [wip-sync incidents WIP 자동 완료 미동작 — 체크리스트 없는 문서 abbr 매칭 누락](../incidents/hn_wip_sync_incidents_gap.md)
+
+## 진행 중 (WIP)
+
+- [harness-upgrade silent fail 차단 보강 (FR-001/002/003 + FR-006)](../WIP/decisions--hn_upgrade_silent_fail_guards.md)

@@ -43,6 +43,46 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.40.1 — stop-guard.sh → stop-guard.py 전환 (자기증식 차단) (2026-05-10)
+
+### 변경 내용
+
+v0.40.0 stop-guard.sh 도입 직후 검증에서 `grep -c || echo 0` Git Bash
+호환 결함 발견·1회 fix. 이 1회 fix가 자기증식 신호 — bash 파싱 3종 혼재
+(awk×2·grep×2)에 추측성 방어 코드 누적이 향후 조건 확장마다 증가할
+구조. pre-emptive Python 전환:
+
+- `.claude/scripts/stop-guard.py` 신설 — bash 4개 동작 절 1:1 포팅
+  (미커밋 카운트·in-progress WIP·조건 A·B·C AND 발화·memory 환기/cleanup)
+- `.claude/scripts/stop-guard.sh` 삭제 (signal_dead_code_after_refactor.md
+  답습 — 호출 제거와 정의 제거 동시)
+- `.claude/settings.json` Stop hook command 갱신: `bash` → `python3`
+- session-start.py와 일관된 frontmatter 파싱 패턴 + Windows cp949 안전
+  처리 동일 답습
+
+### 적용 방법
+
+자동. `harness-upgrade` 실행 시 자동 반영. 수동 액션 없음.
+
+### 검증
+
+```bash
+python3 .claude/scripts/stop-guard.py
+# 기존 sh와 동일 출력 4개 절 + 조건 A·B·C hit 시 stderr + audit log
+```
+
+### 회귀 위험
+
+- Windows + Git Bash 격리 환경에서 sh·py 출력 1:1 일치 확인 (trailing
+  space 제외). Linux/macOS 미테스트
+- audit log 형식 호환 (`{ts} | A·B·C hit | {files}` 동일) — 기존 누적
+  로그 무수정
+- Python interpreter 시동 비용 ~50~100ms — session-start.py와 동일
+  운용 검증된 비용
+- settings.json hook command 1줄 변경 — Reversibility 5/5 (원복 비용 0)
+
+
+
 ## v0.40.0 — P8 Phase 3: incident 회상 + signal lifecycle + stop-guard 조건 C (2026-05-10)
 
 ### 변경 내용
