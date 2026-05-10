@@ -108,6 +108,7 @@ updated: 2026-05-11
 - [커밋 프로세스 갭 — 검증 부재·dead code·split 자동화 미완 (2026-04-27)](../incidents/hn_commit_process_gaps.md)
 - [docs-ops.sh cluster-update 성능 저하 — extract_abbrs() 반복 호출](../incidents/hn_docs_ops_cluster_update_perf.md)
 - [archived/promotion-log에 다운스트림 제품명 유출 — review 발견](../incidents/hn_downstream_name_leak.md)
+- [FR 필드 정규식 — bold 마커 내부 괄호 보강어 미인식 회귀](../incidents/hn_fr_field_regex_bold_inner_paren.md)
 - [v0.18.3 린터 ENOENT 패턴 — 오탐 가능성·OS 커버리지 갭](../incidents/hn_lint_enoent_pattern_gaps.md)
 - [광역 매처 오탐으로 무관한 명령 차단 + harness-upgrade가 README 덮어쓸 위험](../incidents/hn_matcher_false_block.md)
 - [pipeline-design 규칙 업스트림 이식 원천 사례](../incidents/hn_pipeline_design_rule_origin.md)

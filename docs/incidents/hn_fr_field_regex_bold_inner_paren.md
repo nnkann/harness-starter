@@ -12,6 +12,7 @@ symptom-keywords:
   - bold 괄호 보강어
 status: completed
 created: 2026-05-11
+updated: 2026-05-11
 ---
 
 # FR 필드 정규식 — bold 마커 내부 괄호 보강어 미인식 회귀
