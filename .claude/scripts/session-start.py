@@ -254,7 +254,7 @@ def get_wip_domains() -> set[str]:
 
 
 def section_signals() -> None:
-    """현재 WIP domain과 매칭되는 신호만 출력."""
+    """현재 WIP domain과 매칭되는 신호만 출력. archived 신호는 약한 톤."""
     sig_dir = Path(".claude/memory")
     if not sig_dir.is_dir():
         return
@@ -269,15 +269,20 @@ def section_signals() -> None:
             m_sig = re.search(r"^signal:\s*(.+)", text, re.MULTILINE)
             m_dom = re.search(r"^domain:\s*(\S+)", text, re.MULTILINE)
             m_str = re.search(r"^strength:\s*(\S+)", text, re.MULTILINE)
+            m_arc = re.search(r"^archived:\s*(true|True|TRUE)", text, re.MULTILINE)
             if not m_sig:
                 continue
             sig_domain = m_dom.group(1).strip() if m_dom else ""
-            # domain 매칭: WIP domain과 일치하거나 WIP 없으면 전체
             if domains and sig_domain and sig_domain not in domains:
                 continue
-            strength = m_str.group(1).strip() if m_str else "weak"
-            icon = {"weak": "🔸", "medium": "🔶", "strong": "🔴"}.get(strength, "🔸")
-            matched.append(f"  {icon} {m_sig.group(1).strip()}")
+            archived = bool(m_arc)
+            if archived:
+                # archived 신호는 약한 톤 — 회상 다리만 유지 (P8 Phase 3)
+                matched.append(f"  · (archived) {m_sig.group(1).strip()}")
+            else:
+                strength = m_str.group(1).strip() if m_str else "weak"
+                icon = {"weak": "🔸", "medium": "🔶", "strong": "🔴"}.get(strength, "🔸")
+                matched.append(f"  {icon} {m_sig.group(1).strip()}")
         except Exception:
             pass
     if matched:
@@ -285,6 +290,49 @@ def section_signals() -> None:
         print("📡 반복 신호 (memory):")
         for line in matched:
             print(line)
+
+
+def section_incidents() -> None:
+    """현재 WIP domain과 일치하는 최근 30일 incident 자동 출력 (D-Lite, P8 Phase 3).
+
+    advisor 권고: tags ∩ symptom-keywords 매칭은 복잡도·소급 적용 부담으로 Phase 4 유보.
+    1차는 도메인 매칭 + created 30일 + 최대 3건.
+    """
+    inc_dir = Path("docs/incidents")
+    if not inc_dir.is_dir():
+        return
+    domains = get_wip_domains()
+    if not domains:
+        return  # WIP 없으면 침묵
+    from datetime import date, timedelta
+    cutoff = date.today() - timedelta(days=30)
+    matched: list[tuple[str, str]] = []  # (created, title)
+    for f in sorted(inc_dir.glob("*.md")):
+        try:
+            text = f.read_text(encoding="utf-8")
+            m_dom = re.search(r"^domain:\s*(\S+)", text, re.MULTILINE)
+            m_title = re.search(r"^title:\s*(.+)", text, re.MULTILINE)
+            m_created = re.search(r"^created:\s*(\d{4}-\d{2}-\d{2})", text, re.MULTILINE)
+            if not (m_dom and m_title and m_created):
+                continue
+            if m_dom.group(1).strip() not in domains:
+                continue
+            try:
+                d = date.fromisoformat(m_created.group(1).strip())
+            except ValueError:
+                continue
+            if d < cutoff:
+                continue
+            matched.append((m_created.group(1).strip(), m_title.group(1).strip()))
+        except Exception:
+            pass
+    if not matched:
+        return
+    matched.sort(reverse=True)  # 최신순
+    print()
+    print("📜 최근 30일 incident (현재 WIP domain 매칭, 최대 3건):")
+    for created, title in matched[:3]:
+        print(f"  · [{created}] {title}")
 
 
 def section_harness_map() -> None:
@@ -369,6 +417,7 @@ def main() -> None:
     section_upgrade(in_git)
     section_harness_map()
     section_signals()
+    section_incidents()
     section_repeated_files(in_git)
     section_rules()
 

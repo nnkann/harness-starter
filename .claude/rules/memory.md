@@ -42,6 +42,7 @@ domain: harness
 keywords: [commit, eval]
 strength: weak | medium | strong
 candidate_p: P1
+archived: true   # 선택. incidents 승급 후에도 회상 다리 유지용 (P8 Phase 3)
 ---
 ```
 
@@ -50,12 +51,19 @@ candidate_p: P1
 - `medium` — 2~3회 반복, 패턴 의심
 - `strong` — 반복 확인됨, incidents 등록 후보
 
-**lifecycle**:
+**lifecycle** (P8 Phase 3 재설계, 2026-05-10):
 1. 같은 신호가 또 나오면 → strength 올리고 사용자에게 의견 제시
-2. 사용자 확인 → incidents 등록 → signal 파일 삭제
-3. incidents 없이 오랫동안 재발 없으면 → 사용자 판단으로 삭제
+2. 사용자 확인 → incidents 등록 → **signal 파일에 `archived: true` 마커 추가** (삭제 아님)
+3. archived signal은 session-start.py가 약한 톤(`· (archived) ...`)으로 잔존 출력 — 회상 다리 유지
+4. incidents 없이 30일 이상 재발 없으면 → 사용자 판단으로 삭제
 
-**session-start.py 연동**: 세션 시작 시 현재 WIP domain과 매칭되는 신호만 출력.
+**왜 archived 마커인가** (Phase 2 진단 #2): 승급 시 signal 삭제하면
+incident 본문 자동 회상 메커니즘 부재(Phase 2 진단 #1)와 결합해
+회상 다리 자체가 끊김. archived 마커는 출력 빈도는 낮추되 메모리
+검색 표면적은 유지.
+
+**session-start.py 연동**: 세션 시작 시 현재 WIP domain과 매칭되는
+신호만 출력. archived 신호는 별 톤·우선순위 낮춤.
 
 ## 저장 대상 (정적 memory)
 

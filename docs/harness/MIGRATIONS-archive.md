@@ -43,6 +43,23 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.38.2 — HARNESS_MAP MVR 섹션 + 에이전트 빠른 진입 가이드 (2026-05-06)
+
+### 변경 내용
+- `.claude/HARNESS_MAP.md` — `## MVR (작업유형별 최소 필수 규칙셋)` 섹션 추가: 7개 작업유형별 Rules 2~3개 압축 매핑 (구현·커밋·디버그·문서·eval·harness-dev·설정변경)
+- `.claude/HARNESS_MAP.md` — 최상단에 "⚡ 에이전트 빠른 진입" 가이드 추가: MAP 전체 Read 금지, MVR → 역추적 2단계 진입점 명시
+- `docs/guides/project_kickoff.md` — S5 MVR 구현 완료 승격 상태 갱신
+
+### 적용 방법
+- **자동**: 파일 덮어쓰기로 적용됨
+- **수동**: 없음
+
+### 다운스트림 참고
+- 에이전트가 HARNESS_MAP 전체를 읽는 대신 `## MVR` 섹션만 참조하도록 유도하면 컨텍스트 절감 효과 기대
+- 다운스트림은 자기 프로젝트 작업유형에 맞게 MVR 섹션 확장 가능 (harness-upgrade가 덮어쓰지 않는 영역에 추가)
+
+
+
 ## v0.38.1 — 피드백 채널 포맷 규격화 + bash-guard 우회 차단 강화 (2026-05-06)
 
 ### 변경 내용
