@@ -150,16 +150,44 @@ P5를 악화시키는 역설. 해결 방향: HARNESS_MAP에 작업유형별 MVR(
 - 다운스트림 보고 채널이 비어 있어 starter 측에서도 결함 인식 지연
   (가시성 착시로 "잘 작동 중"으로 박제)
 
+**starter 자기 적용 (2026-05-10 자기증명)**: P8은 다운스트림 한정 문제가
+아니다. **starter 자체가 가시성 착시 영역에 포함**된다. P8 등록 wave
+(`hn_self_invocation_failure.md`) commit 흐름 진행 중에 같은 자가 발화
+의존 패턴 3건이 starter에서 발생:
+
+1. **wip-sync 자동 move 미작동** — `/commit` 발화 + AC 자가 마킹 의존.
+   commit 흐름 메커니즘은 있으나 사용자가 "완료처리는?" 묻기 전엔 발동 안 함
+2. **status `completed` 자동 전환 부재** — implementation Step 4의 "변경
+   한다" 텍스트 규칙이 자가 준수에 의존. Phase 종료 시 강제 트리거 0
+3. **README 갱신 누락 + 메모리 자가 회상 의존** — `feedback_readme_update.md`
+   메모리 박제 + `feedback_commit_skill_bypass.md` 박제됐음에도 회상 안 됨.
+   `/commit` 발화 단일 트리거에 직렬 연결돼 있어 사용자 발화가 늦으면 전부
+   누락
+
+**`/commit` 발화 의존도 P8 변종**: BIT·write-doc 우회·CLAUDE.md 무시와
+같은 카테고리. 사용자 자각에 의존하는 단일 발화 트리거는 모두 자가 의존
+메커니즘 — starter라고 예외 아님. "사용자·Claude가 떠올리는 빈도에 비례"
+한다는 본 P8 정의가 starter `/commit` 흐름에도 그대로 적용된다.
+
+**선행 사례 회상 의존도 같은 패턴**: `docs/incidents/hn_commit_process_gaps.md`
+(2026-04-27)가 거의 동일한 5건 패턴을 박제했으나 14일 후 재발. incident
+박제 자체도 자가 회상 의존이라 starter 본인이 자기 증례를 회상 안 함.
+
 **구조적 불균형**: P1을 defends하는 다른 규칙(no-speculation·internal-first)
 은 hook(`debug-guard.sh` UserPromptSubmit) 강제력 보유. BIT(bug-interrupt)·
-스킬 발화·CLAUDE.md 준수는 강제력 0.
+스킬 발화·CLAUDE.md 준수·`/commit` 발화는 강제력 0.
 
 **승격 상태**: 본 Problem 등록 시점(2026-05-10)에서 메커니즘 결함 진단
-완료. 1차 보강(debug-guard.sh BIT 트리거 키워드 추가) 진행 중. 다른 자가
-발화 의존 영역(write-doc 우회 등)은 별 wave 후보.
+완료. 1차 보강(debug-guard.sh BIT 트리거 키워드 추가) 진행 완료
+(v0.39.0). starter 자기 적용 사례 박제(2026-05-10, 본 절). 강제 트리거
+메커니즘 보강(`/commit` 흐름·write-doc 우회 등)은 별 wave 후보 — Solution
+메커니즘 변경이라 owner 승인 필수.
 
-**관련 사례 문서**: `docs/decisions/hn_self_invocation_failure.md` (본 wave),
-`docs/decisions/hn_bug_interrupt_triage.md` (BIT 설계 의도).
+**관련 사례 문서**: `docs/decisions/hn_self_invocation_failure.md` (P8/S8
+1차 등록 wave), `docs/WIP/decisions--hn_p8_starter_self_application.md`
+(starter 자기 적용 + 강제 트리거 메커니즘 설계 wave),
+`docs/incidents/hn_commit_process_gaps.md` (선행 박제 — 회상 의존 실패의
+결정적 증거), `docs/decisions/hn_bug_interrupt_triage.md` (BIT 설계 의도).
 
 ## Solutions
 
