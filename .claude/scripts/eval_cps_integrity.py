@@ -419,28 +419,42 @@ def check_feedback_reports(docs_root: Path) -> list[str] | None:
     except Exception as e:
         return [f"migration-log.md Read 실패: {e}"]
 
-    # ## Feedback Reports 섹션 추출
-    fb_section_m = re.search(r"## Feedback Reports(.*?)(?=^## |\Z)", text, re.DOTALL | re.MULTILINE)
-    if not fb_section_m:
+    # Feedback Reports 섹션 양면 매칭 (v0.42.3 — 다운스트림 양식 차이 대응)
+    # - top-level: `## Feedback Reports` (다음 `## ` 또는 EOF까지)
+    # - 버전 섹션 내 서브헤더: `### Feedback Reports` (다음 `## ` 또는 `### ` 또는 EOF까지)
+    # 다운스트림이 버전 섹션 안에 서브헤더로 작성하면 top-level만 잡던 구버전이 미인식
+    sections: list[str] = []
+    for m in re.finditer(
+        r"^(##|###) Feedback Reports\s*\n(.*?)(?=^##\s|\Z)",
+        text, re.DOTALL | re.MULTILINE,
+    ):
+        sections.append(m.group(2))
+
+    if not sections:
         return []  # 섹션 없음 = FR 항목 없음
 
-    fb_section = fb_section_m.group(1)
-
-    # FR-NNN 항목 추출
-    fr_blocks = re.split(r"(?=### FR-\d+)", fb_section)
+    # FR-NNN 항목 추출 — 헤더 레벨 양면 (### 또는 ####)
     warnings: list[str] = []
+    seen_ids: set[str] = set()
     required_fields = ["**관점**", "**약점**", "**실천**", "**심각도**"]
+    fr_split_pattern = re.compile(r"(?=^#{3,4} FR-\d+)", re.MULTILINE)
+    fr_header_pattern = re.compile(r"^#{3,4} (FR-\d+)")
 
-    for block in fr_blocks:
-        fr_m = re.match(r"### (FR-\d+)", block)
-        if not fr_m:
-            continue
-        fr_id = fr_m.group(1)
-        missing = [f for f in required_fields if f not in block]
-        if missing:
-            warnings.append(f"⚠️ {fr_id}: {', '.join(missing)} 없음")
-        else:
-            warnings.append(f"{fr_id} ✅")
+    for fb_section in sections:
+        fr_blocks = fr_split_pattern.split(fb_section)
+        for block in fr_blocks:
+            fr_m = fr_header_pattern.match(block)
+            if not fr_m:
+                continue
+            fr_id = fr_m.group(1)
+            if fr_id in seen_ids:
+                continue  # 같은 FR ID 중복 방지 (여러 섹션에 걸쳐 있을 경우)
+            seen_ids.add(fr_id)
+            missing = [f for f in required_fields if f not in block]
+            if missing:
+                warnings.append(f"⚠️ {fr_id}: {', '.join(missing)} 없음")
+            else:
+                warnings.append(f"{fr_id} ✅")
 
     return warnings
 

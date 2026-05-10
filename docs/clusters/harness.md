@@ -53,6 +53,7 @@ updated: 2026-05-10
 - [stop-guard.sh → stop-guard.py 전환 (자기증식 차단)](../decisions/hn_stop_guard_py_migration.md)
 - [테스트 다이어트 + 트리거 좁힘 — AC 기반 시스템과 중복 제거](../decisions/hn_test_diet.md)
 - [Harness-Starter 업그레이드 계획](../decisions/hn_upgrade.md)
+- [harness-upgrade silent fail 차단 보강 (FR-001/002/003 + FR-006)](../decisions/hn_upgrade_silent_fail_guards.md)
 - [verify-relates pre-check 통합 — 커밋 시 relates-to 전수 검사](../decisions/hn_verify_relates_precheck.md)
 - [WIP cluster scan 가시성 — in-progress 도달 경로 추가](../decisions/hn_wip_cluster_visibility.md)
 - [docs_ops.py wip-sync 부분 매칭 버그 — 매칭 정밀화](../decisions/hn_wip_sync_match_precision.md)
@@ -117,7 +118,3 @@ updated: 2026-05-10
 - [starter 12커밋 push 누락 — 다운스트림이 업스트림 변경 못 봄](../incidents/hn_starter_push_skipped.md)
 - [린터 도구 실종 — T13이 우연히 가시화한 환경 이슈](../incidents/hn_test_isolation_git_log_leak.md)
 - [wip-sync incidents WIP 자동 완료 미동작 — 체크리스트 없는 문서 abbr 매칭 누락](../incidents/hn_wip_sync_incidents_gap.md)
-
-## 진행 중 (WIP)
-
-- [harness-upgrade silent fail 차단 보강 (FR-001/002/003 + FR-006)](../WIP/decisions--hn_upgrade_silent_fail_guards.md)

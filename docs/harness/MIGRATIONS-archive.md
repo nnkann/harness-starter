@@ -43,6 +43,44 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.40.2 — stop-guard.py / session-start.py cwd 보정 (2026-05-10)
+
+### 변경 내용
+
+v0.40.1 직후 Stop hook 실행 시 `python3 .claude/scripts/stop-guard.py`가
+`.claude/scripts/.claude/scripts/stop-guard.py`로 이중 prepend되어 ENOENT
+발생. Windows + Claude Code 환경에서 Stop hook의 cwd가 repo root가 아닌
+`.claude/scripts/`로 들어오는 케이스 실측. 이전 `bash .sh` 시절에는 우연히
+동작했을 가능성 있으나 .py 전환 후 즉시 노출.
+
+- `.claude/scripts/stop-guard.py` — `os.chdir(Path(__file__).resolve().parents[2])`
+  cwd 보정 1줄 추가 (import 직후)
+- `.claude/scripts/session-start.py` — 동일 안전망 추가 (현재는 정상
+  작동하나 동일 패턴 일관성)
+
+### 적용 방법
+
+자동. `harness-upgrade` 실행 시 자동 반영. 수동 액션 없음.
+
+### 검증
+
+```bash
+cd .claude/scripts && python3 stop-guard.py    # ENOENT 없이 정상 출력
+cd .claude/scripts && python3 session-start.py # 정상 출력
+```
+
+### 회귀 위험
+
+upstream 격리 환경(Windows + Git Bash) 실측에서는 cwd 보정이 정상 작동
+범위 내. Linux/macOS에서 hook cwd 거동은 미테스트 — 다른 OS의 Claude
+Code hook이 cwd를 어떻게 설정하는지에 따라 redundant할 수 있으나 무해
+(이미 repo root이면 chdir도 repo root). `__file__` 기반 절대경로라
+cwd 무관하게 결과 동일.
+
+downstream: harness-upgrade 적용 후 hook 재발화 시 ENOENT 사라짐 확인 권장
+
+
+
 ## v0.40.1 — stop-guard.sh → stop-guard.py 전환 (자기증식 차단) (2026-05-10)
 
 ### 변경 내용
