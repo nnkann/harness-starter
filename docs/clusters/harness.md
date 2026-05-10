@@ -4,7 +4,7 @@ domain: harness
 tags: [cluster, index]
 status: completed
 created: 2026-04-16
-updated: 2026-05-06
+updated: 2026-05-10
 ---
 
 # harness 클러스터
@@ -42,6 +42,7 @@ updated: 2026-05-06
 - [룰-스킬 SSOT 적용 — Phase 1 commit/SKILL.md](../decisions/hn_rule_skill_ssot_apply.md)
 - [Rules 파일 다이어트 — 분리한 메타·배경·자동 감지 상세](../decisions/hn_rules_metadata.md)
 - [completed 봉인 — 본문 마크다운 링크 경로 교체 면제](../decisions/hn_sealed_link_exempt.md)
+- [자가 발화 의존 규칙의 일반 실패 — P8 등록 + debug-guard.sh 확장](../decisions/hn_self_invocation_failure.md)
 - [본 세션 시험 결과 종합 — review verdict + wip-sync false positive 누적 데이터](../decisions/hn_session_test_results.md)
 - [스킬·에이전트 역할 분담 감사 — 라우터 패턴 전방위 적용](../decisions/hn_skill_agent_role_audit.md)
 - [Review Staging 거버넌스 — 신호 추가 게이트와 알려진 한계](../decisions/hn_staging_governance.md)
@@ -107,7 +108,12 @@ updated: 2026-05-06
 - [review 에이전트 maxTurns 소진 시 verdict 누락](../incidents/hn_review_maxturns_verdict_miss.md)
 - [review v0.8.0 패턴 매핑 재설계 — starter 격리 벤치마크](../incidents/hn_review_v080_benchmark.md)
 - [pre-check SEALED 면제 갭 — MIGRATIONS류 자기 운영 파일 잘못 차단](../incidents/hn_sealed_migrations_exempt_gap.md)
+- [pre-check SEALED 오탐 — reopen→수정→move 정상 절차 경유 파일 차단](../incidents/hn_sealed_reopen_false_block.md)
 - [pre-check 시크릿 line 면제 갭 — agents/threat-analyst.md 잘못 차단](../incidents/hn_secret_line_exempt_gap.md)
 - [starter 12커밋 push 누락 — 다운스트림이 업스트림 변경 못 봄](../incidents/hn_starter_push_skipped.md)
 - [린터 도구 실종 — T13이 우연히 가시화한 환경 이슈](../incidents/hn_test_isolation_git_log_leak.md)
 - [wip-sync incidents WIP 자동 완료 미동작 — 체크리스트 없는 문서 abbr 매칭 누락](../incidents/hn_wip_sync_incidents_gap.md)
+
+## 진행 중 (WIP)
+
+- [eval --harness CLI 백엔드 + LSP/검증 도구 정렬 진단](../WIP/decisions--hn_eval_harness_cli_lsp_drift.md)

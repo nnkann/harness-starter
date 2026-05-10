@@ -62,6 +62,7 @@ docs/ — decisions/·incidents/·guides/ (미세혈관)
 | P5 | MCP·플러그인 + 업스트림 발 문서 팽창 (P7과 역설적 충돌) | (규칙 없음 — S5 MVR 전략으로 방향 전환) | — |
 | P6 | 검증망 스킵 | self-verify, pipeline-design | harness-dev, eval |
 | P7 | 구성요소 관계 불투명 | docs, naming, memory, anti-defer | eval_cps_integrity.py, (HARNESS_MAP.md 자체) |
+| P8 | 자가 발화 의존 규칙의 일반 실패 ⚠️ S8 1차 초안 | bug-interrupt (강제 트리거 보강 진행 중) | debug-guard.sh (BIT 트리거 키워드 확장 진행 중) |
 
 ---
 

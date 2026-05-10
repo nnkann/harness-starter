@@ -43,6 +43,25 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.38.1 — 피드백 채널 포맷 규격화 + bash-guard 우회 차단 강화 (2026-05-06)
+
+### 변경 내용
+- `docs/harness/MIGRATIONS.md` — `## Feedback Reports` 섹션 추가: 다운스트림 → upstream 역방향 피드백 포맷 규격화 (FR-NNN, 관점·약점·실천·심각도 4필드)
+- `skills/eval/SKILL.md` — `--harness` 점검 항목 6번 추가: migration-log.md Feedback Reports 포맷 검증
+- `.claude/scripts/eval_cps_integrity.py` — 피드백 리포트 포맷 자동 검증 로직 추가 (`check_feedback_reports`)
+- `.claude/scripts/bash-guard.sh` — 간접 실행 차단 강화: `eval`/`sh -c`/`bash -c` 패턴 + 역슬래시 이스케이프(`git\ commit`) 정규화
+- `docs/guides/project_kickoff.md` — P4·P5·P7 운용 약점 + S3·S4·S5 방향 갱신 (다운스트림 피드백 반영)
+- `.claude/HARNESS_MAP.md` — P4·P5 row 갱신
+
+### 적용 방법
+- **자동**: 파일 덮어쓰기로 적용됨
+- **수동**: 없음
+
+### 다운스트림 권장 사항
+- `docs/harness/migration-log.md`에 `## Feedback Reports` 섹션 추가 후 발견한 이상 소견·구조 관찰을 FR-NNN 형식으로 기록하면 eval --harness가 포맷 검증
+
+
+
 ## v0.38.0 — P4·P7 방어 실질화 + HARNESS_DEV 이스케이프 경계 명확화 (2026-05-06)
 
 ### 변경 내용
