@@ -11,7 +11,7 @@ relates-to:
     rel: extends
 status: completed
 created: 2026-05-10
-updated: 2026-05-10
+updated: 2026-05-11
 ---
 
 # eval --harness medium 결과 정비

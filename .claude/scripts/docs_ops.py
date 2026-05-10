@@ -348,6 +348,9 @@ def cmd_move(src_str: str) -> int:
     today = date.today().isoformat()
     write_frontmatter_field(dest, "status", "completed")
     write_frontmatter_field(dest, "updated", today)
+    # v0.42.5 — frontmatter 갱신 후 자기 결과 staging (P6 보강).
+    # git mv는 rename만 staging — 그 후 본문 수정은 unstaged로 남았던 결함 차단
+    subprocess.run(["git", "add", str(dest)], capture_output=True)
 
     # reopen→move 절차 추적: pre_commit_check.py가 M 파일 봉인 면제에 사용
     session_file = Path(".claude/memory/session-moved-docs.txt")
@@ -395,6 +398,9 @@ def cmd_reopen(src_str: str) -> int:
     dest = Path(f"docs/WIP/{folder}--{src.name}")
     git(["mv", str(src), str(dest)])
     write_frontmatter_field(dest, "status", "in-progress")
+    # v0.42.5 — frontmatter 갱신 후 자기 결과 staging (P6 보강).
+    # cmd_move와 동일 패턴 — rename만 staging되고 본문 수정은 unstaged였던 결함 차단
+    subprocess.run(["git", "add", str(dest)], capture_output=True)
 
     print("## 완료 문서 재개\n")
     print(f"되돌림: {src} → {dest}")
@@ -497,6 +503,8 @@ def cmd_cluster_update() -> int:
             continue
 
         cluster.write_text(build_body(today), encoding="utf-8")
+        # v0.42.5 — 자기 결과 staging (P6 보강). 호출 후 unstaged 잔여 차단
+        subprocess.run(["git", "add", str(cluster)], capture_output=True)
         updated += 1
 
     print(f"clusters/ 갱신: {updated}개 파일 (skip {skipped}개)")

@@ -43,6 +43,60 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.42.0 — eval --harness CLI 백엔드 + 검증 도구 정렬 진단 (2026-05-10)
+
+### 변경 내용
+
+eval --harness가 LLM 해석 의존이던 결정적 측정 항목을 CLI 백엔드(`eval_harness.py`)
+로 이전. 단일 진입점에서 항목 5(CPS 무결성)·6(방어 활성)·7(피드백 리포트)·
+8(검증 도구 정렬 신규)을 결정적으로 실행. SKILL.md 본문은 LLM 해석 영역
+(항목 1~4: 모호성·모순·부패·강제력 배치)만 담당.
+
+신규 항목 8(검증 도구 정렬 진단)은 TypeScript/JavaScript 프로젝트에서
+검증 도구가 산출물(dist/build)이 아닌 소스를 직접 보도록 보장 — 4신호
+(A 워크스페이스·B codegen 의존·C dist 자체 소비·D outDir 분리) 검출 후
+신호 hit 패키지의 정렬 상태 측정. 외부 명령(npm·tsc) 호출 0건 (Python·Go·
+Rust 다운스트림 차단 회피).
+
+본 wave는 직전 wip_util_ssot(v0.41.0) 결정의 후속 의무 박제 — eval_harness.py가
+wip_util import해서 4중 파편화 방지.
+
+근거 문서: `docs/decisions/hn_eval_harness_cli_lsp_drift.md` (이 wave 후 이동).
+
+### 자동 적용 항목
+
+- `.claude/scripts/eval_harness.py` (신설 — CLI 백엔드 단일 진입점)
+- `.claude/scripts/tests/test_eval_harness.py` (신설 — 7건 회귀 가드)
+- `.claude/scripts/tests/conftest.py` (`eval` marker 등록)
+- `.claude/skills/eval/SKILL.md` (--harness 섹션 재구성 + 항목 8 추가)
+- `.claude/HARNESS_MAP.md` (Scripts 섹션 갱신: stop-guard.py·post-compact-guard.py·
+  eval_harness.py·test-bash-guard.sh·test-debug-guard.sh 등재)
+
+### 수동 적용 항목
+
+없음. eval --harness 호출 흐름이 자동으로 새 CLI 백엔드를 사용. 구버전
+호환을 위해 `eval_cps_integrity.py` 직접 호출도 그대로 작동.
+
+### 검증
+
+```
+python3 .claude/scripts/eval_harness.py
+# 항목 5·6·7·8 보고 출력 (TypeScript 미사용이면 항목 8 SKIP)
+python3 -m pytest .claude/scripts/tests/test_eval_harness.py -q
+# 7 passed
+```
+
+### 회귀 위험
+
+- upstream 격리 환경(Windows + Git Bash + Python 3.12)에서 관찰된 범위 내 검증
+- 항목 8(검증 도구 정렬)은 TypeScript 프로젝트가 없는 starter에서는 SKIP만
+  실증됨. 실제 모노레포 + codegen 환경의 신호 검출은 미테스트 (픽스처 단위
+  테스트만 통과)
+- `.claude/harness-overrides.md` 의도적 비정렬 마커는 명세만 정의. 실제
+  다운스트림 운용 검증은 미수행
+
+
+
 ## v0.41.0 — WIP 파싱 SSOT 통합 (wip_util.py + post-compact-guard.py 전환) (2026-05-10)
 
 ### 변경 내용

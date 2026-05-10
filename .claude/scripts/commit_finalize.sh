@@ -35,11 +35,12 @@ fi
 VERDICT="${VERDICT:-}"
 
 # 1. wip-sync (block이 아닐 때만)
-#    docs_ops.py wip-sync 내부:
-#      - ✅ 마킹된 WIP: write_text 후 git add 자체 호출
-#      - move (AC 모두 [x]): cmd_move가 git mv 호출 → rename 자동 staging
-#      - cluster-update: cmd_cluster_update가 git add 호출
-#      - 역참조 갱신 (relates_to_rewritten): cmd_move 내부 git add 호출
+#    docs_ops.py wip-sync 내부 staging 책임 (v0.42.5 보강):
+#      - ✅ 마킹된 WIP: cmd_wip_sync L753에서 write_text 후 git add
+#      - move (AC 모두 [x]): cmd_move가 (a) git mv로 rename staging
+#                            + (b) v0.42.5 신규 — frontmatter 갱신 후 dest 재staging
+#      - cluster-update: cmd_cluster_update가 v0.42.5 신규 — cluster.write 후 git add
+#      - 역참조 갱신: _rewrite_relates_to L281에서 갱신 파일별 git add
 #    → 외부 git add 불필요. wrapper는 단순 호출만.
 if [ "$VERDICT" != "block" ]; then
   STAGED_FILES=$(git diff --cached --name-only | tr '\n' ' ')
