@@ -117,7 +117,7 @@ docs/WIP/에 문서를 만든다.
 
 - 대상폴더: Step 0에서 결정 (decisions / guides / incidents / harness)
 - abbr: Step 1에서 조회한 도메인 약어
-- slug: snake_case 의미명, 간결하게
+- slug: snake_case 의미명. 단어 2~4개, 30자 이내
 
 **날짜 suffix 전면 금지** (incidents 포함):
 - 발생 시점은 프론트매터 `created` + git history로 충분

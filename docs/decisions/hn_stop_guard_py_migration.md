@@ -3,7 +3,7 @@ title: stop-guard.sh → stop-guard.py 전환 (자기증식 차단)
 domain: harness
 problem: P7
 solution-ref:
-  - S7 — "정의 보류 — owner 합의 영역 (별 사안)"
+  - S6 — "self-verify.md SKIP 조건 명확화 (부분)"
 tags: [stop-guard, hook, python, migration, self-multiplication]
 relates-to:
   - path: decisions/hn_p8_starter_self_application.md

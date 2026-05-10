@@ -3,7 +3,7 @@ title: 자기복제 케이스 sh 적용 점검 + WIP 파싱 SSOT 통합 (wip_uti
 domain: harness
 problem: P7
 solution-ref:
-  - S7 — "정의 보류 — owner 합의 영역 (별 사안)"
+  - S6 — "self-verify.md SKIP 조건 명확화 (부분)"
 tags: [sh, wip-parsing, ssot, python, migration, hook, refactor, audit]
 relates-to:
   - path: decisions/hn_stop_guard_py_migration.md

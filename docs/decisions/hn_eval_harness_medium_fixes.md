@@ -4,7 +4,7 @@ domain: harness
 problem: P7
 solution-ref:
   - S6 — "self-verify.md SKIP 조건 명확화 (부분)"
-  - S6 — "review 카테고리 8 — 기존 SKILL.md·rules 실질 변경도 CPS 갱신 감지 (부분)"
+  - S6 — "기존 SKILL.md·rules 실질 변경(M, ≥3줄)도 CPS 갱신 감지 대상 추가 (부분)"
 tags: [eval, feedback-reports, self-verify, cps-integrity]
 relates-to:
   - path: decisions/hn_upgrade_silent_fail_guards.md

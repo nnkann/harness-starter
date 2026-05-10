@@ -43,6 +43,65 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.42.2 — Step 9.6 USER_OWNED_FILES 화이트리스트 디렉토리 단위 확장 (FR-006) (2026-05-10)
+
+### 변경 내용
+
+다운스트림 v0.42.1 적용 측정에서 보고된 FR-006(11건 USER_OWNED 오분류) 후속 처리.
+직전 wave에서 Step 9.6 분류 코드가 산문 정의보다 좁게 하드코딩됐던 결함 수정.
+
+- **Step 9.6 분류 코드**: `.claude/rules/{naming,coding,docs}.md` 3 파일
+  매칭 → `.claude/rules/*.md|.claude/agents/*.md` 디렉토리 단위로 확장
+- **산문 정의 갱신**: 사용자 전용 영역을 디렉토리 단위 광범위로 명시.
+  starter 소유 명백 영역(`.claude/skills/*` 비-starter_skills · `.claude/scripts/*` ·
+  `.claude/HARNESS_MAP.md` · `.claude/HARNESS.json`)은 USER_OWNED 분류
+  금지로 false-negative 방어 명시
+- **시뮬레이션 검증**: FR-006 보고된 11건이 USER_OWNED 8 + STARTER_SKILL 3 +
+  UNAPPLIED 0으로 100% 정상 분류 (rules 5건 + agents 3건이 USER_OWNED로 정상 합류)
+
+본 보강은 v0.42.1이 silent fail의 새 변종(USER_OWNED 오분류 → 사용자 피로)을
+만든 형태를 수정. P3 영역 그대로 (Solution 정의 변경 아님 — 메커니즘 강화).
+
+근거 문서: `docs/decisions/hn_upgrade_silent_fail_guards.md` Phase 5 + 변경 이력.
+
+### 자동 적용 항목
+
+- `.claude/skills/harness-upgrade/SKILL.md` (Step 9.6 산문 정의 + 분류 코드)
+
+### 수동 적용 항목
+
+없음. 다음 upgrade 시 자동으로 새 분류 적용.
+
+### 검증
+
+```bash
+grep -nE "rules/\*\.md|agents/\*\.md" .claude/skills/harness-upgrade/SKILL.md
+# Step 9.6 영역에서 hit (3건 이상)
+```
+
+### 회귀 위험
+
+- 시뮬레이션 검증만 수행 (실제 다운스트림 환경 다중 사례는 미실증)
+- starter 소유 영역에서 starter가 정당 변경 의도한 파일이 USER_OWNED에
+  해당하지 않아도 안전 — 명시 화이트리스트만 USER_OWNED 분류
+- 다운스트림이 `.claude/scripts/` 같은 starter 소유 영역을 자체 customize
+  하는 케이스는 false-positive(UNAPPLIED 오분류)로 잡힘. 권장 패턴은 자체
+  스크립트를 별 디렉토리에 두는 것 — 본 화이트리스트 정책과 정합
+
+### 다운스트림 보고 요청
+
+upstream이 본 변경의 운용 효과를 측정하기 위해 다음 관찰을 요청합니다.
+다음 upgrade 시 `docs/harness/migration-log.md` `## Feedback Reports` 섹션에 응답:
+
+1. **Step 9.6 분류 정확도**:
+   - USER_OWNED_FILES / STARTER_SKILL_FILES / UNAPPLIED_FILES 각 카운트
+   - false-positive 발생 여부 (starter 소유 영역에서 정당 변경한 파일이 UNAPPLIED 오분류)
+   - 사용자가 수동 분류 보정한 항목 수 (FR-006 같은 사례)
+
+응답 형식: `migration-log.md` 본 버전 섹션 안에 FR 표준 포맷.
+
+
+
 ## v0.42.1 — harness-upgrade silent fail 차단 보강 (FR-001/002/003) (2026-05-10)
 
 ### 변경 내용

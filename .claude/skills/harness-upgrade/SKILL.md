@@ -20,7 +20,7 @@ description: 하네스 업그레이드. harness-upstream remote에서 fetch → 
 ## 핵심 원칙
 
 - **사용자 커스터마이징 보존**: 사용자가 채운 내용은 절대 덮어쓰지 않는다.
-- **3-way merge 우선**: 가능하면 base + theirs + ours 3-way merge.
+- **3-way merge 우선**: 기본은 base + theirs + ours 3-way merge. base 부재·충돌 해소 실패 시 사용자에게 theirs/ours 결정 요청.
 - **승인 필수**: 각 파일 병합 전 사용자에게 계획을 보여주고 승인받는다.
 - **검증 필수**: 병합 후 구문 오류를 검증한다.
 
