@@ -43,6 +43,81 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.40.0 — P8 Phase 3: incident 회상 + signal lifecycle + stop-guard 조건 C (2026-05-10)
+
+### 변경 내용
+
+P8 자가 의존 보강 3축 1차 도입 (advisor + 사용자 라운드 합의):
+
+- **D-Lite — `session-start.py` `section_incidents()` 신설**: 현재 WIP
+  frontmatter `domain` ∩ `docs/incidents/*.md` `domain`, 최근 30일
+  `created` 필터, 최대 3건 자동 출력. tags ∩ symptom-keywords 매칭은
+  복잡도·소급 적용 부담으로 Phase 4 유보 (advisor 권고)
+- **E — signal lifecycle 변경**: incidents 승급 시 signal 파일 **삭제
+  → `archived: true` 마커 잔존**으로 변경. session-start.py가 archived
+  신호를 약한 톤(`· (archived) ...`)으로 출력. 회상 다리 유지
+  - `rules/memory.md` "## 신호 파일" 절 갱신
+  - `session-start.py` `section_signals()` archived 분기 추가
+- **B — `stop-guard.sh` 조건 C 확장 (Soft + Dry-run)**: 기존 미커밋·
+  in-progress 알림에 더해 조건 A·B·C AND 발화 추가:
+  - A: git status 수정 파일 있음
+  - B: 변경된 WIP 중 status: in-progress 있음
+  - C: 그 WIP에 빈 체크박스 `- [ ]` 또는 BIT 판단 블록 부재
+  - hit 시 stderr 1줄 + `.claude/memory/stop_hook_audit.log` append
+    (gitignore). 차단 아님 — 측정용. Phase 4 Hard Stop 결정 근거
+- 신규 signal 4건 추가 (Phase 2.5, 별도): dead code 잔존·WIP move
+  dead link·AC 미체크·자동화 불가 검증 단락. 모두 `hn_commit_process_gaps`
+  (2026-04-27) 인용
+
+### 적용 방법
+
+자동. `harness-upgrade` 실행 시 자동 반영. 수동 액션 없음.
+
+다운스트림 권장 (선택):
+
+- `docs/incidents/*.md` frontmatter에 `domain:` 명시 (D-Lite 매칭 입력).
+  미명시 incident는 출력 대상 제외 — 회귀 아님, 보강 기회 누락만
+- 향후 incidents 등록 시 `symptom-keywords` 명시 (Phase 4 매칭 강화 대비)
+
+### 검증
+
+```bash
+python3 .claude/scripts/session-start.py 2>&1 | grep -E "(반복 신호|incident)"
+# 현재 WIP domain 매칭 incident 1~3건 출력 확인
+
+python3 .claude/scripts/stop-guard.py   # v0.40.1에서 sh → py 전환
+# A·B·C AND 조건 hit 시 "🛑 [stop-guard A·B·C]" stderr 출력 확인
+
+cat .claude/memory/stop_hook_audit.log
+# hit 기록 누적 확인 (gitignore — 다운스트림 본인 환경에서만 잔존)
+```
+
+### 회귀 위험
+
+- Windows + Git Bash 격리 환경에서 75 passed (회귀 0) 확인. Linux/macOS 미테스트
+- `section_incidents()`는 incident frontmatter `domain`·`title`·`created`
+  3 필드 모두 있어야 출력. 누락 시 침묵 (회귀 아님)
+- `archived: true` 마커는 backward compatible — 기존 signal 파일 무수정.
+  마커 없는 signal은 기존 톤 유지
+- stop-guard 조건 C는 Soft 모드 — stderr 1줄만, 차단 0. 노이즈 위험
+  낮음. 단 다운스트림이 BIT 판단 블록 양식 다르게 쓰면 has_bit 매칭이
+  `^\[BIT 판단\]` 정확 일치 요구로 false-positive (BIT 누락 알림 과다)
+  가능. 운용 audit 로그로 검토 후 패턴 완화 검토
+- audit 로그는 gitignore — 다운스트림 본인 환경에서만 잔존. upstream
+  공유 안 됨
+
+### 운용 측정 계획
+
+starter 본인 다음 5~10 commit 동안:
+
+1. `.claude/memory/stop_hook_audit.log` hit 빈도 + 유효 경고/노이즈 비율
+2. P8 자기증명 카운트 (commit별 자가 의존 변종 발생)
+3. `section_incidents()` 출력 hit rate
+
+데이터 누적 후 Phase 4 진입 결정 (Hard Stop 도입 또는 조건 정밀화).
+
+
+
 ## v0.39.0 — BIT 강제 트리거 보강 (debug-guard.sh 키워드 사전 확장) (2026-05-10)
 
 ### 변경 내용
