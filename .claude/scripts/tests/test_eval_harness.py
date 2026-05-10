@@ -226,3 +226,28 @@ def test_feedback_reports_no_log_file_returns_none(tmp_path):
     (docs_root / "harness").mkdir(parents=True)
     result = mod.check_feedback_reports(docs_root)
     assert result is None
+
+
+@pytest.mark.eval
+def test_feedback_reports_inline_header_severity(tmp_path):
+    """v0.42.4 — 헤더 인라인 `(심각도: medium ...)` 양식 검출 (FR-007 응답).
+
+    다운스트림 양식: `#### FR-NNN ... (심각도: medium — ...)` 헤더 인라인 +
+    본문에 별도 `**심각도**:` 라인 없음. v0.42.3까지는 substring 검사라
+    `**심각도**` 마커 부재 시 6건 오경보 발생.
+    """
+    mod = _load_eval_cps_integrity()
+    docs_root = _write_log(tmp_path, """# migration-log
+
+## v0.42.0 → v0.42.1 (2026-05-10)
+
+### Feedback Reports
+
+#### FR-007 (2026-05-10) — 헤더 인라인 양식 (심각도: medium — 부분 효과)
+
+**관점**: 헤더 인라인 검증.
+**약점**: 본문 별도 심각도 라인 없음.
+**실천**: 양면 매칭 보강.
+""")
+    result = mod.check_feedback_reports(docs_root)
+    assert result == ["FR-007 ✅"]

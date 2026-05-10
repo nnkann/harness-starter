@@ -43,6 +43,58 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.41.0 — WIP 파싱 SSOT 통합 (wip_util.py + post-compact-guard.py 전환) (2026-05-10)
+
+### 변경 내용
+
+WIP frontmatter 파싱 로직이 3곳에 파편화돼 있던 상태(session-start.py·
+post-compact-guard.sh·stop-guard.py)를 단일 SSOT(`utils/wip_util.py`)로
+통합. 동시에 `post-compact-guard.sh`를 Python으로 전환해 sed/grep/awk
+혼재 제거.
+
+stop-guard 자기복제 케이스가 다른 sh에 적용되는지 14개 sh 점검 결과,
+적합 1건(post-compact-guard.sh) + 부적합 12건. 1차 결론에서 사용자 통찰
+("언어 전환이 아닌 로직 통합")로 SSOT 부재가 진짜 원인이라는 결론에
+도달, 본 wave에서 점검·결정·실행을 단일 commit으로 처리.
+
+근거 문서: `docs/decisions/hn_wip_util_ssot.md` (이 wave 후 이동).
+
+### 자동 적용 항목 (다운스트림이 fetch 시 자동)
+
+- `.claude/scripts/utils/__init__.py` (신설)
+- `.claude/scripts/utils/wip_util.py` (신설 — `parse_wip_file()` + `is_in_progress()` SSOT)
+- `.claude/scripts/session-start.py` (parse_wip_file 정의 제거 → import)
+- `.claude/scripts/stop-guard.py` (is_in_progress 정의 제거 → import)
+- `.claude/scripts/post-compact-guard.py` (신설 — sh 1:1 포팅)
+- `.claude/scripts/post-compact-guard.sh` (삭제 — dead code 동시 제거)
+
+### 수동 적용 항목
+
+1. `.claude/settings.json` PostCompact hook command 갱신
+   `bash .claude/scripts/post-compact-guard.sh` → `python3 .claude/scripts/post-compact-guard.py`
+   (settings.json을 다운스트림이 자체 커스터마이즈한 경우 3-way merge 후 확인)
+2. `bash .claude/scripts/post-compact-guard.sh`를 호출하는 외부 스크립트가
+   있으면 동일하게 갱신 (downstream-readiness.sh가 hook 누락 자동 감지)
+
+### 검증
+
+```
+python3 -c "import sys; sys.path.insert(0, '.claude/scripts'); from utils.wip_util import parse_wip_file"
+echo '{}' | python3 .claude/scripts/post-compact-guard.py
+python3 .claude/scripts/session-start.py
+echo '{}' | python3 .claude/scripts/stop-guard.py
+```
+
+### 회귀 위험
+
+- upstream 격리 환경(Windows + Git Bash + Python 3.12)에서 관찰된 범위 내 검증
+- Linux/macOS·다른 Python 버전 미테스트
+- WSL·Docker·CI 등 다른 실행 환경의 sys.path 동작 미검증
+- 다운스트림이 `.claude/scripts/utils/` 경로에 자체 모듈을 두던 경우 충돌
+  가능성 (현재 업스트림에서는 utils/ 폴더 부재였음)
+
+
+
 ## v0.40.2 — stop-guard.py / session-start.py cwd 보정 (2026-05-10)
 
 ### 변경 내용

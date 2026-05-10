@@ -56,6 +56,21 @@ updated: 2026-05-10
 - [x] "가능하면" 단어를 명확한 트리거 조건으로 교체 — UI/frontend 코드 변경 시 필수, 백엔드·CLI·문서는 선택
 - [x] 라인 수 1~3줄 이내 변경 (rules 모호성 제거 1건)
 
+### 3. Phase 3 — FR-007 후속: 필드 매칭 정규식 다양성 확보 (v0.42.4)
+
+**사전 준비**: 다운스트림 v0.42.3 적용 후 측정 FR-007 — `check_feedback_reports`의 헤더 양면 매칭은 정상 작동(6건 검출)했으나 필드 substring 검사가 단순 `**심각도**` 마커만 잡음. 다운스트림 양식이 헤더 인라인 `(심각도: medium — ...)` 형태면 검출 후 6건 모두 "⚠ 심각도 없음" 오경보
+**영향 파일**: `.claude/scripts/eval_cps_integrity.py` (L439·L453 영역) + `.claude/scripts/tests/test_eval_harness.py` (회귀 가드 1건 추가)
+**Acceptance Criteria**:
+- [x] Goal: 4 필수 필드(관점·약점·실천·심각도) 매칭이 3 양식 모두 인식 — bold 마커 (`**관점**:`) + plain (`관점:`) + 헤더 인라인 (`(심각도: ...)`). 다운스트림 v0.42.3 측정의 6건 오경보가 0건으로 해소
+  검증:
+    review: review-deep
+    tests: pytest .claude/scripts/tests/test_eval_harness.py -q
+    실측: 헤더 인라인 양식 회귀 케이스(`#### FR-NNN (... 심각도: medium ...)`) 추가 후 통과 확인. 기존 11건 + 신규 1건 = 12 passed
+- [x] `required_fields`를 substring 검사 → 정규식 검사로 교체. 각 필드명에 대해 `(?:\*\*FIELD\*\*\s*:|FIELD\s*:|\(\s*FIELD\s*:)` 양면 패턴
+- [x] 4 필드 동일 패턴 적용 (관점·약점·실천·심각도)
+- [x] 회귀 가드 1건 추가: 헤더 인라인 `(심각도: medium)` 양식만 사용하는 FR이 정상 검출되는지 (`FR-NNN ✅` 반환)
+- [x] 기존 11건 회귀 유지 (bold 마커 + plain 양식 호환)
+
 ## 결정 사항
 
 ### Phase 1 (5-4) — Feedback Reports 정규식 양면 매칭 보강
@@ -64,13 +79,31 @@ updated: 2026-05-10
 - **회귀 가드 신설**: test_eval_harness.py에 4건 추가 — top-level 양식 / 버전 섹션 서브헤더 양식 / 필수 필드 누락 / 파일 부재 None 반환. 11/11 통과
 - **이유**: 다운스트림이 버전 섹션 안에 `### Feedback Reports` 서브헤더 양식 사용 시 구버전 정규식이 미인식 → "없음 ✅" 오출력으로 v0.42.1 Phase 4 수신 채널 무력화. 양식 통일 강제보다 양면 허용이 다운스트림 자율성 보존에 정합
 
+### Phase 3 (FR-007) — 필드 매칭 정규식 다양성 확보 (v0.42.4)
+- **반영 위치**: `.claude/scripts/eval_cps_integrity.py` `check_feedback_reports` (L436~) — `required_fields`를 substring 검사 → 정규식 검사 헬퍼(`_field_present`)로 교체
+- **3 양식 양면 매칭**: bold 마커(`**필드**:`) + plain(`필드:`) + 헤더 인라인(`(필드:`). 한국어 단어 경계는 `(?<![\w가-힣])` lookbehind로 처리 — 부분 단어 매칭 방지
+- **회귀 가드 신설**: `test_feedback_reports_inline_header_severity` 추가. `#### FR-NNN ... (심각도: medium — ...)` 헤더 인라인만 있고 본문에 `**심각도**:` 별도 라인 없는 케이스도 `FR-NNN ✅` 검출. 12 passed (기존 11 + 신규 1)
+- **이유**: 다운스트림 v0.42.3 측정에서 6건 모두 검출은 됐으나 "⚠ 심각도 없음" 오경보. v0.42.3 헤더 양면 매칭으로 검출 자체는 성공했으나 필드 substring 검사가 좁아 신뢰도 저하 → 다운스트림 자율성 보존 + 가이드 양식 호환 동시 충족
+
 ### Phase 2 (5-5) — self-verify.md "가능하면" 정밀화
 - **반영 위치**: `.claude/rules/self-verify.md` L50 (1줄 → 8줄)
 - **변경**: "가능하면 dev 서버 부팅" 모호 표현 제거 → "UI/frontend 변경 시 필수" + "그 외 선택" 명확 트리거
 - **이유**: UI 변경은 코드 통과 ≠ 사용자 경험 통과인 영역 — 모호 표현이 SKIP 허용으로 작동했음. CLAUDE.md "UI 또는 frontend 변경" 원칙과 정합
 
+## 변경 이력
+
+### v0.42.4 (2026-05-10) — Phase 3 추가 (FR-007 후속)
+- 다운스트림 v0.42.3 적용 후 6건 검출 + "⚠ 심각도 없음" 오경보 수신
+- `required_fields` substring 검사 → 3 양식 양면 정규식 검사로 교체
+- 헤더 인라인 양식 회귀 가드 추가 (12 passed)
+
+### v0.42.3 (2026-05-10) — 초기 wave (Phase 1 + Phase 2)
+- Phase 1: Feedback Reports 헤더 양면 매칭 (`##` + `###`) + FR 헤더 양면 (`###` + `####`) + ID 중복 방지
+- Phase 2: self-verify.md "가능하면" 모호성 → UI/frontend 트리거 명확화
+
 ## CPS 갱신
 - P7 본문 변경 없음 (구성요소 관계 정합성 회복 — 검증 로직이 양식 변화를 따라가는 정합 강화). S6 메커니즘 자체 변경 아님
+- Phase 3도 동일 — Solution 정의 변경 없음. 본 보강 자체의 정확도 결함 수정
 - Solution 정의 변경 없음 → owner 추가 승인 불필요
 
 ## 메모

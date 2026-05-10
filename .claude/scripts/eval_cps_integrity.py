@@ -434,11 +434,22 @@ def check_feedback_reports(docs_root: Path) -> list[str] | None:
         return []  # 섹션 없음 = FR 항목 없음
 
     # FR-NNN 항목 추출 — 헤더 레벨 양면 (### 또는 ####)
+    # 필드 매칭은 v0.42.4 — 3 양식 양면 (FR-007 응답)
+    # - bold 마커: `**필드**:` 또는 `**필드**` 그 다음 콜론
+    # - plain: `필드:`
+    # - 헤더 인라인: `(필드: ...)` 또는 `(필드:` 괄호 안
+    # 다운스트림이 헤더 라인에 `#### FR-NNN ... (심각도: medium — ...)` 형식으로
+    # 표기하면 본문에 별도 `**심각도**:` 라인이 없어도 검출되도록 보강
     warnings: list[str] = []
     seen_ids: set[str] = set()
-    required_fields = ["**관점**", "**약점**", "**실천**", "**심각도**"]
+    required_fields = ["관점", "약점", "실천", "심각도"]
     fr_split_pattern = re.compile(r"(?=^#{3,4} FR-\d+)", re.MULTILINE)
     fr_header_pattern = re.compile(r"^#{3,4} (FR-\d+)")
+
+    def _field_present(name: str, block: str) -> bool:
+        # 3 양식 양면 매칭 — bold 마커 / plain / 헤더 인라인 괄호
+        pattern = rf"(?:\*\*{name}\*\*\s*:|(?<![\w가-힣]){name}\s*:|\(\s*{name}\s*:)"
+        return bool(re.search(pattern, block))
 
     for fb_section in sections:
         fr_blocks = fr_split_pattern.split(fb_section)
@@ -450,9 +461,9 @@ def check_feedback_reports(docs_root: Path) -> list[str] | None:
             if fr_id in seen_ids:
                 continue  # 같은 FR ID 중복 방지 (여러 섹션에 걸쳐 있을 경우)
             seen_ids.add(fr_id)
-            missing = [f for f in required_fields if f not in block]
+            missing = [f for f in required_fields if not _field_present(f, block)]
             if missing:
-                warnings.append(f"⚠️ {fr_id}: {', '.join(missing)} 없음")
+                warnings.append(f"⚠️ {fr_id}: **{'**, **'.join(missing)}** 없음")
             else:
                 warnings.append(f"{fr_id} ✅")
 
