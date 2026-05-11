@@ -43,6 +43,66 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.42.3 — eval_cps_integrity Feedback Reports 인식 보강 + self-verify 모호성 정밀화 (2026-05-10)
+
+### 변경 내용
+
+다운스트림 v0.42.1 적용 후 측정된 eval --harness 결과 medium 우선순위 정비.
+
+- **5-4 (eval_cps_integrity.py)**: `check_feedback_reports`의 정규식이
+  `## Feedback Reports` (top-level 헤더)만 매칭하던 결함을 `### Feedback Reports`
+  (버전 섹션 내 서브헤더) 양면 매칭으로 보강. FR 헤더 레벨도 `### FR-NNN` +
+  `#### FR-NNN` 양면 지원. 같은 FR ID 중복 방지(set). 다운스트림이 어느
+  양식을 써도 FR 항목 검출되도록 자율성 보존
+- **5-4 회귀 가드**: `test_eval_harness.py`에 4건 추가 (top-level / 서브헤더 /
+  필수 필드 누락 / 파일 부재). 11/11 통과
+- **5-5 (self-verify.md)**: "**가능하면:** dev 서버 부팅" 모호 표현을
+  "**UI/frontend 변경 시 필수**" + "**그 외(백엔드·CLI·문서·hooks·스크립트) 선택**"
+  명확 트리거로 정밀화. CLAUDE.md "UI 또는 frontend 변경" 원칙과 정합
+
+근거 문서: `docs/decisions/hn_eval_harness_medium_fixes.md`.
+
+### 자동 적용 항목
+
+- `.claude/scripts/eval_cps_integrity.py` (`check_feedback_reports` 정규식 + 파싱 로직)
+- `.claude/scripts/tests/test_eval_harness.py` (회귀 가드 4건 추가)
+- `.claude/rules/self-verify.md` (검증 항목 트리거 명확화)
+
+### 수동 적용 항목
+
+없음. 다음 `eval --harness` 호출부터 자동으로 새 인식 로직 적용.
+
+### 검증
+
+```bash
+python3 -m pytest .claude/scripts/tests/test_eval_harness.py -v
+# 11 passed (기존 7 + 신규 4)
+grep -nE "UI|frontend" .claude/rules/self-verify.md | head -3
+```
+
+### 회귀 위험
+
+- 회귀 테스트 4건 통과 + 전체 86 passed 확인 (Phase 1 + Phase 2 회귀 0)
+- 다운스트림 양식이 `## Feedback Reports` (top-level) + `### Feedback Reports`
+  (서브헤더) 외 다른 헤더 레벨(예: `# Feedback Reports`)을 쓰면 미인식. 본
+  보강은 v0.42.1 가이드 양식과 다운스트림 실측 양식 두 케이스만 커버
+- 한 migration-log.md에 같은 FR-NNN ID가 여러 섹션에 출현하면 첫 번째만
+  인식 (set으로 중복 방지). 의도된 설계 — 다른 ID라면 둘 다 출력
+
+### 다운스트림 보고 요청
+
+upstream이 본 보강의 효과를 측정하기 위해 다음 관찰을 요청합니다.
+다음 upgrade 시 `docs/harness/migration-log.md` `## Feedback Reports` 섹션에 응답:
+
+1. **eval --harness 항목 7 출력**: v0.42.3 적용 후 `eval --harness` 실행 시
+   migration-log.md의 FR 항목이 정상 검출되는가? (FR-NNN ✅ 또는 ⚠️ 출력)
+2. **양식 정합성**: 다운스트림 migration-log.md의 헤더 레벨 (top-level
+   `## Feedback Reports` vs 서브헤더 `### Feedback Reports`) 어느 쪽이 사용되는지
+
+응답 형식: `migration-log.md` 본 버전 섹션 안에 FR 표준 포맷.
+
+
+
 ## v0.42.2 — Step 9.6 USER_OWNED_FILES 화이트리스트 디렉토리 단위 확장 (FR-006) (2026-05-10)
 
 ### 변경 내용

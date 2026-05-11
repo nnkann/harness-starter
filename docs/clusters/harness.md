@@ -36,6 +36,7 @@ updated: 2026-05-11
 - [implementation init check 게이트 정밀화 — 환경 양식 drift 비용 제거](../decisions/hn_init_gate_redesign.md)
 - [Karpathy 원칙 적용 — 코딩 컨벤션·행동 원칙·self-verify·staging·commit SSOT](../decisions/hn_karpathy_principles.md)
 - [memory 재설계 — tmp 폐기 + 동적 snapshot 도입 + 트리거 재정의](../decisions/hn_memory.md)
+- [오케스트레이터 메커니즘 설계 — PreToolUse hook + orchestrator.py MVI](../decisions/hn_orchestrator_mechanism.md)
 - [P8 starter 자기 적용 + commit 흐름 강제 트리거 보강](../decisions/hn_p8_starter_self_application.md)
 - [pipeline-design 규칙 업스트림 이식 계획](../decisions/hn_pipeline_design_rule.md)
 - [약속 박제 보호 — completed 봉인 + 미루기 차단 룰](../decisions/hn_promise_protection.md)

@@ -6,6 +6,9 @@
 .claude/memory/split-plan.txt
 .claude/memory/stop_hook_audit.log
 
+# 오케스트레이터 런타임 상태 (세션별 동적, gitignore)
+.claude/session_signal.json
+
 # 테스트 sandbox (test-pre-commit.sh — tmp 대신 리포 내 sandbox 사용)
 .claude/.test-sandbox/
 **/__pycache__/

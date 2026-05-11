@@ -113,6 +113,99 @@ serves: S#
 
 규칙 파일 본문에 "이 규칙을 누가 enforces하는가"가 명시됐으면 HARNESS_MAP.md와 정합 확인.
 
+### `trigger:` — rules·skills·agents·scripts frontmatter (Layer 2 자격 요건)
+
+본 도구가 CPS Problem의 진입 조건 중 **자기가 담당하는 객관 신호**를
+선언. 3층 책임 분리(`docs/decisions/hn_cps_entry_signal_layering.md`)의
+Layer 2.
+
+SSOT 위치:
+- Layer 1 (P 정의의 진입 조건 카테고리): `docs/guides/project_kickoff.md`
+- Layer 2 (도구의 trigger 자격 요건): 본 필드
+- Layer 3 (WIP 작업의 진입 인용): WIP frontmatter `problem`·`solution-ref`
+
+#### 형식
+
+단일 trigger:
+```yaml
+defends: P1                      # 어느 Problem 방어
+trigger: same-file-edit-gt-3     # 자기가 detect하는 객관 신호
+```
+
+다중 trigger (한 도구가 여러 신호 담당):
+```yaml
+defends: P1
+trigger:
+  - same-file-edit-gt-3
+  - error-repeat-2x
+  - core-config-rewrite
+```
+
+`serves:`와 결합 (skills·agents):
+```yaml
+serves: S9
+trigger:
+  - frontmatter-problem-mismatch
+  - bit-block-absent-after-keyword-hit
+```
+
+#### 명명 규칙
+
+- **kebab-case** (`-` 구분, 영문 소문자 + 숫자만)
+- **객관 검증 가능 신호 표현**: 어떻게 detect되는지 이름에서 추론 가능해야
+  - ✅ `same-file-edit-gt-3` — git history grep, 3회 초과
+  - ✅ `frontmatter-problem-mismatch` — frontmatter `problem` ↔ CPS Problems grep
+  - ✅ `secret-pattern-line-confirmed` — pre-check S1 line-confirmed
+  - ❌ `claude-speculation-suspected` — 자가 발화 의존 (금지)
+  - ❌ `looks-fragile` — 주관 판단 (금지)
+- **길이 30자 이내**
+- **부정형 금지**: `not-X` 대신 `X-absent` (긍정 신호로 표현)
+
+#### 금지 패턴 (자가 발화 의존)
+
+다음 형태 trigger 명칭 금지:
+- `claude-*`, `agent-*` 등 행위 주체가 LLM인 경우
+- `*-suspected`, `*-feels-*`, `*-seems-*` 등 주관 판단 표현
+- `looks-*`, `appears-*` 등 시각적 직관 표현
+
+근거: `cps_entry_signal_layering` 결정 "Layer 1 원칙 - 자가 발화 의존 신호
+금지". Layer 2도 같은 원칙 상속.
+
+#### Layer 1 진입 조건과의 매핑
+
+도구의 trigger는 자기가 방어하는 P의 진입 조건 카테고리 중 하나를
+**더 정밀하게** 표현. 예:
+
+| Layer 1 (project_kickoff.md P1 진입 조건) | Layer 2 (도구 trigger 예) |
+|------------------------------------------|--------------------------|
+| 동일 파일이 같은 세션에서 3회 이상 수정 | `same-file-edit-gt-3` (pre_commit_check.py) |
+| 같은 에러·테스트 실패가 2회 이상 반복 | `error-repeat-2x` (debug-specialist) |
+| pre-check 핵심 설정 연속 수정 차단 게이트 hit | `core-config-rewrite` (pre_commit_check.py) |
+
+Layer 1은 카테고리, Layer 2는 구체 임계·정밀 정의. 한 P의 여러 진입
+조건이 여러 도구의 trigger로 분산되는 게 정상 (cascade).
+
+#### 다운스트림 trigger 충돌 방지
+
+다운스트림이 자체 trigger 명칭 추가 시 namespace prefix 권장:
+- 업스트림 trigger: prefix 없음 (`same-file-edit-gt-3`)
+- 다운스트림 trigger: 프로젝트 abbr prefix (`pm:payment-retry-loop`)
+
+업스트림 trigger 명칭과 충돌하지 않으면 prefix 생략 가능. eval_cps_integrity
+가 중복 명명 시 경고.
+
+#### 자동 수집 (HARNESS_MAP 역생성)
+
+`scripts/regenerate_harness_map.py` (구현 예정 — `cps_entry_signal_layering`
+4단계)가 모든 도구 frontmatter `trigger:` 필드를 긁어서 P → 도구 역방향
+인덱스 자동 생성. 사람이 HARNESS_MAP 수동 갱신할 의무 없음.
+
+#### 점진 적용
+
+기존 도구 frontmatter에 `trigger:` 일괄 추가는 본 결정 3단계 작업. 도구
+한 번에 다 박을 필요 없음 — 도구 변경이 발생할 때 같이 추가하면 됨.
+누락 시 eval_cps_integrity가 점진 경고.
+
 ## CPS 인용 (frontmatter `problem`·`solution-ref`)
 
 CPS = `docs/guides/project_kickoff.md`가 마스터. 다른 모든 문서가 단방향 인용.

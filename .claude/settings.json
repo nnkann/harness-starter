@@ -111,6 +111,15 @@
             "command": "bash .claude/scripts/write-guard.sh"
           }
         ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/scripts/orchestrator.py"
+          }
+        ]
       }
     ]
   }
