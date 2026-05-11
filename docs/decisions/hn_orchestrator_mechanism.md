@@ -227,6 +227,40 @@ Claude가 어느 한쪽 못 봐도 다른 쪽 보장.
 - [x] test_orchestrator.py 회귀 가드 5 케이스 ✅
 - [x] orchestrator.py·docs.md trigger 스키마 정의 (Layer 2 frontmatter) ✅
 
+### 2. P1 신호 stale 누적 해소 (review 경고 2 대응)
+
+직전 wave 직후 실측 — orchestrator.py 자기 수정·README 수정마다 P1 INFO
+신호가 count 변화별로 별도 누적되어 PreToolUse 컨텍스트에 stale 신호 3건
+이상 동시 출력. session 길어질수록 노이즈 증폭.
+
+원인: `deduplicate_signals`가 `(p_id, message)` 키 사용 — count 변화 시
+message 문자열 달라져 새 식별자로 인식 → upsert 안 됨.
+
+해소: 신호에 `key` 필드 (예: `"P1:{file_path}"`) 추가. `_signal_key()`
+가 `key`를 식별자로 우선 사용 → 같은 key는 교체(upsert). `key` 없으면
+기존 `(p_id, message)` fallback 유지 (P9 등 정적 신호 호환).
+
+**Acceptance Criteria**:
+- [x] Goal: P1 신호가 count 변화 시 기존 신호를 교체하여 stale 누적 0건
+  검증:
+    review: review
+    tests: pytest -m orchestrator
+    실측: stale active_signals 0건 확인 (session_signal.json 검사)
+- [x] `_signal_key()` 헬퍼 + `deduplicate_signals` upsert 동작 ✅
+- [x] `detect_p1_same_file`에 `key: "P1:{fpath}"` 발급 ✅
+- [x] 기존 stale 신호 정리 (session_signal.json reset) ✅
+- [x] 회귀 가드 2건 신설 (upsert·dedup fallback) — 7/7 통과 ✅
+
+review 경고 1 (harness-init false-positive)은 잘못된 시나리오로 판명 —
+다운스트림은 harness-init을 실행 안 함 (업스트림 CPS가 그대로 전파).
+revert 완료.
+
+## 변경 이력
+
+- 2026-05-11 — MVI 1차 박제 (8e1578c). P1·P9 detect + PreToolUse hook
+- 2026-05-11 — Task 2 (P1 upsert stale 해소). review 경고 2 대응. review
+  경고 1 (harness-init false-positive)은 시나리오 오인으로 판명 → revert
+
 ## 메모
 
 본 wave는 Phase 1 MVI만. Phase 2·3은 후속 wave (별 WIP 신설).

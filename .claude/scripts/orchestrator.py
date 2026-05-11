@@ -263,6 +263,7 @@ def detect_p1_same_file(hook_input: dict, state: dict) -> list[dict]:
             signals.append({
                 "p_id": "P1",
                 "severity": "INFO",
+                "key": f"P1:{fpath}",  # upsert 키 — count 변화 시 기존 신호 교체
                 "message": f"동일 파일 연속 수정 감지: {fpath} ({count}회)",
                 "action_required": "추측 수정 패턴인지 확인. internal-first.md 적용 권장",
                 "detected_at": datetime.now(timezone.utc).isoformat(),
@@ -276,15 +277,38 @@ def detect_p1_same_file(hook_input: dict, state: dict) -> list[dict]:
 # 신호 통합·필터
 # ---------------------------------------------------------------------------
 
+def _signal_key(s: dict) -> tuple:
+    """신호 식별자.
+
+    `key` 필드가 있으면 그것을 식별자로 사용 (upsert 동작 — 같은 key는 갱신).
+    예: P1은 "P1:{file_path}" 키 — count 변화 시 기존 신호 교체로 stale 누적 차단.
+
+    없으면 (p_id, message) fallback — 기존 동작 호환.
+    """
+    k = s.get("key")
+    if k:
+        return ("k", k)
+    return ("m", s.get("p_id"), s.get("message"))
+
+
 def deduplicate_signals(new_signals: list[dict], existing: list[dict]) -> list[dict]:
-    """동일 신호 중복 제거 — p_id + message 기준."""
-    seen = {(s.get("p_id"), s.get("message")) for s in existing}
-    out = list(existing)
+    """동일 신호 upsert + dedup.
+
+    `key` 보유 신호는 기존 같은 key 신호를 **교체** (P1 count 갱신).
+    `key` 없는 신호는 (p_id, message) 기반 dedup (P9 등 정적 신호).
+    """
+    out: list[dict] = []
+    index: dict[tuple, int] = {}
+    for s in existing:
+        index[_signal_key(s)] = len(out)
+        out.append(s)
     for s in new_signals:
-        key = (s.get("p_id"), s.get("message"))
-        if key not in seen:
+        k = _signal_key(s)
+        if k in index:
+            out[index[k]] = s  # upsert: 기존 신호 교체
+        else:
+            index[k] = len(out)
             out.append(s)
-            seen.add(key)
     return out
 
 

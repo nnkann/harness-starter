@@ -43,6 +43,66 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.42.4 — eval_cps_integrity 필드 매칭 정규식 다양성 확보 (FR-007) (2026-05-11)
+
+### 변경 내용
+
+다운스트림 v0.42.3 적용 측정 FR-007 후속 처리. 직전 wave에서 헤더 양면
+매칭은 보강했으나 필드 substring 검사가 좁아 다운스트림 양식의 6건 모두
+"⚠ 심각도 없음" 오경보 발생.
+
+- **`check_feedback_reports` 필드 매칭 보강**: `required_fields` substring
+  검사 → `_field_present` 헬퍼의 정규식 검사로 교체. 4 필수 필드(관점·약점·
+  실천·심각도) 모두 3 양식 양면 매칭:
+  - bold 마커: `**필드**:`
+  - plain: `필드:` (한국어 단어 경계 lookbehind로 부분 단어 매칭 방지)
+  - 헤더 인라인: `(필드:` 괄호 안
+- **회귀 가드 신설**: `test_feedback_reports_inline_header_severity` 추가.
+  `#### FR-NNN ... (심각도: medium — ...)` 헤더 인라인만 있고 본문에
+  `**심각도**:` 별도 라인 없는 케이스도 정상 검출 (`FR-NNN ✅`)
+- 12 passed (기존 11 + 신규 1) / 전체 87 passed / 회귀 0
+
+근거 문서: `docs/decisions/hn_eval_harness_medium_fixes.md` Phase 3 + 변경 이력.
+
+### 자동 적용 항목
+
+- `.claude/scripts/eval_cps_integrity.py` (`_field_present` 헬퍼 + 정규식 매칭)
+- `.claude/scripts/tests/test_eval_harness.py` (회귀 가드 1건 추가)
+
+### 수동 적용 항목
+
+없음. 다음 `eval --harness` 호출부터 자동 적용.
+
+### 검증
+
+```bash
+python3 -m pytest .claude/scripts/tests/test_eval_harness.py -v
+# 12 passed (기존 11 + 신규 1)
+```
+
+### 회귀 위험
+
+- 정규식 한국어 단어 경계는 `(?<![\w가-힣])` lookbehind로 처리 — 부분 단어
+  오탐 방지. 다른 한국어 위치(예: "관점 비교") 본문에서 우연히 hit할 가능성
+  있으나 본 함수는 FR 블록 한정 검사라 영향 미약
+- bold 마커 + plain + 헤더 인라인 외 다른 양식(예: 굵은 점만 `• 심각도: medium`,
+  HTML `<b>심각도</b>:`)은 미인식. 본 보강은 v0.42.1 가이드 양식 + 다운
+  스트림 실측 양식 두 케이스 커버
+
+### 다운스트림 보고 요청
+
+upstream이 본 보강의 효과를 측정하기 위해 다음 관찰을 요청합니다.
+다음 upgrade 시 `docs/harness/migration-log.md` `## Feedback Reports` 섹션에 응답:
+
+1. **`eval --harness` 항목 7 출력**: v0.42.4 적용 후 다운스트림 6건 FR이
+   `FR-NNN ✅`로 정상 검출되는가? (이전 6건 "⚠ 심각도 없음" 오경보 → 0건)
+2. **다른 양식 발견 여부**: bold/plain/헤더 인라인 외 다른 필드 양식이
+   본 다운스트림 migration-log.md에 존재하는가?
+
+응답 형식: `migration-log.md` 본 버전 섹션 안에 FR 표준 포맷.
+
+
+
 ## v0.42.3 — eval_cps_integrity Feedback Reports 인식 보강 + self-verify 모호성 정밀화 (2026-05-10)
 
 ### 변경 내용

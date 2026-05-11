@@ -88,3 +88,45 @@ def test_stdout_valid_json_when_signals_present(tmp_path, monkeypatch):
         # 출력 있으면 JSON이어야
         data = json.loads(result.stdout)
         assert "hookSpecificOutput" in data
+
+
+@pytest.mark.orchestrator
+def test_signal_upsert_by_key():
+    """`key` 필드 보유 신호는 upsert — 같은 key의 기존 신호 교체."""
+    sys.path.insert(0, str(SCRIPT.parent))
+    try:
+        import importlib
+        if "orchestrator" in sys.modules:
+            del sys.modules["orchestrator"]
+        orch = importlib.import_module("orchestrator")
+
+        existing = [
+            {"p_id": "P1", "key": "P1:foo.py", "message": "3회"},
+        ]
+        new = [
+            {"p_id": "P1", "key": "P1:foo.py", "message": "4회"},
+        ]
+        merged = orch.deduplicate_signals(new, existing)
+        # upsert — 1개로 유지, message는 갱신
+        assert len(merged) == 1
+        assert merged[0]["message"] == "4회"
+    finally:
+        sys.path.pop(0)
+
+
+@pytest.mark.orchestrator
+def test_signal_dedup_without_key():
+    """`key` 없는 신호는 (p_id, message) 기준 dedup — 동일 신호 추가 안 됨."""
+    sys.path.insert(0, str(SCRIPT.parent))
+    try:
+        import importlib
+        if "orchestrator" in sys.modules:
+            del sys.modules["orchestrator"]
+        orch = importlib.import_module("orchestrator")
+
+        existing = [{"p_id": "P9", "message": "same msg"}]
+        new = [{"p_id": "P9", "message": "same msg"}]
+        merged = orch.deduplicate_signals(new, existing)
+        assert len(merged) == 1
+    finally:
+        sys.path.pop(0)
