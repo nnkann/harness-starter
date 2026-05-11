@@ -12,7 +12,7 @@ relates-to:
     rel: references
   - path: decisions/hn_bit_cascade_objectification.md
     rel: precedes
-  - path: WIP/decisions--hn_gemini_delegation_pipeline.md
+  - path: decisions/hn_gemini_delegation_pipeline.md
     rel: precedes
 status: completed
 created: 2026-05-11

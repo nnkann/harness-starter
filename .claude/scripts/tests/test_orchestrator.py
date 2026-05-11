@@ -130,3 +130,74 @@ def test_signal_dedup_without_key():
         assert len(merged) == 1
     finally:
         sys.path.pop(0)
+
+
+@pytest.mark.orchestrator
+def test_gemini_skip_when_cli_absent(monkeypatch):
+    """gemini CLI 미설치 환경에서는 detect_solution_change skip — graceful."""
+    sys.path.insert(0, str(SCRIPT.parent))
+    try:
+        import importlib
+        if "orchestrator" in sys.modules:
+            del sys.modules["orchestrator"]
+        orch = importlib.import_module("orchestrator")
+
+        # CLI 미설치 시뮬
+        monkeypatch.setattr(orch, "gemini_cli_available", lambda: False)
+        # Solutions 변경됐다고 시뮬
+        monkeypatch.setattr(orch, "staged_solutions_changed", lambda: True)
+
+        state: dict = {}
+        signals = orch.detect_solution_change({}, state)
+        # CLI 없으면 skip → 빈 신호
+        assert signals == []
+        # gemini_solution_review_called 플래그도 안 박힘
+        assert not state.get("counter", {}).get("gemini_solution_review_called")
+    finally:
+        sys.path.pop(0)
+
+
+@pytest.mark.orchestrator
+def test_gemini_skip_when_no_solution_change(monkeypatch):
+    """staged Solutions 변경 없으면 detect_solution_change skip."""
+    sys.path.insert(0, str(SCRIPT.parent))
+    try:
+        import importlib
+        if "orchestrator" in sys.modules:
+            del sys.modules["orchestrator"]
+        orch = importlib.import_module("orchestrator")
+
+        monkeypatch.setattr(orch, "gemini_cli_available", lambda: True)
+        monkeypatch.setattr(orch, "staged_solutions_changed", lambda: False)
+
+        state: dict = {}
+        signals = orch.detect_solution_change({}, state)
+        assert signals == []
+    finally:
+        sys.path.pop(0)
+
+
+@pytest.mark.orchestrator
+def test_gemini_once_per_session(monkeypatch):
+    """같은 세션에서 detect_solution_change는 한 번만 호출 — 중복 호출 방지."""
+    sys.path.insert(0, str(SCRIPT.parent))
+    try:
+        import importlib
+        if "orchestrator" in sys.modules:
+            del sys.modules["orchestrator"]
+        orch = importlib.import_module("orchestrator")
+
+        monkeypatch.setattr(orch, "gemini_cli_available", lambda: True)
+        monkeypatch.setattr(orch, "staged_solutions_changed", lambda: True)
+        # call_gemini_background mock — 실제 호출 안 함
+        called = []
+        monkeypatch.setattr(orch, "call_gemini_background", lambda p: called.append(p))
+
+        state: dict = {}
+        first = orch.detect_solution_change({}, state)
+        second = orch.detect_solution_change({}, state)
+        assert len(first) == 1
+        assert second == []  # 두 번째는 skip
+        assert len(called) == 1
+    finally:
+        sys.path.pop(0)

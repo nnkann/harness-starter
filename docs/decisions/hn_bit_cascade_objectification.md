@@ -8,7 +8,7 @@ tags: [bit, cascade, cps, ac, objectification, self-dependency, p9-candidate]
 relates-to:
   - path: decisions/hn_p8_starter_self_application.md
     rel: extends
-  - path: WIP/decisions--hn_gemini_delegation_pipeline.md
+  - path: decisions/hn_gemini_delegation_pipeline.md
     rel: references
   - path: decisions/hn_cps_entry_signal_layering.md
     rel: caused-by

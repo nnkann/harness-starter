@@ -30,6 +30,7 @@ updated: 2026-05-11
 - [eval --harness medium 결과 정비 (5-4 Feedback Reports 인식 + 5-5 self-verify 모호성)](../decisions/hn_eval_harness_medium_fixes.md)
 - [프론트매터 그래프 스펙 설계](../decisions/hn_frontmatter_graph_spec.md)
 - [하네스 엔지니어링 적합성 분석](../decisions/hn_gap_analysis.md)
+- [Gemini CLI subagent 위임 파이프라인 설계](../decisions/hn_gemini_delegation_pipeline.md)
 - [Glob 라우팅 태그 통과 — 사용자·에이전트 검색 비대칭 해소](../decisions/hn_glob_routing_tag.md)
 - [HARNESS_UPGRADE 환경변수 의미 일관화](../decisions/hn_harness_upgrade_env_semantics.md)
 - [하네스 스타터 개선 계획](../decisions/hn_improvement.md)
@@ -125,7 +126,3 @@ updated: 2026-05-11
 - [starter 12커밋 push 누락 — 다운스트림이 업스트림 변경 못 봄](../incidents/hn_starter_push_skipped.md)
 - [린터 도구 실종 — T13이 우연히 가시화한 환경 이슈](../incidents/hn_test_isolation_git_log_leak.md)
 - [wip-sync incidents WIP 자동 완료 미동작 — 체크리스트 없는 문서 abbr 매칭 누락](../incidents/hn_wip_sync_incidents_gap.md)
-
-## 진행 중 (WIP)
-
-- [Gemini CLI subagent 위임 파이프라인 설계](../WIP/decisions--hn_gemini_delegation_pipeline.md)

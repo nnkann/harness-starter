@@ -43,6 +43,78 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.42.5 — wip-sync 후 cluster·frontmatter 갱신 staging 누락 차단 (2026-05-11)
+
+### 변경 내용
+
+매 commit 직후 `docs/clusters/*.md` + 이동된 `docs/{decisions,...}/*.md`
+2건이 unstaged 잔여로 남던 결함 차단. v0.42.1~42.4 모두 동일 잔여 발생
+(starter 본인 5회 자기증명 = P6 검증망 스킵의 메커니즘 변종).
+
+진단 결과 (코드 직접 Read):
+- `cmd_cluster_update` (L499): `cluster.write_text(...)` 후 git add 0건 호출
+- `cmd_move` (L350): `git mv`는 rename만 staging — 그 후 `write_frontmatter_field`
+  (status·updated) 갱신은 working tree만 수정되어 unstaged
+- `cmd_reopen` (L400): `cmd_move`와 동일 패턴
+
+보강:
+- 세 함수 모두 갱신 직후 `subprocess.run(["git", "add", str(...)], capture_output=True)` 추가
+- `commit_finalize.sh` 주석 정정 — 기존 "`cmd_cluster_update`가 git add 호출"
+  거짓 박제를 실제 코드와 정합한 설명으로 교체
+- 회귀 가드 신설: `test_docs_ops_staging.py` 3건 (cluster_update / move / reopen).
+  tmp_path + git init fixture로 격리. `git diff --cached`에 대상 파일 hit +
+  unstaged 잔여 0건 검증
+
+전체 90 passed (87 → 90, 회귀 0).
+
+근거 문서: `docs/decisions/hn_wip_sync_staging_gaps.md`.
+
+### 자동 적용 항목
+
+- `.claude/scripts/docs_ops.py` (`cmd_cluster_update` + `cmd_move` + `cmd_reopen`)
+- `.claude/scripts/commit_finalize.sh` (주석 정정)
+- `.claude/scripts/tests/test_docs_ops_staging.py` (회귀 가드 3건 신설)
+
+### 수동 적용 항목
+
+없음. 다음 `/commit` 호출부터 자동으로 새 staging 흐름 적용.
+
+### 검증
+
+```bash
+python3 -m pytest .claude/scripts/tests/test_docs_ops_staging.py -v
+# 3 passed
+python3 -m pytest .claude/scripts/tests/ -q
+# 90 passed (회귀 0)
+
+# 메타 검증 — 본 commit 직후 git status 깨끗하면 v0.42.5 보강이 자기 첫
+# 적용 사례에서 즉시 작동 입증
+git status --short
+```
+
+### 회귀 위험
+
+- 회귀 가드 3건 + 전체 90 passed (회귀 0) 확인
+- `capture_output=True`로 stderr·stdout 묻음 — git add 실패해도 commit 흐름은
+  진행. 실패 시 잔여 발생으로 가시화 (자기검증)
+- 한 cluster·dest 파일을 두 번 git add하는 케이스 가능 (cmd_move + 후속
+  cmd_cluster_update 호출 시) — git add는 멱등이라 영향 없음
+- tmp_path 회귀 테스트가 Windows 환경 한정 검증. Linux/macOS hook cwd 거동
+  미테스트 — git subprocess 호출 표준이라 영향 미약
+
+### 다운스트림 보고 요청
+
+upstream이 본 보강의 효과를 측정하기 위해 다음 관찰을 요청합니다.
+다음 upgrade 시 `docs/harness/migration-log.md` `## Feedback Reports` 섹션에 응답:
+
+1. **commit 직후 `git status --short` 결과**: v0.42.5 적용 후 첫 commit
+   직후 잔여 파일 수. 0건이 정상. 1건+ 이면 starter 본인이 검증 못 한
+   추가 결함 (보고 필수)
+
+응답 형식: `migration-log.md` 본 버전 섹션 안에 FR 표준 포맷.
+
+
+
 ## v0.42.4 — eval_cps_integrity 필드 매칭 정규식 다양성 확보 (FR-007) (2026-05-11)
 
 ### 변경 내용
