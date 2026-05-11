@@ -15,11 +15,13 @@ updated: 2026-05-11
 
 - [harness-adopt 레거시 문서 정비 지원 — doc-health 진단 플로우](../decisions/hn_adopt_legacy_doc_health.md)
 - [adopt-without-init 다운스트림 능동 유도 — harness-init 자동 트리거](../decisions/hn_adopt_without_init_guard.md)
+- [BIT cascade 객관화 — Q3·NEW 플래그·CPS P# 매칭 자가 발화 의존 해소](../decisions/hn_bit_cascade_objectification.md)
 - [BIT(Bug Interrupt Triage) — 스코프 외 버그 자율 판단 시스템 설계](../decisions/hn_bug_interrupt_triage.md)
 - [cluster 재생성 게이팅 — 본체 변경 시 전수 갱신 패턴 분리](../decisions/hn_cluster_update_gating.md)
 - [코드 SSOT 서더링 감사 — 중복 정의·동기화 부담 정리](../decisions/hn_code_ssot_audit.md)
 - [commit 스킬 5.3 — AC 검증 묶음 자동 실행 (tests·실측 화이트리스트)](../decisions/hn_commit_auto_verify.md)
 - [commit 흐름 자동화 — wip-sync + git commit wrapper](../decisions/hn_commit_finalize_wrapper.md)
+- [CPS 진입 신호 계층화 — 3층 책임 분리 + 도구 frontmatter trigger + HARNESS_MAP 역생성](../decisions/hn_cps_entry_signal_layering.md)
 - [CPS Problem 인용 빈도 검토 — P1·P3·P4·P6 정체 의심 판정](../decisions/hn_cps_problem_inflation_review.md)
 - [문서 네이밍 전면 개편 — 도메인 약어 + 통합 원칙](../decisions/hn_doc_naming.md)
 - [다운스트림 증폭 측정 — Phase 4-A baseline 수집·가설 검증](../decisions/hn_downstream_amplification.md)
@@ -122,3 +124,7 @@ updated: 2026-05-11
 - [starter 12커밋 push 누락 — 다운스트림이 업스트림 변경 못 봄](../incidents/hn_starter_push_skipped.md)
 - [린터 도구 실종 — T13이 우연히 가시화한 환경 이슈](../incidents/hn_test_isolation_git_log_leak.md)
 - [wip-sync incidents WIP 자동 완료 미동작 — 체크리스트 없는 문서 abbr 매칭 누락](../incidents/hn_wip_sync_incidents_gap.md)
+
+## 진행 중 (WIP)
+
+- [Gemini CLI subagent 위임 파이프라인 설계](../WIP/decisions--hn_gemini_delegation_pipeline.md)

@@ -27,6 +27,13 @@ updated: 2026-04-28
 - 스킬 14 + 에이전트 8 + 규칙 10 + 스크립트 11 + docs 구조
 - `~/.claude/` (사용자 전역) 아닌 프로젝트별 `.claude/`에 설치
 
+**LLM 신호의 본질적 한계**: Claude의 자가 발화·자가 보고·자가 해석은
+컨텍스트 편향에 노출됨. 한 번 '정상'으로 판단된 문맥에서 후속 모순이
+그 '정상'에 맞춰 왜곡 → 자가 발화에 의존하는 신호는 시스템 자동화
+트리거로 부적합. 자동 트리거는 주관(발화)과 격리된 물리적 증거
+(Status / Diff / File / Frontmatter 매칭)만 사용해야 안정 cascade가
+가능. 근거: `docs/decisions/hn_bit_cascade_objectification.md` (P9 신설).
+
 ## Problems
 
 해결해야 할 핵심 문제. 우선순위 순.
@@ -193,6 +200,35 @@ P5를 악화시키는 역설. 해결 방향: HARNESS_MAP에 작업유형별 MVR(
 `docs/incidents/hn_commit_process_gaps.md` (선행 박제 — 회상 의존 실패의
 결정적 증거), `docs/decisions/hn_bug_interrupt_triage.md` (BIT 설계 의도).
 
+### P9. 정보 오염의 관성 (Information Inertia)
+
+**증상**: LLM이 한 번 '정상'이라고 판단한 문맥 속에서 이후 발생하는
+모순을 그 '정상'에 맞춰 왜곡. 자가 발화 신호(BIT 판단·NEW 플래그·CPS
+P# 매칭 표기)가 컨텍스트 편향으로 오염되어 자동 트리거의 신뢰성을
+파괴.
+
+**영향**:
+- 자동 트리거가 자가 발화 신호에 의존 시 cascade 단절 누락
+- BIT Q3 → NEW 플래그 → CPS P# 등록 흐름의 어느 한 곳 누락이
+  후속 자동화 전체를 무력화
+- P1/P8이 개별 행위의 실수라면 P9는 시스템 구조의 결함
+
+**진입 조건** (객관 신호 — `cps_entry_signal_layering` Layer 1 원칙):
+- WIP frontmatter `problem` 필드와 CPS Problems 목록 매칭 실패
+- `## 발견된 스코프 외 이슈` 섹션에 P# 매칭 항목이 CPS Problems에 미등록
+- BIT trigger 신호 발생(debug-guard.sh 키워드 hit) 후 응답에 `[BIT 판단]`
+  블록 부재
+- 자동 트리거 hook·스크립트가 자가 발화 신호(Claude 응답 본문 해석)에
+  의존하는 패턴
+
+**승격 상태**: 본 Problem 2026-05-11 등록. S9 정의 owner 승인 완료
+(아래 Solutions). 구현은 `cps_entry_signal_layering` +
+`bit_cascade_objectification` 결정 후속.
+
+**관련 사례 문서**: `docs/decisions/hn_bit_cascade_objectification.md`
+(P9 신설 원천 결정), `docs/decisions/hn_cps_entry_signal_layering.md`
+(메타 결정 — 진입 조건 객관화 원칙).
+
 ## Solutions
 
 각 Problem의 현 접근. **해결 기준**: 이 조건이 충족돼야 Solution이 작동하는 것으로 판단.
@@ -341,6 +377,42 @@ incident `hn_bash_n_flag_overblock` 참조.
 - 강제 트리거가 false-positive 유발 시 사용자 마찰 (P4 hook fragility 학습)
 - hook 키워드 매칭은 자연어의 "발견" 자체를 보강할 뿐 — Claude 자가 인지
   의무는 여전히 잔존
+
+### S9 (for P9): 주관 격리 + 다층 검증
+
+**메커니즘** (진입 조건별 해소 경로 — 도구 frontmatter `serves: S9,
+trigger: ...`로 Layer 2 cascade):
+
+- **메타 원칙 박제 (선언 layer)** — `rules/cps-ac-cascade.md` 신설.
+  자동 트리거는 객관 detect 가능 신호만 사용. 자가 발화 의존 트리거
+  금지 명시
+- **Workflow 강제 (절차 layer)** — implementation·write-doc 스킬이
+  진입 조건을 스킬 단계에서 강제. BIT trigger 검사·NEW 플래그·CPS
+  Problems 등록을 '판단'에서 'UI/UX'로 치환
+- **Gatekeeper 검증 (상태 layer)** — pre_commit_check.py가 결과 무결성
+  검증. frontmatter ↔ CPS 매칭 객관 detect. 누락 시 차단·경고
+
+**해결 기준**:
+- BIT Q3 hit → `[BIT 판단]` 블록 작성률 100% (객관 detect: 응답 본문 grep)
+- NEW 플래그 표기 → CPS Problems 등록까지 cascade 닫힘률 100% (객관 detect:
+  pre-check frontmatter ↔ CPS 매칭)
+- WIP frontmatter `problem` 필드 ↔ CPS Problems 매칭률 100%
+- 매칭 누락 시 commit 차단 또는 명시 경고
+
+**검증됨**: 미실측. 본 Solution은 `cps_entry_signal_layering`·
+`bit_cascade_objectification` 결정 구현 단계 진입 직전 (2026-05-11).
+
+**제약**:
+- 인식 실패 (Perception Gap) — Claude가 버그를 정상 동작으로 추측 시
+  어떤 메커니즘도 트리거 안 됨. P1 본체 영역
+- Workflow 강제는 Expert Bypass 가능 (스킬 우회 시 무력화) → Gatekeeper
+  검증이 결과 무결성으로 보강
+- Physical Lock (도구 레벨 차단) 후보 보류 — 마찰 큼. 운영 데이터 확보
+  후 재검토
+
+**진입 도구**: Layer 2 도구 frontmatter `serves: S9, trigger: ...`
+자동 수집. HARNESS_MAP 역생성이 S9 → 도구 매핑 자동 박제
+(`cps_entry_signal_layering` 결정 4단계).
 
 ## 도메인 목록
 
