@@ -39,6 +39,8 @@ if [ -n "$STAGED" ]; then
   # S1_LINE_EXEMPT 면제: 하네스 자체가 시크릿 패턴을 SSOT로 문서화하는 위치
   # SSOT: pre_commit_check.py S1_LINE_EXEMPT — 동기화 필수
   EXEMPT_RE='^\.claude/(scripts|agents|rules|skills|memory)/'
+  EXEMPT_RE="$EXEMPT_RE"'|^\.agents/skills/'
+  EXEMPT_RE="$EXEMPT_RE"'|^\.codex/agents/'
   EXEMPT_RE="$EXEMPT_RE"'|^docs/(WIP|incidents|decisions|guides|harness)/'
   EXEMPT_RE="$EXEMPT_RE"'|^scripts/install-secret-scan-hook\.sh$'
 

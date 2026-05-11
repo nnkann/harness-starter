@@ -54,6 +54,8 @@ else
     PATTERN="$PATTERN"'|(api[_-]?key|secret|token|password)[[:space:]]*[:=][[:space:]]*["'\''\`][^"'\''\`]{8,}["'\''\`]'
     # S1_LINE_EXEMPT 동기화: pre_commit_check.py S1_LINE_EXEMPT와 동일 면제 목록 유지
     EXEMPT_RE='^\.claude/(scripts|agents|rules|skills|memory)/'
+    EXEMPT_RE="$EXEMPT_RE"'|^\.agents/skills/'
+    EXEMPT_RE="$EXEMPT_RE"'|^\.codex/agents/'
     EXEMPT_RE="$EXEMPT_RE"'|^docs/(WIP|incidents|decisions|guides|harness)/'
     EXEMPT_RE="$EXEMPT_RE"'|^scripts/install-secret-scan-hook\.sh$'
     EXEMPT_RE="$EXEMPT_RE"'|^[^/]+\.md$'
