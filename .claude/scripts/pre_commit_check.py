@@ -297,6 +297,15 @@ def main() -> int:
     # 파생
     ns_parsed = parse_name_status(name_status_raw)
     staged_files: list[str] = [path for _, path in ns_parsed]
+    reopened_doc_redirects: dict[str, str] = {}
+    for line in name_status_raw.splitlines():
+        parts = line.split("\t") if "\t" in line else line.split(None, 2)
+        if len(parts) < 3 or not parts[0].startswith("R"):
+            continue
+        old_path, new_path = parts[1].replace("\\", "/"), parts[2].replace("\\", "/")
+        if old_path.startswith("docs/") and new_path.startswith("docs/WIP/"):
+            reopened_doc_redirects[old_path] = new_path
+            reopened_doc_redirects[old_path.removeprefix("docs/")] = new_path
 
     # diff stats
     added_lines = deleted_lines = 0
@@ -457,7 +466,14 @@ def main() -> int:
                         if link.startswith(("http", "mailto:")):
                             continue
                         resolved = resolve_path(str(Path(src).parent), link)
-                        if resolved == removed.replace("\\", "/"):
+                        removed_unix = removed.replace("\\", "/")
+                        if (
+                            resolved == removed_unix
+                            and reopened_doc_redirects.get(removed_unix)
+                            and Path(reopened_doc_redirects[removed_unix]).exists()
+                        ):
+                            continue
+                        if resolved == removed_unix:
                             dead_links.append(f"   {src}:{lineno}: {matched_line.strip()}")
                             break
 
@@ -502,21 +518,32 @@ def main() -> int:
         ERRORS += 1
 
     # C. frontmatter relates-to 전수 검사 (docs/ 전체)
-    # cmd_verify_relates stdout을 suppress해 pre-check key:value 출력 오염 방지
-    _vr_buf = io.StringIO()
-    _vr_old_stdout = sys.stdout
-    sys.stdout = _vr_buf
-    try:
-        _vr_rc = _docs_ops.cmd_verify_relates()
-    finally:
-        sys.stdout = _vr_old_stdout
-    if _vr_rc:
-        err("❌ frontmatter relates-to 미연결 건 감지 (전수 검사):")
-        for line in _vr_buf.getvalue().splitlines():
-            if line.strip():
+    # TEST_MODE fixture 테스트는 실제 repo staged 상태에 오염되면 안 된다.
+    if not TEST_MODE:
+        # cmd_verify_relates stdout을 suppress해 pre-check key:value 출력 오염 방지
+        _vr_buf = io.StringIO()
+        _vr_old_stdout = sys.stdout
+        sys.stdout = _vr_buf
+        try:
+            _vr_rc = _docs_ops.cmd_verify_relates()
+        finally:
+            sys.stdout = _vr_old_stdout
+        _vr_lines = [
+            line for line in _vr_buf.getvalue().splitlines()
+            if line.strip()
+            and not line.strip().startswith("결과:")
+            and not any(
+                f"relates-to '{old_path}'" in line
+                and Path(new_path).exists()
+                for old_path, new_path in reopened_doc_redirects.items()
+            )
+        ]
+        if _vr_rc and _vr_lines:
+            err("❌ frontmatter relates-to 미연결 건 감지 (전수 검사):")
+            for line in _vr_lines:
                 err(f"   {line}")
-        err("   대응: docs_ops.py verify-relates 로 상세 확인 후 경로 수정 또는 항목 제거")
-        ERRORS += 1
+            err("   대응: docs_ops.py verify-relates 로 상세 확인 후 경로 수정 또는 항목 제거")
+            ERRORS += 1
 
     # ─────────────────────────────────────────────────────────
     # 3.5. completed 봉인 보호 — status: completed 문서 본문 무단 변경 차단
@@ -696,6 +723,8 @@ def main() -> int:
     # (scripts: 정의/테스트 픽스처, agents/rules/skills/memory: 패턴 인용 문서)
     S1_LINE_EXEMPT = re.compile(
         r"^\.claude/(scripts|agents|rules|skills|memory)/"
+        r"|^\.agents/skills/"
+        r"|^\.codex/agents/"
         r"|^docs/(WIP|incidents|decisions|guides|harness)/"
         r"|^scripts/install-secret-scan-hook\.sh$"
         r"|^[^/]+\.md$"

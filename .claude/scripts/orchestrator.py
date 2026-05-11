@@ -35,7 +35,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-SIGNAL_PATH = REPO_ROOT / ".claude" / "session_signal.json"
+SIGNAL_PATH = Path(os.environ.get(
+    "ORCHESTRATOR_SIGNAL_PATH",
+    REPO_ROOT / ".claude" / "session_signal.json",
+))
 WIP_DIR = REPO_ROOT / "docs" / "WIP"
 
 # P1 임계 (Layer 2 trigger 자격 요건)
@@ -231,18 +234,86 @@ GEMINI_RESULT_PATH = REPO_ROOT / ".claude" / "memory" / "gemini-solution-review.
 # Phase 1 — Solution 변경 detect + Gemini 의견 호출 (gemini_delegation_pipeline)
 # ---------------------------------------------------------------------------
 
+def gemini_cli_path() -> str | None:
+    """gemini CLI 실행 파일 경로 반환.
+
+    Windows npm shim(`gemini.cmd`)은 `subprocess(["gemini", ...])`로 직접
+    실행되지 않을 수 있어 `shutil.which`가 해석한 경로를 사용한다.
+    """
+    import shutil
+    return shutil.which("gemini")
+
+
 def gemini_cli_available() -> bool:
     """gemini CLI 설치 여부. 미설치 시 graceful skip (다운스트림 cascade 보호)."""
-    import shutil
-    return shutil.which("gemini") is not None
+    return gemini_cli_path() is not None
+
+
+def _solutions_range(cps_text: str) -> tuple[int, int] | None:
+    """CPS 본문에서 `## Solutions` 섹션의 (시작 라인, 끝 라인) 반환.
+
+    끝 라인은 다음 `## ` 헤더 직전 라인. 없으면 EOF.
+    1-indexed (git diff hunk 라인 번호와 정합).
+    """
+    lines = cps_text.splitlines()
+    start = None
+    for i, line in enumerate(lines, start=1):
+        if line.startswith("## Solutions"):
+            start = i
+            continue
+        if start is not None and line.startswith("## ") and not line.startswith("## Solutions"):
+            return (start, i - 1)
+    if start is not None:
+        return (start, len(lines))
+    return None
+
+
+def _parse_hunk_header(line: str) -> tuple[int, int] | None:
+    """git diff hunk 헤더 `@@ -A,B +C,D @@` → (C 새 파일 시작 라인, D 라인 수).
+
+    `-U0` 출력 호환. B·D 생략(`+C`) 시 1로 처리.
+    """
+    m = re.match(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", line)
+    if not m:
+        return None
+    new_start = int(m.group(1))
+    new_count = int(m.group(2)) if m.group(2) else 1
+    return (new_start, new_count)
+
+
+def staged_solutions_changed_from_diff(diff_text: str, cps_text: str) -> bool:
+    """staged diff에 CPS Solutions 섹션 영역 변경이 있는가.
+
+    diff hunk 헤더 위치 + Solutions 섹션 라인 범위 매칭으로 정밀 판정.
+    헤더 라인 추가만 보는 게 아니라 **본문 라인 변경**도 detect.
+
+    회귀 가드 가능 — diff_text·cps_text 인자로 fixture 주입.
+    """
+    if not diff_text:
+        return False
+    sol_range = _solutions_range(cps_text)
+    if not sol_range:
+        return False
+    sol_start, sol_end = sol_range
+
+    for line in diff_text.splitlines():
+        if not line.startswith("@@"):
+            continue
+        parsed = _parse_hunk_header(line)
+        if not parsed:
+            continue
+        new_start, new_count = parsed
+        # `-U0` 출력에서 hunk가 차지하는 새 파일 라인 범위
+        hunk_start = new_start
+        hunk_end = new_start + max(new_count - 1, 0)
+        # Solutions 영역과 겹치는지
+        if hunk_start <= sol_end and hunk_end >= sol_start:
+            return True
+    return False
 
 
 def staged_solutions_changed() -> bool:
-    """staged diff에 CPS Solutions 섹션 변경이 있는가.
-
-    `git diff --cached docs/guides/project_kickoff.md`에서 `## Solutions` 이후
-    범위 변경 detect. heuristic — Solutions 섹션 안의 추가/삭제 라인 존재.
-    """
+    """진짜 동작 — git diff + CPS 본문 읽고 위 함수 호출."""
     import subprocess
     try:
         result = subprocess.run(
@@ -253,20 +324,11 @@ def staged_solutions_changed() -> bool:
         return False
     if result.returncode != 0 or not result.stdout:
         return False
-    # diff hunk 헤더 + 본문 검사 — Solutions 섹션 hunk가 있는가
-    in_solutions_hunk = False
-    for line in result.stdout.splitlines():
-        if line.startswith("@@"):
-            # hunk 헤더. 이후 변경 라인이 Solutions 영역인지 hunk 컨텍스트로 판단
-            in_solutions_hunk = False
-            continue
-        if line.startswith("+") or line.startswith("-"):
-            # `+## Solutions` 또는 `+### S#` 등은 Solutions 영역 변경 신호
-            stripped = line[1:].lstrip()
-            if stripped.startswith("## Solutions") or stripped.startswith("### S"):
-                return True
-            # 다른 hunk 식별자 (P# 섹션·Context 등)는 Solutions 변경 아님
-    return False
+    cps_path = REPO_ROOT / CPS_REL_PATH
+    if not cps_path.exists():
+        return False
+    cps_text = cps_path.read_text(encoding="utf-8", errors="ignore")
+    return staged_solutions_changed_from_diff(result.stdout, cps_text)
 
 
 def call_gemini_background(prompt: str) -> None:
@@ -275,7 +337,8 @@ def call_gemini_background(prompt: str) -> None:
     PreToolUse hook은 차단 없이 빠르게 반환해야 하므로 자식 프로세스 detach.
     """
     import subprocess
-    if not gemini_cli_available():
+    gemini_path = gemini_cli_path()
+    if not gemini_path:
         return
     GEMINI_RESULT_PATH.parent.mkdir(parents=True, exist_ok=True)
     # detach background: stdout·stderr 리다이렉트, hook return 비대기
@@ -284,7 +347,7 @@ def call_gemini_background(prompt: str) -> None:
             out.write(f"# Gemini Solution Review (in progress)\n\nprompt:\n{prompt[:200]}...\n")
         # 실제 호출은 별 프로세스로 detach
         subprocess.Popen(
-            ["gemini", "-p", prompt],
+            [gemini_path, "-p", prompt],
             stdout=open(GEMINI_RESULT_PATH, "a", encoding="utf-8"),
             stderr=subprocess.DEVNULL,
             cwd=str(REPO_ROOT),
@@ -505,13 +568,14 @@ def main() -> int:
     # 파일 쓰기 (이중 안전장치)
     save_signal(state)
 
-    # 출력 — Critical이면 차단
-    if not merged:
+    # 출력 — 이번 호출에서 새로 감지된 신호만 주입한다.
+    # 기존 active_signals 전체 재출력은 긴 세션에서 컨텍스트 노이즈가 된다.
+    if not new_signals:
         # 침묵 (false-positive 마찰 회피)
         return 0
 
     critical_now = has_critical(new_signals)
-    emit_output(merged, block=critical_now)
+    emit_output(new_signals, block=critical_now)
 
     # exit code: critical은 2 (강제 중단), 그 외 0
     return 2 if critical_now else 0
