@@ -43,6 +43,44 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.43.1 — orchestrator P1 신호 stale 누적 해소 (upsert) (2026-05-11)
+
+### 변경 내용
+
+v0.43.0 직후 실측 — orchestrator.py 자기 수정·README 수정마다 P1 INFO
+신호가 count 변화별로 별도 누적되어 PreToolUse 컨텍스트에 stale 신호 3건
+이상 동시 출력 (3회·4회·5회가 각각 별도 신호). session 길어질수록 노이즈
+증폭.
+
+원인: `deduplicate_signals`가 `(p_id, message)` 키 사용 — count 변화 시
+message 문자열 달라져 새 식별자로 인식 → upsert 안 됨.
+
+해소:
+- 신호에 `key` 필드 (예: `"P1:{file_path}"`) 추가 — count 무관 안정 식별자
+- `_signal_key()` 헬퍼: `key` 보유 시 upsert, 미보유 시 `(p_id, message)`
+  fallback (P9 등 정적 신호 호환)
+- `deduplicate_signals` 재작성 — `key` 일치 시 기존 신호 교체
+
+### 적용 방법
+
+자동 적용. 기존 다운스트림 session_signal.json은 새 형식과 호환
+(fallback 동작) — 첫 P1 발화 시 자동 upsert 키 부여로 점진 정리.
+
+### 검증
+
+```
+pytest .claude/scripts/tests/test_orchestrator.py -v
+# 7/7 통과 (기존 5 + 신규 upsert·dedup fallback 2)
+```
+
+### 회귀 위험
+
+upstream 격리 환경 7/7 통과. 기존 stale 신호가 session_signal.json에
+누적된 다운스트림은 한 번 reset 권장 (`rm .claude/session_signal.json`)
+또는 다음 새 신호 발생 시 자동 정리.
+
+
+
 ## v0.43.0 — 오케스트레이터 MVI 도입 (PreToolUse hook + P9 강제 cascade) (2026-05-11)
 
 ### 변경 내용

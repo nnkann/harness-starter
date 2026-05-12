@@ -118,7 +118,7 @@ wave 시작 시점에 **별 WIP로 재분리**한다 (1개 WIP = 1개 sub-task).
 
 후속 wave 분리 진행 표 (각 항목은 별 wave에서 별 WIP로 분리 — 본 WIP completed 전환 조건 아님):
 
-- §H-2 commit 스킬 route 소비 — 미분리
+- §H-2 commit 스킬 route 소비 — ✅ 완료 → `WIP/harness--hn_commit_skill_route_consume.md` (2026-05-12)
 - §H-3 split-commit 비파괴화 — 미분리
 - §H-4 Side Effect Ledger — 미분리
 - §H-5 Hook/Pre-check SSOT 통합 — 미분리

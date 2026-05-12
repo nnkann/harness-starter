@@ -75,6 +75,7 @@ updated: 2026-05-12
 - [커밋 프로세스 감사 — #18 false-negative 축 보강](../harness/hn_commit_process_audit.md)
 - [commit + review 핸드오프 계약 이식 + 중복 제거](../harness/hn_commit_review_handoff.md)
 - [commit·review 단계화 — Stage 0~3 + 신규 파일 패스 + 메타 자동 병합](../harness/hn_commit_review_staging.md)
+- [commit SKILL이 route 출력 소비 — §H-2](../harness/hn_commit_skill_route_consume.md)
 - [commit Step 2 후속 — write-doc symptom-keywords 재질의 + completed 미결 차단 자동화](../harness/hn_commit_step2_partial_completion.md)
 - [범용성 오염 방지 후속 — review 검증 항목 + 스킬 질의](../harness/hn_contamination_followup.md)
 - [debug-specialist 에이전트 신설 — 막힐 때 자동 위임처 확보](../harness/hn_debug_specialist.md)
