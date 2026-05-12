@@ -1,5 +1,5 @@
 ---
-title: 커밋 파이프라인 현실화 — §H-2~7 후속 wave 로드맵
+title: 커밋 파이프라인 현실화 — §H-2~11 sub-task 인덱스 (closed)
 domain: harness
 problem: P2
 solution-ref:
@@ -8,11 +8,12 @@ tags: [commit, performance, roadmap]
 relates-to:
   - path: harness/hn_commit_perf_optimization.md
     rel: extends
-status: pending
+status: in-progress
 created: 2026-05-12
+updated: 2026-05-12
 ---
 
-# §H-2~7 후속 wave 로드맵
+# §H-2~11 sub-task 인덱스
 
 본 WIP은 `harness--hn_commit_perf_optimization.md`의 §H-1을 본 wave로 좁히면서
 잘라낸 후속 작업의 **인덱스**다. 본 WIP 자체는 닫지 않는다. 각 항목은 그
@@ -21,7 +22,7 @@ wave 시작 시점에 **별 WIP로 재분리**한다 (1개 WIP = 1개 sub-task).
 원칙·판정식·side effect 분류 정의는 본 WIP가 아닌
 `harness--hn_commit_perf_optimization.md` §A~§I를 SSOT로 한다.
 
-## 후속 sub-task 목록
+## sub-task 목록
 
 ### §H-2 commit 스킬 route 소비
 
@@ -111,7 +112,7 @@ wave 시작 시점에 **별 WIP로 재분리**한다 (1개 WIP = 1개 sub-task).
   검증:
     review: skip
     tests: 없음
-    실측: grep "^### §H-" docs/WIP/harness--hn_commit_perf_followups.md 가 6행 반환
+    실측: 없음
 - [x] §H-2~7 6개 sub-task 인덱스 섹션 존재 (route 소비 / split 비파괴화 / ledger / hook SSOT / Windows smoke / cascade check).
 - [x] 각 sub-task에 파일·핵심·선행 조건·AC 핵심 1줄씩.
 - [x] 실행 순서 도식 존재.
