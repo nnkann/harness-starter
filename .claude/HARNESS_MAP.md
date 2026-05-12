@@ -160,6 +160,7 @@ internal-first → (children) external-experts
 | debug-guard.sh | UserPromptSubmit | 에러 키워드 감지 | no-speculation |
 | stop-guard.py | Stop | 세션 종료 memory 환기 + A·B·C 조건 발화 | memory |
 | post-compact-guard.py | PostCompact | 컴팩션 후 컨텍스트 복원 | coding, naming, self-verify (환기) |
+| orchestrator.py | PreToolUse | 객관 신호 감지(P1/P9/Gemini opt-in) + additionalContext 주입 | no-speculation, self-verify, docs |
 | write-guard.sh | PreToolUse(Write) | docs/ WIP 직접 Write 차단 | docs |
 | bash-guard.sh | PreToolUse(Bash) | argument-constraint 패턴 차단 | hooks |
 | auto-format.sh | PostToolUse | 포맷 자동 적용 | coding |
@@ -172,6 +173,7 @@ internal-first → (children) external-experts
 | docs_ops.py | commit, write-doc, doc-health | 문서 이동·cluster 갱신·reopen | docs, naming |
 | eval_cps_integrity.py | eval, harness-dev | defends/serves 정합성 감사 + MAP 단절 감지 | docs, naming, memory, anti-defer (P7 방어) |
 | eval_harness.py | eval | --harness CLI 백엔드 단일 진입점 (CPS·방어·정렬 진단) | self-verify (P6 방어) |
+| gemini_background_worker.py | orchestrator.py | Gemini CLI opt-in 검토를 hook 밖 background 프로세스로 실행 | self-verify (비차단 검증 보조) |
 | harness_version_bump.py | harness-dev, commit | 버전 범프 | — |
 | commit_finalize.sh | commit | git commit 래퍼 | — |
 | split-commit.sh | commit | 커밋 분할 | — |
