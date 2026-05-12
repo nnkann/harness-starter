@@ -71,6 +71,7 @@ updated: 2026-05-12
 - [하네스 유기체화 설계 — HARNESS_MAP.md 신경망 허브 구현 방안](../guides/hn_harness_organism_design.md)
 - [하네스 스타터 업그레이드 전파 전략](../guides/hn_upgrade_propagation.md)
 - [advisor 전면 재설계 — 의사결정 프레임 라이브러리 + 판단 경로 명시](../harness/hn_advisor_decision_framework.md)
+- [커밋 파이프라인 현실화 — §H-2~11 sub-task 인덱스 (closed)](../harness/hn_commit_perf_followups.md)
 - [커밋 파이프라인 현실화 — CPS·AC 기준 fast path와 side effect 정리](../harness/hn_commit_perf_optimization.md)
 - [§H-4~§H-11 묶음 wave — followups 인덱스 일괄 처리](../harness/hn_commit_perf_wave_bundle.md)
 - [커밋 프로세스 감사 — #18 false-negative 축 보강](../harness/hn_commit_process_audit.md)
@@ -130,7 +131,3 @@ updated: 2026-05-12
 - [starter 12커밋 push 누락 — 다운스트림이 업스트림 변경 못 봄](../incidents/hn_starter_push_skipped.md)
 - [린터 도구 실종 — T13이 우연히 가시화한 환경 이슈](../incidents/hn_test_isolation_git_log_leak.md)
 - [wip-sync incidents WIP 자동 완료 미동작 — 체크리스트 없는 문서 abbr 매칭 누락](../incidents/hn_wip_sync_incidents_gap.md)
-
-## 진행 중 (WIP)
-
-- [커밋 파이프라인 현실화 — §H-2~7 후속 wave 로드맵](../WIP/harness--hn_commit_perf_followups.md)

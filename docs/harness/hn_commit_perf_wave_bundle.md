@@ -8,7 +8,7 @@ tags: [commit, ledger, hook-ssot, windows-smoke, cascade, wip-sync, sync-guard, 
 relates-to:
   - path: harness/hn_commit_perf_optimization.md
     rel: extends
-  - path: WIP/harness--hn_commit_perf_followups.md
+  - path: harness/hn_commit_perf_followups.md
     rel: implements
 status: completed
 created: 2026-05-12

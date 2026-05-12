@@ -8,7 +8,7 @@ tags: [commit, performance, roadmap]
 relates-to:
   - path: harness/hn_commit_perf_optimization.md
     rel: extends
-status: in-progress
+status: completed
 created: 2026-05-12
 updated: 2026-05-12
 ---
