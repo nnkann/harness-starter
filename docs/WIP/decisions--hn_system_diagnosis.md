@@ -84,7 +84,7 @@ active_signals: 7개 모두 stale     (본 wave 완료 후에도 잔존)
 - [ ] 다음 wave 1 — orchestrator session_signal cascade 재설계 완료.
 - [ ] 다음 wave 2 — latency 단계별 역산 완료.
 - [ ] 다음 wave 3 — cluster 진입 강제 완료.
-- [ ] 다음 wave 4 — SKILL.md 본문 다이어트 완료.
+- [ ] 다음 wave 4 — SKILL.md 본문 다이어트 완료. ✅
 
 ## 결정 — 다음 wave 우선순위
 

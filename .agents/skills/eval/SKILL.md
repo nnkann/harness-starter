@@ -170,7 +170,7 @@ type: project
 
 ### 점검 대상
 
-AGENTS.md, .claude/rules/ 전체, .claude/skills/ 전체를 읽는다.
+CLAUDE.md, .claude/rules/ 전체, .claude/skills/ 전체를 읽는다.
 
 ### 점검 항목
 
@@ -190,7 +190,7 @@ AGENTS.md, .claude/rules/ 전체, .claude/skills/ 전체를 읽는다.
 **2. 모순** — 문서 간 충돌하는 지시를 찾는다.
 
 점검 방법:
-- AGENTS.md와 rules/ 사이에 같은 주제를 다른 기준으로 다루는 곳
+- CLAUDE.md와 rules/ 사이에 같은 주제를 다른 기준으로 다루는 곳
 - rules/ 간에 상충하는 규칙
 - skills/ 내 절차가 rules/의 규칙과 맞지 않는 곳
 
@@ -207,7 +207,7 @@ AGENTS.md, .claude/rules/ 전체, .claude/skills/ 전체를 읽는다.
 
 원칙: 린터가 잡을 수 있는 건 린터에 있어야 한다.
 - rules/에 있지만 린터로 강제할 수 있는 것 → 승격 제안
-- AGENTS.md에 있지만 rules/에 있어야 하는 것 → 이동 제안
+- CLAUDE.md에 있지만 rules/에 있어야 하는 것 → 이동 제안
 
 **5. CPS 무결성** — CPS = 마스터, 다른 모든 문서는 단방향 인용. 인용 박제·
 Problem 인플레이션을 전수 감시한다. pre-check은 commit 시점 staged만 검증
@@ -393,7 +393,7 @@ CPS Agent가 init에서 "왜 만드는가"를 잡지만, "어떻게 만들어야
 
 ### 절차
 
-**1. 현재 하네스 읽기** — AGENTS.md, rules/, skills/를 읽고 명시된 규칙을 파악한다.
+**1. 현재 하네스 읽기** — CLAUDE.md, rules/, skills/를 읽고 명시된 규칙을 파악한다.
 
 **2. 카테고리별 질문** — 아래 카테고리에서 하네스에 **없는** 가정을 찾는다.
 
@@ -417,7 +417,7 @@ CPS Agent가 init에서 "왜 만드는가"를 잡지만, "어떻게 만들어야
 |----------|------|
 | 수치/기준 (500줄 이하, 3초 이내) | 린터 또는 rules/ |
 | 패턴/방식 (에러는 이렇게 처리) | rules/coding.md 또는 rules/ 신규 |
-| 방향/톤 (친절하게, 전문적으로) | AGENTS.md |
+| 방향/톤 (친절하게, 전문적으로) | CLAUDE.md |
 
 **4. 반영** — 분류된 항목을 해당 하네스 파일에 추가한다. 사용자 확인 후.
 
@@ -643,7 +643,7 @@ eval --deep가 "archive 이동 후보"로만 분류하고 내부를 들여다보
 그리고 `.claude/memory/MEMORY.md`에 한 줄 인덱스 추가:
 
 ```markdown
-- eval-deep-secret-scan-enforcement (`.claude/memory/feedback_eval_secret_scan.md`) — archive 후보도 시크릿 스캔 필수 (2026-04-18 사고 기반)
+- [eval-deep-secret-scan-enforcement](feedback_eval_secret_scan.md) — archive 후보도 시크릿 스캔 필수 (2026-04-18 사고 기반)
 ```
 
 #### 2) `.claude/rules/security.md` 룰 신설/갱신

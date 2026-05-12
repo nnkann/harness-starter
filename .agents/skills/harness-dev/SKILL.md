@@ -95,7 +95,7 @@ copy_if_new "$src" "$TARGET/.claude/scripts/$(basename "$src")"
 | 다운스트림 breaking change (스킬 삭제·동작 역전·필드 제거) | minor |
 | 새 기능·스킬·스크립트 추가, 동작 개선 | minor |
 | 버그 수정·내부 리팩토링 (동작 무변경) | patch |
-| **SKILL.md·rules/*.md Step 절차·체크리스트 변경** (Codex 행동에 영향) | **patch** |
+| **SKILL.md·rules/*.md Step 절차·체크리스트 변경** (Claude 행동에 영향) | **patch** |
 | MIGRATIONS.md·README·주석·오타만 변경 | 범프 불필요 |
 
 #### 버전 범프 실행

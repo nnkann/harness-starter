@@ -304,13 +304,6 @@ created: {YYYY-MM-DD}
 
 문서가 먼저 존재해야 작업을 시작한다.
 
-#### `폐기` (호환성 — 코드에서 더 이상 읽지 않음)
-
-- WIP task `> kind:` 마커
-- AC `영향 범위:` 항목
-
-기존 문서 잔재는 동작 무관.
-
 ### Step 2. 작업 시작: 상태 변경
 
 `status: pending` → `status: in-progress`로 변경한다.
