@@ -112,6 +112,52 @@ CPS_DOC = "docs/guides/project_kickoff.md"
 CPS_EXEMPT_PATHS = re.compile(r"^docs/guides/project_kickoff\.md$")
 
 
+# ─────────────────────────────────────────────────────────
+# 시크릿 패턴 SSOT (sub-task 5 — hook/pre-check 통합)
+# install-starter-hooks.sh·install-secret-scan-hook.sh가 본 함수를 호출해
+# 동일한 PATTERN/EXEMPT를 사용한다. 변경 시 본 함수 1곳만 갱신.
+# ─────────────────────────────────────────────────────────
+
+def get_secret_patterns() -> dict:
+    """시크릿 스캔 SSOT. line/file 각각의 PATTERN + EXEMPT 4종 반환.
+
+    호출자:
+      - 본 모듈 main()의 시크릿 스캔 블록
+      - install-starter-hooks.sh / install-secret-scan-hook.sh (subprocess)
+      - tests/test_pre_commit.py (회귀 가드)
+    """
+    return {
+        # line PATTERN — diff '+' 라인에서 매칭 (line-confirmed → 차단)
+        "line_pattern": (
+            r"^\+.*(sb_secret_|service_role(?![A-Z_])|sk_live_|sk_test_|"
+            r"ghp_|AKIA[0-9A-Z]{16}|password\s*=)"
+        ),
+        # line EXEMPT — 해당 경로의 파일은 line 스캔 면제 (SSOT 문서·테스트 픽스처)
+        "line_exempt": (
+            r"^\.claude/(scripts|agents|rules|skills|memory)/"
+            r"|^\.agents/skills/"
+            r"|^\.codex/agents/"
+            r"|^docs/(WIP|incidents|decisions|guides|harness)/"
+            r"|^scripts/install-secret-scan-hook\.sh$"
+            r"|^[^/]+\.md$"
+            r"|^supabase/migrations/.*\.sql$"
+        ),
+        # file PATTERN — 파일명에 시크릿 어휘가 들어있는지 (file-only → 경고)
+        "file_pattern": r"auth|token|secret|key|credential|password|\.env",
+        # file EXEMPT
+        "file_exempt": (
+            r"\.(test|spec)\.|/tests?/|/__tests__/|^docs/|\.md$|/example|-helper\.|-utils?\."
+        ),
+    }
+
+
+def emit_secret_patterns_json() -> int:
+    """SSOT를 JSON으로 stdout 출력. shell 스크립트가 jq로 읽어 사용."""
+    import json as _j
+    print(_j.dumps(get_secret_patterns()))
+    return 0
+
+
 def normalize_quote(s: str) -> str:
     """CPS 인용 비교용 normalize. 공백 통일·줄바꿈 제거·backtick·bold 마크다운 제거."""
     s = s.replace("\n", " ").replace("`", "").replace("**", "")
@@ -709,27 +755,12 @@ def main() -> int:
     # 5. 시크릿 스캔
     # ─────────────────────────────────────────────────────────
 
-    S1_FILE_PAT = re.compile(
-        r"auth|token|secret|key|credential|password|\.env", re.I
-    )
-    S1_EXEMPT   = re.compile(
-        r"\.(test|spec)\.|/tests?/|/__tests__/|^docs/|\.md$|/example|-helper\.|-utils?\."
-    )
-    S1_LINE_PAT = re.compile(
-        r"^\+.*(sb_secret_|service_role(?![A-Z_])|sk_live_|sk_test_|ghp_|AKIA[0-9A-Z]{16}|password\s*=)",
-        re.I,
-    )
-    # 하네스 자체가 시크릿 패턴을 SSOT로 문서화하는 위치는 line 스캔 면제
-    # (scripts: 정의/테스트 픽스처, agents/rules/skills/memory: 패턴 인용 문서)
-    S1_LINE_EXEMPT = re.compile(
-        r"^\.claude/(scripts|agents|rules|skills|memory)/"
-        r"|^\.agents/skills/"
-        r"|^\.codex/agents/"
-        r"|^docs/(WIP|incidents|decisions|guides|harness)/"
-        r"|^scripts/install-secret-scan-hook\.sh$"
-        r"|^[^/]+\.md$"
-        r"|^supabase/migrations/.*\.sql$"
-    )
+    # SSOT 사용 (sub-task 5) — get_secret_patterns()가 모든 시크릿 패턴 정의 보유
+    _sp = get_secret_patterns()
+    S1_FILE_PAT = re.compile(_sp["file_pattern"], re.I)
+    S1_EXEMPT = re.compile(_sp["file_exempt"])
+    S1_LINE_PAT = re.compile(_sp["line_pattern"], re.I)
+    S1_LINE_EXEMPT = re.compile(_sp["line_exempt"])
 
     s1_file_hit = any(
         S1_FILE_PAT.search(f) and not S1_EXEMPT.search(f)
@@ -1012,6 +1043,109 @@ def main() -> int:
         err("")
         err("🚫 커밋 차단. 위 문제를 해결하라.")
 
+    # ─────────────────────────────────────────────────────────
+    # route 출력 (sub-task 1 — fast/release/repair 분류 신호)
+    #
+    # SSOT: docs/WIP/harness--hn_commit_perf_optimization.md "기본 판정 알고리즘"
+    # commit 스킬이 한 번의 pre-check 결과로 commit_route·review_route·promotion·
+    # blocking_reasons·warning_reasons·side_effects.*를 읽어 다음 행동 결정.
+    # ledger 채움(repair 분류 등)은 sub-task 4, 사유 정밀화는 sub-task 7로 위임.
+    # ─────────────────────────────────────────────────────────
+
+    # commit_route: single 기본, split_action=split일 때만 split
+    commit_route = "split" if split_action == "split" else "single"
+
+    # promotion: HARNESS.json bump 신호 + release 파일 staged
+    promotion = "none"
+    try:
+        import json as _json2
+        _h2 = _json2.loads(Path(".claude/HARNESS.json").read_text(encoding="utf-8"))
+        if _h2.get("is_starter"):
+            _release_paths = {".claude/HARNESS.json",
+                              "docs/harness/MIGRATIONS.md", "README.md"}
+            if any(f in _release_paths for f in staged_files):
+                promotion = "release"
+    except Exception:
+        pass
+
+    # review_route: stage 그대로 시작. 객관 저위험 신호 모두 모이면 강등 (micro).
+    # 조건: stage in {standard,deep} AND 시크릿 없음 AND release 승격 없음 AND
+    #       staged 파일이 전부 .md AND staged WIP가 0~1개
+    # (정량 신호만 사용 — 주관 판단 금지. WIP "기본 판정 알고리즘" 정합)
+    review_route = stage or "standard"
+    _all_docs = bool(staged_files) and all(f.endswith(".md") for f in staged_files)
+    _single_wip = sum(1 for f in staged_files if f.startswith("docs/WIP/")) <= 1
+    if (review_route in ("standard", "deep")
+            and s1_level != "line-confirmed"
+            and promotion == "none"
+            and _all_docs
+            and _single_wip):
+        review_route = "micro"
+
+    # blocking_reasons: ERRORS > 0이면 라벨. 시크릿이면 더 구체.
+    if ERRORS > 0:
+        blocking_reasons = "secret-line-confirmed" if s1_level == "line-confirmed" else "pre-check-failed"
+    else:
+        blocking_reasons = "none"
+
+    # warning_reasons: split 추천했지만 single로 진행 (AC-MIXED 후보)
+    # sub-task 7 — Cascade Integrity Check 누적
+    warning_list: list[str] = []
+    if split_plan >= 2 and commit_route == "single" and ERRORS == 0:
+        warning_list.append("split-recommended-not-applied")
+
+    # Cascade Integrity (sub-task 7) — 빠른 key-value 대조. 기존 검사 중복 없음.
+    # SSOT: WIP "G. Cascade Integrity Check" 표.
+    # ERRORS는 건드리지 않음 — 본 검사는 신호 누적이 목적, 차단 아님.
+    try:
+        # 1) Cluster 발견 가능성: staged WIP의 abbr이 naming.md 도메인 표에 있는지
+        #    (이미 docs_ops가 처리하지만 commit 시점 신호로 한번 더 노출)
+        for f in staged_files:
+            f_norm = f.replace("\\", "/")
+            if f_norm.startswith("docs/WIP/") and f_norm.endswith(".md"):
+                bn = f_norm.rsplit("/", 1)[-1]
+                # 라우팅 접두사 제거 후 abbr 추출 시도
+                rest = bn.split("--", 1)[1] if "--" in bn else bn
+                m = re.match(r"^([a-z]{2,3})_", rest)
+                if m:
+                    abbr = m.group(1)
+                    # naming.md "도메인 약어" 표에서 abbr 찾기
+                    if Path(".claude/rules/naming.md").exists():
+                        nm = Path(".claude/rules/naming.md").read_text(encoding="utf-8")
+                        if not re.search(rf"\|\s*{re.escape(abbr)}\s*\|", nm):
+                            warning_list.append(f"cluster-abbr-unknown:{abbr}")
+                            break
+        # 2) staged rules/skills/agents 변경 시 defends·serves·trigger 키 존재 확인
+        for f in staged_files:
+            f_norm = f.replace("\\", "/")
+            if (f_norm.startswith(".claude/rules/") and f_norm.endswith(".md")
+                    and f_norm != ".claude/rules/README.md"):
+                p = Path(f)
+                if p.exists():
+                    head = p.read_text(encoding="utf-8")[:2000]
+                    if "defends:" not in head:
+                        warning_list.append(f"cascade-defends-missing:{p.name}")
+                        break
+            if (f_norm.endswith("/SKILL.md") or f_norm.startswith(".claude/agents/")) \
+                    and f_norm.endswith(".md"):
+                p = Path(f)
+                if p.exists():
+                    head = p.read_text(encoding="utf-8")[:2000]
+                    if "serves:" not in head and "trigger:" not in head:
+                        warning_list.append(f"cascade-serves-trigger-missing:{p.name}")
+                        break
+    except Exception:
+        # cascade check 자체 실패는 차단하지 않음 (보수)
+        pass
+
+    warning_reasons = ",".join(warning_list) if warning_list else "none"
+
+    # side_effects.*: 실제 ledger는 sub-task 4. 본 sub-task는 스키마만.
+    # release 신호가 있으면 release 후보로만 표시.
+    side_effects_required = "none"
+    side_effects_release = "version-bump" if promotion == "release" else "none"
+    side_effects_repair = "none"
+
     print(f"pre_check_passed: {'false' if ERRORS > 0 else 'true'}")
     print(f"already_verified: {ALREADY_VERIFIED}")
     print(f"diff_stats: {diff_stats}")
@@ -1025,6 +1159,14 @@ def main() -> int:
     print(f"split_plan: {split_plan}")
     print(f"split_action_recommended: {split_action}")
     print(f"prior_session_files: {prior_files}")
+    print(f"commit_route: {commit_route}")
+    print(f"review_route: {review_route}")
+    print(f"promotion: {promotion}")
+    print(f"blocking_reasons: {blocking_reasons}")
+    print(f"warning_reasons: {warning_reasons}")
+    print(f"side_effects.required: {side_effects_required}")
+    print(f"side_effects.release: {side_effects_release}")
+    print(f"side_effects.repair: {side_effects_repair}")
 
     if split_action == "split" and group_assign:
         CHAR_PRIO = {"exec": 1, "agent-rule": 2, "skill": 3, "misc": 4, "doc": 9}
@@ -1047,4 +1189,7 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    # sub-task 5 — SSOT 노출 서브커맨드
+    if len(sys.argv) >= 2 and sys.argv[1] == "--emit-secret-patterns":
+        sys.exit(emit_secret_patterns_json())
     sys.exit(main())

@@ -43,6 +43,64 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.43.0 — 오케스트레이터 MVI 도입 (PreToolUse hook + P9 강제 cascade) (2026-05-11)
+
+### 변경 내용
+
+P9 (정보 오염의 관성)·S9 (주관 격리 + 다층 검증) 결정 시리즈의 실측
+구현. `scripts/orchestrator.py` + PreToolUse hook 등록으로 LLM 자가
+발화 의존을 커널 강제로 전환.
+
+- `.claude/scripts/orchestrator.py` 신설 (~290줄) — P1·P9 객관 신호
+  detect 엔진. stdin JSON 파싱 + WIP frontmatter ↔ CPS Problems 매칭
+  + 동일 파일 연속 수정 카운터. 이중 안전장치: stdout
+  `additionalContext` + `.claude/session_signal.json` 파일 쓰기.
+- `.claude/settings.json` — PreToolUse hook에 matcher 없는(모든 도구)
+  orchestrator.py 등록 추가
+- `.claude/rules/docs.md` — Layer 2 도구 frontmatter `trigger:` 필드
+  스키마 + 명명 규칙·금지 패턴 정의
+- `.gitignore` — `.claude/session_signal.json` 런타임 상태 격리
+- `.claude/scripts/tests/conftest.py` — `orchestrator` marker 등록
+- `.claude/scripts/tests/test_orchestrator.py` — 회귀 5케이스
+- `docs/WIP/decisions--hn_orchestrator_mechanism.md` — 결정 박제
+  (Gemini 2차 위임 결과 반영, Exit 2 강제 중단 합의)
+
+P9 cascade 깨짐 (WIP frontmatter `problem` ↔ CPS Problems 매칭 실패)
+detect 시 **Exit 2 강제 중단** — Praetorian 8계층 모델 + arXiv:2503.13657
+"Ignored other agent's input" 실패 모드 차단.
+
+### 적용 방법
+
+다운스트림은 harness-upgrade 후 다음 자동 적용:
+- `scripts/orchestrator.py` 배포
+- `.claude/settings.json` PreToolUse hook 등록 (3-way merge)
+- `.gitignore` `.claude/session_signal.json` 추가
+
+수동 액션 — **있음**:
+- 첫 실행 시 `.claude/session_signal.json` 자동 생성됨 (Claude가 도구
+  호출 시점에). 별도 작업 불필요
+- 다운스트림이 자체 P 신호 추가 원하면 후속 wave의 `P_DEFINITIONS.json`
+  확장 인터페이스 사용 예정 (v0.43.0은 P1·P9만)
+- P9 Critical detect로 Claude 도구 호출이 차단될 수 있음 — WIP
+  frontmatter `problem` 필드가 CPS Problems 목록에 등록됐는지 확인 필수
+
+### 검증
+
+```
+python3 -m py_compile .claude/scripts/orchestrator.py
+echo '{"tool_name":"Bash","tool_input":{"command":"ls"}}' | python3 .claude/scripts/orchestrator.py
+pytest .claude/scripts/tests/test_orchestrator.py -v
+```
+
+### 회귀 위험
+
+upstream 격리(Windows / Git Bash)에서 관찰된 범위 내에서는 5/5 통과.
+다른 OS·셸 환경 미테스트. WIP frontmatter `problem` 필드가 CPS Problems
+미등록인 다운스트림에서 Critical exit 2가 빈발할 가능성 — 다운스트림
+첫 적용 시 마찰 측정 필요.
+
+
+
 ## v0.42.7 — starter 자가 모호성·박제 일괄 흡수 (다운스트림 노이즈 차단) (2026-05-11)
 
 ### 변경 내용

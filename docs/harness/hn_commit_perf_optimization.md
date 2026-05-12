@@ -5,9 +5,9 @@ problem: P2
 solution-ref:
   - S2 — "review tool call 평균 ≤4회 (부분)"
 tags: [commit, performance, review-agent]
-status: in-progress
+status: completed
 created: 2026-04-18
-updated: 2026-05-11
+updated: 2026-05-13
 ---
 
 ## 재개 사유 (2026-05-11)
@@ -638,19 +638,54 @@ AC:
 
 **Acceptance Criteria**:
 
-- [ ] Goal: 커밋 파이프라인을 CPS·AC 기준의 빠른 기본 경로와 명시적 release 경로로 나누고, side effect를 숨기지 않고 분류한다.
+- [x] Goal: 커밋 파이프라인을 CPS·AC 기준의 빠른 기본 경로와 명시적 release 경로로 나누고, side effect를 숨기지 않고 분류한다.
   검증:
     review: review-deep
-    tests: 없음
+    tests: pytest -m "stage or windows or cascade"
     실측: python .claude/scripts/pre_commit_check.py
-- [ ] `pre_commit_check.py`가 `commit_route`·`review_route`·`promotion`·`side_effects.*`를 출력한다.
-- [ ] `commit/SKILL.md`가 route 출력 소비 방식으로 재작성된다.
-- [ ] `split-commit.sh` 기본 실행이 staged 상태를 바꾸지 않는 non-destructive planner가 된다.
-- [ ] split 판정이 파일 성격보다 CPS·AC Goal을 우선하도록 재정의된다.
-- [ ] hook/pre-check 시크릿 예외 목록이 단일 SSOT에서 생성되도록 설계된다.
-- [ ] side effect ledger 포맷이 정해지고, wip-sync/version bump/hook repair가 구분된다.
-- [ ] Windows + Git Bash 실행 안정성 smoke 항목이 문서화된다.
-- [ ] Cascade Integrity Check가 CPS·frontmatter·domain·abbr·cluster·AC·trigger·side effect·상향 피드백 누락을 빠르게 대조하도록 정의된다.
+- [x] `pre_commit_check.py`가 `commit_route`·`review_route`·`promotion`·`side_effects.*`를 출력한다. ✅
+- [x] `commit/SKILL.md`가 route 출력 소비 방식으로 재작성된다. ✅
+- [x] `split-commit.sh` 기본 실행이 staged 상태를 바꾸지 않는 non-destructive planner가 된다. ✅
+- [x] split 판정이 파일 성격보다 CPS·AC Goal을 우선하도록 재정의된다.
+- [x] hook/pre-check 시크릿 예외 목록이 단일 SSOT에서 생성되도록 설계된다.
+- [x] side effect ledger 포맷이 정해지고, wip-sync/version bump/hook repair가 구분된다.
+- [x] Windows + Git Bash 실행 안정성 smoke 항목이 문서화된다.
+- [x] Cascade Integrity Check가 CPS·frontmatter·domain·abbr·cluster·AC·trigger·side effect·상향 피드백 누락을 빠르게 대조하도록 정의된다.
+
+## 결정 사항
+
+- 2026-05-13 sub-task 1 (route 출력 도입) 1차 구현:
+  - `pre_commit_check.py` stdout에 8개 키 추가: `commit_route`, `review_route`,
+    `promotion`, `blocking_reasons`, `warning_reasons`, `side_effects.required`,
+    `side_effects.release`, `side_effects.repair`.
+  - `commit_route`: `split_action=split`일 때만 `split`, 그 외 `single`.
+  - `review_route`: `recommended_stage` 그대로 시작 + 정량 강등 룰 1개 적용
+    (stage∈{standard,deep} + 시크릿 없음 + promotion=none + staged 전부 .md +
+    staged WIP ≤1) → `micro`로 강등. 주관 판단 없음.
+  - `promotion`: `is_starter` + `HARNESS.json|MIGRATIONS.md|README.md` staged →
+    `release`, 외엔 `none`. `repair` 분류는 sub-task 4 ledger 범위.
+  - `blocking_reasons`: ERRORS>0이면 `secret-line-confirmed` 또는
+    `pre-check-failed` 단일 라벨. 사유 정밀화는 sub-task 7 cascade 범위.
+  - `warning_reasons`: `split_plan≥2` + `commit_route=single` + 통과면
+    `split-recommended-not-applied`.
+  - `side_effects.*`: 본 sub-task는 스키마만. `side_effects.release`는
+    promotion=release일 때 `version-bump`. 실 ledger 채움은 sub-task 4.
+- 테스트 4종 추가 (`TestRouteOutput` 클래스, stage marker):
+  docs-only single / secret blocking / route 키 항상 출력 / docs-only 강등.
+
+## 메모
+
+- CPS 갱신: 없음 (P2 Solution S2 "review tool call 평균 ≤4회"를 직접 지키는
+  메커니즘 1차 도입 — Solution 정의 변경 아님).
+- 의존성: sub-task 2 (commit/SKILL.md route 소비), sub-task 4 (ledger 채움),
+  sub-task 5 (release 승격 정밀화)가 본 출력 스키마를 전제로 함. 본 sub-task
+  완료가 후속 4개 sub-task의 기반.
+- BIT IGNORE 1건: `TestCommitFinalize::test_simple_commit_passes`·
+  `test_block_skips_wip_sync` 2건이 기준선(stash)에서도 동일 실패
+  (`fatal: could not parse HEAD` — Windows path 혼합). 본 변경 무관, 별 wave.
+- doc-finder fast scan: 생략 (기존 WIP 본문이 모든 컨텍스트 보유).
+- 자동 검증 불가 영역: commit 스킬이 새 키를 실제로 소비하는지는 sub-task 2의
+  실행 영역. 본 sub-task는 스키마 + 회귀 가드만 책임.
 
 ## 변경 이력
 
@@ -659,6 +694,54 @@ AC:
   path 분리가 핵심임을 반영.
 - 2026-05-11: CPS=두뇌, AC=머슬 관점과 하향·상향 cascade 무결성 검증을
   핵심 개선 범위에 추가.
+- 2026-05-13: sub-task 1 (route 출력) 1차 구현 완료. AC 첫 2 항목 만족.
+- 2026-05-13: sub-task 3 (split-commit.sh 비파괴화) 완료.
+  - 기본 실행은 plan 출력만 (staged 변경 없음)
+  - `--apply` 인자 명시 시에만 기존 destructive 흐름 (staged 비우고 첫 그룹 stage)
+  - split-plan.txt 존재 시 자동 다음 그룹 stage 흐름은 유지 (이전 split 진행 중)
+  - `--help` 추가
+- 2026-05-13: sub-task 4 (side effect ledger) 완료.
+  - `docs_ops.py wip-sync` stdout에 신규 4종 추가: `wip_sync_updated`,
+    `cluster_updated`, `backrefs_updated` (+ 기존 `wip_sync_matched`,
+    `wip_sync_moved`)
+  - `docs_ops.py move` stdout에 `backrefs_updated: N` alias 추가 (기존
+    `relates_to_rewritten: ...` 인간용 + 카운트 정수 추출용 분리)
+  - `commit_finalize.sh`가 wip-sync 출력을 캡처해 `## side_effects
+    (commit_finalize)` 블록 + `side_effects.required: <항목>=<카운트>`
+    포맷으로 재출력. 0인 항목은 생략 (시그널 노이즈 감소)
+- 2026-05-13: sub-task 5 (hook/pre-check SSOT 통합) 1차 완료.
+  - `pre_commit_check.py`에 `get_secret_patterns()` 함수 신설:
+    line_pattern/line_exempt/file_pattern/file_exempt 4종 SSOT
+  - `pre_commit_check.py --emit-secret-patterns` 서브커맨드로 JSON 노출
+  - 본 모듈 main()의 인라인 시크릿 패턴을 SSOT 호출로 대체 (내부 일원화)
+  - `install-starter-hooks.sh`·`install-secret-scan-hook.sh`의 마이그레이션은
+    다운스트림 영향 평가 필요 — 별 wave (자동화 가능 SSOT만 1차 도입)
+- 2026-05-13: sub-task 6 (Windows commit smoke) 완료.
+  - `TestWindowsCommitSmoke` 3종 테스트 (windows marker):
+    no-crlf / unix-shebang / SKILL.md HARNESS_DEV 지침 확인
+  - 실측 발견 + 수정: `.claude/scripts/bash-guard.sh`가 CRLF 156개로
+    저장돼 Git Bash 실행 위험. LF로 정규화 (sub-task 6 도입 효과 입증)
+- 2026-05-13: sub-task 7 (Cascade Integrity Check) 완료.
+  - `pre_commit_check.py`가 `warning_reasons`에 cascade 신호 누적:
+    `cluster-abbr-unknown:<abbr>` (naming.md 도메인 표 미등록 abbr)
+    `cascade-defends-missing:<file>` (rules/ md에 defends: 누락)
+    `cascade-serves-trigger-missing:<file>` (SKILL.md·agents/에 serves/trigger 누락)
+  - 본 검사는 차단 아님 — `warning_reasons` 신호만 누적. ERRORS 무영향
+  - `TestCascadeIntegrity` 2종 테스트 (cascade marker)
+- 2026-05-13: wave 마무리. 전체 회귀 pytest 결과 76 passed / 2 failed
+  (failed 2건은 BIT IGNORE한 기준선 동일 실패 — Windows path 혼합)
+- 2026-05-13: sub-task 2 (commit/SKILL.md route 소비) 완료.
+  - Pass 표 + pre-check stdout 블록에 8개 신규 키 명시
+  - Step 4(version bump) → `version_bump != none` 게이트로 fast path 분리.
+    그 외엔 Step 5로 즉시 진행 (release path 명시화)
+  - Step 5.5(split) → `commit_route` 기준으로 분기. 기본 single, split은
+    사용자 명시 동의 시에만 destructive split-commit.sh 호출. 비파괴화
+    자체는 sub-task 3에서 처리
+  - Step 7(review) → `review_route` 사용 명시 + `recommended_stage`와 다를 때
+    강등 사유 한 줄 노출
+  - 최종 요약(push 직후) → commit_route/review_route/promotion/side_effects
+    4종 출력 명시
+  - 두 SKILL.md 사본(`.claude/`·`.agents/`) 동기화 완료, Codex 어휘 차이 5곳 보존
 
 ---
 
