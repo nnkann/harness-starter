@@ -72,15 +72,19 @@ active_signals: 7개 모두 stale     (본 wave 완료 후에도 잔존)
 
 **Acceptance Criteria**:
 
-- [x] Goal: 사용자 진단 10축 + Claude 추가 3축 = 13축 health check frame을 1 문서로 박제. 향후 단축 wave 진입 시 본 문서 참조.
+- [x] Goal: 13축 진단 frame 박제 + 다음 wave 4건 우선순위 결정 + 4 wave 모두 실행 완료될 때까지 본 WIP 마스터 인덱스로 유지. closed 조건은 4 wave 모두 완료.
   검증:
     review: skip
     tests: 없음
     실측: 없음
 - [x] 진단 13축 항목 + 본 세션 실측 결과 표 박제.
 - [x] Root cause 식별 (session_signal.json stale 누적).
-- [x] 다음 wave 우선순위 4건 (사용자 진단 매핑 포함).
+- [x] 다음 wave 우선순위 4건 박제.
 - [x] 폐기 후보 (hook 10회 반복·bash-guard 단독 단축) 명시.
+- [ ] 다음 wave 1 — orchestrator session_signal cascade 재설계 완료.
+- [ ] 다음 wave 2 — latency 단계별 역산 완료.
+- [ ] 다음 wave 3 — cluster 진입 강제 완료.
+- [ ] 다음 wave 4 — SKILL.md 본문 다이어트 완료.
 
 ## 결정 — 다음 wave 우선순위
 
