@@ -43,6 +43,73 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.42.7 — starter 자가 모호성·박제 일괄 흡수 (다운스트림 노이즈 차단) (2026-05-11)
+
+### 변경 내용
+
+다운스트림 `/eval --harness` 보고가 다수 다운스트림에서 반복될 것이라는
+구조 인식에 따라 starter 자체 결함을 선제 흡수. starter 자가 정의한
+모호성 패턴을 자기 SKILL.md가 위반하는 자기증명 P7 잔재 + 박제 인용 3건
++ CPS Solution 정의 갭을 한 wave에 정리.
+
+**1. eval/SKILL.md 모호성 정의 정밀화**:
+- "필요하면"·"가능하면" 등 조건문은 모호성 아님 — false-positive 차단
+- 새 분류: 판단 기준 부재(`적절한·상황에 따라·알아서`) vs 수치 부재(`짧게·간결하게`) vs 열거 불완전(`등·기타`)
+- 조건문 제외 명시 절 추가
+
+**2. SKILL.md 5건 수치·분기 명시**:
+- `eval/SKILL.md:110` "간결하게 유지" → "거시·블로커·부채 3섹션, 각 5줄 이내"
+- `eval/SKILL.md:445` (implementation) "간결하게" → "본문 50줄 이내 권장"
+- `harness-upgrade/SKILL.md:23` "가능하면 3-way merge" → "기본은 3-way, 충돌 시 사용자 결정 요청"
+- `write-doc/SKILL.md:120` "snake_case 의미명, 간결하게" → "단어 2~4개, 30자 이내"
+- `implementation/SKILL.md:408` "자동으로 적절한 폴더" → "WIP 파일명의 `{대상폴더}--` 접두사 기준 라우팅"
+
+**3. CPS P7 본문 보강 + S7 의도적 미정의 명시**:
+- P7 본문에 "Solution 의도적 미정의 — HARNESS_MAP.md 메커니즘 자체가 P7 해소" 명시
+- S6·S8은 정의 유지. S7 자리는 별도 Solution 정의 안 함 (중복 추상화 방지)
+
+**4. 박제 인용 3건 흡수**:
+- `hn_eval_harness_medium_fixes.md`: S6 인용 `(M, ≥3줄)` 보강어 누락 → CPS 본문 정확 substring으로 교체
+- `hn_stop_guard_py_migration.md`: S7 미정의 → S6(self-verify SKIP 조건 명확화) 재매칭
+- `hn_wip_util_ssot.md`: 동일
+
+검증: pytest 92 passed / 4 skipped, eval_cps_integrity 박제 의심 0건.
+
+### 자동 적용 항목
+
+- `.claude/skills/eval/SKILL.md` (모호성 정의 + 보고 형식)
+- `.claude/skills/harness-upgrade/SKILL.md`, `write-doc/SKILL.md`, `implementation/SKILL.md`
+- `docs/guides/project_kickoff.md` (P7 본문 보강)
+- `docs/decisions/hn_eval_harness_medium_fixes.md`, `hn_stop_guard_py_migration.md`, `hn_wip_util_ssot.md` (박제 인용 수정)
+
+### 수동 적용 항목
+
+없음.
+
+### 검증
+
+```bash
+python -m pytest .claude/scripts/tests/ -q
+# 92 passed / 4 skipped
+
+python .claude/scripts/eval_cps_integrity.py
+# 박제 의심: 0건
+```
+
+### 회귀 위험
+
+upstream 격리 환경에서 회귀 없음. SKILL.md 수치 변경은 자가 보고 안내 수치
+— Claude 행동 변화는 자동 검증 불가. 운용 검증 필요.
+
+### 다운스트림 영향
+
+starter 발 모호성·박제가 누적될수록 다운스트림 N개에서 같은 보고가 N회
+반복됨. 본 wave는 그 노이즈를 starter 측에서 선제 흡수한 것 — 다운스트림이
+본 patch 적용 후 `/eval --harness` 재실행 시 starter 발 false-positive
+일부 해소 예상.
+
+
+
 ## v0.42.6 — eval_cps_integrity FR 필드 정규식 bold 내부 괄호 보강 (FR-010) (2026-05-11)
 
 ### 변경 내용

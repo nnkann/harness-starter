@@ -14,6 +14,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -23,13 +24,20 @@ SCRIPT = Path(__file__).resolve().parent.parent / "orchestrator.py"
 
 def run_orchestrator(payload: dict, env_overrides: dict | None = None) -> subprocess.CompletedProcess:
     """orchestrator.py를 자식 프로세스로 실행. payload를 stdin JSON으로 전달."""
-    return subprocess.run(
-        [sys.executable, str(SCRIPT)],
-        input=json.dumps(payload),
-        text=True,
-        capture_output=True,
-        env=env_overrides or None,
-    )
+    env = os.environ.copy()
+    if env_overrides:
+        env.update(env_overrides)
+    env.pop("HARNESS_GEMINI_AUTO", None)
+    with tempfile.TemporaryDirectory() as tmp:
+        env.setdefault("ORCHESTRATOR_SIGNAL_PATH", str(Path(tmp) / "session_signal.json"))
+        return subprocess.run(
+            [sys.executable, str(SCRIPT)],
+            input=json.dumps(payload),
+            text=True,
+            capture_output=True,
+            env=env,
+            timeout=15,
+        )
 
 
 def import_orchestrator():
@@ -136,21 +144,21 @@ def test_signal_dedup_without_key():
 
 
 @pytest.mark.orchestrator
-def test_gemini_skip_when_cli_absent(monkeypatch):
-    """gemini CLI 미설치 환경에서는 detect_solution_change skip — graceful."""
+def test_gemini_auto_off_is_silent(monkeypatch):
+    """기본값은 Gemini 자동 호출 off: hook 노이즈 없이 침묵한다."""
     try:
         orch = import_orchestrator()
 
-        # CLI 미설치 시뮬
+        monkeypatch.delenv("HARNESS_GEMINI_AUTO", raising=False)
         monkeypatch.setattr(orch, "gemini_cli_available", lambda: False)
-        # Solutions 변경됐다고 시뮬
-        monkeypatch.setattr(orch, "staged_solutions_changed", lambda: True)
+        monkeypatch.setattr(orch, "staged_solution_context_changed", lambda: True)
+        called = []
+        monkeypatch.setattr(orch, "call_gemini_background", lambda p: called.append(p))
 
         state: dict = {}
         signals = orch.detect_solution_change({}, state)
-        # CLI 없으면 skip → 빈 신호
         assert signals == []
-        # gemini_solution_review_called 플래그도 안 박힘
+        assert called == []
         assert not state.get("counter", {}).get("gemini_solution_review_called")
     finally:
         sys.path.pop(0)
@@ -163,7 +171,7 @@ def test_gemini_skip_when_no_solution_change(monkeypatch):
         orch = import_orchestrator()
 
         monkeypatch.setattr(orch, "gemini_cli_available", lambda: True)
-        monkeypatch.setattr(orch, "staged_solutions_changed", lambda: False)
+        monkeypatch.setattr(orch, "staged_solution_context_changed", lambda: False)
 
         state: dict = {}
         signals = orch.detect_solution_change({}, state)
@@ -178,7 +186,7 @@ def test_gemini_background_uses_cli_oauth_without_api_key(tmp_path, monkeypatch)
     try:
         orch = import_orchestrator()
 
-        result_path = tmp_path / "gemini-solution-review.md"
+        result_path = tmp_path / "session-gemini-solution-review.md"
         calls = []
 
         def fake_popen(cmd, **kwargs):
@@ -187,6 +195,8 @@ def test_gemini_background_uses_cli_oauth_without_api_key(tmp_path, monkeypatch)
 
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
         monkeypatch.setattr(orch, "GEMINI_RESULT_PATH", result_path)
+        monkeypatch.setattr(orch, "GEMINI_PROMPT_PATH", tmp_path / "session-gemini-solution-review.prompt.txt")
+        monkeypatch.setattr(orch, "GEMINI_WORKER_PATH", tmp_path / "gemini_background_worker.py")
         monkeypatch.setattr(orch, "gemini_cli_path", lambda: "C:/tools/gemini.cmd")
         monkeypatch.setattr(subprocess, "Popen", fake_popen)
 
@@ -194,10 +204,15 @@ def test_gemini_background_uses_cli_oauth_without_api_key(tmp_path, monkeypatch)
 
         assert calls, "gemini CLI Popen 호출이 발생해야 한다"
         cmd, kwargs = calls[0]
-        assert cmd == ["C:/tools/gemini.cmd", "-p", "oauth smoke prompt"]
+        assert cmd[0] == sys.executable
+        assert cmd[1] == str(orch.GEMINI_WORKER_PATH)
+        assert cmd[2] == "C:/tools/gemini.cmd"
+        assert cmd[3] == str(orch.GEMINI_PROMPT_PATH)
+        assert cmd[4] == str(result_path)
         assert "env" not in kwargs, "GEMINI_API_KEY 강제 주입 없이 CLI OAuth 컨텍스트를 사용해야 한다"
         assert kwargs["cwd"] == str(orch.REPO_ROOT)
         assert result_path.exists()
+        assert orch.GEMINI_PROMPT_PATH.read_text(encoding="utf-8") == "oauth smoke prompt"
         assert "oauth smoke prompt" in result_path.read_text(encoding="utf-8")
     finally:
         sys.path.pop(0)
@@ -230,13 +245,52 @@ def test_gemini_oauth_live_smoke_opt_in():
 
 
 @pytest.mark.orchestrator
+def test_gemini_background_worker_captures_output_and_cleans_prompt(tmp_path):
+    """worker는 CLI stdout/stderr를 결과에 남기고 prompt scratch를 제거한다."""
+    worker = SCRIPT.parent / "gemini_background_worker.py"
+    fake_cli_py = tmp_path / "fake_gemini.py"
+    fake_cli = tmp_path / ("fake_gemini.cmd" if os.name == "nt" else "fake_gemini")
+    prompt = tmp_path / "session-gemini.prompt.txt"
+    result = tmp_path / "session-gemini-result.md"
+
+    fake_cli_py.write_text(
+        "import sys\n"
+        "data = sys.stdin.read()\n"
+        "print('OUT:' + data.strip())\n"
+        "print('ERR:diagnostic', file=sys.stderr)\n",
+        encoding="utf-8",
+    )
+    if os.name == "nt":
+        fake_cli.write_text(f'@echo off\r\n"{sys.executable}" "{fake_cli_py}" %*\r\n', encoding="utf-8")
+    else:
+        fake_cli.write_text(f'#!/bin/sh\nexec "{sys.executable}" "{fake_cli_py}" "$@"\n', encoding="utf-8")
+        fake_cli.chmod(0o755)
+    prompt.write_text("hello-gemini", encoding="utf-8")
+
+    completed = subprocess.run(
+        [sys.executable, str(worker), str(fake_cli), str(prompt), str(result)],
+        capture_output=True,
+        text=True,
+        timeout=20,
+        cwd=str(SCRIPT.parents[2]),
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    output = result.read_text(encoding="utf-8")
+    assert "OUT:hello-gemini" in output
+    assert "ERR:diagnostic" in output
+    assert not prompt.exists()
+
+
+@pytest.mark.orchestrator
 def test_gemini_once_per_session(monkeypatch):
     """같은 세션에서 detect_solution_change는 한 번만 호출 — 중복 호출 방지."""
     try:
         orch = import_orchestrator()
 
+        monkeypatch.setenv("HARNESS_GEMINI_AUTO", "1")
         monkeypatch.setattr(orch, "gemini_cli_available", lambda: True)
-        monkeypatch.setattr(orch, "staged_solutions_changed", lambda: True)
+        monkeypatch.setattr(orch, "staged_solution_context_changed", lambda: True)
         # call_gemini_background mock — 실제 호출 안 함
         called = []
         monkeypatch.setattr(orch, "call_gemini_background", lambda p: called.append(p))
@@ -314,6 +368,102 @@ def test_staged_solutions_ignores_problem_change():
 
 
 @pytest.mark.orchestrator
+def test_solution_linked_wip_triggers_gemini_context():
+    """problem + solution-ref WIP의 Solution 맥락 변경은 Gemini 경로를 탄다."""
+    try:
+        orch = import_orchestrator()
+        diff_text = "\n".join([
+            "diff --git a/docs/WIP/harness--hn_commit_perf_optimization.md b/docs/WIP/harness--hn_commit_perf_optimization.md",
+            "@@ -10 +10 @@",
+            "-old",
+            "+commit_route: single",
+        ])
+        path_to_text = {
+            "docs/WIP/harness--hn_commit_perf_optimization.md": (
+                "---\n"
+                "problem: P2\n"
+                "solution-ref:\n"
+                "  - S2 — \"review tool call 평균 ≤4회\"\n"
+                "---\n"
+            )
+        }
+        assert orch.staged_solution_linked_wip_changed_from_diff(diff_text, path_to_text) is True
+    finally:
+        sys.path.pop(0)
+
+
+@pytest.mark.orchestrator
+def test_solution_linked_wip_rename_triggers_gemini_context(monkeypatch):
+    """completed 문서 재개(rename→WIP) diff도 staged WIP 텍스트를 읽어 감지한다."""
+    try:
+        orch = import_orchestrator()
+
+        diff_text = "\n".join([
+            "diff --git a/docs/harness/hn_commit_perf_optimization.md b/docs/WIP/harness--hn_commit_perf_optimization.md",
+            "@@ -10 +10 @@",
+            "-old",
+            "+commit_route: single",
+        ])
+        calls = []
+
+        def fake_run(*args, **kwargs):
+            class Result:
+                returncode = 0
+                stdout = diff_text
+            calls.append(args[0])
+            return Result()
+
+        class FakePath:
+            def __truediv__(self, _other):
+                return self
+
+            def exists(self):
+                return True
+
+            def read_text(self, **kwargs):
+                return (
+                    "---\n"
+                    "problem: P2\n"
+                    "solution-ref:\n"
+                    "  - S2 — \"review tool call 평균 ≤4회\"\n"
+                    "---\n"
+                )
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+        monkeypatch.setattr(orch, "REPO_ROOT", FakePath())
+
+        assert orch.staged_solution_linked_wip_changed() is True
+        assert calls
+    finally:
+        sys.path.pop(0)
+
+
+@pytest.mark.orchestrator
+def test_plain_wip_change_does_not_trigger_gemini_context():
+    """Solution 맥락 키워드가 없는 WIP 변경은 Gemini 호출 조건이 아니다."""
+    try:
+        orch = import_orchestrator()
+        diff_text = "\n".join([
+            "diff --git a/docs/WIP/harness--hn_note.md b/docs/WIP/harness--hn_note.md",
+            "@@ -10 +10 @@",
+            "-old note",
+            "+new note",
+        ])
+        path_to_text = {
+            "docs/WIP/harness--hn_note.md": (
+                "---\n"
+                "problem: P2\n"
+                "solution-ref:\n"
+                "  - S2 — \"review tool call 평균 ≤4회\"\n"
+                "---\n"
+            )
+        }
+        assert orch.staged_solution_linked_wip_changed_from_diff(diff_text, path_to_text) is False
+    finally:
+        sys.path.pop(0)
+
+
+@pytest.mark.orchestrator
 def test_existing_signals_are_not_reemitted(tmp_path):
     """이전 active_signals만 있으면 stdout 주입 없이 침묵한다."""
     signal_path = tmp_path / "session_signal.json"
@@ -327,7 +477,10 @@ def test_existing_signals_are_not_reemitted(tmp_path):
                 "message": "오래된 신호",
             }
         ],
-        "counter": {"last_modified_files": []},
+            "counter": {
+                "last_modified_files": [],
+                "gemini_solution_review_called": True,
+            },
     }), encoding="utf-8")
 
     payload = {"tool_name": "Bash", "tool_input": {"command": "ls"}}

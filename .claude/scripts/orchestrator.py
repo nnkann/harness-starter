@@ -227,7 +227,12 @@ def detect_p9_misalign(hook_input: dict, state: dict) -> list[dict]:
 
 
 CPS_REL_PATH = "docs/guides/project_kickoff.md"
-GEMINI_RESULT_PATH = REPO_ROOT / ".claude" / "memory" / "gemini-solution-review.md"
+GEMINI_RESULT_PATH = REPO_ROOT / ".claude" / "memory" / "session-gemini-solution-review.md"
+GEMINI_PROMPT_PATH = REPO_ROOT / ".claude" / "memory" / "session-gemini-solution-review.prompt.txt"
+GEMINI_WORKER_PATH = REPO_ROOT / ".claude" / "scripts" / "gemini_background_worker.py"
+SOLUTION_CONTEXT_RE = re.compile(
+    r"\b(CPS|AC|cascade|Cascade|Solution|solution-ref|side effect|commit_route|review_route|promotion)\b"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -247,6 +252,11 @@ def gemini_cli_path() -> str | None:
 def gemini_cli_available() -> bool:
     """gemini CLI 설치 여부. 미설치 시 graceful skip (다운스트림 cascade 보호)."""
     return gemini_cli_path() is not None
+
+
+def gemini_auto_enabled() -> bool:
+    """PreToolUse 자동 Gemini 호출은 opt-in."""
+    return os.environ.get("HARNESS_GEMINI_AUTO") == "1"
 
 
 def _solutions_range(cps_text: str) -> tuple[int, int] | None:
@@ -331,6 +341,77 @@ def staged_solutions_changed() -> bool:
     return staged_solutions_changed_from_diff(result.stdout, cps_text)
 
 
+def staged_solution_linked_wip_changed_from_diff(diff_text: str, path_to_text: dict[str, str]) -> bool:
+    """CPS 연결 WIP가 Solution 맥락을 바꾸는가.
+
+    CPS 본문 `## Solutions` 직접 변경만 보면, 실제 작업 문서에서 Solution 적용
+    방식·AC·cascade를 고치는 경우 Gemini 검토 경로가 죽는다. WIP frontmatter가
+    `problem`과 `solution-ref`를 모두 갖고, 해당 staged diff가 Solution 맥락
+    키워드를 포함할 때만 보조 트리거로 인정한다.
+    """
+    if not diff_text:
+        return False
+
+    current_path = ""
+    touched_solution_context = False
+    for line in diff_text.splitlines():
+        if line.startswith("diff --git "):
+            if current_path and touched_solution_context:
+                text = path_to_text.get(current_path, "")
+                if "problem:" in text and "solution-ref:" in text:
+                    return True
+            current_path = ""
+            touched_solution_context = False
+            m = re.search(r" b/(docs/WIP/.*\.md)$", line)
+            if m:
+                current_path = m.group(1)
+            continue
+
+        if not current_path:
+            continue
+        if line.startswith(("+", "-")) and not line.startswith(("+++", "---")):
+            if SOLUTION_CONTEXT_RE.search(line):
+                touched_solution_context = True
+
+    if current_path and touched_solution_context:
+        text = path_to_text.get(current_path, "")
+        return "problem:" in text and "solution-ref:" in text
+    return False
+
+
+def staged_solution_linked_wip_changed() -> bool:
+    """staged WIP 문서 중 CPS Solution 맥락 변경이 있는지 확인."""
+    import subprocess
+    try:
+        diff_result = subprocess.run(
+            ["git", "diff", "--cached", "-U0", "--", "docs/WIP"],
+            capture_output=True, text=True, cwd=str(REPO_ROOT), timeout=5,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return False
+    if diff_result.returncode != 0 or not diff_result.stdout:
+        return False
+
+    paths: set[str] = set()
+    for line in diff_result.stdout.splitlines():
+        m = re.match(r"diff --git a/.* b/(docs/WIP/.*\.md)", line)
+        if m:
+            paths.add(m.group(1))
+
+    path_to_text: dict[str, str] = {}
+    for rel in paths:
+        path = REPO_ROOT / rel
+        if path.exists():
+            path_to_text[rel] = path.read_text(encoding="utf-8", errors="ignore")
+
+    return staged_solution_linked_wip_changed_from_diff(diff_result.stdout, path_to_text)
+
+
+def staged_solution_context_changed() -> bool:
+    """Gemini 검토가 필요한 Solution 맥락 변경 여부."""
+    return staged_solutions_changed() or staged_solution_linked_wip_changed()
+
+
 def call_gemini_background(prompt: str) -> None:
     """gemini CLI를 background로 호출 → 결과를 GEMINI_RESULT_PATH에 저장.
 
@@ -345,13 +426,20 @@ def call_gemini_background(prompt: str) -> None:
     try:
         with open(GEMINI_RESULT_PATH, "w", encoding="utf-8") as out:
             out.write(f"# Gemini Solution Review (in progress)\n\nprompt:\n{prompt[:200]}...\n")
-        # 실제 호출은 별 프로세스로 detach
+        # 실제 호출은 별도 Python worker로 detach. hook은 즉시 반환하고,
+        # worker가 Gemini stdout/stderr를 결과 파일에 남긴다.
+        GEMINI_PROMPT_PATH.write_text(prompt, encoding="utf-8")
         subprocess.Popen(
-            [gemini_path, "-p", prompt],
-            stdout=open(GEMINI_RESULT_PATH, "a", encoding="utf-8"),
-            stderr=subprocess.DEVNULL,
+            [
+                sys.executable,
+                str(GEMINI_WORKER_PATH),
+                gemini_path,
+                str(GEMINI_PROMPT_PATH),
+                str(GEMINI_RESULT_PATH),
+            ],
             cwd=str(REPO_ROOT),
-            # Windows·Unix 공통 detach
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
             creationflags=getattr(subprocess, "DETACHED_PROCESS", 0)
             | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
             if os.name == "nt" else 0,
@@ -373,28 +461,35 @@ def detect_solution_change(hook_input: dict, state: dict) -> list[dict]:
     counter = state.setdefault("counter", {})
     if counter.get("gemini_solution_review_called"):
         return signals  # 이미 호출됨
-    if not staged_solutions_changed():
+    if not staged_solution_context_changed():
         return signals
-    if not gemini_cli_available():
-        # graceful skip — 다운스트림 영향 0
+    if not gemini_auto_enabled():
         return signals
-
-    # 호출
-    prompt = (
-        "다음은 Claude Code harness-starter의 CPS Solutions 섹션 변경 diff다. "
-        "변경이 기존 Solution 충족 기준을 약화시키지 않는지·다른 P를 깨지 않는지·"
-        "객관 신호 cascade에 정합한지 비판적으로 짚어라. 길이 제한 없음. 한국어. "
-        "diff:\n\n" + _read_staged_diff()
-    )
-    call_gemini_background(prompt)
+    auto = gemini_auto_enabled() and gemini_cli_available()
+    if auto:
+        prompt = (
+            "다음은 Claude Code harness-starter의 CPS Solution 맥락 변경 diff다. "
+            "변경이 기존 Solution 충족 기준을 약화시키지 않는지·다른 P를 깨지 않는지·"
+            "객관 신호 cascade에 정합한지 비판적으로 짚어라. 길이 제한 없음. 한국어. "
+            "diff:\n\n" + _read_staged_solution_context_diff()
+        )
+        call_gemini_background(prompt)
     counter["gemini_solution_review_called"] = True
 
     signals.append({
         "p_id": "Phase1",
         "severity": "INFO",
         "key": "gemini-solution-review",
-        "message": f"CPS Solutions 변경 staged — Gemini 의견 호출 (background). 결과: {GEMINI_RESULT_PATH.relative_to(REPO_ROOT)}",
-        "action_required": "commit 전 Gemini 의견 파일 확인 권장",
+        "message": (
+            "CPS Solution 맥락 변경 staged — "
+            f"{'Gemini 의견 호출 (background)' if auto else 'Gemini 검토 권장 (자동 호출 off)'}. "
+            f"결과: {GEMINI_RESULT_PATH.relative_to(REPO_ROOT)}"
+        ),
+        "action_required": (
+            "commit 전 Gemini 의견 파일 확인 권장"
+            if auto
+            else "필요 시 HARNESS_GEMINI_AUTO=1로 명시 실행하거나 commit/review 단계에서 검토"
+        ),
         "detected_at": datetime.now(timezone.utc).isoformat(),
     })
     return signals
@@ -414,6 +509,22 @@ def _read_staged_diff() -> str:
         return ""
     diff = result.stdout
     # Gemini CLI argv 제한 회피 — 8000자 cap
+    return diff[:8000] if len(diff) > 8000 else diff
+
+
+def _read_staged_solution_context_diff() -> str:
+    """CPS 본문 + WIP Solution 맥락 staged diff 읽기."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--cached", "--", CPS_REL_PATH, "docs/WIP"],
+            capture_output=True, text=True, cwd=str(REPO_ROOT), timeout=5,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return ""
+    if result.returncode != 0:
+        return ""
+    diff = result.stdout
     return diff[:8000] if len(diff) > 8000 else diff
 
 
