@@ -1041,6 +1041,49 @@ def main() -> int:
             print(f"split_group_{i}_name: {g}")
             print(f"split_group_{i}_files: {','.join(group_assign[g])}")
 
+    # ─────────────────────────────────────────────────────────
+    # route 신호 (§H-1 — hn_commit_perf_optimization.md)
+    # stdout 추가만. 소비는 후속 wave (§H-2 commit/SKILL.md).
+    # 본 wave는 스키마 freeze + 회귀 가드만 검증.
+    # ─────────────────────────────────────────────────────────
+
+    is_starter = False
+    try:
+        _hj = json.loads(Path(".claude/HARNESS.json").read_text(encoding="utf-8"))
+        is_starter = bool(_hj.get("is_starter"))
+    except Exception:
+        pass
+
+    # commit_route: sub-commit 시퀀스 진입 중이면 sub, 그 외 single.
+    # split_action == "split" 권고는 single 유지 — sub는 명시 진입 신호 (HARNESS_SPLIT_SUB).
+    commit_route = "sub" if split_action == "sub" else "single"
+
+    # review_route: stage 그대로. stage가 빈 문자열인 경계는 위 918 폴백으로 차단됨.
+    review_route = stage or "standard"
+
+    # promotion: release 후보 파일 staged + is_starter
+    # repair는 §H-5 hook SSOT 작업까지 항상 none (본 wave 범위 외)
+    RELEASE_FILES = {".claude/HARNESS.json", "docs/harness/MIGRATIONS.md", "README.md"}
+    release_staged = [f for f in staged_files if f in RELEASE_FILES]
+    promotion = "release" if (is_starter and release_staged) else "none"
+
+    # side_effects: 본 커밋이 발생시킬 자동 변경의 후보 분류
+    # required: WIP staged → docs_ops wip-sync가 이동·cluster 갱신을 일으킴
+    # release: 배포 단위 파일 (is_starter 한정)
+    # repair: §H-5에서 채움
+    side_effects_required = "docs_ops.wip-sync" if staged_wip else "none"
+    side_effects_release = (
+        ",".join(release_staged) if (is_starter and release_staged) else "none"
+    )
+    side_effects_repair = "none"
+
+    print(f"commit_route: {commit_route}")
+    print(f"review_route: {review_route}")
+    print(f"promotion: {promotion}")
+    print(f"side_effects.required: {side_effects_required}")
+    print(f"side_effects.release: {side_effects_release}")
+    print(f"side_effects.repair: {side_effects_repair}")
+
     if ERRORS > 0:
         sys.exit(2)
     return 0

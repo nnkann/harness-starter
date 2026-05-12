@@ -5,9 +5,9 @@ problem: P2
 solution-ref:
   - S2 — "review tool call 평균 ≤4회 (부분)"
 tags: [commit, performance, review-agent]
-status: in-progress
+status: completed
 created: 2026-04-18
-updated: 2026-05-11
+updated: 2026-05-12
 ---
 
 ## 재개 사유 (2026-05-11)
@@ -636,21 +636,54 @@ AC:
   사람이 납득 가능한 요약으로 출력
 - 기존 `pre_commit_check.py`의 CPS·AC 검사를 중복하지 않고 확장 신호로 제공
 
+## 본 wave 범위 (2026-05-12 좁힘)
+
+§A~§I의 전체 원칙은 SSOT로 유지하되 본 wave는 §H-1만 닫는다. §H-2~7은
+별 WIP `harness--hn_commit_perf_followups.md`로 분리. 본 wave가 끝나면
+본 WIP는 closed (§H-1 완료) — 후속 sub-task는 followups가 인덱스로 관리.
+
+이렇게 좁힌 이유: 본 WIP는 4/18 작성 → 5/11 재개를 반복하며 매번 §H
+7개를 한 wave로 묶어 자기 자신이 비판하는 거대 커밋 패턴에 빠졌다. 본
+wave는 SKILL.md를 손대지 않는 비파괴 변경(stdout 4개 필드 추가)만 닫는
+실험이다 — 측정 가능한 첫 닫힘.
+
 **Acceptance Criteria**:
 
-- [ ] Goal: 커밋 파이프라인을 CPS·AC 기준의 빠른 기본 경로와 명시적 release 경로로 나누고, side effect를 숨기지 않고 분류한다.
+- [x] Goal: pre_commit_check.py가 commit_route/review_route/promotion/side_effects.* 4축 stdout 필드를 추가해, 후속 sub-task(§H-2 SKILL route 소비)가 읽을 route 정보를 노출한다. 기존 stdout 키 회귀 없음. ✅
   검증:
-    review: review-deep
-    tests: 없음
+    review: review
+    tests: pytest .claude/scripts/tests/test_pre_commit.py -m stage -q
     실측: python .claude/scripts/pre_commit_check.py
-- [ ] `pre_commit_check.py`가 `commit_route`·`review_route`·`promotion`·`side_effects.*`를 출력한다.
-- [ ] `commit/SKILL.md`가 route 출력 소비 방식으로 재작성된다.
-- [ ] `split-commit.sh` 기본 실행이 staged 상태를 바꾸지 않는 non-destructive planner가 된다.
-- [ ] split 판정이 파일 성격보다 CPS·AC Goal을 우선하도록 재정의된다.
-- [ ] hook/pre-check 시크릿 예외 목록이 단일 SSOT에서 생성되도록 설계된다.
-- [ ] side effect ledger 포맷이 정해지고, wip-sync/version bump/hook repair가 구분된다.
-- [ ] Windows + Git Bash 실행 안정성 smoke 항목이 문서화된다.
-- [ ] Cascade Integrity Check가 CPS·frontmatter·domain·abbr·cluster·AC·trigger·side effect·상향 피드백 누락을 빠르게 대조하도록 정의된다.
+- [x] `commit_route` 출력 (`single` | `sub`).
+- [x] `review_route` 출력 (`skip` | `micro` | `standard` | `deep`).
+- [x] `promotion` 출력 (`none` | `release` | `repair`). is_starter + HARNESS.json/MIGRATIONS.md staged 시 release. ✅
+- [x] `side_effects.required` / `side_effects.release` / `side_effects.repair` 3줄 출력.
+- [x] 회귀 테스트 3개: 새 필드 존재·기존 필드 공존·시크릿 차단 시에도 4축 출력 (TestRouteOutput 3개 PASSED).
+- [x] §H-2~7은 `harness--hn_commit_perf_followups.md`로 분리됨 (본 wave 완료 조건). ✅
+
+## 결정 사항
+
+- 본 wave를 §H-1 (pre_commit_check route 출력) 1개로 좁힘. §H-2~7은 별
+  WIP `harness--hn_commit_perf_followups.md`로 분리. → 반영: 본 WIP AC
+  6개 + followups 인덱스 WIP 신설.
+- CPS 갱신: 없음. P2/S2 메커니즘 변경 아님 (stdout 신호 추가만, 소비
+  로직은 후속 wave). is_starter + RELEASE_FILES 판정식이 추가됐지만
+  S2의 "review tool call 평균 ≤4회"와 직접 인용 관계 없음 — Solution
+  메커니즘 변경 아님으로 owner 승인 불필요.
+
+## 메모
+
+- 본 wave §H-1 측정: pre_commit_check.py stdout 6줄 추가, 기존 13개 키
+  보존, TestRouteOutput 3개 PASSED. TestStageBasic 2개 회귀 없음. 본 repo
+  실행 시 commit_route=single, review_route=standard, promotion=none,
+  side_effects.required=none/release=none/repair=none (clean tree).
+- 본 WIP 본문의 §1~§7 sub-task 본문은 잔존. 다음 wave (§H-2)에서 §2
+  sub-task 본문을 별 WIP로 떼어내면서 본 WIP가 점진적으로 슬림해짐.
+  본 WIP는 §H-1의 영구 SSOT로 유지될 가능성 — 본 WIP closed 여부는
+  followups WIP가 인덱스로 가리키는 형태에 따라 결정.
+- INFO 신호 (P1 동일 파일 3회 수정) 자가 점검: frontmatter updated /
+  AC 좁힘 / AC 체크박스 [x] 세 번. 모두 본 wave §H-1 의도된 일관 변경.
+  추측 수정 아님. internal-first.md 위반 아님 (본 WIP 자체가 SSOT).
 
 ## 변경 이력
 
@@ -659,6 +692,9 @@ AC:
   path 분리가 핵심임을 반영.
 - 2026-05-11: CPS=두뇌, AC=머슬 관점과 하향·상향 cascade 무결성 검증을
   핵심 개선 범위에 추가.
+- 2026-05-12: 본 wave를 §H-1로 좁힘. §H-2~7을 followups WIP로 분리.
+  pre_commit_check.py에 4축 stdout (commit_route/review_route/promotion/
+  side_effects.*) 추가. TestRouteOutput 3개 PASSED.
 
 ---
 

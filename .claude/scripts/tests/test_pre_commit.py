@@ -803,6 +803,74 @@ class TestStageBasic:
         assert stage(out) == "standard"
 
 
+@pytest.mark.stage
+class TestRouteOutput:
+    """§H-1 — route 신호 stdout 출력 회귀 가드.
+
+    pre_commit_check.py에 commit_route/review_route/promotion/side_effects.*
+    4축 6키가 추가됐는지, 기존 키와 공존하는지, 차단 케이스에서도 출력되는지
+    검증. 소비는 후속 wave (§H-2 commit/SKILL.md) — 본 wave는 스키마 freeze만.
+    """
+
+    ROUTE_KEYS = (
+        "commit_route",
+        "review_route",
+        "promotion",
+        "side_effects.required",
+        "side_effects.release",
+        "side_effects.repair",
+    )
+
+    def test_route_keys_present_in_normal_case(self):
+        """일반 코드 변경에서 4축 6키가 모두 출력된다."""
+        out = run_check(
+            name_status="M src/foo.ts",
+            numstat="2 0 src/foo.ts",
+            diff_u0="+const x = 1;\n",
+        )
+        for key in self.ROUTE_KEYS:
+            assert key in out, f"missing route key: {key}"
+        # 기본값: single / standard / none / none / none / none
+        assert out["commit_route"] == "single"
+        assert out["review_route"] == "standard"
+        assert out["promotion"] == "none"
+        assert out["side_effects.required"] == "none"
+        assert out["side_effects.release"] == "none"
+        assert out["side_effects.repair"] == "none"
+        # 기존 키 회귀 가드 — route 추가가 기존 스키마를 깨지 않음
+        assert "pre_check_passed" in out
+        assert "recommended_stage" in out
+        assert "split_action_recommended" in out
+
+    def test_secret_block_still_emits_routes(self):
+        """시크릿 line-confirmed 차단 (ERRORS>0) 시에도 route 4축이 stdout에 출력된다."""
+        out = run_check(
+            name_status="M src/foo.ts",
+            numstat="1 0 src/foo.ts",
+            diff_u0="+const k = 'AKIAIOSFODNN7EXAMPLE';\n",
+        )
+        # 시크릿 차단되어도 모든 route 키 출력
+        for key in self.ROUTE_KEYS:
+            assert key in out, f"route key {key} missing on secret block"
+        # review_route는 deep (시크릿 게이트), 다른 키는 폴백 유지
+        assert out["review_route"] == "deep"
+        assert out["commit_route"] == "single"
+
+    def test_release_promotion_on_starter_release_files(self):
+        """is_starter + HARNESS.json staged → promotion=release, side_effects.release에 경로."""
+        out = run_check(
+            name_status="M .claude/HARNESS.json",
+            numstat="1 1 .claude/HARNESS.json",
+            diff_u0='+  "version": "0.44.1",\n-  "version": "0.44.0",\n',
+        )
+        # HARNESS_DEV 환경에서 본 repo HARNESS.json은 is_starter=true 시드
+        # → release 신호 발화
+        assert out["promotion"] == "release", out
+        assert ".claude/HARNESS.json" in out["side_effects.release"]
+        # repair는 본 wave 범위 외 — 항상 none
+        assert out["side_effects.repair"] == "none"
+
+
 # ─────────────────────────────────────────────────────────
 # 통합 테스트 — 실제 git sandbox 필요
 # ─────────────────────────────────────────────────────────
