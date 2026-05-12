@@ -12,8 +12,9 @@ symptom-keywords:
   - v0.43.2
   - debug-guard 거슬림
   - 자가 발화 신뢰
-status: in-progress
+status: completed
 created: 2026-05-11
+updated: 2026-05-12
 ---
 
 # 세션 거짓 완료·자기 위반 패턴 누적 (다음 세션 인계)
@@ -143,7 +144,7 @@ v0.43.2 commit 메시지 본문:
 진행한다. 이전 단계 검증이 실패하면 다음 단계로 넘어가지 않는다.
 
 **Acceptance Criteria**:
-- [ ] Goal: v0.43.2 거짓 완료 후속 복구를 단계별로 분리하고, 각 단계의 실측 결과를 커밋 전 검증 가능하게 만든다.
+- [x] Goal: v0.43.2 거짓 완료 후속 복구를 단계별로 분리하고, 각 단계의 실측 결과를 커밋 전 검증 가능하게 만든다.
   검증:
     review: review-deep
     tests: python -m pytest .claude/scripts/tests/test_orchestrator.py -q
@@ -264,6 +265,7 @@ v0.43.2 commit 메시지 본문:
 
 ## 메모
 
-본 문서 자체는 in-progress. 다음 세션이 A~F 결정 후 본 문서를 incident
-폴더로 이동 (또는 abandoned 처리). 본 세션이 자체 commit 안 함 — 사용자
-지시 따라.
+2026-05-12 정리: v0.43.2 거짓 완료 후속 복구는 v0.44.0 커밋에서
+Gemini 자동 호출 기본 off, Codex hook/agent 계약 테스트, Python 3.10 fallback,
+hook smoke, pre-check 통과로 닫았다. 큰 커밋 파이프라인 재설계는 별도
+`harness--hn_commit_perf_optimization.md` WIP에 남겨 계속 추적한다.
