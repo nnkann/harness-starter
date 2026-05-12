@@ -242,7 +242,7 @@ Problem 인플레이션을 전수 감시한다. pre-check은 commit 시점 stage
   등록 시 ✅ 마킹
 - 외부 명령(npm·tsc) 호출 0건 — eval은 보고 채널 (Python·Go·Rust 다운스트림 차단 회피)
 
-#### 실행 (CLI 백엔드 — v0.41.0+)
+#### 실행 (CLI 백엔드)
 
 **단일 진입점**:
 
@@ -643,7 +643,7 @@ eval --deep가 "archive 이동 후보"로만 분류하고 내부를 들여다보
 그리고 `.claude/memory/MEMORY.md`에 한 줄 인덱스 추가:
 
 ```markdown
-- [eval-deep-secret-scan-enforcement](feedback_eval_secret_scan.md) — archive 후보도 시크릿 스캔 필수 (2026-04-18 사고 기반)
+- [eval-deep-secret-scan-enforcement](feedback_eval_secret_scan.md) — archive 후보도 시크릿 스캔 필수
 ```
 
 #### 2) `.claude/rules/security.md` 룰 신설/갱신

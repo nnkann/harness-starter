@@ -540,7 +540,7 @@ upstream에서 제거된 파일이 있으면 (three-way 모드만):
 settings.json은 통째로 교체하지 않는다. **starter 소유 항목만 동기화**
 하고 **사용자 커스텀은 건드리지 않는다**.
 
-#### 8.1. permissions.allow 동기화 (v0.26 신규)
+#### 8.1. permissions.allow 동기화
 
 `permissions.allow`에도 starter가 관리하는 기본 항목과 사용자 추가 항목이
 공존한다. hooks와 동일한 방식으로 분리해 동기화한다.

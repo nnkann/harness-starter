@@ -47,8 +47,7 @@ harness-init이 **빈 프로젝트 초기화**라면, harness-adopt는 **기존 
 | Record | 이식 결정 영속화 (날짜 suffix 금지, `## 변경 이력` 누적. 다음 harness-upgrade가 참조) |
 
 **엄수:**
-- ⛔ 파괴적 덮어쓰기는 사용자 명시 승인 후만 (downstream-readiness 사고
-  이력)
+- ⛔ 파괴적 덮어쓰기는 사용자 명시 승인 후만
 - 도메인 추론 결과는 항상 사용자 확인. 추론값 그대로 확정 금지
 - 이식 결정 기록 누락은 다음 upgrade가 silent 실패 — 필수
 
