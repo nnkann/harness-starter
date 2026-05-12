@@ -135,6 +135,20 @@ def main() -> int:
             print(f"next_version: {nv}")
     if reasons:
         print(f"reasons:\n   - " + "\n   - ".join(reasons), file=sys.stderr)
+
+    # §H-11: README 변경 이력 5개 정책 자동 가드.
+    # README.md의 `### v0.X.Y` 섹션을 카운트해 5 초과 시 stdout 경고 신호.
+    # §H-2 wave에서 5→6→7로 늘어났던 박제 회복 후 자동 가드.
+    try:
+        readme = Path("README.md").read_text(encoding="utf-8", errors="ignore")
+        version_headers = re.findall(r"^### v\d+\.\d+\.\d+", readme, flags=re.MULTILINE)
+        if len(version_headers) > 5:
+            print(f"readme_history_overflow: {len(version_headers)} (정책: 최신 5개 유지 — 가장 오래된 항목 삭제 필요)")
+        else:
+            print(f"readme_history_overflow: ok ({len(version_headers)})")
+    except Exception:
+        print("readme_history_overflow: unknown")
+
     return 0
 
 

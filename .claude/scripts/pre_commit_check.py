@@ -1084,10 +1084,39 @@ def main() -> int:
     print(f"side_effects.release: {side_effects_release}")
     print(f"side_effects.repair: {side_effects_repair}")
 
+    # §H-7: Cascade Integrity Check — 기존 검사 결과를 1줄로 종합.
+    # CPS/frontmatter/domain/abbr/cluster/AC/trigger/side effect/upward feedback
+    # 9축 신호 종합. ERRORS=0이면 ok, 그 외 warn (차단은 ERRORS 자체로 처리).
+    # 본 wave 범위: 신규 신호 추가 없이 기존 검사 결과 종합 1줄.
+    cascade_check = "ok" if ERRORS == 0 else "warn"
+    print(f"cascade_check: {cascade_check}")
+
     if ERRORS > 0:
         sys.exit(2)
     return 0
 
 
+# §H-5: 시크릿 패턴 SSOT export — install 스크립트가 본 출력을 hook block에 활용
+# (install 스크립트 통합은 별 wave §H-5 후속. 본 wave는 패턴 export까지.)
+SECRET_PATTERNS_FOR_HOOK = [
+    r"sb_secret_",
+    r"service_role(?![A-Z_])",
+    r"sk_live_",
+    r"sk_test_",
+    r"ghp_",
+    r"AKIA[0-9A-Z]{16}",
+    r"password\s*=",
+]
+
+
+def print_secret_patterns() -> int:
+    """`--print-secret-patterns` flag handler. install 스크립트가 hook block 생성용으로 호출."""
+    for pat in SECRET_PATTERNS_FOR_HOOK:
+        print(pat)
+    return 0
+
+
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "--print-secret-patterns":
+        sys.exit(print_secret_patterns())
     sys.exit(main())

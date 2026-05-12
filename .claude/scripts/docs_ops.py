@@ -265,9 +265,15 @@ def _extract_body(text: str) -> str:
 
 def _rewrite_relates_to(old_rel: str, new_rel: str, skip: Path) -> list[Path]:
     """docs/**/*.md 전체에서 relates-to.path == old_rel 인 항목을 new_rel 로 갱신.
-    skip 파일(이동된 파일 자신)은 제외. 갱신된 파일 경로 목록 반환."""
+    skip 파일(이동된 파일 자신)은 제외. 갱신된 파일 경로 목록 반환.
+
+    §H-8: incidents/decisions/guides 등 다른 폴더에서 `../WIP/...` 같은 상대
+    경로로 WIP를 가리키던 케이스도 갱신. prefix(`../`)는 유지하고 끝부분만
+    교체. §H-1·§H-2에서 incident relates-to dead link 발생한 근본 원인 해소.
+    """
+    # `(\.\./)*` — 임의 깊이의 `../` 상대 경로 prefix 허용 (대부분 0~1단계)
     pat = re.compile(
-        r"(^[ \t]*-[ \t]+path:[ \t]+)" + re.escape(old_rel) + r"([ \t]*$)",
+        r"(^[ \t]*-[ \t]+path:[ \t]+)((?:\.\./)*)" + re.escape(old_rel) + r"([ \t]*$)",
         re.MULTILINE,
     )
     rewritten: list[Path] = []
@@ -275,7 +281,8 @@ def _rewrite_relates_to(old_rel: str, new_rel: str, skip: Path) -> list[Path]:
         if md.resolve() == skip.resolve():
             continue
         text = md.read_text(encoding="utf-8", errors="ignore")
-        new_text, n = pat.subn(rf"\g<1>{new_rel}\2", text)
+        # \g<2>가 prefix(`../` 반복) 보존, \g<3>가 trailing whitespace
+        new_text, n = pat.subn(rf"\g<1>\g<2>{new_rel}\g<3>", text)
         if n:
             md.write_text(new_text, encoding="utf-8")
             subprocess.run(["git", "add", str(md)], capture_output=True)
@@ -797,6 +804,10 @@ def cmd_wip_sync(staged_files: list[str]) -> int:
 
     print(f"wip_sync_matched: {matched_wips}")
     print(f"wip_sync_moved: {moved_wips}")
+    # §H-4: Side Effect Ledger — move 발생 시 cluster/backrefs 갱신이 함께 일어남
+    # (move 호출 내부에서 docs_ops.py move가 _update_backrefs + cluster-update 트리거)
+    print(f"cluster_updated: {'yes' if moved_wips > 0 else 'no'}")
+    print(f"backrefs_updated: {'yes' if moved_wips > 0 else 'no'}")
     return 0
 
 

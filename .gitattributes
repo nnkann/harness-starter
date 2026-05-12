@@ -2,6 +2,13 @@
 # 통째 충돌 발생 방지 (incident: hn_upstream_anomalies.md D 항목).
 * text=auto eol=lf
 
+# §H-10 (v0.44.4~): .sh 파일은 무조건 LF.
+# `* text=auto eol=lf`가 일반 텍스트에 LF를 보장하지만 워킹트리에서
+# autocrlf=true가 CRLF로 풀어 pytest subprocess bash -n이 `do\r` 토큰
+# 오류로 실패하는 회귀(§H-3 wave 실측) 차단. 워킹트리 CRLF 잔재는
+# `git add --renormalize .` 1회로 해소.
+*.sh text eol=lf
+
 # 바이너리는 변환 제외
 *.png binary
 *.jpg binary

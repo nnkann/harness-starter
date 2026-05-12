@@ -43,6 +43,45 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.43.3 — Codex 하네스 브리지와 Gemini 위임 WIP 정렬 (2026-05-11)
+
+### 변경 내용
+
+Codex 환경에서 기존 하네스 규칙·스킬·에이전트 지시가 함께 로드되도록
+브리지 파일을 추가했다.
+
+- 루트 `AGENTS.md` 추가 — Codex 진입점에서 하네스 핵심 규칙 노출
+- `.agents/skills/**` 추가 — 하네스 스킬 본문을 Codex skill discovery 경로로 제공
+- `.codex/agents/*.toml` 추가 — 기존 specialist 에이전트를 Codex subagent 정의로 연결
+- `.codex/hooks.json` 추가 — Codex hook 설정 진입점 추가
+- `pre_commit_check.py`와 `orchestrator.py` 보강 — starter 자가 검증 및 반복 신호 흐름 정렬
+- `hn_gemini_delegation_pipeline` 결정 문서를 WIP로 되돌려 Phase 후속 작업 진행 상태 반영
+- 세션 거짓 완료·자기 위반 패턴 incident WIP 추가
+
+### 자동 적용 항목
+
+파일 추가·수정은 harness-upgrade 3-way merge로 자동 적용된다.
+
+### 수동 적용 항목
+
+없음. 다만 다운스트림에서 자체 Codex 설정을 이미 운용 중이면 `.codex/` 충돌 해소 시
+로컬 설정 유지 여부를 확인한다.
+
+### 검증
+
+```
+python3 .claude/scripts/pre_commit_check.py
+python3 -m pytest .claude/scripts/tests/ -q
+```
+
+### 회귀 위험
+
+관찰 범위 내 위험: Codex 전용 브리지 파일이 다운스트림의 기존 `.codex/`
+커스터마이즈와 충돌할 수 있다. 충돌 시 harness-upgrade 3-way merge에서
+로컬 설정과 upstream 기본값을 비교해야 한다.
+
+
+
 ## v0.43.2 — gemini_delegation_pipeline Phase 1 (CPS Solution 변경 자동 Gemini 의견) (2026-05-11)
 
 ### 변경 내용

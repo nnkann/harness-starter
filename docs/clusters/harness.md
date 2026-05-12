@@ -72,6 +72,7 @@ updated: 2026-05-12
 - [하네스 스타터 업그레이드 전파 전략](../guides/hn_upgrade_propagation.md)
 - [advisor 전면 재설계 — 의사결정 프레임 라이브러리 + 판단 경로 명시](../harness/hn_advisor_decision_framework.md)
 - [커밋 파이프라인 현실화 — CPS·AC 기준 fast path와 side effect 정리](../harness/hn_commit_perf_optimization.md)
+- [§H-4~§H-11 묶음 wave — followups 인덱스 일괄 처리](../harness/hn_commit_perf_wave_bundle.md)
 - [커밋 프로세스 감사 — #18 false-negative 축 보강](../harness/hn_commit_process_audit.md)
 - [commit + review 핸드오프 계약 이식 + 중복 제거](../harness/hn_commit_review_handoff.md)
 - [commit·review 단계화 — Stage 0~3 + 신규 파일 패스 + 메타 자동 병합](../harness/hn_commit_review_staging.md)

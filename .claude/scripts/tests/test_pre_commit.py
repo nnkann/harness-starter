@@ -804,6 +804,23 @@ class TestStageBasic:
 
 
 @pytest.mark.stage
+class TestAgentsBridgeSync:
+    """§H-9 — .claude/skills/ ↔ .agents/skills/ SKILL.md 동기화 회귀 가드.
+
+    Codex 브리지(.agents)는 Claude Code 본 SKILL(.claude)의 본문 복제.
+    drift 방지 — 두 파일 내용이 LF 차이 외에는 동일해야 한다.
+    """
+
+    def test_commit_skill_synced(self):
+        """`.claude/skills/commit/SKILL.md` ≡ `.agents/skills/commit/SKILL.md` (LF 차이 외)."""
+        claude_src = (REPO_ROOT / ".claude/skills/commit/SKILL.md").read_bytes()
+        agents_src = (REPO_ROOT / ".agents/skills/commit/SKILL.md").read_bytes()
+        # CRLF → LF로 정규화 후 비교
+        assert claude_src.replace(b"\r\n", b"\n") == agents_src, \
+            ".claude/skills/commit/SKILL.md ↔ .agents/skills/commit/SKILL.md drift 감지 — .agents 동기화 필요"
+
+
+@pytest.mark.stage
 class TestSplitCommitNonDestructive:
     """§H-3 — split-commit.sh 비파괴 planner 회귀 가드.
 
