@@ -10,7 +10,7 @@ relates-to:
     rel: extends
   - path: harness/hn_commit_perf_optimization.md
     rel: extends
-status: completed
+status: in-progress
 created: 2026-05-12
 updated: 2026-05-12
 ---
