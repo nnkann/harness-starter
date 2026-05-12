@@ -81,7 +81,7 @@ active_signals: 7개 모두 stale     (본 wave 완료 후에도 잔존)
 - [x] Root cause 식별 (session_signal.json stale 누적).
 - [x] 다음 wave 우선순위 4건 박제.
 - [x] 폐기 후보 (hook 10회 반복·bash-guard 단독 단축) 명시.
-- [ ] 다음 wave 1 — orchestrator session_signal cascade 재설계 완료.
+- [x] 다음 wave 1 — orchestrator P1 stdout mute 완료 (D 옵션, 재설계 폐기 — false positive 100% 차단). 추가 dedupe/wave 경계 인식은 별 wave 후보.
 - [ ] 다음 wave 2 — latency 단계별 역산 완료.
 - [ ] 다음 wave 3 — cluster 진입 강제 완료.
 - [ ] 다음 wave 4 — SKILL.md 본문 다이어트 완료. (폐기 박제 정리 부분 완료 `db28b79` — 본격 다이어트 별 wave) ✅

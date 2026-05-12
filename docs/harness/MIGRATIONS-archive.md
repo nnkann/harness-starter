@@ -43,6 +43,54 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.44.1 — pre_commit_check route 출력 추가 (2026-05-12)
+
+### 변경 내용
+
+`harness--hn_commit_perf_optimization.md` §H-1을 본 wave로 좁혀 처리한
+첫 닫힘. SKILL은 손대지 않고 stdout 신호만 추가 — 다음 wave (§H-2 commit
+SKILL이 route 소비)의 입력 계약을 freeze한다.
+
+- `pre_commit_check.py`: stdout 끝에 6개 키 추가 — `commit_route`
+  (single|sub), `review_route` (skip|micro|standard|deep), `promotion`
+  (none|release|repair), `side_effects.required`, `side_effects.release`,
+  `side_effects.repair`.
+- `promotion=release` 판정: `is_starter=true` + staged 파일에
+  `.claude/HARNESS.json` / `docs/harness/MIGRATIONS.md` / `README.md`
+  포함. 그 외 `none`. `repair`는 §H-5(hook SSOT 통합)에서 활성화.
+- `side_effects.required`: staged WIP 있으면 `docs_ops.wip-sync` 후보로
+  마킹. 없으면 `none`.
+- `test_pre_commit.py`: `TestRouteOutput` 클래스 추가 (3 테스트) —
+  기본 케이스에서 6키 출력 + 기존 키 회귀 없음, 시크릿 차단 시에도
+  4축 공존, release 후보 staging에서 `promotion=release` 발화.
+- WIP 분리: `harness--hn_commit_perf_followups.md` 신설 (§H-2~7 인덱스).
+
+### 자동 적용 항목
+
+파일 수정은 harness-upgrade 3-way merge로 자동 적용된다.
+
+### 수동 적용 항목
+
+없음. 본 wave는 stdout 신호만 추가하며 commit SKILL이 아직 소비하지
+않는다 — 운용 행동 변화 0.
+
+### 검증
+
+```
+python3 -m pytest .claude/scripts/tests/test_pre_commit.py -m stage -q
+python3 .claude/scripts/pre_commit_check.py
+```
+
+### 회귀 위험
+
+upstream 격리 환경(Windows/Git Bash)에서 관찰된 범위 내: 기존 13개
+stdout 키 보존 (TestStageBasic 2개 통과로 검증), 새 6키 추가만. stdout
+parser가 미지의 키를 무시하는 구조면 다운스트림 영향 0. parser가 키 화이트
+리스트를 강제하는 경우 신규 키를 인식하지 못하지만 그 자체는 차단 사유
+아님. Linux/macOS 환경은 본 시점 미테스트.
+
+
+
 ## v0.44.0 — Gemini 자동 호출 opt-in과 Codex hook 계약 보강 (2026-05-12)
 
 ### 변경 내용

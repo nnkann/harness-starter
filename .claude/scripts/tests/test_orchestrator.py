@@ -110,6 +110,35 @@ def test_stdout_valid_json_when_signals_present(tmp_path, monkeypatch):
 
 
 @pytest.mark.orchestrator
+def test_p1_signal_muted_from_stdout(tmp_path):
+    """P1 (동일 파일 연속 수정) 신호는 임계 초과해도 stdout INFO 출력 0건.
+
+    detect 로직과 session_signal.json 백그라운드 측정은 유지 — stdout 출력만 차단.
+    의도된 wave 일관 변경에서 false positive 100% 케이스 (본 세션 실측 기준)
+    노이즈 차단 회귀 가드.
+    """
+    signal_path = tmp_path / "session_signal.json"
+    payload = {
+        "tool_name": "Edit",
+        "tool_input": {"file_path": "src/repeated_edit_target.py"},
+    }
+    # P1 임계는 SAME_FILE_EDIT_LIMIT=3. 4회 호출로 강제 초과
+    for _ in range(4):
+        result = run_orchestrator(payload, env_overrides={
+            "ORCHESTRATOR_SIGNAL_PATH": str(signal_path),
+        })
+    # stdout에 P1 INFO 신호가 포함되지 않아야 함
+    assert "P1" not in result.stdout, (
+        f"P1 stdout mute 실패: {result.stdout!r}"
+    )
+    # 단 백그라운드 측정은 유지 — signal_path 파일에 P1 누적
+    assert signal_path.exists(), "session_signal.json 백그라운드 저장 누락"
+    state = json.loads(signal_path.read_text(encoding="utf-8"))
+    p1_active = [s for s in state.get("active_signals", []) if s.get("p_id") == "P1"]
+    assert p1_active, "P1 detect 로직이 mute로 인해 깨짐 — signal 누적도 0"
+
+
+@pytest.mark.orchestrator
 def test_signal_upsert_by_key():
     """`key` 필드 보유 신호는 upsert — 같은 key의 기존 신호 교체."""
     try:

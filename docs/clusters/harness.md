@@ -97,6 +97,7 @@ updated: 2026-05-12
 - [LLM 실수 방지 가드레일 — 내부 자료 우선 + 추측 차단 + advisor 연동](../harness/hn_llm_mistake_guardrails.md)
 - [하네스 자잘한 버그 묶음 — MIGRATIONS 누락·starter_skills 오염·permissions.allow 미전파·h-setup.sh 오분류·신규설치 필터 누락·harness-sync 경계 불명확·docs/harness 전달 오염](../harness/hn_migrations_version_gap.md)
 - [MVR 매핑 + HARNESS_MAP 에이전트 관점 개선](../harness/hn_mvr_map_agent_view.md)
+- [orchestrator P1 신호 stdout mute (false positive 100% 차단)](../harness/hn_orchestrator_p1_mute.md)
 - [퍼포먼스 baseline 측정 — 5영역 1 wave](../harness/hn_perf_baseline.md)
 - [Phase 구조 보강 — WIP AC 섹션 + Phase 6원칙 + escalate 에이전트 트리거 + WIP 실행 순서](../harness/hn_phase_agent_improvements.md)
 - [PRD 레이어 보강 — User Needs 섹션·milestones 샘플·harness-init 권고](../harness/hn_prd_layers.md)

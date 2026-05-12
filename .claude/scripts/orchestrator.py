@@ -681,12 +681,17 @@ def main() -> int:
 
     # 출력 — 이번 호출에서 새로 감지된 신호만 주입한다.
     # 기존 active_signals 전체 재출력은 긴 세션에서 컨텍스트 노이즈가 된다.
-    if not new_signals:
-        # 침묵 (false-positive 마찰 회피)
+    #
+    # P1 (동일 파일 연속 수정) 신호는 stdout 출력에서 제외 (mute).
+    # detect·signal_*.md 누적·session_signal.json 백그라운드 측정은 유지하되,
+    # 의도된 wave 일관 변경에서 false positive 100% 노이즈만 차단한다.
+    # P9 critical (exit 2)과 Phase1 (Gemini 트리거)는 그대로 출력.
+    output_signals = [s for s in new_signals if s.get("p_id") != "P1"]
+    if not output_signals:
         return 0
 
     critical_now = has_critical(new_signals)
-    emit_output(new_signals, block=critical_now)
+    emit_output(output_signals, block=critical_now)
 
     # exit code: critical은 2 (강제 중단), 그 외 0
     return 2 if critical_now else 0
