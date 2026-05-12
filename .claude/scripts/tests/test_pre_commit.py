@@ -71,6 +71,19 @@ def stage(out: dict) -> str:
     return out.get("recommended_stage", "")
 
 
+def _clone_repo(dest: Path) -> None:
+    """테스트 sandbox용 빠른 clone.
+
+    반복 fixture setup이 전체 테스트 시간을 지배하므로 local object를 공유한다.
+    sandbox는 테스트 종료 후 버려지며 push하지 않는다.
+    """
+    subprocess.run(
+        ["git", "clone", "-q", "--shared", str(REPO_ROOT), str(dest)],
+        capture_output=True,
+        check=True,
+    )
+
+
 # ─────────────────────────────────────────────────────────
 # T33·T34 — ENOENT 패턴 (Python로 직접 검증)
 # ─────────────────────────────────────────────────────────
@@ -183,8 +196,7 @@ def finalize_repo(tmp_path_factory):
     """commit_finalize.sh 테스트 sandbox: 본 repo clone + wrapper 복사."""
     tmp = tmp_path_factory.mktemp("finalize")
     repo = tmp / "repo"
-    subprocess.run(["git", "clone", "-q", str(REPO_ROOT), str(repo)],
-                   capture_output=True, check=True)
+    _clone_repo(repo)
     # wrapper + docs_ops가 working tree에만 있을 수 있어 복사
     for name in ("commit_finalize.sh", "docs_ops.py"):
         src = REPO_ROOT / ".claude" / "scripts" / name
@@ -266,8 +278,7 @@ def sealed_repo(tmp_path_factory):
     """completed 봉인 테스트 sandbox: 본 repo clone + completed 문서 1개 commit."""
     tmp = tmp_path_factory.mktemp("sealed")
     repo = tmp / "repo"
-    subprocess.run(["git", "clone", "-q", str(REPO_ROOT), str(repo)],
-                   capture_output=True, check=True)
+    _clone_repo(repo)
     src = REPO_ROOT / ".claude" / "scripts" / "pre_commit_check.py"
     dst = repo / ".claude" / "scripts" / "pre_commit_check.py"
     if src.exists():
@@ -838,8 +849,7 @@ def integ_repo(tmp_path_factory):
     """module 스코프 sandbox: git clone + 최신 스크립트 복사."""
     tmp = tmp_path_factory.mktemp("integ")
     repo = tmp / "repo"
-    subprocess.run(["git", "clone", "-q", str(REPO_ROOT), str(repo)],
-                   capture_output=True, check=True)
+    _clone_repo(repo)
     # 미커밋 최신 파일 덮어쓰기
     for name in ("pre_commit_check.py", "docs_ops.py"):
         src = REPO_ROOT / ".claude" / "scripts" / name
@@ -1153,8 +1163,7 @@ def wipsync_repo(tmp_path_factory):
     """
     tmp = tmp_path_factory.mktemp("wipsync")
     repo = tmp / "repo"
-    subprocess.run(["git", "clone", "-q", str(REPO_ROOT), str(repo)],
-                   capture_output=True, check=True)
+    _clone_repo(repo)
     for name in ("docs_ops.py",):
         src = REPO_ROOT / ".claude" / "scripts" / name
         dst = repo / ".claude" / "scripts" / name
