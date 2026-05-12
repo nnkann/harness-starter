@@ -43,6 +43,55 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.43.2 — gemini_delegation_pipeline Phase 1 (CPS Solution 변경 자동 Gemini 의견) (2026-05-11)
+
+### 변경 내용
+
+gemini_delegation_pipeline 결정 Phase 1 박제. orchestrator.py에 CPS
+Solution 변경 staged 시 gemini CLI 자동 호출 트리거 추가.
+
+- `detect_solution_change()` 신설 — `git diff --cached
+  docs/guides/project_kickoff.md` Solutions 섹션 변경 detect
+- `gemini_cli_available()` — `shutil.which("gemini")` 확인. 미설치 시
+  graceful skip (다운스트림 cascade 영향 0 보장)
+- `call_gemini_background()` — detach subprocess. PreToolUse hook 지연
+  없이 반환. 결과 `.claude/memory/gemini-solution-review.md`
+- 세션당 1회만 호출 — `gemini_solution_review_called` 플래그
+- INFO 신호로 사용자 알림. Critical 아님 — 권고 수준
+
+회귀 가드 3건 신설 — CLI 미설치 skip·Solutions 미변경 skip·세션당 1회.
+전체 10/10 통과 (기존 7 + 신규 3).
+
+`docs/decisions/hn_gemini_delegation_pipeline.md` Phase 분리 결정 박제 +
+completed 전환. Q1~Q6 본 wave 합의 (Phase 1 객관 신호 트리거만 구현,
+Phase 3 의미 신호·PostToolUse review verdict 트리거는 별 wave 후보).
+
+### 적용 방법
+
+자동 적용. gemini CLI 설치 안 한 다운스트림은 무영향.
+
+설치한 환경에서만 작동:
+- gemini CLI 0.41+ + OAuth 인증 (`gemini` 첫 실행 시 자동)
+- 또는 `GEMINI_API_KEY` 환경 변수
+
+### 검증
+
+```
+pytest .claude/scripts/tests/test_orchestrator.py -v
+# 10/10 통과
+```
+
+### 회귀 위험
+
+upstream 격리 10/10 통과. Solution 변경 detect의 false-positive 가능 —
+Solutions 섹션 외 P# 섹션 변경에 hit하지 않도록 heuristic 적용했으나
+완벽하지 않음. 실측 누적 후 정밀화 필요.
+
+OAuth quota 일 한도 도달 시 호출 실패 — Popen detach라 오류가
+사용자에게 안 노출. 결과 파일이 비어 있으면 quota 또는 timeout 의심.
+
+
+
 ## v0.43.1 — orchestrator P1 신호 stale 누적 해소 (upsert) (2026-05-11)
 
 ### 변경 내용

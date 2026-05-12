@@ -1,19 +1,23 @@
 #!/bin/bash
 # split-commit.sh — 커밋 분리 실행 (audit #18, 글로벌 원칙 1 커밋 = 1 논리 단위).
 #
+# §H-3 (v0.44.3~) 이후 비파괴(non-destructive) planner가 기본. staged 상태를
+# 바꾸려면 `--apply` 명시 필요.
+#
 # 역할:
 # - pre-check stdout의 split_group_N_* 키를 읽어 그룹별 순차 커밋 수행
 # - 각 sub-커밋은 HARNESS_SPLIT_SUB=1 환경변수로 pre-check 분리 판정 스킵
 # - commit 스킬이 호출하거나 사용자가 직접 실행
 #
 # 사용법:
-#   bash .claude/scripts/split-commit.sh
+#   bash .claude/scripts/split-commit.sh           # plan만 stdout (staged 무변경)
+#   bash .claude/scripts/split-commit.sh --apply   # 기존처럼 staged 비우고 첫 그룹 stage
 #
 # 선행 조건:
 #   - 현재 index(staged)에 커밋할 파일들이 올라가 있음
 #   - pre-check이 split_action_recommended: split 을 출력한 상태
 #
-# 흐름:
+# 흐름 (--apply):
 #   1. pre-check 실행 → stdout 파싱
 #   2. split_action_recommended == split 이면 계속, 아니면 즉시 종료
 #   3. 현재 staged 스냅샷 저장 (git stash 대신 수동 파일 목록 보존)
@@ -24,12 +28,49 @@
 #         (본 스크립트는 커밋 메시지 작성 안 함 — Claude가 그룹별 내용 보고 작성)
 #   6. 모든 그룹 처리 완료 보고
 #
+# 흐름 (default, --apply 없음):
+#   1. pre-check 실행 → stdout 파싱
+#   2. split_action_recommended == split 이면 plan stdout 출력
+#   3. staged 무변경. 사용자가 --apply 재실행 또는 의도적 single 진행 결정
+#
+# 재진입 (split-plan.txt 존재): 이미 --apply 흐름 진행 중이므로 destructive
+# 다음 그룹 stage 자동 진행 (--apply 묵시 적용).
+#
 # 종료 코드:
-#   0 분리 계획 출력 + 첫 그룹 stage 완료 (사용자/Claude가 커밋 필요)
+#   0 plan 출력 (default) 또는 첫 그룹 stage 완료 (--apply)
 #   1 오류
 #   2 분리 불필요 (split_action_recommended != split)
 
 set -e
+
+# ─── 인자 파싱 ──────────────────────────────────────────
+APPLY=0
+for arg in "$@"; do
+  case "$arg" in
+    --apply) APPLY=1 ;;
+    *) ;;  # 알 수 없는 인자 무시
+  esac
+done
+
+# ─── CRLF 가드 (안내, 차단 아님) ────────────────────────
+# §H-3: 자기 자신 + .claude/scripts/*.sh의 shebang에 CR이 있으면 stderr 안내.
+# WIP §I 판정식 — "CRLF로 split-commit.sh 실행 실패" 패턴 사전 인지.
+check_crlf_sh() {
+  local hit=""
+  for f in "$0" .claude/scripts/*.sh; do
+    [ -f "$f" ] || continue
+    # head -1로 shebang만 검사 (전체 파일 검사는 비용). CR 있으면 hit
+    if head -1 "$f" 2>/dev/null | tr -d '\n' | grep -q $'\r'; then
+      hit="${hit}${hit:+, }$f"
+    fi
+  done
+  if [ -n "$hit" ]; then
+    echo "⚠ CRLF shebang 감지 (.sh 파일): $hit" >&2
+    echo "   bash 실행 환경에 따라 '/bin/bash^M: bad interpreter' 오류 가능." >&2
+    echo "   정규화: sed -i 's/\\r\$//' <파일>  또는  git config core.autocrlf input" >&2
+  fi
+}
+check_crlf_sh
 
 SPLIT_PLAN=".claude/memory/split-plan.txt"
 
@@ -120,6 +161,21 @@ while IFS=$'\t' read -r name files; do
 done <<< "$GROUP_DATA"
 
 echo ""
+
+# §H-3: 기본은 plan만 출력하고 종료. --apply가 있어야 destructive 진입.
+if [ "$APPLY" != 1 ]; then
+  echo "이것은 분리 계획(plan)일 뿐 staged 상태는 변경되지 않았습니다."
+  echo ""
+  echo "실제 분리를 진행하려면:"
+  echo "  bash .claude/scripts/split-commit.sh --apply"
+  echo ""
+  echo "분리를 원치 않으면 (single 커밋):"
+  echo "  사용자가 명시적으로 '통째로' 또는 'single' 요청 시 commit 스킬이"
+  echo "  AC-MIXED 태그를 붙여 단일 커밋으로 진행 (staging.md SSOT)."
+  echo ""
+  exit 0
+fi
+
 echo "현재 전체 staged 상태를 초기화하고 첫 그룹만 다시 stage합니다."
 echo "각 그룹별 커밋은 HARNESS_SPLIT_SUB=1 환경에서 Claude가 개별 수행."
 echo ""

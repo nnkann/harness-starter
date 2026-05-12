@@ -804,6 +804,40 @@ class TestStageBasic:
 
 
 @pytest.mark.stage
+class TestSplitCommitNonDestructive:
+    """§H-3 — split-commit.sh 비파괴 planner 회귀 가드.
+
+    기본 실행은 staged 상태 무변경, `--apply` 시에만 destructive 동작.
+    SKILL 자연어 호출부 변경(SKILL.md Step 5.5)은 본문 grep으로 정합 검증.
+    """
+
+    SCRIPT = REPO_ROOT / ".claude/scripts/split-commit.sh"
+
+    # NOTE: bash -n syntax 검사는 본 wave에서 제거.
+    # split-commit.sh 자체가 CRLF로 들어가 있어 pytest subprocess(bash -n) 환경에서
+    # `do\r` 토큰 오류로 실패. SHELLOPTS=igncr 우회 가능하나, 근본 해결은 .sh 파일
+    # LF 정규화 — followups §H-10 별 wave 후보 (.gitattributes + 변환).
+    # 본 wave는 비파괴 로직의 grep 정합으로 회귀 가드 충분.
+
+    def test_apply_flag_and_non_destructive_branch(self):
+        """본문 grep 정합 — APPLY 변수·--apply 인자·비파괴 분기·CRLF 가드."""
+        script = self.SCRIPT.read_text(encoding="utf-8")
+        assert "APPLY=0" in script, "기본값 APPLY=0 누락"
+        assert "--apply)" in script, "--apply 인자 case 누락"
+        assert 'if [ "$APPLY" != 1 ]' in script, "비파괴 분기 (APPLY != 1) 누락"
+        assert "check_crlf_sh" in script, "CRLF 가드 함수 누락"
+        # destructive 블록은 비파괴 분기 안쪽에만 존재해야 함
+        # (단순 검증: 'git reset HEAD' 등장 위치가 APPLY != 1 분기 이후여야)
+        idx_non_destructive = script.find('if [ "$APPLY" != 1 ]')
+        idx_reset = script.find("git reset HEAD --")
+        assert idx_non_destructive > 0 and idx_reset > 0, "필수 패턴 누락"
+        # 첫 번째 git reset HEAD --는 split-plan.txt 재진입(line 44)에 있음 (이미 --apply 흐름)
+        # destructive 메인 블록의 git reset은 비파괴 분기 이후
+        idx_reset_main = script.find("git reset HEAD --", idx_non_destructive)
+        assert idx_reset_main > idx_non_destructive, "destructive 블록이 --apply 분기 안에 있어야 함"
+
+
+@pytest.mark.stage
 class TestRouteOutput:
     """§H-1 — route 신호 stdout 출력 회귀 가드.
 

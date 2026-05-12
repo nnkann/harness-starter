@@ -520,11 +520,18 @@ SPLIT_REC=$(echo "$PRE_CHECK_OUTPUT" | sed -n 's/^split_action_recommended: //p'
 
 #### split 흐름
 
+§H-3 (v0.44.3~) 이후 split-commit.sh는 **비파괴 planner가 기본**.
+사용자가 명시 분리 요청한 경우에만 `--apply`로 진입.
+
 ```bash
+# 분리 계획만 확인 (staged 무변경, 기본)
 bash .claude/scripts/split-commit.sh
+
+# 실제 분리 진행 (사용자 명시 또는 HARNESS_SPLIT_OPT_IN=1)
+bash .claude/scripts/split-commit.sh --apply
 ```
 
-- 스크립트가 전체 staged를 비우고 **첫 그룹만 다시 stage**
+- `--apply` 시 스크립트가 전체 staged를 비우고 **첫 그룹만 다시 stage**
 - `.claude/memory/split-plan.txt`에 남은 그룹 목록 저장
 - commit 스킬은 **첫 그룹만으로** Step 6·7·7.5·8(커밋)·9(푸시 제외) 수행
   - 커밋 시 **`HARNESS_SPLIT_SUB=1 HARNESS_DEV=1` prefix 필수**

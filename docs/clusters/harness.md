@@ -101,6 +101,7 @@ updated: 2026-05-12
 - [session-start.sh → session-start.py 전환 — spawn 비용 절감](../harness/hn_session_start_py.md)
 - [하네스 단순화 — 추가 누적으로 인한 마찰 회수](../harness/hn_simplification.md)
 - [eval에 Solution 충족 인용 분포 집계 추가](../harness/hn_solution_ref_aggregation.md)
+- [split-commit.sh 비파괴 planner 전환 — §H-3](../harness/hn_split_commit_non_destructive.md)
 - [split 커밋 sub-group review stage 재판정 — 그룹별 신호 기반 강도 결정](../harness/hn_split_commit_review_stage.md)
 - [split 성격 기반 그룹화 + commit 흐름 내 diff 참조 최적화](../harness/hn_split_diff_delivery.md)
 - [review staging 잔여 — S8 정밀화 + 5커밋 측정 + 폭증 게이트](../harness/hn_staging_remaining.md)

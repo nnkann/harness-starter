@@ -118,12 +118,16 @@ wave 시작 시점에 **별 WIP로 재분리**한다 (1개 WIP = 1개 sub-task).
 
 후속 wave 분리 진행 표 (각 항목은 별 wave에서 별 WIP로 분리 — 본 WIP completed 전환 조건 아님):
 
-- §H-2 commit 스킬 route 소비 — ✅ 완료 → `WIP/harness--hn_commit_skill_route_consume.md` (2026-05-12)
-- §H-3 split-commit 비파괴화 — 미분리
+- §H-2 commit 스킬 route 소비 — ✅ 완료 → `harness/hn_commit_skill_route_consume.md` (2026-05-12)
+- §H-3 split-commit 비파괴화 — ✅ 완료 → `WIP/harness--hn_split_commit_non_destructive.md` (2026-05-12)
 - §H-4 Side Effect Ledger — 미분리
 - §H-5 Hook/Pre-check SSOT 통합 — 미분리
 - §H-6 Windows Commit Smoke — 미분리
 - §H-7 Cascade Integrity Check — 미분리
+- §H-8 wip-sync incident 역참조 갱신 결함 — 미분리 (메모리 시그널 "WIP 이동 시 역참조 dead link" 재발생 — §H-1·§H-2 commit 두 번 모두 incident 파일 dead link 발생, 본 wave에선 1줄 수동 수정으로 우회)
+- §H-9 .claude ↔ .agents SKILL 동기화 가드 — 미분리 (현재 수동 Python sync. drift 회귀 가드 없음 — pre-check 신호 또는 회귀 테스트)
+- §H-10 .sh 파일 LF 정규화 — 미분리 (split-commit.sh CRLF로 pytest subprocess bash -n syntax 실패. `.gitattributes`에 `*.sh text eol=lf` + 일괄 변환 필요. SHELLOPTS=igncr 우회 가능하나 근본 해결이 정합)
+- §H-11 README "최신 5개 본문" 정책 자동 가드 — 미분리 (§H-2 wave에서 v0.44.2 추가 + 가장 오래된 1개 삭제 절차 누락 → 6개로 늘어남, §H-3 추가 시 7개. 본 wave에서 2개 일괄 삭제로 정합 회복. harness_version_bump.py 또는 pre-check이 README 변경 이력 섹션 수를 카운트해 6개 초과 시 경고)
 
 ## 메모
 
