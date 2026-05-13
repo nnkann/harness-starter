@@ -39,17 +39,6 @@
     ]
   },
   "hooks": {
-    "UserPromptSubmit": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/scripts/debug-guard.sh"
-          }
-        ]
-      }
-    ],
     "SessionStart": [
       {
         "matcher": "",
@@ -110,15 +99,6 @@
           {
             "type": "command",
             "command": "bash .claude/scripts/write-guard.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .claude/scripts/orchestrator.py"
           }
         ]
       }

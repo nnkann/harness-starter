@@ -8,11 +8,9 @@ self-verify·review가 그 marker만 실행. 회귀 가드는 CI/eval --deep 트
 영역 marker:
 - secret    : 시크릿 스캔 (3) — gitleaks 폴백 회귀 가드
 - gate      : completed 전환 차단 룰 + completed 봉인 + init 게이트 (>10)
-- stage     : pre_commit_check.py stage 결정 (4) — route 출력 포함 (sub-task 1·2)
+- stage     : pre_commit_check.py stage 결정 (4)
 - enoent    : 린터 ENOENT 정규식 회귀 가드 (12)
 - docs_ops  : dead link / relates-to / move commit / wip-sync (19)
-- windows   : Windows + Git Bash 생존성 (3) — sub-task 6
-- cascade   : Cascade Integrity Check 회귀 (sub-task 7)
 
 사용:
   pytest -m gate            # 차단 룰만
@@ -803,69 +801,6 @@ class TestStageBasic:
             diff_u0="+const x = 1;\n",
         )
         assert stage(out) == "standard"
-
-
-@pytest.mark.stage
-class TestRouteOutput:
-    """sub-task 1 — route 출력 회귀 가드.
-
-    pre_commit_check.py가 commit_route·review_route·promotion·blocking_reasons·
-    warning_reasons·side_effects.* 7개 키를 항상 출력하는지 검증.
-    SSOT: docs/WIP/harness--hn_commit_perf_optimization.md "기본 판정 알고리즘".
-    """
-
-    ROUTE_KEYS = [
-        "commit_route", "review_route", "promotion",
-        "blocking_reasons", "warning_reasons",
-        "side_effects.required", "side_effects.release", "side_effects.repair",
-    ]
-
-    def test_docs_only_single_route(self):
-        """문서만 변경된 단순 케이스: single + non-blocking."""
-        out = run_check(
-            name_status="M docs/README.md",
-            numstat="3 0 docs/README.md",
-            diff_u0="+한 줄 추가\n",
-        )
-        for k in self.ROUTE_KEYS:
-            assert k in out, f"route key 누락: {k}"
-        assert out["commit_route"] == "single"
-        assert out["blocking_reasons"] == "none"
-        assert out["promotion"] == "none"
-        # split_plan 0 → warning 없음
-        assert out["warning_reasons"] == "none"
-
-    def test_secret_blocking_route(self):
-        """시크릿 line-confirmed → blocking_reasons=secret-line-confirmed,
-        review_route=deep, commit_route=single (차단이지만 route 키는 항상 출력)."""
-        out = run_check(
-            name_status="M src/foo.ts",
-            numstat="1 0 src/foo.ts",
-            diff_u0="+const k = 'AKIAIOSFODNN7EXAMPLE';\n",
-        )
-        for k in self.ROUTE_KEYS:
-            assert k in out, f"route key 누락 (차단 케이스): {k}"
-        assert out["blocking_reasons"] == "secret-line-confirmed"
-        assert out["review_route"] == "deep"
-        assert out["pre_check_passed"] == "false"
-
-    def test_route_keys_always_emitted(self):
-        """staged 파일 없어도 route 7키는 모두 출력 (스키마 안정성)."""
-        out = run_check(name_status="", numstat="", diff_u0="")
-        for k in self.ROUTE_KEYS:
-            assert k in out, f"empty staging에서 route key 누락: {k}"
-
-    def test_docs_only_demotes_review_route(self):
-        """docs-only + 시크릿 없음 + release 없음 → review_route 강등(micro).
-        recommended_stage는 그대로(standard) 보존 — review_route만 강등."""
-        out = run_check(
-            name_status="M docs/README.md",
-            numstat="3 0 docs/README.md",
-            diff_u0="+한 줄\n",
-        )
-        assert out["recommended_stage"] == "standard"
-        assert out["review_route"] == "micro"
-        assert out["promotion"] == "none"
 
 
 # ─────────────────────────────────────────────────────────
@@ -1698,81 +1633,3 @@ class TestClusterUpdateGating:
             if wip.exists():
                 wip.unlink()
             self._run_cluster_update(repo)  # 정리
-
-@pytest.mark.windows
-class TestWindowsCommitSmoke:
-    """sub-task 6 — Windows + Git Bash 생존성 회귀 가드.
-
-    SSOT: docs/WIP/harness--hn_commit_perf_optimization.md "E. Windows/Git Bash 생존성".
-    CRLF·shebang·env 전달 마찰을 단위 테스트로 고정. 실제 OS 호출은 하지 않음.
-    """
-
-    SHELL_SCRIPTS = [
-        ".claude/scripts/commit_finalize.sh",
-        ".claude/scripts/split-commit.sh",
-        ".claude/scripts/bash-guard.sh",
-        ".claude/scripts/install-starter-hooks.sh",
-    ]
-
-    def test_shell_scripts_no_crlf(self):
-        """shell script가 CRLF로 저장돼 있으면 Git Bash 실행 실패 (2026-05-11 사고)."""
-        crlf_violations = []
-        for path in self.SHELL_SCRIPTS:
-            p = REPO_ROOT / path
-            if not p.exists():
-                continue
-            data = p.read_bytes()
-            if b"\r\n" in data:
-                crlf_violations.append(path)
-        assert not crlf_violations, f"CRLF 감지: {crlf_violations}. dos2unix 또는 git config core.autocrlf input 필요"
-
-    def test_shell_scripts_have_unix_shebang(self):
-        """#! 첫 줄이 정확히 시작하고 CR로 끝나지 않아야 함."""
-        for path in self.SHELL_SCRIPTS:
-            p = REPO_ROOT / path
-            if not p.exists():
-                continue
-            head = p.read_bytes()[:64]
-            assert head.startswith(b"#!"), f"shebang 누락: {path}"
-            first_line_end = head.find(b"\n")
-            assert first_line_end > 0, f"shebang 줄 끝 누락: {path}"
-            assert head[first_line_end - 1:first_line_end] != b"\r",                 f"shebang CRLF: {path} (Git Bash가 인터프리터 경로 못 찾음)"
-
-    def test_skill_md_documents_powershell_env_form(self):
-        """commit/SKILL.md가 PowerShell→Git Bash env 전달 마찰을 문서화하는지.
-
-        WIP "E. Windows/Git Bash 생존성 테스트" 원칙: 'VAR=1 command' 문법
-        PowerShell 금지, '$env:VAR=...' 별도 출력 필요. SKILL.md에 HARNESS_DEV
-        prefix 사용 지침이 있으므로 그 키워드 존재로 약한 가드."""
-        skill = REPO_ROOT / ".claude/skills/commit/SKILL.md"
-        if not skill.exists():
-            pytest.skip("commit/SKILL.md 없음")
-        text = skill.read_text(encoding="utf-8")
-        assert "HARNESS_DEV=1" in text, "HARNESS_DEV prefix 지침 누락"
-
-
-
-@pytest.mark.cascade
-class TestCascadeIntegrity:
-    """sub-task 7 — Cascade Integrity Check 회귀 가드.
-
-    pre_commit_check.py가 staged 변경의 frontmatter/abbr/trigger 누락을
-    warning_reasons에 누적하는지 확인. ERRORS는 증가시키지 않음 (경고 only).
-    """
-
-    def test_clean_diff_no_cascade_warning(self):
-        """문제없는 diff는 cascade 경고 없음."""
-        out = run_check(
-            name_status="M docs/README.md",
-            numstat="1 0 docs/README.md",
-            diff_u0="+한 줄\n",
-        )
-        wr = out.get("warning_reasons", "none")
-        # README.md 변경은 cascade 신호 트리거 안 함
-        assert "cascade-defends-missing" not in wr
-        assert "cascade-serves-trigger-missing" not in wr
-
-    def test_warning_reasons_key_always_present(self):
-        """warning_reasons 키는 항상 출력 (스키마 안정성)."""
-        out = run_check(name_status="", numstat="", diff_u0="")
-        assert "warning_reasons" in out

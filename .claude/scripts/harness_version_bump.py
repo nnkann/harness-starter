@@ -72,9 +72,14 @@ def main() -> int:
         r"|\.claude/rules/[^/]+\.md"
         r"|\.claude/scripts/[^/]+\.(sh|py))$"
     )
+    # Phase 2 (hn_harness_recovery_v0_41_baseline, 2026-05-13):
+    # patch 자동 트리거 좁힘. 9b29f23 이전 패턴은 .claude/scripts/*.{sh,py} 1줄
+    # 수정에도 patch를 강제했고, 그 결과 도돌이표 commit이 매번 patch를 발행.
+    # 본 wave 결정: patch는 사용자 명시 옵트인(HARNESS_BUMP=patch) 또는
+    # 다운스트림 직접 영향 영역(skills SKILL.md·rules·agents·CLAUDE.md)만.
+    # scripts/*.{sh,py} 단순 수정은 promotion=none (작성자 명시할 때만 patch).
     PATCH_PATTERNS = re.compile(
-        r"^(\.claude/scripts/[^/]+\.(sh|py)"
-        r"|\.claude/skills/[^/]+/SKILL\.md"
+        r"^(\.claude/skills/[^/]+/SKILL\.md"
         r"|\.claude/rules/[^/]+\.md"
         r"|\.claude/agents/[^/]+\.md"
         r"|CLAUDE\.md)$"

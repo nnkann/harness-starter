@@ -136,19 +136,22 @@ NEW 플래그 → CPS 신규 P# 등록 후보 인식
 다음 작업이 더 풍부한 유산 위에서 시작  ← 루프
 ```
 
-## 강제 트리거 (debug-guard.sh)
+## 수동 가이드 (debug-guard.sh — hook 무력화됨)
 
-본 규칙은 "발견 즉시 적용"을 전제로 하지만, 발견 자체가 자가 발화에
-의존한다 — 다운스트림 운용에서 발화 0건으로 비활성되는 패턴이 실측됨
-(P8). 이를 보강하기 위해 `debug-guard.sh`(UserPromptSubmit hook)가 사용자
-발화의 증상 키워드를 감지해 BIT Q1/Q2/Q3 적용 안내를 출력한다.
+> **2026-05-13 변경 (hn_harness_recovery_v0_41_baseline Phase 1)**:
+> 기존 `debug-guard.sh` UserPromptSubmit hook은 **무력화**됨 (settings.json
+> 등록 해제). hook이 LLM 행동을 강제하지 못하는 패턴 실측 — P8/P9 자기
+> 증명. 스크립트 파일 자체는 보존되어 수동 호출 또는 후속 재설계에 사용
+> 가능.
 
-- **키워드 SSOT**: `.claude/scripts/debug-guard.sh`. 룰에 박지 않음 — 사전
-  변경 시 hook 1곳만 갱신
-- **트리거 위치**: 사용자 발화 시점 (UserPromptSubmit) — Claude 자가
-  인지 전 단계에서 강제 안내
-- **한계**: hook은 "발견" 단서를 보강할 뿐, Claude의 Q1/Q2/Q3 작성·CPS
-  매칭 의무는 자가 인지 영역으로 잔존
+본 규칙은 "발견 즉시 적용"을 전제로 한다. 자가 발화 의존 한계는 인정하되,
+hook 강제력 0이 실측됐으므로 다음을 가이드로 활용:
+
+- **키워드 사전 SSOT**: `.claude/scripts/debug-guard.sh` (수동 참조용)
+  Claude가 작업 중 사용자 발화에 이 키워드가 등장하면 BIT Q1/Q2/Q3 적용
+  자가 점검 권장
+- **자가 인지 의무**: Q1/Q2/Q3 작성·CPS 매칭은 자가 인지 영역 — hook
+  유무와 무관하게 본 규칙이 정의한 절차 준수
 
 ## 기존 rules와의 관계
 

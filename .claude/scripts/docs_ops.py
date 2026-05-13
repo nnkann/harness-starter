@@ -372,11 +372,8 @@ def cmd_move(src_str: str) -> int:
     print(f"갱신됨: status=completed, updated={today}")
     if rewritten:
         print(f"relates_to_rewritten: {len(rewritten)}개 파일 ({', '.join(str(p) for p in rewritten)})")
-        # sub-task 4 — side effect ledger 호환 alias (정수 카운트)
-        print(f"backrefs_updated: {len(rewritten)}")
     else:
         print("relates_to_rewritten: 0")
-        print("backrefs_updated: 0")
     return 0
 
 
@@ -586,10 +583,6 @@ def cmd_wip_sync(staged_files: list[str]) -> int:
 
     today = date.today().isoformat()
     matched_wips = moved_wips = 0
-    # sub-task 4 — side effect ledger 카운터
-    updated_wips = 0  # 실제로 본문/frontmatter write 발생한 WIP 수
-    cluster_updates = 0  # cluster-update 실행 횟수
-    backrefs_updates = 0  # move 결과 역참조 갱신 발생 횟수 (move stdout 'backrefs_updated' 라인)
 
     # abbr 기반 보조 매칭 준비
     abbrs = extract_abbrs()
@@ -636,7 +629,15 @@ def cmd_wip_sync(staged_files: list[str]) -> int:
             if p:
                 staged_problems.add(p)
 
-    for wip in sorted(wip_dir.glob("*.md")):
+    # Phase 4 (hn_harness_recovery_v0_41_baseline, 2026-05-13):
+    # abbr 매칭 우선 단축. staged 파일에서 추출한 abbr이 매칭하는 WIP만 1차 iter.
+    # abbr hit이 0이면 전체 WIP iter fallback (기존 동작 보존).
+    if abbr_to_wips:
+        candidate_wips = sorted({w for wips in abbr_to_wips.values() for w in wips})
+    else:
+        candidate_wips = sorted(wip_dir.glob("*.md"))
+
+    for wip in candidate_wips:
         text = wip.read_text(encoding="utf-8")
         new_text = text
         file_matched = False
@@ -767,7 +768,6 @@ def cmd_wip_sync(staged_files: list[str]) -> int:
                 write_frontmatter_field(wip, "updated", today)
                 subprocess.run(["git", "add", str(wip)], capture_output=True)
                 print(f"✅ 갱신: {wip}", file=sys.stderr)
-                updated_wips += 1
             matched_wips += 1
 
             body_lines = []
@@ -797,29 +797,14 @@ def cmd_wip_sync(staged_files: list[str]) -> int:
         )
         if r.returncode == 0:
             moved_wips += 1
-            # move stdout에서 backrefs 갱신 신호 추출
-            for ml in r.stdout.splitlines():
-                if ml.startswith("backrefs_updated:"):
-                    try:
-                        n = int(ml.split(":", 1)[1].strip())
-                        if n > 0:
-                            backrefs_updates += n
-                    except ValueError:
-                        pass
-            cu = subprocess.run([sys.executable, __file__, "cluster-update"],
+            subprocess.run([sys.executable, __file__, "cluster-update"],
                            capture_output=True)
-            if cu.returncode == 0:
-                cluster_updates += 1
         else:
             print(f"⚠️  자동 이동 실패 — 수동 처리 필요: {wip}", file=sys.stderr)
             print(r.stderr, file=sys.stderr, end="")
 
-    # sub-task 4 — side effect ledger (commit_finalize.sh가 소비)
     print(f"wip_sync_matched: {matched_wips}")
-    print(f"wip_sync_updated: {updated_wips}")
     print(f"wip_sync_moved: {moved_wips}")
-    print(f"cluster_updated: {cluster_updates}")
-    print(f"backrefs_updated: {backrefs_updates}")
     return 0
 
 

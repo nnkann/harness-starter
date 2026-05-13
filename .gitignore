@@ -13,3 +13,6 @@
 .claude/.test-sandbox/
 **/__pycache__/
 *.pyc
+
+# Agent worktree 산물 (절대 규칙: worktree 생성 금지 — 우연 산물 차단)
+.claude/worktrees/

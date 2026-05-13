@@ -42,25 +42,18 @@ VERDICT="${VERDICT:-}"
 #      - cluster-update: cmd_cluster_update가 v0.42.5 신규 — cluster.write 후 git add
 #      - 역참조 갱신: _rewrite_relates_to L281에서 갱신 파일별 git add
 #    → 외부 git add 불필요. wrapper는 단순 호출만.
-WIP_SYNC_OUT=""
 if [ "$VERDICT" != "block" ]; then
   STAGED_FILES=$(git diff --cached --name-only | tr '\n' ' ')
   if [ -n "$STAGED_FILES" ]; then
-    WIP_SYNC_OUT=$(python3 .claude/scripts/docs_ops.py wip-sync $STAGED_FILES 2>&1 || true)
-    echo "$WIP_SYNC_OUT"
+    # Phase 4 (hn_harness_recovery_v0_41_baseline, 2026-05-13):
+    # wip-sync 조건부 실행. staged에 docs/WIP/·docs/clusters/ 변경이 있을 때만
+    # 호출. 매 commit ALWAYS 호출은 docs 외 변경에서 noop subprocess 누적.
+    NEEDS_WIP_SYNC=$(echo "$STAGED_FILES" | tr ' ' '\n' | grep -cE '^docs/(WIP|clusters)/' || true)
+    if [ "$NEEDS_WIP_SYNC" -gt 0 ]; then
+      python3 .claude/scripts/docs_ops.py wip-sync $STAGED_FILES 2>&1 || true
+    fi
   fi
 fi
-
-# 1.5 side effect ledger 출력 (sub-task 4 — commit/SKILL.md 요약 소비)
-# wip-sync stdout에서 4종 카운트를 추출해 side_effects.required로 재출력.
-# 0인 항목은 생략 (시그널 노이즈 감소).
-echo "## side_effects (commit_finalize)"
-echo "$WIP_SYNC_OUT" | awk '
-  /^wip_sync_updated: / { v=$2+0; if (v>0) printf "side_effects.required: wip-sync.updated=%d\n", v }
-  /^wip_sync_moved: /   { v=$2+0; if (v>0) printf "side_effects.required: wip-sync.moved=%d\n", v }
-  /^cluster_updated: /  { v=$2+0; if (v>0) printf "side_effects.required: cluster-update=%d\n", v }
-  /^backrefs_updated: / { v=$2+0; if (v>0) printf "side_effects.required: backrefs=%d\n", v }
-'
 
 # 2. git commit
 git commit "$@"
