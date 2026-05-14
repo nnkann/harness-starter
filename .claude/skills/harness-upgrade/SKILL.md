@@ -522,18 +522,62 @@ MSYS_NO_PATHCONV=1 git show <upstream_ref>:<파일경로> > <파일경로>
 → 추가 완료
 ```
 
-### Step 7. 삭제된 파일 처리
+### Step 7. 삭제 + 격하 잔재 처리
 
-upstream에서 제거된 파일이 있으면 (three-way 모드만):
+두 종류의 잔재를 함께 처리한다:
+
+**(A) upstream에서 제거된 파일** (three-way 모드만) — DELETED 카테고리.
+
+**(B) starter_skills 격하 잔재** — upstream `HARNESS.json.starter_skills`에
+포함됐는데 다운스트림 디스크에 폴더가 존재하는 경우. starter가 "이 스킬은
+starter 전용으로 격하"한 신호인데 다운스트림은 옛 버전에서 받은 폴더를
+보유 중 → 회수 필요.
+
+```bash
+# (A) upstream에서 제거된 파일
+DELETED=$(git diff "$BASE_REF" "$UPSTREAM_REMOTE/main" --diff-filter=D --name-only \
+  -- <하네스 파일 범위>)
+
+# (B) starter_skills 격하 감지 — 다운스트림 전용
+# starter 본인은 starter_skills 폴더가 자기 파일이므로 검사 skip
+IS_STARTER=$(python3 -c "
+import json
+d = json.load(open('.claude/HARNESS.json', encoding='utf-8'))
+print('true' if d.get('is_starter') else 'false')
+" 2>/dev/null)
+
+DEMOTED_DIRS=()
+if [ "$IS_STARTER" = "false" ]; then
+  STARTER_SKILLS=$(python3 -c "
+import json
+d = json.load(open('.claude/HARNESS.json', encoding='utf-8'))
+print(d.get('starter_skills', ''))
+" 2>/dev/null | tr ',' '\n')
+
+  for skill in $STARTER_SKILLS; do
+    [ -d ".claude/skills/$skill" ] && DEMOTED_DIRS+=(".claude/skills/$skill/")
+  done
+fi
 ```
-📦 upstream에서 제거된 파일
 
-  .claude/scripts/old-guard.sh
+사용자 알림:
 
+```
+📦 upstream에서 제거된 파일 (M개)
+  .claude/rules/anti-defer.md
+  .claude/scripts/orchestrator.py
+  ...
+삭제할까요? [Y/n/건너뛰기]
+
+📦 starter 전용으로 격하된 스킬 (N개)
+  .claude/skills/harness-dev/  (starter_skills 목록 등록 — 다운스트림 미전파 의도)
 삭제할까요? [Y/n/건너뛰기]
 ```
 
-사용자가 건너뛰면 파일을 남긴다 (강제 삭제하지 않음).
+사용자가 건너뛰면 파일을 남긴다 (강제 삭제 안 함).
+
+**주의**: starter_skills 격하 감지는 다운스트림(`is_starter: false`)에서만
+의미. starter 본인(`is_starter: true`)은 자기 파일이므로 격하 잔재 검사 skip.
 
 ### Step 8. settings.json 동기화
 
