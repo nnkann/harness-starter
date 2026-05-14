@@ -843,6 +843,46 @@ def main() -> int:
                 err(f"❌ {wip}: AC `Goal:` 항목 누락.")
             ERRORS += 1
             continue
+
+        # AC 체크박스 형식 게이트 (§S-8 추가)
+        # AC 섹션 아래 첫 30줄 안에 `- [ ]` 또는 `- [x]` 패턴 1개 이상 필수.
+        # 자유 텍스트 AC 차단 — 결정적 완료 판정 게이트(docs_ops.py move 빈 체크박스)
+        # 가 작동하려면 체크박스 형식 강제 필요.
+        ac_section_start = body.find("**Acceptance Criteria**")
+        ac_block = ""
+        if ac_section_start >= 0:
+            ac_block = body[ac_section_start:ac_section_start + 2000]
+            checkbox_pat = re.compile(r"^\s*[-*]\s*\[[ xX]\]", re.MULTILINE)
+            if not checkbox_pat.search(ac_block):
+                err(f"❌ {wip}: AC 섹션에 체크박스 없음. `- [ ] Goal: ...` 형식 필수 (자유 텍스트 AC 금지).")
+                ERRORS += 1
+                continue
+
+        # AC S# 인용 게이트 (§S-9 추가)
+        # frontmatter `s:`의 각 S# 번호가 AC 섹션 안에 1개 이상 등장 필수.
+        # substring 본문 인용 X — 번호 매칭만 (§S-1 함정 회피).
+        # 자기 변경 면제: kickoff·cps_master·docs/cps/* staged면 게이트 skip.
+        CPS_SELF_EDIT = re.compile(
+            r"^docs/guides/(project_kickoff|cps_master)\.md$|^docs/cps/.+\.md$"
+        )
+        cps_self_edit = any(CPS_SELF_EDIT.match(f) for f in staged_files)
+        if not cps_self_edit and ac_block:
+            # 경계 문자 매칭 — `S2` ≠ `S20`. \b 또는 비-숫자 경계 필요.
+            missing_s = []
+            for sid in sol_ids:
+                pat = re.compile(rf"(?<![A-Za-z0-9]){re.escape(sid)}(?![0-9])")
+                if not pat.search(ac_block):
+                    missing_s.append(sid)
+            if missing_s:
+                err(f"❌ {wip}: AC가 S# 인용 안 함: {', '.join(missing_s)}. kickoff `## Solutions` '해결 기준' 컬럼 참조 후 AC 보강 (substring 인용 금지, 번호만).")
+                ERRORS += 1
+                continue
+
+        # P10 안내 (차단 아님) — 본질 미정 cascade
+        # 엄격 기준: "귀찮음·빠르게 넘기기" 회피처 아님. 혼용 시 학습 신호 희석.
+        prob_str = str(prob_raw) if prob_raw else ""
+        if "P10" in prob_str:
+            err(f"ℹ️ {wip}: P10 (본질 미정) 인용됨. ⚠ 엄격 기준 — P1~P9 각각 검토 후 어디에도 안 맞을 때만. '잘 모르겠음·귀찮음'은 부적합. 의심 근거 1줄 박제 + 가장 가까운 후보 P#·S# 동반 권장.")
         # `검증.review` 5단계 자가 선언 폐기 (2026-05-14 §S-2).
         # review 호출은 /commit --review/--no-review 플래그로.
         if not ac["ac_tests"]:

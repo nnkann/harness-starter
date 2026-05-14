@@ -182,6 +182,129 @@ class TestTagRegex:
 
 
 @pytest.mark.gate
+class TestACSolutionRefGate:
+    """AC S# 인용 게이트 (v0.47.4 §S-9).
+
+    frontmatter `s:`의 각 S# 번호가 AC 섹션 안에 1개 이상 등장 필수.
+    substring 본문 인용 X (§S-1 함정 회피). 번호 매칭만.
+    """
+
+    def _check(self, ac_block: str, sol_ids: list[str]) -> list[str]:
+        """미인용 S# 목록 반환 (빈 list = 모두 인용됨).
+        경계 문자 매칭 — `S2`는 `S20`에 매칭되지 않음 (\\b 또는 숫자 경계).
+        """
+        import re as _re
+        missing = []
+        for sid in sol_ids:
+            pat = _re.compile(rf"(?<![A-Za-z0-9]){_re.escape(sid)}(?![0-9])")
+            if not pat.search(ac_block):
+                missing.append(sid)
+        return missing
+
+    def test_single_s_cited_in_goal(self):
+        """`- [ ] Goal: ... S3 ...` 통과"""
+        ac = """**Acceptance Criteria**:
+- [ ] Goal: S3 cascade 충족
+"""
+        assert self._check(ac, ["S3"]) == []
+
+    def test_multiple_s_all_cited(self):
+        """다중 S# 모두 인용 — 통과"""
+        ac = """**Acceptance Criteria**:
+- [ ] Goal: S2·S5 합쳐서 충족
+- [ ] S6도 함께 처리
+"""
+        assert self._check(ac, ["S2", "S5", "S6"]) == []
+
+    def test_missing_s_blocked(self):
+        """일부 S# 미인용 — 차단"""
+        ac = """**Acceptance Criteria**:
+- [ ] Goal: S2만 인용
+"""
+        assert self._check(ac, ["S2", "S5"]) == ["S5"]
+
+    def test_s10_cited(self):
+        """S10 (본질 의심) 인용 통과"""
+        ac = """**Acceptance Criteria**:
+- [ ] Goal: S10 의심 근거 박제 — P1·P8 가까운 후보
+"""
+        assert self._check(ac, ["S10"]) == []
+
+    def test_substring_not_matched(self):
+        """본문 substring은 매칭 안 됨 (§S-1 함정 회피 — 번호만)"""
+        # archived 본문 substring만 박혔지 S# 번호 자체는 없음
+        ac = """**Acceptance Criteria**:
+- [ ] Goal: 규칙 + 자동 차단 + 우회 장치 메커니즘 적용
+"""
+        assert self._check(ac, ["S1"]) == ["S1"]
+
+    def test_s2_not_matched_in_s20(self):
+        """경계 문자 — S2는 S20에 매칭 안 됨 (review 지적 회귀 가드)"""
+        ac = """**Acceptance Criteria**:
+- [ ] Goal: S20만 인용 (다음 wave S20 신설 가정)
+"""
+        assert self._check(ac, ["S2"]) == ["S2"]
+
+    def test_s2_and_s20_both_required(self):
+        """S2·S20 둘 다 인용해야 통과"""
+        ac = """**Acceptance Criteria**:
+- [ ] Goal: S2와 S20 모두 cascade 충족
+"""
+        assert self._check(ac, ["S2", "S20"]) == []
+
+    def test_s2_word_boundary_with_dot(self):
+        """S2. (마침표 뒤) 매칭 — 문장 끝 자연 표기"""
+        ac = """**Acceptance Criteria**:
+- [ ] Goal: 충족 기준 S2.
+"""
+        assert self._check(ac, ["S2"]) == []
+
+
+@pytest.mark.gate
+class TestACCheckboxGate:
+    """AC 체크박스 형식 게이트 (v0.47.4 §S-8 추가).
+
+    자유 텍스트 AC 차단 — 결정적 완료 판정 게이트(docs_ops.py move 빈 체크박스)가
+    작동하려면 AC 섹션에 `- [ ]` 또는 `- [x]` 패턴 필수.
+    """
+    import re as _re
+    CHECKBOX_PAT = _re.compile(r"^\s*[-*]\s*\[[ xX]\]", _re.MULTILINE)
+
+    def test_ac_with_checkbox_passes(self):
+        """`- [ ] Goal: ...` 형식 통과"""
+        body = """**Acceptance Criteria**:
+- [ ] Goal: 작업 완료
+  검증:
+    tests: 없음
+    실측: 운용 검증
+"""
+        assert self.CHECKBOX_PAT.search(body), "정당 AC 체크박스 형식 거부"
+
+    def test_ac_without_checkbox_blocked(self):
+        """체크박스 없는 자유 텍스트 AC 차단 패턴 감지"""
+        body = """**Acceptance Criteria**:
+Goal: 작업 완료
+  검증:
+    tests: 없음
+"""
+        assert not self.CHECKBOX_PAT.search(body), "위반 자유 텍스트 통과"
+
+    def test_ac_checked_box_passes(self):
+        """[x] 완료 체크박스도 통과"""
+        body = """**Acceptance Criteria**:
+- [x] Goal: 완료된 작업
+"""
+        assert self.CHECKBOX_PAT.search(body), "[x] 체크박스 거부"
+
+    def test_ac_asterisk_checkbox_passes(self):
+        """* [ ] 형식도 통과 (markdown 호환)"""
+        body = """**Acceptance Criteria**:
+* [ ] Goal: 작업 완료
+"""
+        assert self.CHECKBOX_PAT.search(body), "* [ ] 형식 거부"
+
+
+@pytest.mark.gate
 class TestCompletedGate:
     def test_block_header(self):
         """T14: ## 후속 헤더 → 차단 감지"""

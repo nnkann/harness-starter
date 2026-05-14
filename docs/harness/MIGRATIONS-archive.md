@@ -43,6 +43,78 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.46.2 — 하네스 v0.41 baseline 회복 + audit 18 해소 단일 wave (2026-05-13)
+
+### 변경 내용
+
+**의도**: v0.43.0 orchestrator MVI 도입 이후 누적된 hook 강제 패턴·자동
+트리거가 행동 붕괴 유발. 사용자 증언 "v0.41쯤이 정상 마지막"을 baseline
+으로 단일 wave 회복. 9b29f23(v0.44.1) 도돌이표 commit revert + audit 18
+중 17건 해소.
+
+**revert 범위 (9b29f23 일괄 환원)**:
+- pre_commit_check.py route 출력 8키(commit_route·review_route·promotion·
+  blocking_reasons·warning_reasons·side_effects.*) 폐기
+- commit/SKILL.md route 소비 코드 베이스라인 환원
+- split-commit.sh 9b29f23 변경 환원 (본 wave가 새 비파괴 default 재구현)
+- Windows smoke 테스트(TestWindowsCommitSmoke) + windows·cascade marker 폐기
+- side effect ledger·cascade integrity check 폐기
+
+**hook 무력화 (Phase 1)**:
+- `.claude/settings.json` PreToolUse `orchestrator.py` hook 제거
+- `.claude/settings.json` UserPromptSubmit `debug-guard.sh` hook 제거
+- Gemini 자동 호출은 orchestrator 내부 호출이라 자동 무력화
+- worker 파일(orchestrator.py·debug-guard.sh·gemini_background_worker.py)
+  보존 — 수동 호출 또는 후속 재설계에 사용
+- bug-interrupt.md "## 강제 트리거" 절을 "## 수동 가이드"로 변경
+
+**정합 패치 (Phase 2~4)**:
+- harness_version_bump.py: patch 트리거 좁힘. `.claude/scripts/*.{sh,py}`
+  1줄 수정 = patch 룰 폐기. skills SKILL.md·rules·agents·CLAUDE.md만 patch
+  자동 (그 외는 promotion=none, 작성자 명시 옵트인만)
+- split-commit.sh: 비파괴 default + `--apply` 옵트인 + `SPLIT_PRE_OUT`
+  env로 pre-check 중복 호출 우회
+- pre_commit_check.py: `git diff --cached --name-only` 중복 호출 제거 +
+  HARNESS.json 중복 read 제거(main 함수 내 1회 캐시)
+- commit_finalize.sh: wip-sync 조건부 실행 (staged에 `docs/(WIP|clusters)/`
+  변경 있을 때만)
+- docs_ops.py wip-sync: abbr 매칭 우선 후보 추출 → 매칭 시 그 WIP만 iter,
+  매칭 0이면 전체 iter fallback
+
+**.gitignore 보강**: `.claude/worktrees/` 차단 (절대 규칙: worktree 금지).
+
+### 적용 방법
+
+**자동**: 다운스트림이 `/harness-upgrade` 실행 시 코드 변경 자동 병합.
+
+**수동 (다운스트림 영향)**:
+- 다운스트림 `.claude/settings.json`의 hook 블록이 v0.43.0~v0.44.0 hook
+  3종(orchestrator·debug-guard·gemini)을 포함하면 3-way merge로 제거 처리.
+  hook 커스터마이즈된 다운스트림은 ours/theirs 결정 필요
+- 다운스트림이 SKILL.md route 출력(`commit_route`·`review_route` 등) 키를
+  소비하는 커스텀 스크립트를 만들었다면 해당 키 사용 코드 제거 또는
+  버전 분기 필요
+
+### 검증
+
+```bash
+python3 -c "import json; s=json.load(open('.claude/settings.json')); print('UserPromptSubmit:', s['hooks'].get('UserPromptSubmit', 'REMOVED'))"
+# 예상 출력: UserPromptSubmit: REMOVED
+python3 .claude/scripts/pre_commit_check.py 2>&1 | grep -E "^(commit_route|review_route|promotion):" | wc -l
+# 예상 출력: 0 (revert 확인)
+```
+
+### 회귀 위험
+
+- upstream 격리 환경(Windows·Git Bash)에서 관찰된 범위 내에서는 v0.41
+  baseline 동작 회복 정합. Linux/macOS 미테스트
+- hook 무력화로 BIT 키워드 grep·orchestrator 신호 안 나옴 — 자가 인지
+  의존 영역으로 환원. 자가 발화 의존 한계는 P8/P9가 박제하는 본질이라
+  hook 강제력으로 우회 불가 (Anthropic Issue #13912 명시)
+- audit #6(Codex 인프라 사본 부담)는 명시적 보류. 사용자 결정 "Codex 유지"
+
+
+
 ## v0.44.0 — Gemini 자동 호출 opt-in과 Codex hook 계약 보강 (2026-05-12)
 
 ### 변경 내용
