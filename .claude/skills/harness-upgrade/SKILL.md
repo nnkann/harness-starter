@@ -560,7 +560,9 @@ print(d.get('starter_skills', ''))
 fi
 ```
 
-사용자 알림:
+사용자 알림 + 처리:
+
+**(A) DELETED — 사용자 [Y/n] 응답** (사용자가 fork·커스텀했을 잠재 가능성):
 
 ```
 📦 upstream에서 제거된 파일 (M개)
@@ -568,16 +570,30 @@ fi
   .claude/scripts/orchestrator.py
   ...
 삭제할까요? [Y/n/건너뛰기]
-
-📦 starter 전용으로 격하된 스킬 (N개)
-  .claude/skills/harness-dev/  (starter_skills 목록 등록 — 다운스트림 미전파 의도)
-삭제할까요? [Y/n/건너뛰기]
 ```
 
-사용자가 건너뛰면 파일을 남긴다 (강제 삭제 안 함).
+사용자가 건너뛰면 파일을 남긴다.
 
-**주의**: starter_skills 격하 감지는 다운스트림(`is_starter: false`)에서만
-의미. starter 본인(`is_starter: true`)은 자기 파일이므로 격하 잔재 검사 skip.
+**(B) 격하 잔재 — 강제 삭제 + 알림만** (starter 소유 자기 파일이므로 보존 가치 0):
+
+```
+🗑️ starter 전용으로 격하된 스킬 자동 삭제 (N개):
+  .claude/skills/harness-dev/  (starter_skills 등록 — 다운스트림 미전파 의도)
+```
+
+```bash
+for d in "${DEMOTED_DIRS[@]}"; do
+  rm -rf "$d"
+  echo "  삭제: $d"
+done
+```
+
+응답 없이 즉시 삭제. 다운스트림이 격하 폴더를 커스텀했을 가능성은 메커니즘
+상 0 — 사용자가 starter_skills 폴더를 의도적으로 보유할 이유 없음 (starter
+전용 도구 격하 = 다운스트림에 무용).
+
+**주의**: (B) 검사는 다운스트림(`is_starter: false`)에서만 실행. starter
+본인(`is_starter: true`)은 자기 파일이므로 검사 skip (코드 분기 박힘).
 
 ### Step 8. settings.json 동기화
 
