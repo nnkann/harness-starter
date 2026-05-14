@@ -1,13 +1,20 @@
-# CPS Cluster
+---
+title: cps 클러스터
+domain: cps
+tags: [cluster, index]
+status: completed
+created: 2026-04-16
+updated: 2026-05-15
+---
 
-CPS case 박제 (`docs/cps/cp_{slug}.md`) 인덱스.
+# cps 클러스터
 
-`docs_ops.py`가 case 추가될 때 자동 갱신.
+도메인 cps(cp) 소속 문서 + tag 간선. docs-ops.py cluster-update 자동 생성.
 
 ## 문서
 
-(case 누적 시 자동 추가)
+- [하네스 73% 삭감 + wiki 그래프 모델 발견](../cps/cp_harness_73pct_cut.md)
 
-## 진행 중 (WIP)
+## tag 분포 (간선)
 
-(`docs/WIP/cp_*.md` 진행 시 자동 추가)
+cps-case (1건) | redesign (1건) | simplify (1건) | tag-policy (1건) | wiki-graph (1건)

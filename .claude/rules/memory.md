@@ -2,132 +2,58 @@
 
 defends: P7
 
-"실수를 코드화"의 세션 간 확장 + 세션 내 동적 snapshot 저장소.
-배경: `docs/decisions/hn_memory.md`.
+세션 간 지속 정보 저장소. 세션 내 동적 snapshot은 별도.
 
-## 두 종류의 memory — 경계 엄수
+## 두 종류
 
-### 실제 Claude memory (Anthropic 관리, 로컬)
+### 실제 Claude memory (`~/.claude/`, Anthropic 관리)
 
-- Claude Code의 auto memory가 자율 관리하는 개인 메모리
-- 저장 대상: **이 사용자·이 Claude 세션 페어에만 의미 있는 것**
-  - 사용자 개인 성향·선호 (예: 근본 해결 선호, 비유 선호)
-  - Claude 자체의 실수 패턴
-- **프로젝트 repo에 저장 X**. 사용자별 `~/.claude/` 경로
+사용자 개인 성향·선호 + Claude 자체 실수 패턴. **프로젝트 repo에 저장 X**.
 
 ### 프로젝트 memory (`.claude/memory/`, git 추적)
 
-- 조건: **다른 사람·다른 Claude 세션이 읽어야 의미 있음**
-- 저장 대상:
-  - 프로젝트 관행·hard-won lessons (예: "eval --deep은 archive도 검사")
-  - 다운스트림이 상속받아야 할 운영 교훈
-- **사용자 개인 성향은 여기에 저장 X** — 실제 Claude memory로
+조건: **다른 사람·다른 Claude 세션이 읽어야 의미 있음**.
+- 프로젝트 관행·hard-won lessons
+- 다운스트림이 상속받아야 할 운영 교훈
+
+**사용자 개인 성향은 여기에 저장 X**.
 
 ## 경로
 
-- 프로젝트 memory 디렉토리: `.claude/memory/`
+- 디렉토리: `.claude/memory/`
 - 인덱스: `.claude/memory/MEMORY.md` (세션 시작 자동 로드)
-- 동적 snapshot: `.claude/memory/session-*.txt` (gitignore, 세션 한정)
-- **반복 신호**: `.claude/memory/signal_*.md` (아래 "신호 파일" 참조)
+- 동적 snapshot: `.claude/memory/session-*.txt` (gitignore)
 
-## 신호 파일 (signal_*.md) — CPS 보조 수단
-
-incidents로 올라가지 않았지만 반복되는 낌새를 보관. CPS의 미약한 전조 신호.
-
-**형식**:
-```yaml
----
-signal: 1줄 설명 (무슨 패턴인가)
-domain: harness
-keywords: [commit, eval]
-strength: weak | medium | strong
-candidate_p: P1
-archived: true   # 선택. incidents 승급 후에도 회상 다리 유지용 (P8 Phase 3)
----
-```
-
-**strength 기준**:
-- `weak` — 1회 관찰, 패턴인지 불명확
-- `medium` — 2~3회 반복, 패턴 의심
-- `strong` — 반복 확인됨, incidents 등록 후보
-
-**lifecycle** (P8 Phase 3 재설계, 2026-05-10):
-1. 같은 신호가 또 나오면 → strength 올리고 사용자에게 의견 제시
-2. 사용자 확인 → incidents 등록 → **signal 파일에 `archived: true` 마커 추가** (삭제 아님)
-3. archived signal은 session-start.py가 약한 톤(`· (archived) ...`)으로 잔존 출력 — 회상 다리 유지
-4. incidents 없이 30일 이상 재발 없으면 → 사용자 판단으로 삭제
-
-**왜 archived 마커인가** (Phase 2 진단 #2): 승급 시 signal 삭제하면
-incident 본문 자동 회상 메커니즘 부재(Phase 2 진단 #1)와 결합해
-회상 다리 자체가 끊김. archived 마커는 출력 빈도는 낮추되 메모리
-검색 표면적은 유지.
-
-**session-start.py 연동**: 세션 시작 시 현재 WIP domain과 매칭되는
-신호만 출력. archived 신호는 별 톤·우선순위 낮춤.
-
-## 저장 대상 (정적 memory)
-
-| 우선순위 | 타입 | 대상 | 예시 |
-|----------|------|------|------|
-| 1 | feedback | 사용자가 수정한 접근법 | "이 프로젝트는 단일 PR로 묶어라" |
-| 2 | project | 프로젝트 맥락·마감 | "4/15까지 인증 완료 필요" |
-| 3 | user | 사용자 역할·전문 분야 | "백엔드 풍부, 프론트 초심자" |
-| 4 | reference | 외부 시스템 포인터 | "버그 트래킹 Linear INGEST" |
-
-## 저장하지 않는 것 (중복 금지)
-
-- 코드에서 읽을 수 있는 것 (구조·패턴·아키텍처)
-- `git log`로 알 수 있는 것 (변경 이력)
-- `CLAUDE.md`·`rules/`에 이미 있는 것
-- 사용자 개인 성향 (→ 실제 Claude memory 경로)
-
-> 이전 규칙 "현재 세션에서만 유효한 임시 정보 → 저장 금지"는 **삭제**.
-> session-* snapshot 여지를 확보하기 위해 (2026-04-20 재설계).
-
-## 동적 snapshot (`session-*.txt`)
-
-commit 스킬이 hook·외부 도구에 전달할 필요가 있을 때만 쓰는 1개 파일.
-commit 내부 경로는 Bash 변수 재사용 (파일 I/O 대기 없음).
+## 동적 snapshot — 3개 파일 (확장 금지)
 
 | 파일 | 내용 | write | read |
 |------|------|-------|------|
-| `session-pre-check.txt` | pre-check stdout (recommended_stage 등) | Step 5 직후 background (`&`) | git hook이 커밋 메시지에 주입할 때 |
-| `session-start-unstaged.txt` | SessionStart 시점 `git diff --name-only` 목록 | SessionStart hook | pre-commit-check이 `prior_session_files` 신호 계산 시 |
-| `session-moved-docs.txt` | `docs_ops.py move`가 완료한 파일 경로 목록 | docs_ops.py move 완료 직후 | pre_commit_check.py completed 봉인 면제 판정 |
+| `session-pre-check.txt` | pre-check stdout | Step 5 직후 background | git hook 커밋 메시지 주입 |
+| `session-start-unstaged.txt` | SessionStart `git diff --name-only` | SessionStart hook | pre_commit_check.py prior_session_files |
+| `session-moved-docs.txt` | `docs_ops.py move` 완료 경로 | move 완료 직후 | pre_commit_check.py 봉인 면제 판정 |
 
-**폐기 (audit #5, 2026-04-22)**:
-- `session-staged-diff.txt`: Bash 변수 `STAGED_DIFF`로 대체
-- `session-tree-hash.txt`: tree-hash 캐싱 자체 폐기 (I/O 대기 무의미)
+**라이프사이클**: commit 성공 → 스킬 끝에서 `rm -f .claude/memory/session-*.txt`.
 
-**확장 금지**: 3개 외 추가 원할 시 `hn_memory.md` 수정 후 재합의.
+## 저장 대상
 
-**라이프사이클**:
-- commit 성공 → 스킬 끝에서 `rm -f .claude/memory/session-*.txt`
-- commit 실패·재시도 → pre-check 재실행이 기본. 파일은 hook용 참조만
+| 우선순위 | 타입 | 예시 |
+|---|---|---|
+| 1 | feedback | 사용자가 수정한 접근법 |
+| 2 | project | 프로젝트 맥락·마감 |
+| 3 | user | 사용자 역할·전문 분야 |
+| 4 | reference | 외부 시스템 포인터 |
 
-## 트리거 3개 (확정)
+## 저장하지 않는 것
 
-| 시점 | 동작 | 구현 위치 |
-|------|------|----------|
-| 세션 시작 | `MEMORY.md` 자동 로드 | Claude Code 기본 동작 |
-| 사용자 "기억해" 명시 | 즉시 저장 | Claude 행동 |
-| 세션 종료 직전 | "저장할 것 있나?" 환기 1줄 | `stop-guard.sh` |
+- 코드에서 읽을 수 있는 것 (구조·패턴·아키텍처)
+- `git log`로 알 수 있는 것
+- `CLAUDE.md`·`rules/`에 이미 있는 것
+- 사용자 개인 성향 (→ 실제 Claude memory)
 
-**자동 저장 강제 안 함**. 환기만. `/clear` 전에 사용자가 눈으로 판단.
+## 트리거
 
-## 행동 규칙
+- 세션 시작: `MEMORY.md` 자동 로드
+- 사용자 "기억해" 명시: 즉시 저장
+- 세션 종료 직전: `stop-guard.sh`가 1줄 환기
 
-- 사용자가 접근법을 수정 → feedback memory 저장 검토
-- "기억해" 요청 → 즉시 저장
-- 참조 시 → 현재 상태와 대조 후 사용 (오래된 memory 주의)
-- memory와 현재 코드 충돌 → 현재 코드 신뢰, memory 업데이트
-
-## 지속성 매트릭스
-
-| 지속성 | 도구 | 용도 |
-|--------|------|------|
-| 세션 내 (짧음) | `.claude/memory/session-*` | staged diff·pre-check 캐시 |
-| 세션 내 (작업) | `docs/WIP/` + TODO | 현재 작업 |
-| 세션 간 (코드화 가능) | `rules/`, `CLAUDE.md` | 규칙 강제 |
-| 세션 간 (코드화 불가) | `.claude/memory/*.md` | 관행·피드백·맥락 |
-| 영구 | `git history` | 변경 이력 |
+memory와 현재 코드 충돌 시 현재 코드 신뢰, memory 업데이트.

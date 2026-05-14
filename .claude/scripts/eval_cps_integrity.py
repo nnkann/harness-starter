@@ -34,9 +34,33 @@ _pcc = importlib.util.module_from_spec(_spec)  # type: ignore[arg-type]
 _spec.loader.exec_module(_pcc)                  # type: ignore[union-attr]
 
 parse_frontmatter   = _pcc.parse_frontmatter
-get_cps_text        = _pcc.get_cps_text
-verify_solution_ref = _pcc.verify_solution_ref
 CPS_DOC             = _pcc.CPS_DOC
+
+
+def get_cps_text() -> str:
+    """CPS 본문 Read. pre_commit_check.py 폐기 함수 인라인 (§S-1 후속)."""
+    try:
+        return Path(CPS_DOC).read_text(encoding="utf-8")
+    except Exception:
+        return ""
+
+
+def verify_solution_ref(sol_refs, cps_text: str) -> list[str]:
+    """Solution 인용 검사 — §S-1 73% 삭감으로 50자 박제 검사 폐기.
+    번호만 검사하던 게 본질. 본 함수는 형식 검사만 수행 (호환).
+    """
+    warnings: list[str] = []
+    if not isinstance(sol_refs, list):
+        sol_refs = [sol_refs]
+    for entry in sol_refs:
+        if not isinstance(entry, str):
+            continue
+        entry = entry.strip()
+        if not entry:
+            continue
+        if not re.match(r"^S\d+", entry):
+            warnings.append(f"solution-ref 형식 위반: '{entry}' (S# 번호 시작 필요)")
+    return warnings
 
 
 def extract_cps_solution_ids(cps_text: str) -> list[str]:
@@ -158,113 +182,6 @@ def scan_doc(path: Path, cps_text: str, problem_refs: dict) -> list[str]:
     return [f"{path}: {w}" for w in warnings]
 
 
-def check_harness_map(claude_root: Path) -> list[str]:
-    """HARNESS_MAP.md 존재 여부 + 실제 파일 대조 (관계 그래프 단절 감지).
-
-    HARNESS_MAP.md의 각 섹션에서 등재된 파일명을 추출하고,
-    실제 .claude/ 하위 파일과 대조해 누락·초과를 보고한다.
-
-    Returns: warning 문자열 목록
-    """
-    warnings: list[str] = []
-    map_path = claude_root / "HARNESS_MAP.md"
-
-    if not map_path.exists():
-        warnings.append("⚠ HARNESS_MAP.md 미생성 — .claude/HARNESS_MAP.md 없음")
-        return warnings
-
-    try:
-        map_text = map_path.read_text(encoding="utf-8")
-    except Exception as e:
-        warnings.append(f"⚠ HARNESS_MAP.md Read 실패: {e}")
-        return warnings
-
-    # ── 1. Rules 섹션 대조 ──────────────────────────────────────────────
-    # MAP에서 "rules/xxx.md" 패턴 추출
-    map_rules = set(re.findall(r"rules/(\w[\w-]*\.md)", map_text))
-    actual_rules = {p.name for p in (claude_root / "rules").glob("*.md")} if (claude_root / "rules").is_dir() else set()
-    for r in sorted(actual_rules - map_rules):
-        warnings.append(f"⚠ [Rules] 실제 파일이 HARNESS_MAP에 없음: rules/{r}")
-    for r in sorted(map_rules - actual_rules):
-        warnings.append(f"⚠ [Rules] MAP 등재됐으나 파일 없음: rules/{r}")
-
-    # ── 2. Skills 섹션 대조 ─────────────────────────────────────────────
-    # MAP에서 "skills/xxx/SKILL.md" 패턴 추출 → 스킬명 추출
-    map_skills = set(re.findall(r"skills/(\w[\w-]*)/SKILL\.md", map_text))
-    actual_skills = {p.name for p in (claude_root / "skills").iterdir() if p.is_dir()} if (claude_root / "skills").is_dir() else set()
-    for s in sorted(actual_skills - map_skills):
-        warnings.append(f"⚠ [Skills] 실제 스킬이 HARNESS_MAP에 없음: skills/{s}/")
-    for s in sorted(map_skills - actual_skills):
-        warnings.append(f"⚠ [Skills] MAP 등재됐으나 폴더 없음: skills/{s}/")
-
-    # ── 3. Agents 섹션 대조 ─────────────────────────────────────────────
-    # MAP에서 "agents/xxx.md" 패턴 추출
-    map_agents = set(re.findall(r"agents/(\w[\w-]*\.md)", map_text))
-    actual_agents = {p.name for p in (claude_root / "agents").glob("*.md")} if (claude_root / "agents").is_dir() else set()
-    for a in sorted(actual_agents - map_agents):
-        warnings.append(f"⚠ [Agents] 실제 파일이 HARNESS_MAP에 없음: agents/{a}")
-    for a in sorted(map_agents - actual_agents):
-        warnings.append(f"⚠ [Agents] MAP 등재됐으나 파일 없음: agents/{a}")
-
-    # ── 4. Scripts 섹션 대조 ────────────────────────────────────────────
-    # MAP에서 scripts 테이블의 파일명 추출 (| 파일명 | 패턴)
-    map_scripts: set[str] = set()
-    for m in re.finditer(r"\|\s*([\w.-]+\.(?:py|sh))\s*\|", map_text):
-        name = m.group(1)
-        # 헤더 행 제외
-        if name not in ("스크립트", "Scripts"):
-            map_scripts.add(name)
-    scripts_dir = claude_root / "scripts"
-    actual_scripts: set[str] = set()
-    if scripts_dir.is_dir():
-        for p in scripts_dir.iterdir():
-            if p.is_file() and p.suffix in (".py", ".sh") and not p.parent.name == "tests":
-                actual_scripts.add(p.name)
-    # tests/ 하위는 MAP 대조 제외
-    for s in sorted(actual_scripts - map_scripts):
-        warnings.append(f"⚠ [Scripts] 실제 파일이 HARNESS_MAP에 없음: scripts/{s}")
-    for s in sorted(map_scripts - actual_scripts):
-        warnings.append(f"⚠ [Scripts] MAP 등재됐으나 파일 없음: scripts/{s}")
-
-    # ── 5. enforced-by 없는 규칙 감지 ──────────────────────────────────
-    # HARNESS_MAP.md Rules 테이블 구조:
-    #   Layer 0/2/3: | 규칙 | 역할 | defends | enforced-by | 원본 |
-    #   Layer 1:     | 규칙 | 역할 | defends | parent | children | enforced-by | 원본 |
-    # enforced-by는 마지막에서 두 번째 컬럼 → 뒤에 "원본" 컬럼이 반드시 존재.
-    # "—" 또는 "-"만 감지 (빈 문자열 제외 → always-match 오탐 방지).
-    enforced_empty_pat = re.compile(
-        r"^\|\s*([\w-]+)\s*\|(?:[^|\n]*\|)+\s*(?:—|-)\s*\|[^|\n]+\|\s*$",
-        re.MULTILINE,
-    )
-    # Rules 섹션만 추출해서 검사 (## Rules ~ ## Skills 사이)
-    rules_section_m = re.search(r"## Rules.*?(?=## Skills|## Agents|$)", map_text, re.DOTALL)
-    if rules_section_m:
-        rules_section = rules_section_m.group(0)
-        for m in enforced_empty_pat.finditer(rules_section):
-            rule_name = m.group(1).strip()
-            # 헤더·구분자·원본경로 행 제외
-            if rule_name not in ("규칙", "---", "") and not rule_name.startswith("rules/"):
-                warnings.append(f"⚠ [enforced-by 없음] {rule_name} — P7 방어 공백 가능성")
-
-    # ── 6. defends-by 없는 Problem 감지 ────────────────────────────────
-    # CPS 섹션의 defends-by 컬럼이 "(규칙 없음"·"(조사 중" 이외의 빈 값
-    cps_section_m = re.search(r"## CPS.*?(?=## Rules|$)", map_text, re.DOTALL)
-    if cps_section_m:
-        cps_section = cps_section_m.group(0)
-        # | P# | ... | defends-by 값 | ... | 형태
-        # 빈 문자열 대안 제거 → 명시적 "—" 또는 "-"만 감지 (always-match 방지)
-        # 괄호 값 "(규칙 없음...)"·"(조사 중...)"은 의도적 선언 → 별도 처리
-        no_rule_pat = re.compile(r"^\|\s*(P\d+)\s*\|[^|]+\|\s*([^|]*?)\s*\|", re.MULTILINE)
-        for m in no_rule_pat.finditer(cps_section):
-            pid = m.group(1)
-            defends_by = m.group(2).strip()
-            # "—" 또는 "-"만 미선언으로 판정
-            # "(규칙 없음...)"·"(조사 중...)" 등 괄호 시작은 의도적 선언 — 제외
-            if defends_by in ("—", "-") and pid:
-                warnings.append(f"⚠ [defends-by 없음] {pid} — 방어 규칙 미선언")
-
-    return warnings
-
 
 def main() -> int:
     cps_text = get_cps_text()
@@ -298,21 +215,8 @@ def main() -> int:
 
     solution_counts = count_solution_refs(docs_root)
 
-    # BIT NEW 플래그 미처리 집계
-    # docs/WIP/ + docs/decisions/ 파일에서 "P#: NEW" 패턴 grep
-    new_flag_pat = re.compile(r"P#:\s*NEW\b")
-    new_flag_items: list[str] = []
-    for search_dir in [docs_root / "WIP", docs_root / "decisions"]:
-        if not search_dir.is_dir():
-            continue
-        for md in sorted(search_dir.glob("*.md")):
-            try:
-                text = md.read_text(encoding="utf-8")
-            except Exception:
-                continue
-            for line in text.splitlines():
-                if new_flag_pat.search(line):
-                    new_flag_items.append(f"  - {md.name}: {line.strip()}")
+    # BIT NEW 플래그 폐기 (§S-3 73% 삭감). BIT 자가 발화 의존 메커니즘
+    # 전체 폐기 — 본 집계도 함께 폐기.
 
     print(f"## CPS 무결성 감시")
     print(f"")
@@ -322,13 +226,6 @@ def main() -> int:
         print(f"  ⚠ Problem 인플레이션 의심 — {problem_count} > {inflation_threshold} (동적 임계값). "
               f"근접 Problem 병합 검토 권고")
     print(f"- 박제 의심: {len(all_warnings)}건")
-    if new_flag_items:
-        print(f"- NEW 플래그 미처리: {len(new_flag_items)}건 ⚠")
-        for item in new_flag_items:
-            print(item)
-        print(f"  → implementation Step 0에서 CPS P# 매칭 필요")
-    else:
-        print(f"- NEW 플래그 미처리: 0건 ✅")
 
     if all_warnings:
         print(f"")
@@ -352,17 +249,8 @@ def main() -> int:
             print(f"⚠ 인용 0건 Problem (정체 의심): {', '.join(unreferenced)}")
             print(f"  6개월 이상 인용 0이면 Problem 폐기 또는 병합 검토 권고")
 
-    # 관계 그래프 점검 — HARNESS_MAP.md vs 실제 파일 단절 감지
-    claude_root = Path(".claude")
-    map_warnings = check_harness_map(claude_root)
-    print(f"")
-    print(f"## 관계 그래프 점검")
-    if map_warnings:
-        print(f"- 단절 감지: {len(map_warnings)}건 ⚠")
-        for w in map_warnings:
-            print(f"  {w}")
-    else:
-        print(f"- 단절 감지: 0건 ✅ (HARNESS_MAP.md와 실제 파일 정합)")
+    # 관계 그래프 점검 — HARNESS_MAP.md 폐기 (§S-1 CPS 재설계).
+    # wiki 그래프 모델로 대체 (cluster + tag 백링크). 본 점검 폐기.
 
     # Solution 충족 인용 분포
     if solution_ids:

@@ -634,11 +634,20 @@ def main() -> int:
             r"^status:.*(?:completed|abandoned)|^> status:.*(?:completed|abandoned)",
             re.MULTILINE,
         )
+        # 코드블록 면제 — ```·~~~로 감싼 영역 stripping (docs.md "코드블록 안 면제" 정합)
+        fence_pat = re.compile(r"```.*?```|~~~.*?~~~", re.DOTALL)
         stale_files = []
         for f in Path("docs/WIP").glob("*.md"):
             try:
-                if stale_pat.search(f.read_text(encoding="utf-8", errors="ignore")):
-                    stale_files.append(f.name)
+                text = f.read_text(encoding="utf-8", errors="ignore")
+                # frontmatter는 첫 --- 블록만 검사 (본문 코드블록 면제)
+                lines = text.splitlines()
+                if lines and lines[0].strip() == "---":
+                    end = next((i for i, ln in enumerate(lines[1:], 1) if ln.strip() == "---"), -1)
+                    if end > 0:
+                        fm_text = "\n".join(lines[1:end])
+                        if stale_pat.search(fm_text):
+                            stale_files.append(f.name)
             except Exception:
                 pass
         if stale_files:
@@ -758,19 +767,33 @@ def main() -> int:
         fm, body_start = parse_frontmatter(text)
         body = "\n".join(text.splitlines()[body_start:])
 
-        # frontmatter problem 검증 (단일 P# 또는 list)
-        prob = fm.get("problem", "")
-        if isinstance(prob, list):
-            prob = prob[0] if prob else ""
-        if not prob:
-            err(f"❌ {wip}: frontmatter `problem` 누락. CPS Problem ID (P#) 명시 필수.")
+        # frontmatter problem 검증 (단일 P# 또는 list — inline yaml 포함)
+        prob_raw = fm.get("problem", "")
+        prob_ids: list[str] = []
+        if isinstance(prob_raw, list):
+            for entry in prob_raw:
+                if not isinstance(entry, str):
+                    continue
+                m = re.match(r"^(P\d+)", entry.strip())
+                if m:
+                    prob_ids.append(m.group(1))
+        elif isinstance(prob_raw, str):
+            s = prob_raw.strip()
+            if s.startswith("[") and s.endswith("]"):
+                # inline list "[P2, P5, ...]"
+                for entry in s.strip("[]").split(","):
+                    m = re.match(r"^(P\d+)", entry.strip().strip("'\""))
+                    if m:
+                        prob_ids.append(m.group(1))
+            else:
+                m = re.match(r"^(P\d+)$", s)
+                if m:
+                    prob_ids.append(m.group(1))
+        if not prob_ids:
+            err(f"❌ {wip}: frontmatter `problem` 누락 또는 형식 위반 ('{prob_raw}'). 'P1' 또는 '[P1, P2]' 형식.")
             ERRORS += 1
             continue
-        if not re.match(r"^P\d+$", prob.strip()):
-            err(f"❌ {wip}: frontmatter `problem` 형식 위반 ('{prob}'). 'P1'·'P2' 형식.")
-            ERRORS += 1
-            continue
-        wip_problem = prob.strip()
+        wip_problem = prob_ids[0]  # 호환 — 단일 P# 출력 (다중은 첫 번째)
 
         # frontmatter s 검증 (Solution 번호 list — 50자 인용 박제 검사 폐기, 2026-05-14)
         # 신규 형식: s: [S2, S6]  (인라인 list) 또는 multi-line list
@@ -791,6 +814,25 @@ def main() -> int:
             ERRORS += 1
             continue
         wip_solution_ref = "; ".join(sol_ids)
+
+        # frontmatter tags 정규식 검사 (§S-7 wiki 간선)
+        # SSOT: .claude/rules/naming.md "tag 정책 — wiki 간선 정규식"
+        # 영문 소문자 + 숫자 + 하이픈만, 시작·끝 영숫자. 한글 금지.
+        tags_raw = fm.get("tags") or []
+        if isinstance(tags_raw, str):
+            tags_raw = tags_raw.strip("[]")
+            tags_raw = [x.strip().strip("'\"") for x in tags_raw.split(",") if x.strip()]
+        TAG_RE = re.compile(r"^[a-z0-9][a-z0-9-]*[a-z0-9]$")
+        for tag in tags_raw:
+            if not isinstance(tag, str):
+                continue
+            t = tag.strip()
+            if not t:
+                continue
+            if not TAG_RE.match(t):
+                suggest = re.sub(r"[^a-z0-9-]", "-", t.lower()).strip("-")
+                err(f"❌ {wip}: frontmatter tag '{tag}' 형식 위반. → '{suggest}' (영문 소문자+숫자+하이픈, naming.md tag 정책)")
+                ERRORS += 1
 
         # AC Goal·검증 묶음 추출
         ac = parse_ac_block(body)
@@ -858,12 +900,10 @@ def main() -> int:
                     if len(parts_g) >= 3:
                         chars.add(f"char:{parts_g[2]}")
 
-            # split 옵트인 (2026-05-14 §S-2 정정):
-            #   1. char 다양성 >= 2
-            #   2. HARNESS_SPLIT_OPT_IN=1 (명시) OR 거대 커밋 (files>30 OR +>1500 OR ->1500)
-            # stage 의존 조건 제거 (skip stage 폐기).
-            is_huge = total_files > 30 or added_lines > 1500 or deleted_lines > 1500
-            if len(chars) >= 2 and (HARNESS_SPLIT_OPT_IN or is_huge):
+            # split 발동 폐기 (2026-05-14 §C4 73% 삭감):
+            # 자동 거대 커밋 split 폐기. 사용자 명시 옵트인만 유효.
+            # 거대 커밋은 경고만 (아래 "거대 변경 경고" 섹션).
+            if len(chars) >= 2 and HARNESS_SPLIT_OPT_IN:
                 split_action = "split"
             else:
                 split_action = "single"

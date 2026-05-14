@@ -33,7 +33,7 @@
 - 커밋은 반드시 `/commit` 스킬 경유. WIP 없어도 `--no-review` 플래그 사용. `commit_finalize.sh` 직접 호출 금지.
 - worktree 생성 금지. Agent 호출 시 `isolation: "worktree"` 사용 금지.
 - Bash는 복합 파이프라인·git·스크립트 실행만. 단일 조회는 Glob·Read·Grep. (LSP 가능하면 LSP 우선)
-- 미루기 회피 사유 ("측정 후·다음 세션·데이터 누적 필요" 등) 단독 사용 금지 — `.claude/rules/anti-defer.md` SSOT
+- 미루기 회피 사유 ("측정 후·다음 세션·데이터 누적 필요" 등) 단독 사용 금지 — 사용자 명시 승인 시만 허용
 - completed 문서 본문 무단 변경 금지 — `docs_ops.py reopen`으로 in-progress 전환 후 수정. pre-check이 차단
 - docs/WIP/ 파일 Write 직접 생성 금지 — `/write-doc` 또는 `/implementation` 스킬 발화 후에만. 스킬 없이 Write 도구로 WIP 파일 생성 시 즉각 삭제 후 스킬 재진입
 
@@ -54,8 +54,7 @@ wave별 case는 `docs/cps/cp_{slug}.md`로 박제. git history가 박제 SSOT.
 | 에러·예상 밖 동작 (1회 시도로 원인 불명, 또는 동일 수정 2회 이상 반복) | `/debug-specialist` 에이전트 즉시 |
 | 내부 자료 조사 | `doc-finder` 에이전트 |
 | 외부 자료 조사 | `researcher` 에이전트 |
-| 하네스 문서 품질 점검 (모호성·모순·CPS 무결성) | `/eval --harness` |
-| 레거시 문서 정비 (abbr·CPS frontmatter 누락) | `/doc-health` 스킬 |
+| 하네스 문서 품질 점검 (모호성·모순·CPS 무결성) + 레거시 정비 안내 | `/eval --harness` (doc-health 흡수) |
 
 
 <important if="코드를 작성·수정·리팩토링하려 할 때">

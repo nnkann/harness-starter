@@ -636,22 +636,6 @@ bash .claude/scripts/docs_ops.py cluster-update     # clusters/ 자동 재생성
 문제가 발견되면 사용자에게 보고하고 수정을 제안한다.
 문제가 없으면 "docs/ 정합성 확인 완료"로 넘어간다.
 
-### Step 9.3. HARNESS_MAP.md 전파 확인
-
-업그레이드 후 `.claude/HARNESS_MAP.md`가 다운스트림에 존재하는지 확인한다.
-
-```bash
-if [ ! -f ".claude/HARNESS_MAP.md" ]; then
-  echo "⚠ HARNESS_MAP.md 없음 — 하네스 신경망 허브 미전파"
-  echo "  Step 6(신규 파일 추가)에서 자동 추가됐어야 함. 수동 추가 권장:"
-  echo "  upstream의 .claude/HARNESS_MAP.md를 복사"
-else
-  echo "✅ HARNESS_MAP.md 존재"
-fi
-```
-
-없으면 사용자에게 알리고 수동 복사를 안내한다. Step 6에서 신규 파일로 감지됐다면 이미 추가됐을 것.
-
 ### Step 9.5. 마이그레이션 액션 표시
 
 업스트림의 `docs/harness/MIGRATIONS.md`를 읽어 **수동 적용** 항목을
@@ -709,7 +693,7 @@ UPSTREAM_REF=$(git rev-parse "$UPSTREAM_REMOTE/main")
 # starter 영역 한정. apps/web 등 다운스트림 코드는 검증 대상 아님
 DRIFT_FILES=$(git diff --name-only "$UPSTREAM_REF" HEAD -- \
   .claude/skills .claude/scripts .claude/rules .claude/agents \
-  .claude/HARNESS_MAP.md .claude/HARNESS.json \
+  .claude/HARNESS.json \
   docs/harness/MIGRATIONS.md)
 ```
 
@@ -730,7 +714,7 @@ DRIFT_FILES=$(git diff --name-only "$UPSTREAM_REF" HEAD -- \
    - `.claude/skills/*` — starter_skills는 별 카테고리에서 처리. 그 외 스킬은
      starter 소유 (다운스트림은 자기 스킬 만들어 별도 폴더)
    - `.claude/scripts/*` — starter 소유 스크립트
-   - `.claude/HARNESS_MAP.md`, `.claude/HARNESS.json` — starter 메타
+   - `.claude/HARNESS.json` — starter 메타
    - 위 영역의 차이는 진짜 미적용으로 간주 (UNAPPLIED 분류)
 2. **starter_skills (제외)** — `.claude/skills/<starter_skill>/` 경로
    (`STARTER_SKILLS` 변수 — Step 6.0 정의 재사용). 다운스트림 미전파 의도
@@ -785,7 +769,7 @@ upstream 정합성 미도달: M개  ⚠
 ```
 ⚠ upstream 정합성 미도달 (M개):
   .claude/skills/eval/SKILL.md
-  .claude/HARNESS_MAP.md
+  .claude/HARNESS.json
   .claude/rules/memory.md
   ...
 
@@ -916,7 +900,7 @@ Step 9.5로 돌아가 처리하거나, 나중에 처리하려면 docs/WIP/harnes
    ```
    ⚠ upstream 정합성 미도달 — M개 파일이 starter 소유 영역인데 upstream과 다름:
      .claude/skills/eval/SKILL.md
-     .claude/HARNESS_MAP.md
+     .claude/HARNESS.json
      ...
    다음 upgrade 전에 Step 9.6 sanity check 재실행 권장.
    migration-log.md `### 이상 소견` 섹션에 위 목록 자동 append됨.

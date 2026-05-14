@@ -6,9 +6,9 @@ hook session-start.py와 일관성). 4개 동작 절 1:1 포팅:
 
 1. 미커밋 변경 카운트 (git status --porcelain)
 2. in-progress WIP 카운트 (frontmatter 파싱)
-3. 조건 A·B·C AND 발화 — git 수정 + WIP in-progress + (빈 체크박스 OR
-   BIT 블록 부재). hit 시 stderr 1줄 + .claude/memory/stop_hook_audit.log
-   append (P8 Phase 3 SSOT)
+3. 조건 A·B·C AND 발화 — git 수정 + WIP in-progress + 빈 체크박스 존재.
+   hit 시 stderr 1줄 + .claude/memory/stop_hook_audit.log append.
+   (§S-3 73% 삭감: BIT 블록 검사 폐기 — 자가 발화 의존)
 4. memory 환기 + .compact_count 정리
 
 session-start.py `parse_wip_file()` 패턴 답습 (frontmatter 파싱 일관성).
@@ -104,14 +104,12 @@ def section_abc_check(uncommitted: int) -> None:
             text = f.read_text(encoding="utf-8", errors="replace")
         except Exception:
             continue
-        # 빈 체크박스 카운트
+        # 빈 체크박스 카운트 (BIT 블록 검사는 §S-3에서 폐기)
         empty_box = sum(
             1 for line in text.splitlines()
             if re.match(r"^\s*-\s*\[\s\]", line)
         )
-        # BIT 블록 존재 여부
-        has_bit = bool(re.search(r"^\[BIT 판단\]", text, re.MULTILINE))
-        if empty_box > 0 or not has_bit:
+        if empty_box > 0:
             risk_files.append(str(f).replace("\\", "/"))
 
     if risk_files:

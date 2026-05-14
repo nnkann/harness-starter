@@ -46,13 +46,14 @@ defends: P7
 확정: harness, meta, cps
 후보:
 
-## 도메인 등급 (review staging)
+## 도메인 등급 (review 분기)
 
-`/commit` 시 review 강도 자동 결정용. `.claude/rules/staging.md` 참조.
+`/commit --review`/`--no-review` 분기 시 review 강도·옵트인 결정용.
+domain의 노드 무게 속성.
 
-- **critical** (변경 시 무조건 deep): harness
-- **normal** (크기 기준 분기): (없음)
-- **meta** (skip 검토): meta, cps
+- **critical** (변경 시 review 권장): harness
+- **normal** (사용자 명시 시 review): (없음)
+- **meta** (review 면제): meta, cps
 
 다운스트림 프로젝트는 자기 도메인을 추가:
 ```
@@ -61,7 +62,8 @@ defends: P7
 - meta:     docs, changelog
 ```
 
-이 섹션이 비어 있으면 staging.md의 S9 신호 무시 (S7 일반 코드로 폴백).
+이 섹션이 비어 있으면 review 분기는 작성자 플래그(`--review`/`--no-review`)에
+전적으로 의존.
 
 ## 도메인 약어 (abbr) — SSOT
 
@@ -245,6 +247,50 @@ Milestone로 쓰든 Sprint로 쓰든 **의미 해석은 다운스트림 소관**
 다운스트림이 자기 문법을 정의하려면 이 파일 하단에 `### 파일명 — 확장
 (프로젝트 고유)` 하위 섹션을 추가. `harness-upgrade`는 업스트림 소유
 섹션만 덮어쓰므로 충돌 없음.
+
+## tag 정책 — wiki 간선 정규식
+
+`tags:` frontmatter는 cluster 간선(edge). 검색·anchor·grep 호환성과
+다운스트림 cascade를 위해 **pre-check 결정적 차단** 적용.
+
+### 정규식
+
+```
+^[a-z0-9][a-z0-9-]*[a-z0-9]$
+```
+
+- 영문 소문자 + 숫자 + 하이픈만
+- 시작·끝은 영숫자 (하이픈 시작·끝 금지)
+- **한글 금지** — grep·anchor 인코딩 깨짐, 다운스트림 영어 프로젝트 정합,
+  변형 분산 위험 (`하네스 업그레이드`·`하네스-업그레이드`·`하네스_업그레이드`…)
+
+### 예
+
+```
+✅ harness-upgrade / commit / review / hook-fragility / cps-cascade
+❌ Harness_Upgrade  (대문자·언더바)
+❌ -review          (하이픈 시작)
+❌ review-          (하이픈 끝)
+❌ 하네스-업그레이드   (한글)
+❌ harness_upgrade  (언더바)
+```
+
+### pre-check 동작
+
+`pre_commit_check.py`가 staged 문서 frontmatter `tags` 검사 → 위반 시 commit
+차단. 위반 tag명 + 권장 형식 제안 출력 (예: `Harness_Upgrade` →
+`harness-upgrade`).
+
+### 한글 사용 경로
+
+- `title:`·본문은 한글 자유 (제약 0)
+- `tags:`만 영문 강제 — 검색·자동화 표준 + 다운스트림 정합
+- 예: `title: 하네스 업그레이드 회고` + `tags: [harness-upgrade]`
+
+### 자유 추가 + 사전 등록 없음
+
+tag는 자유 추가 OK. 사전 등록제 아님. pre-check 차단은 형식만 검사 — 의미는
+자유. cluster 본문에 빈도순 자동 노출되므로 변형 분산은 노이즈로 자연 필터링.
 
 ## 클래스/함수/메소드
 

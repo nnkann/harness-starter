@@ -97,26 +97,10 @@ def section_wip() -> None:
 
     print()
     print("📋 진행 중인 작업:")
-    bit_entries: list[str] = []
-    has_any_new = False
 
     for f in md_files:
-        status, title, bit_count, has_new = parse_wip_file(f)
+        status, title, _bit_count, _has_new = parse_wip_file(f)
         print(f"  - [{status}] {title} ({f.name})")
-        if bit_count > 0:
-            suffix = " ⚠️ NEW P# 포함" if has_new else ""
-            bit_entries.append(f"  {f.name}: {bit_count}건{suffix}")
-            if has_new:
-                has_any_new = True
-
-    if bit_entries:
-        print()
-        print("🐛 발견된 스코프 외 이슈 (bug-interrupt.md Q3 기록):")
-        for entry in bit_entries:
-            print(entry)
-        if has_any_new:
-            print()
-            print("  ⚠️  CPS 신규 P# 검토 필요 — implementation Step 0에서 project_kickoff.md 갱신")
 
 
 def section_memory() -> None:
@@ -299,9 +283,8 @@ def section_incidents() -> None:
 
 
 def section_harness_map() -> None:
-    if not Path(".claude/HARNESS_MAP.md").exists():
-        print("\n⚠️  HARNESS_MAP.md 없음 — 하네스 신경망 허브 미생성")
-        print("   `/eval --harness` 실행 후 HARNESS_MAP.md 확인 권장")
+    # HARNESS_MAP.md 폐기 (§S-1 CPS 재설계). 본 함수 no-op 유지 (호출자 호환).
+    return
 
 
 def section_repeated_files(in_git: bool) -> None:

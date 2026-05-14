@@ -139,7 +139,7 @@ AC 없으면 이 검증 스킵 → 2·3번으로.
 - frontmatter `updated:`·`status:` 필드만 변경
 - rename·delete (이동·archive)
 
-**관련:** `.claude/rules/anti-defer.md`·`.claude/scripts/pre_commit_check.py` 3.5번 게이트
+**관련:** `.claude/scripts/pre_commit_check.py` 3.5번 게이트
 
 ### 8. SSOT 문서 미완독 감지
 
@@ -152,8 +152,8 @@ AC 없으면 이 검증 스킵 → 2·3번으로.
 
 **예외:** 단순 오타 1줄 수정, frontmatter 필드만 변경
 
-**역추적 진입점:** 문제 원인이 불명확할 때 `.claude/HARNESS_MAP.md`를 먼저 참조한다.
-CPS 섹션 → Problem 찾기 → defends-by 컬럼 → 해당 규칙 전체 Read → enforced-by → 도구 확인
+**역추적 진입점:** 문제 원인이 불명확할 때 cluster + tag 백링크로 관련 결정·incident 탐색.
+`docs/clusters/{domain}.md` Read → tag별 백링크 → 관련 문서 본문 → 규칙·도구 확인
 
 ### 9. Hooks 매처 argument-constraint 패턴 감지 (P4 방어)
 

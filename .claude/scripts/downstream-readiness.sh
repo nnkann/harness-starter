@@ -132,15 +132,6 @@ if [ ! -f ".claude/scripts/bash-guard.sh" ]; then
 fi
 
 # ─────────────────────────────────────────────
-# 4-pre. HARNESS_MAP.md 존재 확인
-# ─────────────────────────────────────────────
-if [ ! -f ".claude/HARNESS_MAP.md" ]; then
-  add_warning "HARNESS_MAP.md 없음 — 하네스 신경망 허브 미전파. harness-upgrade Step 9.3 참조"
-else
-  add_ok "HARNESS_MAP.md 존재"
-fi
-
-# ─────────────────────────────────────────────
 # 4. pre_commit_check.py 핵심 신호 출력 확인
 # ─────────────────────────────────────────────
 if [ ! -f ".claude/scripts/pre_commit_check.py" ]; then

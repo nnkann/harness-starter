@@ -30,13 +30,12 @@ serves: S5
 https://www.anthropic.com/engineering/multi-agent-research-system)). 당신은
 lead, specialist는 sub. 강한 모델은 종합·판단 단계에 배치.
 
-업계 권위자 원칙 (`.claude/rules/external-experts.md`):
-- **Larson**: "확신보다 투명성". 트레이드오프 열거가 핵심.
-- **Nygard**: "결정 자체보다 당시 맥락이 빠르게 소실된다." → 판단 경로 필수
-  기록.
-- **Fowler**: "superseded는 수정 말고 새 ADR로 연결." → 뒤집힐 조건 명시.
-- **Majors**: "추측이 아니라 운영 데이터로." → 사각지대·근거 강도 투명화.
-- **Fournier**: "좋은 프로세스는 지루해야 한다." → 6단계 일관 흐름.
+핵심 원칙:
+- **확신보다 투명성** — 트레이드오프 열거가 핵심
+- **결정 자체보다 맥락 보존** — 판단 경로 필수 기록
+- **superseded 처리** — 기존 결정 수정 말고 새 ADR로 연결
+- **운영 데이터 우선** — 추측 아니라 사각지대·근거 강도 투명화
+- **지루한 프로세스** — 6단계 일관 흐름 유지
 
 ## 사용 가능한 Specialist 풀
 

@@ -149,6 +149,38 @@ def _extract_body_skip_result(text: str) -> str:
 BLOCK_HEADER = re.compile(r"^\s*##\s*(후속|미결|미결정|추후|나중에|별도로)", re.MULTILINE)
 
 
+@pytest.mark.tag
+class TestTagRegex:
+    """§S-7 wiki 간선 — frontmatter tags 정규식 차단 (naming.md SSOT).
+
+    정규식: ^[a-z0-9][a-z0-9-]*[a-z0-9]$
+    영문 소문자 + 숫자 + 하이픈만. 시작·끝 영숫자. 한글 금지.
+    """
+    import re as _re
+    TAG_RE = _re.compile(r"^[a-z0-9][a-z0-9-]*[a-z0-9]$")
+
+    @pytest.mark.parametrize("tag", [
+        "harness-upgrade", "commit", "review", "hook", "cps-cascade",
+        "p1", "p9", "wip-sync", "tag-policy",
+    ])
+    def test_valid_tags_pass(self, tag):
+        assert self.TAG_RE.match(tag), f"정당 tag 거부: {tag}"
+
+    @pytest.mark.parametrize("tag", [
+        "Harness_Upgrade",       # 대문자·언더바
+        "Harness-Upgrade",       # 대문자
+        "harness_upgrade",       # 언더바
+        "-review",               # 하이픈 시작
+        "review-",               # 하이픈 끝
+        "하네스-업그레이드",       # 한글
+        "tag with space",        # 공백
+        "tag.dot",               # 점
+        "a",                     # 단일 문자 (시작·끝 동시 — 길이 부족)
+    ])
+    def test_invalid_tags_blocked(self, tag):
+        assert not self.TAG_RE.match(tag), f"위반 tag 통과: {tag}"
+
+
 @pytest.mark.gate
 class TestCompletedGate:
     def test_block_header(self):
@@ -793,14 +825,14 @@ class TestStageBasic:
         )
         assert stage(out) == "deep"
 
-    def test_no_wip_no_secret_standard(self):
-        """staged WIP 없고 시크릿 없으면 standard 폴백 (보수)"""
+    def test_no_wip_no_secret_default(self):
+        """staged WIP 없고 시크릿 없으면 default (§S-2 2단계 폐기)"""
         out = run_check(
             name_status="M src/foo.ts",
             numstat="2 0 src/foo.ts",
             diff_u0="+const x = 1;\n",
         )
-        assert stage(out) == "standard"
+        assert stage(out) == "default"
 
 
 # ─────────────────────────────────────────────────────────
@@ -856,7 +888,7 @@ def integ_repo(tmp_path_factory):
         dst = repo / ".claude" / "scripts" / name
         if src.exists():
             shutil.copy2(src, dst)
-    for name in ("staging.md", "naming.md"):
+    for name in ("naming.md",):
         src = REPO_ROOT / ".claude" / "rules" / name
         dst = repo / ".claude" / "rules" / name
         if src.exists():

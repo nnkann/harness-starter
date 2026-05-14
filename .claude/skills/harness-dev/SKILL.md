@@ -144,7 +144,7 @@ python3 .claude/scripts/harness_version_bump.py
 - [ ] MIGRATIONS.md: 새 버전 섹션 추가됐는가 (포맷 준수)
 - [ ] **테스트**: AC가 명시 요구하면 그 marker만 실행 (`pytest -m <marker>`). 무조건 전체 실행 금지. 회귀 가드 가치 있는 변경이면 작업 task의 AC `영향 범위:` 항목에 marker 명시
 - [ ] **CPS**: `docs/guides/project_kickoff.md` Solutions 항목 중 이번 변경과 관련된 것 갱신했는가 (새 방어 레이어 추가·기존 Solution 구조 변경 시)
-- [ ] **HARNESS_MAP 정합**: `python3 .claude/scripts/eval_cps_integrity.py` 실행 후 "관계 그래프 점검" 섹션 확인 — 새 rules/skills/agents/scripts 추가 시 MAP 등재 여부 검증
+- [ ] **CPS 무결성**: `python3 .claude/scripts/eval_cps_integrity.py` 실행 — Problem 인용 빈도·Solution 충족 분포 확인
 
 ---
 

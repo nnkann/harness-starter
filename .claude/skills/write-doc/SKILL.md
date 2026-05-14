@@ -3,246 +3,109 @@ name: write-doc
 description: >-
   코드 작업 없이 문서만 단독 생성할 때 사용. 폴더 판단, 프론트매터 검증, WIP 파일명 규칙을 강제한다.
   TRIGGER when: "기록해줘", "문서 만들어", "결정 남겨", "가이드 작성해", "인시던트 정리해",
-  "회고 작성", "왜 이렇게 했는지 남겨" 등 문서 생성 의도가 있는 요청.
-  SKIP: 코드 구현과 함께 문서가 만들어지는 경우(→ implementation 스킬이 처리),
-  기존 문서 수정, 문서 탐색/검색.
+  "회고 작성" 등 문서 생성 의도가 있는 요청.
+  SKIP: 코드 구현과 함께 문서가 만들어지는 경우(→ implementation), 기존 문서 수정, 탐색/검색.
 ---
 
 # write-doc
 
-코드 작업 없이 문서만 단독으로 생성할 때의 실행 흐름.
-프론트매터, 파일명, 폴더 라우팅을 강제하여 docs.md 규칙 준수를 보장한다.
+문서 단독 생성 흐름. 프론트매터·파일명·폴더 라우팅 강제.
 
 ## implementation 스킬과의 관계
 
-| 상황 | 담당 스킬 |
-|------|----------|
-| 코드 작업의 부산물로 문서 생성 | implementation (Step 1) |
+| 상황 | 담당 |
+|------|------|
+| 코드 부산물 문서 | implementation Step 3 |
 | 문서 자체가 목적 | **write-doc** |
-| 문서 이동 (WIP → 최종 폴더) | commit |
-| 문서 탐색/검색 | doc-finder 에이전트 |
+| 문서 이동 (WIP → 최종) | commit |
+| 문서 탐색 | doc-finder |
 
-## 흐름
+## Step 1. 대상 폴더 + domain·abbr 결정
 
-### Step 0. 대상 폴더 결정
-
-사용자의 요청에서 문서의 성격을 판단한다.
-
-| 핵심 질문 | 대상 폴더 |
-|----------|----------|
-| "왜 이렇게 했나?" — 결정과 근거 | decisions/ |
-| "어떻게 하나?" — 방법과 패턴 | guides/ |
-| "무엇이 왜 깨졌나?" — 문제와 해결 | incidents/ |
+| 핵심 질문 | 폴더 |
+|----------|------|
+| "왜 이렇게 했나?" | decisions/ |
+| "어떻게 하나?" | guides/ |
+| "무엇이 왜 깨졌나?" | incidents/ |
 | 하네스 자체 변경 이력 | harness/ |
+| wave case 박제 | cps/ |
 
-**판단이 모호하면** 사용자에게 묻는다. 추측하지 않는다.
+판단 모호하면 사용자에게 묻는다. 추측 금지.
 
-> 이 문서는 어디에 해당할까요?
-> 1. decisions/ — 결정과 근거 기록
-> 2. guides/ — 방법과 패턴 정리
-> 3. incidents/ — 문제 원인과 해결 기록
+**domain·abbr** — `.claude/rules/naming.md` SSOT:
+- "도메인 목록 > 확정"에서 domain 결정
+- "도메인 약어" 표에서 abbr 조회
+- 새 domain 필요하면 abbr 함께 등록 (2~3자 소문자, 충돌 없게)
+- 전역 마스터 문서는 abbr 생략 (`{slug}.md`)
 
-### Step 1. domain 및 abbr 확인
+## Step 2. SSOT 선행 탐색 (강제)
 
-`.claude/rules/naming.md`를 읽어 두 가지를 확인한다:
+`.claude/rules/docs.md` "## SSOT 우선 + 분리 판단" SSOT 적용:
 
-1. **"도메인 목록 > 확정"**: 요청에 해당하는 domain 결정
-2. **"도메인 약어" 표**: 해당 domain의 abbr 조회
-
-- 요청 내용이 확정 도메인에 해당하면 그 domain 사용.
-- 해당 domain이 없으면 사용자에게 확인:
-  > naming.md에 이 주제에 맞는 도메인이 없습니다. 기존 도메인 중 선택하시겠습니까, 새 도메인을 추가할까요?
-  > 기존: harness, meta, ...
-
-**새 도메인 추가 시 abbr도 함께 등록**:
-- 사용자에게 abbr 제안 (원 이름 첫 자·자음 조합)
-- 2~3자 소문자, 영문만, 기존 약어와 충돌 없어야 함
-- naming.md "도메인 목록 > 후보"와 "도메인 약어" 표 모두에 추가
-- 사용자가 확정으로 승격을 결정하면 "확정"으로 이동
-
-**기존 domain인데 약어 표에 abbr이 누락된 경우** (보통 업그레이드 직후):
-- 사용자에게 abbr 입력 요청
-- 입력받은 약어로 naming.md "도메인 약어" 표 갱신
-- 파일명 생성은 등록된 abbr을 사용
-
-**전역 마스터 문서** (프로젝트 전역 인덱스, 도메인 횡단): abbr 생략하고
-파일명은 `{slug}.md` 형식. 프론트매터 `domain:`만 설정.
-
-### Step 2. SSOT 선행 탐색 (강제)
-
-**SSOT**: `.claude/rules/docs.md` "## SSOT 우선 + 분리 판단". 본 Step은
-그 규정의 스킬 진입점.
-
-의무 절차 (docs.md에서 상세):
-1. 3단계 탐색 — cluster 스캔 → 키워드 grep → 후보 본문 Read
-2. 두 질문 답 — SSOT 존재 / 분리 필요성
-3. 실패 모드 체크리스트 5개 중 하나라도 해당하면 재실행
-
-**결과에 따른 분기**:
+1. **3단계 탐색** — cluster 스캔 → 키워드 grep → 후보 본문 Read
+2. **두 질문** — SSOT 존재 / 분리 필요성
+3. **실패 모드 5개** 중 하나라도 해당하면 재실행
 
 | 결과 | 경로 |
 |------|------|
-| hit 0건 | Step 3 진행 (새 WIP 생성) |
-| hit 있고 갱신 적절 (대상이 WIP) | 그 파일 Edit. Step 3 스킵 |
-| hit 있고 갱신 적절 (대상이 `completed`) | **완료 문서 재개 경로**로 (아래) |
-| hit 있지만 분리 근거 충족 | Step 3 진행. 분리 근거를 프론트매터 `relates-to`와 본문에 기록 |
+| hit 0건 | Step 3 (새 WIP) |
+| hit + 갱신 적절 (WIP) | 그 파일 Edit. Step 3 스킵 |
+| hit + 갱신 적절 (completed) | `docs_ops.py reopen <경로>` 후 갱신 |
+| hit + 분리 근거 충족 | Step 3 + `relates-to` 기록 |
 
-**완료 문서 재개**:
-```bash
-python .claude/scripts/docs_ops.py reopen docs/{폴더}/{abbr}_{slug}.md
-```
-- `status: completed` → `in-progress`, `updated` 갱신, WIP로 이동, cluster dead link 제거를 한 번에 처리
-- 본문에 `## 변경 이력` 섹션 추가 (없으면)
-- 같은 내용을 새 WIP로 복제하지 마라 (SSOT 분열)
+**동격 선택지 금지** ("새로 만들까요, 갱신할까요?"). 기본은 갱신. 분리 근거
+명확하면 분리.
 
-**사용자 질의 템플릿** (hit 있을 때):
-> 관련 SSOT 후보:
-> - `docs/X/foo.md` (status) — 한 줄 요약
->
-> docs.md 원칙상 **기본은 기존 문서 갱신**입니다. 제 판단으로는
-> `foo.md`를 갱신하는 게 맞습니다. 그대로 진행할까요, 분리 근거가 있나요?
+## Step 3. WIP 생성
 
-동격 선택지("새로 만들까요, 갱신할까요?") 제시 금지.
+**파일명** (`.claude/rules/naming.md` SSOT): `{abbr}_{slug}.md`
 
-### Step 3. WIP 문서 생성
+- abbr: Step 1 조회한 약어
+- slug: snake_case, 30자 이내
+- 라우팅 태그 `{폴더}--` 폐기 (§S-4 73% 삭감). frontmatter `domain` + 폴더는
+  commit 스킬이 결정
+- **날짜 suffix 전면 금지** — 같은 주제 = 같은 파일 갱신. 사용자 명시 요구도 거부
 
-docs/WIP/에 문서를 만든다.
-
-**파일명** (SSOT: `.claude/rules/naming.md` "파일명 — WIP"):
-
-| 유형 | 패턴 | 예 |
-|------|------|-----|
-| 일반 (모든 대상 폴더) | `{대상폴더}--{abbr}_{slug}.md` | `decisions--hn_memory.md` |
-| 전역 마스터 | `{대상폴더}--{slug}.md` | `guides--project_kickoff.md` |
-
-- 대상폴더: Step 0에서 결정 (decisions / guides / incidents / harness)
-- abbr: Step 1에서 조회한 도메인 약어
-- slug: snake_case 의미명. 단어 2~4개, 30자 이내
-
-**날짜 suffix 전면 금지** (incidents 포함):
-- 발생 시점은 프론트매터 `created` + git history로 충분
-- 같은 주제가 이미 있으면 Step 2에서 감지됨. 새 파일 생성 금지
-- 사용자가 명시적으로 날짜 suffix를 요구해도 거부:
-  > 업스트림 naming.md 규칙상 문서 파일명에 날짜 suffix를 붙이지 않습니다.
-  > 같은 주제는 같은 파일을 갱신합니다 (본문 `## 변경 이력` 섹션 활용).
-  > 그래도 새 파일이 필요하면 slug를 다르게 하거나 archived/ 이동 후 새 결정으로 만드세요.
-
-**프론트매터** (docs.md 규칙 준수):
+**frontmatter** (`docs.md` SSOT):
 ```yaml
 ---
-title: {문서 제목}
-domain: {Step 1에서 결정한 domain}
-problem: P{번호}                  # 필수 (CPS 인용)
-solution-ref:                     # 필수 (CPS 인용, list)
-  - S{번호} — "{원문 또는 substring + (부분)}"
-tags: []
-relates-to: []
+title: ...
+domain: ...           # naming.md 도메인 목록
+problem: [P3]         # CPS 인용 번호만
+s: [S2, S6]
+tags: []              # 영문 소문자+하이픈+숫자 (naming.md tag 정책)
 status: in-progress
-created: {YYYY-MM-DD}
+created: YYYY-MM-DD
 ---
 ```
 
-**incidents/ 전용 추가 필드 — 필수 재질의**:
-
-대상 폴더가 `incidents/`이면 위 프론트매터에 다음을 추가하고, 비어 있으면
-사용자에게 **반드시 묻고** 채운다 (재발 시 검색 키 — docs.md 규정).
-
+**incidents/ 전용 필수 추가 필드**:
 ```yaml
 symptom-keywords:
-  - <증상을 유발한 고유명사·식별자>
-  - <엔티티-ID 또는 제품·기능명>
+  - <증상 유발 고유명사·식별자>
 ```
 
-질의 예:
-> 이 사고를 미래에 누가 다시 검색할 때 어떤 단어를 입에 올릴까요?
-> (제품명·업체명·기능명·에러 메시지 키워드 등)
+질의 예: "이 사고를 미래에 누가 다시 검색할 때 어떤 단어를 입에 올릴까요?"
+비우고 넘어가지 마라.
 
-비우고 넘어가지 마라. tags(기술 분류)와 다르다 — symptom-keywords는
-사용자가 실제 입에 올릴 단어다.
+**본문 — 자유 형식**: 폴더별 6종 템플릿 폐기 (§S-4 73% 삭감). 사용자 의도에
+맞춰 자유 작성. 자기완결성 1원칙: 다른 문서 안 읽어도 본문만으로 의미 전달.
 
-**본문 구조** (대상 폴더별):
+## Step 4. 작성 + 완료
 
-decisions/:
-```markdown
-# {제목}
+- 사용자가 내용 제공하면 정리
+- "알아서 정리" 요청 시 세션 맥락에서 수집
+- relates-to 명확해지면 frontmatter 추가
+- 충분하면 `status: completed`
 
-## 배경
-(결정이 필요한 상황)
-
-## 선택지
-(검토한 옵션들)
-
-## 결정
-(선택한 것과 이유)
-
-## 메모
-```
-
-guides/:
-```markdown
-# {제목}
-
-## 개요
-(이 가이드의 목적)
-
-## 절차
-(단계별 방법)
-
-## 주의사항
-
-## 메모
-```
-
-incidents/:
-```markdown
-# {제목}
-
-## 증상
-(무엇이 어떻게 깨졌는가)
-
-## 원인
-(왜 깨졌는가)
-
-## 해결
-(어떻게 고쳤는가)
-
-## 재발 방지
-
-## 메모
-```
-
-harness/:
-```markdown
-# {제목}
-
-## 변경 내용
-
-## 이유
-
-## 메모
-```
-
-### Step 4. 내용 작성
-
-사용자와 대화하며 본문을 채운다.
-
-- 사용자가 내용을 직접 제공하면 그대로 정리한다.
-- 사용자가 "알아서 정리해"라고 하면, 이번 세션의 맥락에서 관련 내용을 수집하여 작성한다.
-- relates-to가 명확해지면 프론트매터에 추가한다.
-
-### Step 5. 완료 표시
-
-내용이 충분하면 `status: in-progress` → `status: completed`로 변경한다.
-
-이후 `/commit` 시 commit 스킬이 자동으로:
+이후 `/commit`이 자동:
 - WIP에서 대상 폴더로 이동
-- 접두사(`{대상폴더}--`) 제거 → `{abbr}_{slug}.md`
-- clusters/{domain}.md에 추가 (파일명 abbr로 자동 매핑)
+- cluster 갱신 (파일명 abbr 자동 매핑 + tag 백링크)
 
 ## 규칙
 
-- docs.md의 모든 규칙을 따른다.
-- docs/ 외의 위치에 문서를 만들지 않는다.
-- docs/ 하위에 새 폴더를 만들지 않는다.
-- naming.md에 없는 domain을 프론트매터에 쓰지 않는다.
-- 프론트매터 필수 필드(title, domain, problem, solution-ref, status, created)가 누락되면 생성하지 않는다.
+- `docs.md`·`naming.md` 모든 규칙 준수
+- docs/ 외 위치 문서 생성 금지
+- docs/ 하위 새 폴더 금지
+- naming.md에 없는 domain·abbr 금지
+- 프론트매터 필수 필드 누락 시 생성 금지

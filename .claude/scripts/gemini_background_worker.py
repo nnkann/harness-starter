@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 """Gemini CLI background worker.
 
-orchestrator.py의 PreToolUse hook은 빨리 반환해야 한다. Gemini CLI 실행,
-stdin 전달, stdout/stderr 기록은 이 worker가 별도 프로세스에서 맡는다.
+PreToolUse hook은 빨리 반환해야 한다. Gemini CLI 실행, stdin 전달,
+stdout/stderr 기록은 이 worker가 별도 프로세스에서 맡는다.
 """
 
 from __future__ import annotations

@@ -431,23 +431,46 @@ def cmd_cluster_update() -> int:
     updated = 0
     skipped = 0
 
-    for abbr in abbrs:
-        domain = abbr_to_domain.get(abbr, abbr)
-        cluster = Path(f"docs/clusters/{domain}.md")
+    # §S-7 wiki 그래프 모델: 모든 md 1회 스캔 → abbr 매치 또는 frontmatter
+    # domain 폴백으로 cluster 결정. tag 분포·백링크 섹션도 같이 빌드.
+    domain_docs: dict[str, list[Path]] = {d: [] for d in abbr_to_domain.values()}
+    domain_wips: dict[str, list[Path]] = {d: [] for d in abbr_to_domain.values()}
+    for md in sorted(DOCS_DIR.rglob("*.md")):
+        parts_set = set(md.parts)
+        if "archived" in parts_set or "clusters" in parts_set:
+            continue
+        ab = detect_abbr(md, abbrs)
+        dom = abbr_to_domain.get(ab) if ab else None
+        if not dom:
+            # 폴백: frontmatter domain (sample·전역 마스터 등록 경로)
+            fm = extract_frontmatter(md)
+            fm_dom = fm.get("domain") if isinstance(fm.get("domain"), str) else None
+            if fm_dom and fm_dom in domain_docs:
+                dom = fm_dom
+        if not dom:
+            continue
+        if "WIP" in parts_set:
+            domain_wips[dom].append(md)
+        else:
+            domain_docs[dom].append(md)
 
-        # 해당 abbr 문서 수집 (archived·clusters 제외, WIP는 별도 수집)
-        docs_list: list[Path] = []
-        wip_list: list[Path] = []
-        for md in sorted(DOCS_DIR.rglob("*.md")):
-            parts_set = set(md.parts)
-            if "archived" in parts_set or "clusters" in parts_set:
-                continue
-            if detect_abbr(md, abbrs) != abbr:
-                continue
-            if "WIP" in parts_set:
-                wip_list.append(md)
-            else:
-                docs_list.append(md)
+    for abbr, domain in abbr_to_domain.items():
+        cluster = Path(f"docs/clusters/{domain}.md")
+        docs_list = domain_docs.get(domain, [])
+        wip_list = domain_wips.get(domain, [])
+
+        # tag 분포 + 백링크 (§S-7 wiki 간선)
+        tag_to_docs: dict[str, list[Path]] = {}
+        for f in docs_list:
+            fm = extract_frontmatter(f)
+            tags = fm.get("tags") or []
+            if isinstance(tags, str):
+                tags = [t.strip().strip("'\"") for t in tags.strip("[]").split(",") if t.strip()]
+            for t in tags:
+                if not isinstance(t, str) or not t.strip():
+                    continue
+                tag_to_docs.setdefault(t.strip(), []).append(f)
+        tag_sorted = sorted(tag_to_docs.items(), key=lambda kv: (-len(kv[1]), kv[0]))
 
         def build_body(updated_value: str) -> str:
             lines = [
@@ -462,7 +485,7 @@ def cmd_cluster_update() -> int:
                 "",
                 f"# {domain} 클러스터",
                 "",
-                f"도메인 {domain}({abbr}) 소속 문서 목록. docs-ops.py cluster-update 자동 생성.",
+                f"도메인 {domain}({abbr}) 소속 문서 + tag 간선. docs-ops.py cluster-update 자동 생성.",
                 "",
             ]
             if docs_list:
@@ -471,8 +494,7 @@ def cmd_cluster_update() -> int:
                 for f in docs_list:
                     fm = extract_frontmatter(f)
                     title = fm.get("title") or f.name
-                    rel = str(f).replace("\\", "/")
-                    rel = rel.removeprefix("docs/")
+                    rel = str(f).replace("\\", "/").removeprefix("docs/")
                     lines.append(f"- [{title}](../{rel})")
             else:
                 lines.append("_(문서 없음)_")
@@ -483,9 +505,27 @@ def cmd_cluster_update() -> int:
                 for f in wip_list:
                     fm = extract_frontmatter(f)
                     title = fm.get("title") or f.name
-                    rel = str(f).replace("\\", "/")
-                    rel = rel.removeprefix("docs/")
+                    rel = str(f).replace("\\", "/").removeprefix("docs/")
                     lines.append(f"- [{title}](../{rel})")
+            if tag_sorted:
+                lines.append("")
+                lines.append("## tag 분포 (간선)")
+                lines.append("")
+                lines.append(" | ".join(f"{t} ({len(ds)}건)" for t, ds in tag_sorted))
+                # 백링크 섹션은 2건 이상 tag만 — 1건은 "tag 분포"와 동일 정보(DRY)
+                multi = [(t, ds) for t, ds in tag_sorted if len(ds) >= 2]
+                if multi:
+                    lines.append("")
+                    lines.append("## tag별 문서 (백링크, 2건+)")
+                    for t, ds in multi:
+                        lines.append("")
+                        lines.append(f"### {t}")
+                        lines.append("")
+                        for f in ds:
+                            fm = extract_frontmatter(f)
+                            title = fm.get("title") or f.name
+                            rel = str(f).replace("\\", "/").removeprefix("docs/")
+                            lines.append(f"- [{title}](../{rel})")
             return "\n".join(lines) + "\n"
 
         # 결정적 비교: 기존 파일의 updated 값을 재사용해 본문 생성 → 동일하면 skip
