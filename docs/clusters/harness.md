@@ -4,7 +4,7 @@ domain: harness
 tags: [cluster, index]
 status: completed
 created: 2026-04-16
-updated: 2026-05-12
+updated: 2026-05-14
 ---
 
 # harness 클러스터
@@ -129,4 +129,4 @@ updated: 2026-05-12
 
 ## 진행 중 (WIP)
 
-- [커밋 파이프라인 현실화 — CPS·AC 기준 fast path와 side effect 정리](../WIP/harness--hn_commit_perf_optimization.md)
+- [하네스 복구 단일 wave — v0.41 baseline 회복 + audit 18 해소](../WIP/harness--hn_harness_recovery_v0_41_baseline.md)

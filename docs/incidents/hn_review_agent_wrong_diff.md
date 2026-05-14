@@ -9,7 +9,7 @@ symptom-keywords:
   - 엉뚱한 경고
   - staged diff 무시
 relates-to:
-  - path: ../WIP/harness--hn_commit_perf_optimization.md
+  - path: ../archived/hn_commit_perf_optimization.md
     rel: caused-by
 status: completed
 created: 2026-04-19

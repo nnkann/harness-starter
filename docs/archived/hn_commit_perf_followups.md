@@ -6,7 +6,7 @@ solution-ref:
   - S2 — "review tool call 평균 ≤4회 (부분)"
 tags: [commit, followup, backlog, abandoned-asset]
 relates-to:
-  - path: harness/hn_commit_perf_optimization.md
+  - path: archived/hn_commit_perf_optimization.md
     rel: extends
   - path: archived/hn_commit_perf_audit.md
     rel: references

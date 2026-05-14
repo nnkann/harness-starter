@@ -5,10 +5,26 @@ problem: P2
 solution-ref:
   - S2 — "review tool call 평균 ≤4회 (부분)"
 tags: [commit, performance, review-agent]
-status: in-progress
+status: abandoned
 created: 2026-04-18
-updated: 2026-05-13
+updated: 2026-05-14
+relates-to:
+  - path: WIP/harness--hn_harness_recovery_v0_41_baseline.md
+    rel: superseded-by
 ---
+
+## abandoned 종결 (2026-05-14)
+
+본 WIP의 §H-1~H-11 산물은 9b29f23(v0.44.1)에 commit됐다가
+2a5fcd0(v0.46.2) "baseline 회복 wave" Phase 0 revert로 **전면 폐기**됨.
+baseline 회복 wave Phase 6 결정: 후속 마이그레이션 wave에서 항목별 재검토.
+
+남은 미완료 AC 6항목(split 판정·시크릿 SSOT·side effect ledger·Windows
+smoke·cascade integrity 등)은 baseline WIP "후속 마이그레이션 wave 입력
+자료" 섹션(자산 1·2)에 박제됨. 본 WIP는 SSOT 분열 방지 위해 abandoned
+처리하고, 후속 wave가 baseline WIP를 입력 자료로 사용해 재검토한다.
+
+본 WIP 본문은 후속 마이그레이션의 참조용으로 보존 (git rm 금지).
 
 ## 재개 사유 (2026-05-11)
 
