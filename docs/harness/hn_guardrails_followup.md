@@ -1,7 +1,10 @@
 ---
+
 title: LLM 실수 방지 가드레일 후속 — review needs_advisor·허위 후속 감지·commit advisor 통합
 domain: harness
 tags: [guardrails, advisor, review, commit]
+problem: P2
+s: [S2]
 relates-to:
   - path: ../harness/hn_llm_mistake_guardrails.md
     rel: extends

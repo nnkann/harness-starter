@@ -1,7 +1,10 @@
 ---
+
 title: starter 전용 스킬 격리 — harness-dev 스킬 신설
 domain: harness
 tags: [skill, starter, isolation, harness-dev]
+problem: P7
+s: [S7, S9]
 status: completed
 updated: 2026-04-28
 created: 2026-04-28

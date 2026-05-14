@@ -1,7 +1,9 @@
 ---
 title: HARNESS.json skills 목록 정리 — 1회성 스킬 삭제 + 활성 목록 정비
 domain: harness
-tags: [harness-json, skills, cleanup, metadata]
+tags: [harness-json, skill, cleanup, metadata]
+problem: P7
+s: [S7, S9]
 status: completed
 created: 2026-04-25
 updated: 2026-04-25

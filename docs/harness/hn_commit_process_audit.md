@@ -1,7 +1,10 @@
 ---
+
 title: 커밋 프로세스 감사 — #18 false-negative 축 보강
 domain: harness
 tags: [commit, review, pre-check, audit, staging, split]
+problem: P2
+s: [S2]
 status: completed
 created: 2026-04-22
 updated: 2026-04-23

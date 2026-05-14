@@ -2,6 +2,8 @@
 title: 하네스 엔지니어링 적합성 분석
 domain: harness
 tags: [gap-analysis, verification]
+problem: P6
+s: [S6]
 status: completed
 created: 2026-04-14
 ---

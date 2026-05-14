@@ -55,7 +55,7 @@ s: [S2, S6]                     # 필수 (CPS 인용). 번호만
 tags: [keyword1, keyword2]      # 선택. 영문 소문자+하이픈+숫자만, 최대 5개
 relates-to:                     # 선택
   - path: decisions/other.md
-    rel: extends                # extends|caused-by|implements|supersedes|references|conflicts-with
+    rel: extends                # extends|caused-by|references|supersedes (4종)
 status: completed               # 필수. pending|in-progress|completed|abandoned|sample
 created: 2026-04-16             # 필수
 updated: 2026-04-16             # 선택
@@ -65,7 +65,7 @@ updated: 2026-04-16             # 선택
 - **domain**: naming.md "도메인 목록 > 확정"이 SSOT
 - **problem·s**: CPS 인용 (아래 "## CPS 인용" SSOT)
 - **tags**: 정규식 `^[a-z0-9][a-z0-9-]*[a-z0-9]$`. naming.md "tag 정책" SSOT
-- **rel**: 6종만. 새 타입은 스펙 문서 추가 후 사용
+- **rel**: 4종만 — `extends`·`caused-by`·`references`·`supersedes`. 새 타입은 스펙 문서 추가 후 사용. (v0.47.5 §C: `implements`·`precedes`·`conflicts-with` 폐기 — 의미 겹침 또는 사용 0)
 - **폴더 = 성격, domain = 의미** (이중 분류)
 
 ### CPS 면제

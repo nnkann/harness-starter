@@ -1,7 +1,10 @@
 ---
+
 title: commit + review 핸드오프 계약 이식 + 중복 제거
 domain: harness
 tags: [skill, agent, commit, review, handoff, refactor]
+problem: P2
+s: [S2]
 status: completed
 created: 2026-04-20
 updated: 2026-04-20

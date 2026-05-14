@@ -133,10 +133,11 @@ updated: 2026-05-15
 ## 진행 중 (WIP)
 
 - [하네스 73% 삭감 설계 — 통제에서 가속으로](../WIP/hn_harness_80pct_cut.md)
+- [Wiki 그래프 자산 생성 wave — frontmatter·tag·relates-to 일제 정비](../WIP/hn_wiki_graph_assets.md)
 
 ## tag 분포 (간선)
 
-review (18건) | commit (13건) | downstream (13건) | cps (11건) | eval (10건) | ssot (9건) | staging (9건) | hook (8건) | skill (8건) | upgrade (8건) | audit (7건) | pre-check (7건) | ac (6건) | harness-upgrade (6건) | migration (6건) | docs-ops (5건) | false-positive (5건) | rules (5건) | split (5건) | wip-sync (5건) | agent (4건) | contamination (4건) | dead-link (4건) | harness-dev (4건) | implementation (4건) | refactor (4건) | starter (4건) | advisor (3건) | cascade (3건) | docs (3건) | frontmatter (3건) | governance (3건) | harness-adopt (3건) | harness-init (3건) | harness-map (3건) | incident (3건) | measurement (3건) | memory (3건) | orchestration (3건) | performance (3건) | pipeline (3건) | python (3건) | rule (3건) | sealed (3건) | secret-scan (3건) | self-verify (3건) | simplification (3건) | skills (3건) | trigger (3건) | upstream-rule (3건) | archive (2건) | automation (2건) | bit (2건) | clusters (2건) | doc-finder (2건) | drift (2건) | duplication (2건) | efficiency (2건) | escalation (2건) | false-block (2건) | fast-path (2건) | guardrails (2건) | harness-starter (2건) | information-flow (2건) | isolation (2건) | lint (2건) | move (2건) | naming (2건) | p9 (2건) | pre-tool-use (2건) | propagation (2건) | regex-gap (2건) | relates-to (2건) | routing (2건) | search (2건) | self-dependency (2건) | self-violation (2건) | test (2건) | tokens (2건) | verdict (2건) | whitelist (2건) | wip (2건) | write-doc (2건) | abbr (1건) | advisor-flow (1건) | agent-context (1건) | agent-orchestration (1건) | agent-spec (1건) | aggregation (1건) | ambiguity (1건) | amplification (1건) | anomaly (1건) | anti-defer (1건) | apply (1건) | architecture (1건) | atomic (1건) | baseline (1건) | bash (1건) | benchmark (1건) | bidirectional (1건) | brainstorm (1건) | bug (1건) | bug-triage (1건) | cleanup (1건) | cli (1건) | cluster-update (1건) | code (1건) | coding-convention (1건) | commit-flow (1건) | commit-skill (1건) | completed (1건) | completion (1건) | completion-gate (1건) | compliance (1건) | context (1건) | context7 (1건) | cost (1건) | cps-integrity (1건) | dead-code (1건) | debug (1건) | debug-guard (1건) | decision-framework (1건) | defense (1건) | delegation (1건) | diagnosis-discipline (1건) | diet (1건) | diff (1건) | doc-health (1건) | docs-structure (1건) | docs_ops (1건) | downstream-name (1건) | dynamic-resolution (1건) | enoent (1건) | env (1건) | env-var (1건) | eval-integrity (1건) | execution (1건) | exempt (1건) | external-docs (1건) | false-completion (1건) | false-warning (1건) | feedback (1건) | feedback-report (1건) | feedback-reports (1건) | force-trigger (1건) | format (1건) | friction (1건) | gap-analysis (1건) | gate-redesign (1건) | gating (1건) | gemini (1건) | generic (1건) | git-remote (1건) | glob (1건) | graph (1건) | guard (1건) | handoff (1건) | harness-json (1건) | historical (1건) | hook-strength (1건) | improvement (1건) | incidents (1건) | incremental-update (1건) | index-removal (1건) | inflation (1건) | init-check (1건) | integrity (1건) | internalization (1건) | interrupt (1건) | json-schema (1건) | judgment (1건) | karpathy (1건) | kickoff (1건) | layering (1건) | legacy (1건) | living-harness (1건) | lsp (1건) | matcher (1건) | matching (1건) | maxturns (1건) | mcp (1건) | merge (1건) | meta-decision (1건) | metadata (1건) | migration-log (1건) | migrations (1건) | milestones (1건) | mvi (1건) | mvr (1건) | no-speculation (1건) | objectification (1건) | orchestrator (1건) | organism (1건) | overhaul (1건) | p3 (1건) | p4 (1건) | p5 (1건) | p7 (1건) | p8 (1건) | p9-candidate (1건) | perf (1건) | permissions (1건) | phase (1건) | phase3 (1건) | port (1건) | prd (1건) | pre-commit-check (1건) | problem (1건) | profile (1건) | promise (1건) | protection (1건) | push (1건) | quality (1건) | read-enforce (1건) | readme (1건) | regex (1건) | reliability (1건) | reopen (1건) | reporting (1건) | research (1건) | review-agent (1건) | review-pattern (1건) | rollback (1건) | routing-tag (1건) | rule-origin (1건) | scoring (1건) | security (1건) | self-correction (1건) | self-invocation (1건) | self-multiplication (1건) | session-handoff (1건) | session-start (1건) | session-summary (1건) | sh (1건) | signal (1건) | silent-fail (1건) | skill-md (1건) | snapshot (1건) | solution-ref (1건) | specialist (1건) | starter_skills (1건) | step7.5 (1건) | stop-guard (1건) | structure (1건) | subagent (1건) | sync (1건) | task_groups (1건) | test-results (1건) | testing (1건) | threat-analyst (1건) | three-way-merge (1건) | tool-budget (1건) | tool-usage (1건) | typecheck (1건) | upstream (1건) | upstream-feedback (1건) | upstream-only (1건) | v0.42.4-regression (1건) | verification (1건) | verify-relates (1건) | versioning (1건) | wip-parsing (1건) | wip-template (1건)
+review (18건) | commit (13건) | downstream (13건) | cps (11건) | skill (11건) | eval (10건) | ssot (9건) | staging (9건) | hook (8건) | rules (8건) | upgrade (8건) | audit (7건) | pre-check (7건) | ac (6건) | harness-upgrade (6건) | migration (6건) | docs-ops (5건) | false-positive (5건) | split (5건) | wip-sync (5건) | agent (4건) | contamination (4건) | dead-link (4건) | harness-dev (4건) | implementation (4건) | incident (4건) | refactor (4건) | starter (4건) | advisor (3건) | cascade (3건) | docs (3건) | frontmatter (3건) | governance (3건) | harness-adopt (3건) | harness-init (3건) | harness-map (3건) | measurement (3건) | memory (3건) | orchestration (3건) | performance (3건) | pipeline (3건) | python (3건) | sealed (3건) | secret-scan (3건) | self-verify (3건) | simplification (3건) | trigger (3건) | upstream-rule (3건) | archive (2건) | automation (2건) | bit (2건) | clusters (2건) | doc-finder (2건) | drift (2건) | duplication (2건) | efficiency (2건) | escalation (2건) | false-block (2건) | fast-path (2건) | guardrails (2건) | harness-starter (2건) | information-flow (2건) | isolation (2건) | lint (2건) | move (2건) | naming (2건) | pre-tool-use (2건) | propagation (2건) | regex-gap (2건) | relates-to (2건) | routing (2건) | search (2건) | self-dependency (2건) | self-violation (2건) | test (2건) | tokens (2건) | verdict (2건) | whitelist (2건) | wip (2건) | write-doc (2건) | abbr (1건) | advisor-flow (1건) | agent-context (1건) | agent-orchestration (1건) | agent-spec (1건) | aggregation (1건) | ambiguity (1건) | amplification (1건) | anomaly (1건) | anti-defer (1건) | apply (1건) | architecture (1건) | atomic (1건) | baseline (1건) | bash (1건) | benchmark (1건) | bidirectional (1건) | brainstorm (1건) | bug (1건) | bug-triage (1건) | cleanup (1건) | cli (1건) | cluster-update (1건) | code (1건) | coding-convention (1건) | commit-flow (1건) | commit-skill (1건) | completed (1건) | completion (1건) | completion-gate (1건) | compliance (1건) | context (1건) | context7 (1건) | cost (1건) | cps-integrity (1건) | dead-code (1건) | debug (1건) | debug-guard (1건) | decision-framework (1건) | defense (1건) | delegation (1건) | diagnosis-discipline (1건) | diet (1건) | diff (1건) | doc-health (1건) | docs-structure (1건) | docs_ops (1건) | downstream-name (1건) | dynamic-resolution (1건) | enoent (1건) | env (1건) | env-var (1건) | eval-integrity (1건) | execution (1건) | exempt (1건) | external-docs (1건) | false-completion (1건) | false-warning (1건) | feedback (1건) | feedback-report (1건) | feedback-reports (1건) | force-trigger (1건) | format (1건) | friction (1건) | gap-analysis (1건) | gate-redesign (1건) | gating (1건) | gemini (1건) | generic (1건) | git-remote (1건) | glob (1건) | graph (1건) | guard (1건) | handoff (1건) | harness-json (1건) | historical (1건) | hook-strength (1건) | improvement (1건) | incremental-update (1건) | index-removal (1건) | inflation (1건) | init-check (1건) | integrity (1건) | internalization (1건) | interrupt (1건) | json-schema (1건) | judgment (1건) | karpathy (1건) | kickoff (1건) | layering (1건) | legacy (1건) | living-harness (1건) | lsp (1건) | matcher (1건) | matching (1건) | maxturns (1건) | mcp (1건) | merge (1건) | meta-decision (1건) | metadata (1건) | migration-log (1건) | migrations (1건) | milestones (1건) | mvi (1건) | mvr (1건) | no-speculation (1건) | objectification (1건) | orchestrator (1건) | organism (1건) | overhaul (1건) | perf (1건) | permissions (1건) | phase (1건) | phase3 (1건) | port (1건) | prd (1건) | pre-commit-check (1건) | problem (1건) | profile (1건) | promise (1건) | protection (1건) | push (1건) | quality (1건) | read-enforce (1건) | readme (1건) | regex (1건) | reliability (1건) | reopen (1건) | reporting (1건) | research (1건) | review-agent (1건) | review-pattern (1건) | rollback (1건) | routing-tag (1건) | rule-origin (1건) | scoring (1건) | security (1건) | self-correction (1건) | self-invocation (1건) | self-multiplication (1건) | session-handoff (1건) | session-start (1건) | session-summary (1건) | sh (1건) | signal (1건) | silent-fail (1건) | skill-md (1건) | snapshot (1건) | solution-ref (1건) | specialist (1건) | starter_skills (1건) | step7.5 (1건) | stop-guard (1건) | structure (1건) | subagent (1건) | sync (1건) | task_groups (1건) | test-results (1건) | testing (1건) | threat-analyst (1건) | three-way-merge (1건) | tool-budget (1건) | tool-usage (1건) | typecheck (1건) | upstream (1건) | upstream-feedback (1건) | upstream-only (1건) | v0.42.4-regression (1건) | verification (1건) | verify-relates (1건) | versioning (1건) | wip-parsing (1건) | wip-template (1건)
 
 ## tag별 문서 (백링크, 2건+)
 
@@ -207,6 +208,20 @@ review (18건) | commit (13건) | downstream (13건) | cps (11건) | eval (10건
 - [eval에 Solution 충족 인용 분포 집계 추가](../harness/hn_solution_ref_aggregation.md)
 - [검증 파이프라인 강화 — MIGRATIONS 자동생성·AC 강제·CPS 갱신 강제](../harness/hn_verification_pipeline.md)
 
+### skill
+
+- [룰-스킬 중복 제거 — 룰 SSOT 강제 (Phase 5)](../decisions/hn_rule_skill_ssot.md)
+- [룰-스킬 SSOT 적용 — Phase 1 commit/SKILL.md](../decisions/hn_rule_skill_ssot_apply.md)
+- [스킬·에이전트 역할 분담 감사 — 라우터 패턴 전방위 적용](../decisions/hn_skill_agent_role_audit.md)
+- [starter 전용 스킬 격리 — harness-dev 스킬 신설](../decisions/hn_starter_skill_isolation.md)
+- [Harness-Starter 업그레이드 계획](../decisions/hn_upgrade.md)
+- [commit + review 핸드오프 계약 이식 + 중복 제거](../harness/hn_commit_review_handoff.md)
+- [eval 기본 모드 보고 구조 개선](../harness/hn_eval_basic_mode_report.md)
+- [HARNESS.json skills 목록 정리 — 1회성 스킬 삭제 + 활성 목록 정비](../harness/hn_harness_json_cleanup.md)
+- [implementation 스킬 재정의 — 라우터·추적자로 역할 좁히기](../harness/hn_implementation_router.md)
+- [starter 전용 스킬 자기 삭제 + starter_skills 병합 버그 수정](../harness/hn_starter_skill_self_delete.md)
+- [검증 파이프라인 강화 — MIGRATIONS 자동생성·AC 강제·CPS 갱신 강제](../harness/hn_verification_pipeline.md)
+
 ### eval
 
 - [eval CPS 무결성 감시 — 박제 감지·Problem 인플레이션](../decisions/hn_eval_cps_integrity.md)
@@ -255,16 +270,16 @@ review (18건) | commit (13건) | downstream (13건) | cps (11건) | eval (10건
 - [PreToolUse Bash -n 오탐으로 정당한 명령 차단](../incidents/hn_bash_n_flag_overblock.md)
 - [광역 매처 오탐으로 무관한 명령 차단 + harness-upgrade가 README 덮어쓸 위험](../incidents/hn_matcher_false_block.md)
 
-### skill
+### rules
 
-- [스킬·에이전트 역할 분담 감사 — 라우터 패턴 전방위 적용](../decisions/hn_skill_agent_role_audit.md)
-- [starter 전용 스킬 격리 — harness-dev 스킬 신설](../decisions/hn_starter_skill_isolation.md)
-- [Harness-Starter 업그레이드 계획](../decisions/hn_upgrade.md)
-- [commit + review 핸드오프 계약 이식 + 중복 제거](../harness/hn_commit_review_handoff.md)
-- [eval 기본 모드 보고 구조 개선](../harness/hn_eval_basic_mode_report.md)
-- [implementation 스킬 재정의 — 라우터·추적자로 역할 좁히기](../harness/hn_implementation_router.md)
-- [starter 전용 스킬 자기 삭제 + starter_skills 병합 버그 수정](../harness/hn_starter_skill_self_delete.md)
-- [검증 파이프라인 강화 — MIGRATIONS 자동생성·AC 강제·CPS 갱신 강제](../harness/hn_verification_pipeline.md)
+- [BIT(Bug Interrupt Triage) — 스코프 외 버그 자율 판단 시스템 설계](../decisions/hn_bug_interrupt_triage.md)
+- [문서 네이밍 전면 개편 — 도메인 약어 + 통합 원칙](../decisions/hn_doc_naming.md)
+- [pipeline-design 규칙 업스트림 이식 계획](../decisions/hn_pipeline_design_rule.md)
+- [약속 박제 보호 — completed 봉인 + 미루기 차단 룰](../decisions/hn_promise_protection.md)
+- [review staging 재조정 — scripts/agents 이진 판정](../decisions/hn_review_staging_rebalance.md)
+- [룰-스킬 중복 제거 — 룰 SSOT 강제 (Phase 5)](../decisions/hn_rule_skill_ssot.md)
+- [룰-스킬 SSOT 적용 — Phase 1 commit/SKILL.md](../decisions/hn_rule_skill_ssot_apply.md)
+- [Rules 파일 다이어트 — 분리한 메타·배경·자동 감지 상세](../decisions/hn_rules_metadata.md)
 
 ### upgrade
 
@@ -340,14 +355,6 @@ review (18건) | commit (13건) | downstream (13건) | cps (11건) | eval (10건
 - [광역 매처 오탐으로 무관한 명령 차단 + harness-upgrade가 README 덮어쓸 위험](../incidents/hn_matcher_false_block.md)
 - [pre-check 시크릿 line 면제 갭 — agents/threat-analyst.md 잘못 차단](../incidents/hn_secret_line_exempt_gap.md)
 
-### rules
-
-- [BIT(Bug Interrupt Triage) — 스코프 외 버그 자율 판단 시스템 설계](../decisions/hn_bug_interrupt_triage.md)
-- [약속 박제 보호 — completed 봉인 + 미루기 차단 룰](../decisions/hn_promise_protection.md)
-- [룰-스킬 중복 제거 — 룰 SSOT 강제 (Phase 5)](../decisions/hn_rule_skill_ssot.md)
-- [룰-스킬 SSOT 적용 — Phase 1 commit/SKILL.md](../decisions/hn_rule_skill_ssot_apply.md)
-- [Rules 파일 다이어트 — 분리한 메타·배경·자동 감지 상세](../decisions/hn_rules_metadata.md)
-
 ### split
 
 - [커밋 프로세스 감사 — #18 false-negative 축 보강](../harness/hn_commit_process_audit.md)
@@ -398,6 +405,13 @@ review (18건) | commit (13건) | downstream (13건) | cps (11건) | eval (10건
 - [implementation 스킬 재정의 — 라우터·추적자로 역할 좁히기](../harness/hn_implementation_router.md)
 - [Phase 구조 보강 — WIP AC 섹션 + Phase 6원칙 + escalate 에이전트 트리거 + WIP 실행 순서](../harness/hn_phase_agent_improvements.md)
 - [검증 파이프라인 강화 — MIGRATIONS 자동생성·AC 강제·CPS 갱신 강제](../harness/hn_verification_pipeline.md)
+
+### incident
+
+- [pipeline-design 규칙 업스트림 이식 원천 사례](../incidents/hn_pipeline_design_rule_origin.md)
+- [review 에이전트 maxTurns 소진 시 verdict 누락](../incidents/hn_review_maxturns_verdict_miss.md)
+- [세션 거짓 완료·자기 위반 패턴 누적 (다음 세션 인계)](../incidents/hn_session_false_completion.md)
+- [wip-sync incidents WIP 자동 완료 미동작 — 체크리스트 없는 문서 abbr 매칭 누락](../incidents/hn_wip_sync_incidents_gap.md)
 
 ### refactor
 
@@ -461,12 +475,6 @@ review (18건) | commit (13건) | downstream (13건) | cps (11건) | eval (10건
 - [하네스 유기체화 설계 — HARNESS_MAP.md 신경망 허브 구현 방안](../guides/hn_harness_organism_design.md)
 - [MVR 매핑 + HARNESS_MAP 에이전트 관점 개선](../harness/hn_mvr_map_agent_view.md)
 
-### incident
-
-- [pipeline-design 규칙 업스트림 이식 원천 사례](../incidents/hn_pipeline_design_rule_origin.md)
-- [review 에이전트 maxTurns 소진 시 verdict 누락](../incidents/hn_review_maxturns_verdict_miss.md)
-- [세션 거짓 완료·자기 위반 패턴 누적 (다음 세션 인계)](../incidents/hn_session_false_completion.md)
-
 ### measurement
 
 - [다운스트림 증폭 측정 — Phase 4-A baseline 수집·가설 검증](../decisions/hn_downstream_amplification.md)
@@ -503,12 +511,6 @@ review (18건) | commit (13건) | downstream (13건) | cps (11건) | eval (10건
 - [자기복제 케이스 sh 적용 점검 + WIP 파싱 SSOT 통합 (wip_util.py + 3 hook 마이그레이션)](../decisions/hn_wip_util_ssot.md)
 - [session-start.sh → session-start.py 전환 — spawn 비용 절감](../harness/hn_session_start_py.md)
 
-### rule
-
-- [문서 네이밍 전면 개편 — 도메인 약어 + 통합 원칙](../decisions/hn_doc_naming.md)
-- [pipeline-design 규칙 업스트림 이식 계획](../decisions/hn_pipeline_design_rule.md)
-- [review staging 재조정 — scripts/agents 이진 판정](../decisions/hn_review_staging_rebalance.md)
-
 ### sealed
 
 - [completed 봉인 — 본문 마크다운 링크 경로 교체 면제](../decisions/hn_sealed_link_exempt.md)
@@ -532,12 +534,6 @@ review (18건) | commit (13건) | downstream (13건) | cps (11건) | eval (10건
 - [memory 재설계 — tmp 폐기 + 동적 snapshot 도입 + 트리거 재정의](../decisions/hn_memory.md)
 - [docs/INDEX.md 폐기 — 관리 드리프트 SSOT 제거](../harness/hn_index_md_removal.md)
 - [하네스 단순화 — 추가 누적으로 인한 마찰 회수](../harness/hn_simplification.md)
-
-### skills
-
-- [룰-스킬 중복 제거 — 룰 SSOT 강제 (Phase 5)](../decisions/hn_rule_skill_ssot.md)
-- [룰-스킬 SSOT 적용 — Phase 1 commit/SKILL.md](../decisions/hn_rule_skill_ssot_apply.md)
-- [HARNESS.json skills 목록 정리 — 1회성 스킬 삭제 + 활성 목록 정비](../harness/hn_harness_json_cleanup.md)
 
 ### trigger
 
@@ -640,11 +636,6 @@ review (18건) | commit (13건) | downstream (13건) | cps (11건) | eval (10건
 
 - [문서 네이밍 전면 개편 — 도메인 약어 + 통합 원칙](../decisions/hn_doc_naming.md)
 - [Glob 라우팅 태그 통과 — 사용자·에이전트 검색 비대칭 해소](../decisions/hn_glob_routing_tag.md)
-
-### p9
-
-- [오케스트레이터 메커니즘 설계 — PreToolUse hook + orchestrator.py MVI](../decisions/hn_orchestrator_mechanism.md)
-- [세션 거짓 완료·자기 위반 패턴 누적 (다음 세션 인계)](../incidents/hn_session_false_completion.md)
 
 ### pre-tool-use
 

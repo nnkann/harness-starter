@@ -5,7 +5,7 @@ problem: P4
 solution-ref:
   - S4 — "단일 hook + 금지 규칙 (부분)"
   - S3 — "5중 방어 (부분)"
-tags: [defense, signal, harness-upgrade, internalization, p4, p3]
+tags: [defense, signal, harness-upgrade, internalization]
 relates-to:
   - path: harness/MIGRATIONS.md
     rel: references

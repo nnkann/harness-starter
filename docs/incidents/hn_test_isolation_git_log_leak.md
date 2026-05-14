@@ -2,6 +2,8 @@
 title: 린터 도구 실종 — T13이 우연히 가시화한 환경 이슈
 domain: harness
 tags: [testing, lint, env, diagnosis-discipline]
+problem: P10
+s: [S10]
 symptom-keywords:
   - T13.1 repeat_count 다운스트림 격리 실패
   - 44/45 T13.1만 실패

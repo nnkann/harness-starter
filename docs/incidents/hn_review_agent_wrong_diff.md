@@ -1,7 +1,10 @@
 ---
+
 title: review 에이전트가 staged diff 대신 직전 커밋을 분석한 사고
 domain: harness
 tags: [review-agent, agent-context, false-warning]
+problem: P2
+s: [S2]
 symptom-keywords:
   - review 헛소리
   - review 잘못 분석

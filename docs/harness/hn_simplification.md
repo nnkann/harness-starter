@@ -2,6 +2,8 @@
 title: 하네스 단순화 — 추가 누적으로 인한 마찰 회수
 domain: harness
 tags: [simplification, friction, rollback, hook-strength]
+problem: P5
+s: [S5]
 status: completed
 created: 2026-04-19
 updated: 2026-04-19

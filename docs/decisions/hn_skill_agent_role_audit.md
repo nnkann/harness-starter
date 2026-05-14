@@ -1,7 +1,10 @@
 ---
+
 title: 스킬·에이전트 역할 분담 감사 — 라우터 패턴 전방위 적용
 domain: harness
 tags: [skill, agent, routing, orchestration, audit]
+problem: P7
+s: [S7, S9]
 status: completed
 created: 2026-04-20
 updated: 2026-04-20

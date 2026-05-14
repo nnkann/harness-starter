@@ -1,7 +1,10 @@
 ---
+
 title: 업스트림 전용 로직·기록 전수 감사 — 다운스트림 전파 파일 청소
 domain: harness
 tags: [harness-starter, upstream-only, downstream, contamination, audit]
+problem: P3
+s: [S3]
 status: completed
 created: 2026-04-22
 updated: 2026-04-22

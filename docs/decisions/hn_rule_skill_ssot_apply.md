@@ -4,7 +4,7 @@ domain: harness
 problem: P5
 solution-ref:
   - S5 — "원인이 특정되면 해당 항목 제거 + 실측 재측정 (부분)"
-tags: [rules, skills, ssot, duplication, apply]
+tags: [rules, skill, ssot, duplication, apply]
 relates-to:
   - path: decisions/hn_rule_skill_ssot.md
     rel: caused-by

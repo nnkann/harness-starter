@@ -1,7 +1,10 @@
 ---
+
 title: split 커밋 sub-group review stage 재판정 — 그룹별 신호 기반 강도 결정
 domain: harness
 tags: [commit, review, staging, split]
+problem: P2
+s: [S2]
 status: completed
 created: 2026-04-25
 updated: 2026-04-25

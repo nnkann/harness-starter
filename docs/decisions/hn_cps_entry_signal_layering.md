@@ -10,10 +10,6 @@ relates-to:
     rel: extends
   - path: decisions/hn_frontmatter_graph_spec.md
     rel: references
-  - path: decisions/hn_bit_cascade_objectification.md
-    rel: precedes
-  - path: decisions/hn_gemini_delegation_pipeline.md
-    rel: precedes
 status: completed
 created: 2026-05-11
 updated: 2026-05-11

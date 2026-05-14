@@ -1,7 +1,10 @@
 ---
+
 title: PreToolUse Bash -n 오탐으로 정당한 명령 차단
 domain: harness
 tags: [hook, pre-tool-use, false-positive, bash]
+problem: P4
+s: [S4]
 symptom-keywords:
   - "-n 금지"
   - "bash -n"

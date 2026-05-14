@@ -1,7 +1,10 @@
 ---
+
 title: eval --deep 보안 강화 패치 타 프로젝트 이식 가이드
 domain: harness
 tags: [eval, security, secret-scan, port]
+problem: P6
+s: [S6]
 status: completed
 created: 2026-04-18
 updated: 2026-04-18

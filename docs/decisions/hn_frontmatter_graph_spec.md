@@ -1,7 +1,10 @@
 ---
+
 title: 프론트매터 그래프 스펙 설계
 domain: harness
 tags: [frontmatter, graph, docs-structure, historical]
+problem: P7
+s: [S7, S9]
 status: completed
 created: 2026-04-16
 updated: 2026-04-21

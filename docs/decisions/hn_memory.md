@@ -2,6 +2,8 @@
 title: memory 재설계 — tmp 폐기 + 동적 snapshot 도입 + 트리거 재정의
 domain: harness
 tags: [memory, snapshot, ssot, simplification, trigger]
+problem: P7
+s: [S7, S9]
 status: completed
 created: 2026-04-20
 updated: 2026-04-21

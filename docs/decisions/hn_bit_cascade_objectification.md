@@ -4,7 +4,7 @@ domain: harness
 problem: P1
 solution-ref:
   - S1 — "규칙 + 자동 차단 + 우회 장치"
-tags: [bit, cascade, cps, ac, objectification, self-dependency, p9-candidate]
+tags: [bit, cascade, cps, ac, objectification, self-dependency]
 relates-to:
   - path: decisions/hn_p8_starter_self_application.md
     rel: extends

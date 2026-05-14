@@ -2,6 +2,8 @@
 title: 코드 SSOT 서더링 감사 — 중복 정의·동기화 부담 정리
 domain: harness
 tags: [ssot, audit, code, refactor]
+problem: P7
+s: [S7, S9]
 status: completed
 created: 2026-04-20
 updated: 2026-04-20

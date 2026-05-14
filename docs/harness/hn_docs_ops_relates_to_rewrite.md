@@ -1,7 +1,10 @@
 ---
+
 title: docs_ops.py move 시 relates-to 역참조 자동 갱신
 domain: harness
 tags: [docs-ops, relates-to, dead-link, move]
+problem: P7
+s: [S7, S9]
 status: completed
 created: 2026-04-25
 updated: 2026-04-25

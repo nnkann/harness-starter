@@ -1,7 +1,10 @@
 ---
+
 title: eval 4관점 advisor 이관 + specialist 품질 보강 (threat-analyst 신설·산출물 점수·업계 탑 인물)
 domain: harness
 tags: [eval, advisor, specialist, threat-analyst, quality, scoring]
+problem: P1
+s: [S1]
 status: completed
 created: 2026-04-20
 updated: 2026-04-20

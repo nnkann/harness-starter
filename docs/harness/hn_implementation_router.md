@@ -1,7 +1,10 @@
 ---
+
 title: implementation 스킬 재정의 — 라우터·추적자로 역할 좁히기
 domain: harness
 tags: [implementation, skill, routing, orchestration]
+problem: P7
+s: [S7, S9]
 status: completed
 created: 2026-04-20
 updated: 2026-04-20

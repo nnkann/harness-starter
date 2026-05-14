@@ -2,6 +2,8 @@
 title: 정보 흐름 누수 해소 Phase 3 — 정성 평가 종결
 domain: harness
 tags: [audit, information-flow, measurement, phase3]
+problem: P6
+s: [S6]
 status: completed
 created: 2026-04-20
 updated: 2026-04-20

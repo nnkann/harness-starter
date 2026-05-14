@@ -1,7 +1,10 @@
 ---
+
 title: v0.18.3 린터 ENOENT 패턴 — 오탐 가능성·OS 커버리지 갭
 domain: harness
 tags: [upstream-feedback, pre-commit-check, lint, enoent, false-positive, no-speculation]
+problem: P2
+s: [S2]
 symptom-keywords:
   - ENOENT 패턴 오탐
   - No such file or directory ESLint import

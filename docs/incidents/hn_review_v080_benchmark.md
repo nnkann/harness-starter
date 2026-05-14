@@ -2,6 +2,8 @@
 title: review v0.8.0 패턴 매핑 재설계 — starter 격리 벤치마크
 domain: harness
 tags: [review, benchmark, staging, tool-usage]
+problem: P2
+s: [S2]
 symptom-keywords:
   - review 느림
   - review 토큰 과소비
@@ -9,7 +11,7 @@ symptom-keywords:
   - 15 tool calls
 relates-to:
   - path: ../guides/project_kickoff.md
-    rel: implements
+    rel: extends
 status: completed
 created: 2026-04-20
 updated: 2026-04-20

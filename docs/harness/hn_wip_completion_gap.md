@@ -1,7 +1,10 @@
 ---
+
 title: WIP 완료 자동화 구조적 결함 — Step 7.5 미동작 + SSOT 드리프트 + 이동 미연결
 domain: harness
 tags: [commit, wip, step7.5, ssot, completion]
+problem: P2
+s: [S2]
 status: completed
 created: 2026-04-25
 updated: 2026-04-25

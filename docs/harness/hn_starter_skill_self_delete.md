@@ -1,7 +1,10 @@
 ---
+
 title: starter 전용 스킬 자기 삭제 + starter_skills 병합 버그 수정
 domain: harness
 tags: [skill, starter, harness-init, harness-adopt, harness-upgrade]
+problem: P3
+s: [S3]
 status: completed
 created: 2026-04-28
 updated: 2026-04-28

@@ -4,7 +4,7 @@ domain: harness
 problem: P5
 solution-ref:
   - S5 — "MVR(Minimum Viable Rules) (부분)"
-tags: [mvr, harness-map, context, p5, p7]
+tags: [mvr, harness-map, context]
 relates-to:
   - path: harness/MIGRATIONS.md
     rel: references

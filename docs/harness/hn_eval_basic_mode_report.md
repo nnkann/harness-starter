@@ -1,7 +1,10 @@
 ---
+
 title: eval 기본 모드 보고 구조 개선
 domain: harness
 tags: [eval, skill, reporting, memory]
+problem: P6
+s: [S6]
 relates-to: []
 status: completed
 created: 2026-04-29

@@ -1,7 +1,10 @@
 ---
+
 title: LLM 실수 방지 가드레일 — 내부 자료 우선 + 추측 차단 + advisor 연동
 domain: harness
 tags: [guardrails, self-correction, reliability, advisor-flow]
+problem: P1
+s: [S1]
 status: completed
 created: 2026-04-18
 updated: 2026-04-19

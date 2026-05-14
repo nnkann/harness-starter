@@ -2,6 +2,8 @@
 title: pre-check 시크릿 line 면제 갭 — agents/threat-analyst.md 잘못 차단
 domain: harness
 tags: [pre-check, secret-scan, false-positive, regex-gap]
+problem: P6
+s: [S6]
 symptom-keywords:
   - "🚫 pre-check 차단 — 시크릿 line-confirmed"
   - "s1_level"

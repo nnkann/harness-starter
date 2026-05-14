@@ -1,7 +1,10 @@
 ---
+
 title: review 에이전트 tool call 예산 재설계 — 조기 중단 + 유동 배분
 domain: harness
 tags: [review, agent, tool-budget, tokens]
+problem: P2
+s: [S2]
 status: completed
 created: 2026-04-21
 updated: 2026-04-25

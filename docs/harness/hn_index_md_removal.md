@@ -2,6 +2,8 @@
 title: docs/INDEX.md 폐기 — 관리 드리프트 SSOT 제거
 domain: harness
 tags: [docs, ssot, simplification, index-removal]
+problem: P7
+s: [S7, S9]
 status: completed
 created: 2026-04-20
 updated: 2026-04-20

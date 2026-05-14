@@ -2,6 +2,8 @@
 title: pipeline-design 규칙 업스트림 이식 원천 사례
 domain: harness
 tags: [pipeline, rule-origin, incident, upstream-rule]
+problem: P7
+s: [S7, S9]
 symptom-keywords:
   - pipeline 재편에도 못 본 재계산
   - 상류 신호 암묵적 폐기

@@ -1,7 +1,10 @@
 ---
+
 title: 광역 매처 오탐으로 무관한 명령 차단 + harness-upgrade가 README 덮어쓸 위험
 domain: harness
 tags: [hook, matcher, false-positive, harness-upgrade, readme, downstream]
+problem: P3
+s: [S3]
 symptom-keywords:
   - "PreToolUse:Bash hook error"
   - "git commit -n 금지"

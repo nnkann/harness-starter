@@ -2,6 +2,8 @@
 title: "harness-starter 이상 징후 묶음 (다운스트림 발견)"
 domain: harness
 tags: [upstream, anomaly, secret-scan, permissions, upgrade]
+problem: P3
+s: [S3]
 relates-to:
   - path: harness/hn_migrations_version_gap.md
     rel: extends

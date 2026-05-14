@@ -1,7 +1,10 @@
 ---
+
 title: review staging 재조정 — scripts/agents 이진 판정
 domain: harness
-tags: [staging, review, rule, tokens]
+tags: [staging, review, rules, tokens]
+problem: P2
+s: [S2]
 status: completed
 created: 2026-04-21
 updated: 2026-04-21

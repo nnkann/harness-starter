@@ -865,17 +865,21 @@ def _extract_problems_from_kickoff() -> list[tuple[str, str]]:
     text = CPS_DOC.read_text(encoding="utf-8")
     results: list[tuple[str, str]] = []
     seen: set[str] = set()
+    # bold 마커 처리 — `**P10**` 형태도 인식
+    def _strip_bold(s: str) -> str:
+        return re.sub(r"\*\*([^*]+)\*\*", r"\1", s).strip()
+
     # 1) 헤더 형식
-    for m in re.finditer(r"^#{2,3}\s+(P\d+)[\s.:—\-]+(.+?)$", text, re.MULTILINE):
+    for m in re.finditer(r"^#{2,3}\s+\*{0,2}(P\d+)\*{0,2}[\s.:—\-]+(.+?)$", text, re.MULTILINE):
         pid = m.group(1)
         if pid not in seen:
-            results.append((pid, m.group(2).strip()))
+            results.append((pid, _strip_bold(m.group(2))))
             seen.add(pid)
-    # 2) 표 형식: | P1 | 1줄 |
-    for m in re.finditer(r"^\|\s*(P\d+)\s*\|\s*(.+?)\s*\|", text, re.MULTILINE):
+    # 2) 표 형식: | P1 | 1줄 | (bold 마커 `| **P10** | **요약** |`도 인식)
+    for m in re.finditer(r"^\|\s*\*{0,2}(P\d+)\*{0,2}\s*\|\s*(.+?)\s*\|", text, re.MULTILINE):
         pid = m.group(1)
         if pid not in seen:
-            results.append((pid, m.group(2).strip()))
+            results.append((pid, _strip_bold(m.group(2))))
             seen.add(pid)
     # P# 번호 순으로 정렬
     results.sort(key=lambda x: int(x[0][1:]))

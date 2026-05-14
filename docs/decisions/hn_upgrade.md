@@ -2,6 +2,8 @@
 title: Harness-Starter 업그레이드 계획
 domain: harness
 tags: [memory, hook, skill, upgrade]
+problem: P3
+s: [S3]
 status: completed
 created: 2026-04-10
 ---

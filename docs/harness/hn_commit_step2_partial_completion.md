@@ -1,7 +1,10 @@
 ---
+
 title: commit Step 2 후속 — write-doc symptom-keywords 재질의 + completed 미결 차단 자동화
 domain: harness
 tags: [commit, write-doc, completion-gate]
+problem: P2
+s: [S2]
 status: completed
 created: 2026-04-19
 updated: 2026-04-19

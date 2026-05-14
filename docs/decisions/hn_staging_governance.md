@@ -1,7 +1,10 @@
 ---
+
 title: Review Staging 거버넌스 — 신호 추가 게이트와 알려진 한계
 domain: harness
 tags: [staging, review, governance]
+problem: P2
+s: [S2]
 status: completed
 created: 2026-04-20
 ---

@@ -1,7 +1,10 @@
 ---
+
 title: 하네스 단계간 정보 흐름 누수 전수 조사
 domain: harness
 tags: [audit, information-flow, efficiency, agent-orchestration]
+problem: P7
+s: [S7, S9]
 status: completed
 created: 2026-04-20
 updated: 2026-04-20

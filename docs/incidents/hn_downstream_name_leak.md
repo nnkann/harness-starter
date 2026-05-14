@@ -1,7 +1,10 @@
 ---
+
 title: archived/promotion-log에 다운스트림 제품명 유출 — review 발견
 domain: harness
 tags: [contamination, review, archive, downstream-name]
+problem: P2
+s: [S2]
 symptom-keywords:
   - StageLink
   - stagelink

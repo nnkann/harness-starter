@@ -2,6 +2,8 @@
 title: Karpathy 원칙 적용 — 코딩 컨벤션·행동 원칙·self-verify·staging·commit SSOT
 domain: harness
 tags: [karpathy, coding-convention, self-verify, staging, ssot, ac]
+problem: P1
+s: [S1]
 relates-to:
   - path: harness/hn_llm_mistake_guardrails.md
     rel: extends

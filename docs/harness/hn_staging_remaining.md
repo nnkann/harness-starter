@@ -1,7 +1,10 @@
 ---
+
 title: review staging 잔여 — S8 정밀화 + 5커밋 측정 + 폭증 게이트
 domain: harness
 tags: [staging, review, measurement]
+problem: P2
+s: [S2]
 status: completed
 created: 2026-04-19
 updated: 2026-04-19

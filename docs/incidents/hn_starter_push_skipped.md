@@ -2,6 +2,8 @@
 title: starter 12커밋 push 누락 — 다운스트림이 업스트림 변경 못 봄
 domain: harness
 tags: [push, starter, downstream, propagation, commit-skill]
+problem: P3
+s: [S3]
 symptom-keywords:
   - "다운스트림에서 안 보여"
   - "업스트림에 안 보이지"

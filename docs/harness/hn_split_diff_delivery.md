@@ -1,7 +1,10 @@
 ---
+
 title: split 성격 기반 그룹화 + commit 흐름 내 diff 참조 최적화
 domain: harness
 tags: [split, commit, review, diff, task_groups]
+problem: P2
+s: [S2]
 status: completed
 created: 2026-04-27
 ---

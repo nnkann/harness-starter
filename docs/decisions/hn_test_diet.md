@@ -2,6 +2,8 @@
 title: 테스트 다이어트 + 트리거 좁힘 — AC 기반 시스템과 중복 제거
 domain: harness
 tags: [test, diet, ac, trigger, downstream]
+problem: P6
+s: [S6]
 relates-to:
   - path: decisions/hn_karpathy_principles.md
     rel: caused-by

@@ -1,7 +1,10 @@
 ---
+
 title: 범용성 오염 방지 후속 — review 검증 항목 + 스킬 질의
 domain: harness
 tags: [contamination, review, write-doc]
+problem: P2
+s: [S2]
 relates-to:
   - path: ../harness/hn_generic_contamination_protection.md
     rel: extends

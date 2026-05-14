@@ -2,6 +2,8 @@
 title: 문서 탐색 프로토콜
 domain: harness
 tags: [docs, search, doc-finder]
+problem: P7
+s: [S7, S9]
 relates-to: []
 status: completed
 created: 2026-04-20

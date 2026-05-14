@@ -1,7 +1,10 @@
 ---
+
 title: 하네스 범용성 오염 방지 — 다운스트림 고유명사 유입 차단
 domain: harness
 tags: [harness-starter, contamination, generic]
+problem: P3
+s: [S3]
 status: completed
 created: 2026-04-18
 updated: 2026-04-19

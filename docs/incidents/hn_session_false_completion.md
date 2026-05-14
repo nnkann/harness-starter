@@ -4,7 +4,7 @@ domain: harness
 problem: P9
 solution-ref:
   - S9 — "주관 격리 + 다층 검증"
-tags: [incident, session-handoff, false-completion, self-violation, p9]
+tags: [incident, session-handoff, false-completion, self-violation]
 symptom-keywords:
   - 거짓 완료
   - mock 회귀 우회

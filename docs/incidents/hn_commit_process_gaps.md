@@ -1,7 +1,10 @@
 ---
+
 title: 커밋 프로세스 갭 — 검증 부재·dead code·split 자동화 미완 (2026-04-27)
 domain: harness
 tags: [commit, split, self-verify, review, dead-code]
+problem: P2
+s: [S2]
 symptom-keywords:
   - split-commit
   - dead code

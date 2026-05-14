@@ -4,7 +4,7 @@ domain: harness
 problem: P9
 solution-ref:
   - S9 — "주관 격리 + 다층 검증"
-tags: [orchestrator, cascade, execution, hook, p9, mvi, pre-tool-use]
+tags: [orchestrator, cascade, execution, hook, mvi, pre-tool-use]
 relates-to:
   - path: decisions/hn_cps_entry_signal_layering.md
     rel: caused-by

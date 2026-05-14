@@ -2,6 +2,8 @@
 title: Remote 기반 하네스 업그레이드 전략
 domain: harness
 tags: [upgrade, git-remote, merge]
+problem: P3
+s: [S3]
 status: completed
 created: 2026-04-16
 updated: 2026-04-16

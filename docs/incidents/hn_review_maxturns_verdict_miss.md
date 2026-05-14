@@ -1,7 +1,10 @@
 ---
+
 title: review 에이전트 maxTurns 소진 시 verdict 누락
 domain: harness
 tags: [review, maxturns, agent-spec, incident]
+problem: P2
+s: [S2]
 symptom-keywords:
   - review verdict 누락
   - agentId 리턴 중단

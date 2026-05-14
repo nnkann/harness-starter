@@ -2,6 +2,8 @@
 title: 하네스 자잘한 버그 묶음 — MIGRATIONS 누락·starter_skills 오염·permissions.allow 미전파·h-setup.sh 오분류·신규설치 필터 누락·harness-sync 경계 불명확·docs/harness 전달 오염
 domain: harness
 tags: [migration, harness-dev, harness-upgrade, bug]
+problem: P3
+s: [S3]
 status: completed
 created: 2026-04-28
 updated: 2026-04-28

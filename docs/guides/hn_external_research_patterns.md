@@ -1,7 +1,10 @@
 ---
+
 title: 외부 자료 조사 패턴 — Context7·공식 문서
 domain: harness
 tags: [research, context7, external-docs, mcp]
+problem: P5
+s: [S5]
 status: completed
 created: 2026-04-20
 ---

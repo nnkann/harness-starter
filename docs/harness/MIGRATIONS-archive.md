@@ -43,6 +43,65 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.47.0 — 73% 삭감 wave §S-1 CPS 재설계 + §S-2 AC 단순화 (2026-05-14)
+
+### 변경 내용
+
+**§S-1 CPS 재설계 (자라는 시스템 + CPS 도메인 신설)**:
+- `.claude/HARNESS_MAP.md` **삭제** — defends/serves/enforced-by/trigger 정적 표 폐기.
+  CPS cascade 표가 정적이라 죽었음을 박제. wave별 case는 `docs/cps/cp_{slug}.md` + git history.
+- CPS 도메인 신설 — abbr `cp`, `docs/cps/` 폴더, `docs/clusters/cps.md` 자동 매핑.
+- 신규 스킬: `.claude/skills/cps-check/SKILL.md` (옵트인 정합 검사).
+- 신규 명령: `python .claude/scripts/docs_ops.py cps {list|add|cases|show|stats}`.
+- `docs/guides/project_kickoff.md` 491 → 78줄 압축 (C 판단 프롬프트, 자라지 않음).
+  압축 전 본문은 `docs/archived/hn_kickoff_pre_73pct_cut.md`에 보존.
+- `pre_commit_check.py` CPS 인용 박제 substring 검사 폐기 (~150줄):
+  `normalize_quote`·`parse_solution_ref`·`get_cps_text`·`verify_solution_ref` 함수 삭제.
+- `docs.md` "CPS 인용" 섹션 폐기 — 50자·(부분)·normalize 룰 삭제, 번호 list만.
+- WIP frontmatter `s: [S2, S6]` 번호 list 형식 도입. 레거시 `solution-ref` 호환 유지.
+
+**§S-2 AC 4필드 → 3필드 (검증.review 5단계 자가 선언 폐기)**:
+- `.claude/rules/staging.md` **삭제** — Stage 5단계 룰 폐기.
+- AC 형식: `Goal:` + `검증.tests:` + `검증.실측:` 3필드. `검증.review:` 폐기.
+- `pre_commit_check.py` stage 결정 단순화 — 5단계(skip/micro/standard/deep) → 2단계(default/deep).
+  default = 사용자 플래그 결정, deep = 시크릿 line-confirmed 강제.
+- commit 스킬 플래그 단순화 — `--quick`/`--deep` 폐기, `--review`/`--no-review` 2단계.
+- review agent verdict 강제 추출 폐기 — diff별 한 줄 의견 자유 형식.
+
+**기타**:
+- `pre_commit_check.py` 1060 → 959줄 (101줄 감소).
+- CLAUDE.md "하네스 신경망 허브" → "## CPS" 짧은 안내 (HARNESS_MAP 참조 제거).
+
+### 적용 방법
+
+**자동**: harness-upgrade 시 위 파일 변경이 머지된다.
+
+**수동**:
+- 기존 WIP frontmatter `solution-ref: - S2 — "..."` 형식은 그대로 두면 호환 (S# 번호만 추출).
+  신규 WIP는 `s: [S2, S6]` 인라인 list 권장.
+- AC 형식: 기존 WIP의 `검증.review: skip|self|review|review-deep` 라인은 무시됨 (파싱 안 함).
+  신규 WIP는 `검증.tests` + `검증.실측` 2개만.
+- HARNESS_MAP.md 참조하는 다운스트림 룰·스킬이 있으면 본문 직접 갱신 권장 (자동 머지 불가).
+
+### 검증
+
+```bash
+# CPS 시스템 작동 확인
+python .claude/scripts/docs_ops.py cps list      # P1~P# 1줄 요약
+python .claude/scripts/docs_ops.py cps stats     # case 수·P# 분포
+
+# pre-check 작동 확인 (WIP 작성 후)
+python .claude/scripts/pre_commit_check.py       # ac_tests·ac_actual 출력, ac_review 사라짐
+```
+
+### 회귀 위험
+
+- upstream 격리(Windows/Git Bash)에서 `pre_check_passed: true` 실측.
+- 기존 WIP의 `solution-ref` 50자 인용 형식 파일은 다음 커밋 시 그대로 통과 (S# 번호만 추출). 박제 substring 검사 폐기로 인용 의미 검증이 사라짐 — wave 간 역영향 추적은 commit body·git log로 수동 처리.
+- Linux/macOS 미테스트.
+
+
+
 ## v0.46.2 — 하네스 v0.41 baseline 회복 + audit 18 해소 단일 wave (2026-05-13)
 
 ### 변경 내용

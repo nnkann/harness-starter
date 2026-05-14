@@ -2,6 +2,8 @@
 title: 하네스 스타터 개선 계획
 domain: harness
 tags: [improvement, profile, sync]
+problem: P10
+s: [S10]
 status: completed
 created: 2026-04-08
 ---

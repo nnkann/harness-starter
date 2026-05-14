@@ -1,7 +1,10 @@
 ---
+
 title: docs-ops.sh cluster-update 성능 저하 — extract_abbrs() 반복 호출
 domain: harness
 tags: [docs-ops, cluster-update, performance]
+problem: P7
+s: [S7, S9]
 status: completed
 created: 2026-04-23
 updated: 2026-04-23

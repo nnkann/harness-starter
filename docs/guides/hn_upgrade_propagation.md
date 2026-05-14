@@ -2,6 +2,8 @@
 title: 하네스 스타터 업그레이드 전파 전략
 domain: harness
 tags: [upgrade, propagation, versioning]
+problem: P3
+s: [S3]
 status: completed
 created: 2026-04-10
 ---

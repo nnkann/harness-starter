@@ -4,7 +4,7 @@ domain: harness
 problem: P8
 solution-ref:
   - S8 — "강제 트리거 우선 + 자가 의존 보조"
-tags: [p8, starter, commit-flow, self-dependency, force-trigger, hook]
+tags: [starter, commit-flow, self-dependency, force-trigger, hook]
 relates-to:
   - path: decisions/hn_self_invocation_failure.md
     rel: caused-by

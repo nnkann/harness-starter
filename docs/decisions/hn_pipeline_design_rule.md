@@ -1,7 +1,9 @@
 ---
 title: pipeline-design 규칙 업스트림 이식 계획
 domain: harness
-tags: [pipeline, rule, upstream-rule, review-pattern]
+tags: [pipeline, rules, upstream-rule, review-pattern]
+problem: P7
+s: [S7, S9]
 status: completed
 created: 2026-04-21
 updated: 2026-04-21

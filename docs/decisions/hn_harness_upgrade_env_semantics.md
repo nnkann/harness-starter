@@ -2,6 +2,8 @@
 title: HARNESS_UPGRADE 환경변수 의미 일관화
 domain: harness
 tags: [upgrade, env-var, ssot, governance]
+problem: P3
+s: [S3]
 relates-to:
   - path: harness/hn_upstream_anomalies.md
     rel: caused-by

@@ -1,7 +1,10 @@
 ---
+
 title: 문서 네이밍 전면 개편 — 도메인 약어 + 통합 원칙
 domain: harness
-tags: [naming, docs, upstream-rule, rule]
+tags: [naming, docs, upstream-rule, rules]
+problem: P7
+s: [S7, S9]
 status: completed
 created: 2026-04-21
 updated: 2026-04-21

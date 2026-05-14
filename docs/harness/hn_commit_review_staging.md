@@ -1,7 +1,10 @@
 ---
+
 title: commit·review 단계화 — Stage 0~3 + 신규 파일 패스 + 메타 자동 병합
 domain: harness
 tags: [commit, review, performance, staging, cost]
+problem: P2
+s: [S2]
 status: completed
 created: 2026-04-19
 updated: 2026-04-19
