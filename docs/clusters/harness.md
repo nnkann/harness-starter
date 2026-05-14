@@ -129,4 +129,4 @@ updated: 2026-05-14
 
 ## 진행 중 (WIP)
 
-- [하네스 복구 단일 wave — v0.41 baseline 회복 + audit 18 해소](../WIP/harness--hn_harness_recovery_v0_41_baseline.md)
+- [하네스 73% 삭감 설계 — 통제에서 가속으로](../WIP/hn_harness_80pct_cut.md)

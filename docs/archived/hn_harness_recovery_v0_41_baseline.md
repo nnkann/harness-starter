@@ -15,9 +15,9 @@ relates-to:
     rel: supersedes
   - path: decisions/hn_self_invocation_failure.md
     rel: references
-status: in-progress
+status: abandoned
 created: 2026-05-13
-updated: 2026-05-13
+updated: 2026-05-14
 ---
 
 # 하네스 복구 단일 wave — v0.41 baseline 회복

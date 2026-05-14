@@ -10,7 +10,7 @@ relates-to:
     rel: extends
   - path: archived/hn_commit_perf_audit.md
     rel: references
-  - path: WIP/harness--hn_harness_recovery_v0_41_baseline.md
+  - path: archived/hn_harness_recovery_v0_41_baseline.md
     rel: caused-by
 status: abandoned
 created: 2026-05-13

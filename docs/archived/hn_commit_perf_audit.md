@@ -8,7 +8,7 @@ tags: [commit, audit, regression, latency, abandoned-asset]
 relates-to:
   - path: archived/hn_commit_perf_optimization.md
     rel: extends
-  - path: WIP/harness--hn_harness_recovery_v0_41_baseline.md
+  - path: archived/hn_harness_recovery_v0_41_baseline.md
     rel: caused-by
 status: abandoned
 created: 2026-05-13

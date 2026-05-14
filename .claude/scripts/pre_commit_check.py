@@ -108,15 +108,8 @@ def resolve_path(base_dir: str, link: str) -> str:
 # ─────────────────────────────────────────────────────────
 
 CPS_DOC = "docs/guides/project_kickoff.md"
-# CPS 면제 — frontmatter problem·solution-ref 강제 안 함
+# CPS 면제 — frontmatter problem·s 강제 안 함
 CPS_EXEMPT_PATHS = re.compile(r"^docs/guides/project_kickoff\.md$")
-
-
-def normalize_quote(s: str) -> str:
-    """CPS 인용 비교용 normalize. 공백 통일·줄바꿈 제거·backtick·bold 마크다운 제거."""
-    s = s.replace("\n", " ").replace("`", "").replace("**", "")
-    s = re.sub(r"\s+", " ", s).strip()
-    return s
 
 
 def parse_frontmatter(text: str) -> tuple[dict, int]:
@@ -156,48 +149,20 @@ def parse_frontmatter(text: str) -> tuple[dict, int]:
     return fm, end + 1
 
 
-def parse_solution_ref(entry: str) -> tuple[str, str, bool]:
-    """solution-ref 항목 파싱 → (solution_id, quote, is_partial).
-    형식: 'S2 — "원문"' 또는 'S2 — "요약 (부분)"'.
-    """
-    # quote가 따옴표로 감싸짐. backtick·single quote도 허용
-    m = re.match(r'^(S\d+)\s*[—\-]\s*[`"\']([^`"\'\n]+)[`"\']\s*$', entry.strip())
-    if not m:
-        return "", "", False
-    sid, quote = m.group(1), m.group(2)
-    is_partial = False
-    if quote.endswith(" (부분)"):
-        quote = quote[: -len(" (부분)")]
-        is_partial = True
-    return sid, quote, is_partial
-
-
-_CPS_TEXT_CACHE: str | None = None
-
-
-def get_cps_text() -> str:
-    """CPS 본문 Read (캐싱). normalize 적용."""
-    global _CPS_TEXT_CACHE
-    if _CPS_TEXT_CACHE is None:
-        try:
-            _CPS_TEXT_CACHE = normalize_quote(Path(CPS_DOC).read_text(encoding="utf-8"))
-        except Exception:
-            _CPS_TEXT_CACHE = ""
-    return _CPS_TEXT_CACHE
-
-
 def parse_ac_block(body: str) -> dict:
     """AC 블록에서 Goal·검증 묶음 추출.
     형식:
         - [ ] Goal: <1줄>
           검증:
-            review: skip|self|review|review-deep
-            tests: <명령 또는 "없음">
-            실측: <명령 또는 "없음">
-    반환: {goal: str, ac_review: str, ac_tests: str, ac_actual: str}
+            tests: <pytest 명령 또는 "없음">
+            실측: <명령·조건 또는 "운용 검증">
+    반환: {goal: str, ac_tests: str, ac_actual: str}
     누락 항목은 빈 문자열.
+
+    2026-05-14 §S-2 (73% 삭감): `review:` 5단계 자가 선언 폐기. review 호출은
+    /commit --review/--no-review 2단계로 단순화.
     """
-    result = {"goal": "", "ac_review": "", "ac_tests": "", "ac_actual": "", "ac_section_found": False}
+    result = {"goal": "", "ac_tests": "", "ac_actual": "", "ac_section_found": False}
     in_ac = False
     in_verify = False
     for line in body.splitlines():
@@ -219,41 +184,17 @@ def parse_ac_block(body: str) -> dict:
             in_verify = True
             continue
         if in_verify:
-            mr = re.match(r"^\s+review:\s*(.+)$", line)
             mt = re.match(r"^\s+tests:\s*(.+)$", line)
             ma = re.match(r"^\s+실측:\s*(.+)$", line)
-            if mr:
-                result["ac_review"] = mr.group(1).strip()
-            elif mt:
+            if mt:
                 result["ac_tests"] = mt.group(1).strip()
             elif ma:
                 result["ac_actual"] = ma.group(1).strip()
             elif re.match(r"^\s*-\s*\[.\]", line):
                 # 다음 AC 항목 → 검증 블록 종료
                 in_verify = False
+            # review: 라인은 레거시 호환으로 무시 (파싱하지 않음)
     return result
-
-
-def verify_solution_ref(sol_refs: list, cps_text: str) -> list[str]:
-    """solution-ref 인용을 CPS 본문과 비교. 박제 의심 경고 list 반환.
-    형식 위반·CPS 미매칭 모두 경고.
-    """
-    warnings = []
-    for entry in sol_refs:
-        sid, quote, is_partial = parse_solution_ref(entry)
-        if not sid:
-            warnings.append(f"형식 위반: {entry}")
-            continue
-        if len(quote) > 50 and not is_partial:
-            warnings.append(
-                f"{sid} 인용 50자 초과인데 (부분) 마커 없음 — 원문 그대로 또는 요약+부분 마커"
-            )
-            continue
-        nq = normalize_quote(quote)
-        if nq and nq not in cps_text:
-            warnings.append(f"{sid} 인용 박제 의심 (CPS 본문 미매칭): \"{quote[:60]}\"")
-    return warnings
-
 
 
 # ─────────────────────────────────────────────────────────
@@ -797,15 +738,11 @@ def main() -> int:
     # AC Goal·검증 묶음 추출. 누락 시 차단. 외형 metric 폐기.
 
     wip_problem = ""
-    wip_solution_ref = ""  # ";" 구분 list-style
-    ac_review = ""
+    wip_solution_ref = ""  # S# 번호 list, ";" 구분
     ac_tests = ""
     ac_actual = ""
-    cps_text = get_cps_text()
-    if not cps_text:
-        err("⚠ CPS 본문 없음 — solution-ref 박제 감지 불가 (harness-init 미완료 또는 project_kickoff.md 비어있음)")
 
-    DOCS_REQUIRED_PAT = re.compile(r"^docs/(WIP|decisions|incidents|guides|harness)/.+\.md$")
+    DOCS_REQUIRED_PAT = re.compile(r"^docs/(WIP|decisions|incidents|guides|harness|cps)/.+\.md$")
     # CPS 자체는 면제. legacy 50개 문서 보강은 별 wave (frontmatter 강제 안 함)
 
     # staged WIP만 frontmatter 강제 (신규 문서 진입점이 WIP)
@@ -821,7 +758,7 @@ def main() -> int:
         fm, body_start = parse_frontmatter(text)
         body = "\n".join(text.splitlines()[body_start:])
 
-        # frontmatter problem 검증
+        # frontmatter problem 검증 (단일 P# 또는 list)
         prob = fm.get("problem", "")
         if isinstance(prob, list):
             prob = prob[0] if prob else ""
@@ -835,21 +772,25 @@ def main() -> int:
             continue
         wip_problem = prob.strip()
 
-        # frontmatter solution-ref 검증
-        sol_refs = fm.get("solution-ref", [])
-        if isinstance(sol_refs, str):
-            sol_refs = [sol_refs]
-        if not sol_refs:
-            err(f"❌ {wip}: frontmatter `solution-ref` 누락. Solution 충족 기준 인용 필수.")
+        # frontmatter s 검증 (Solution 번호 list — 50자 인용 박제 검사 폐기, 2026-05-14)
+        # 신규 형식: s: [S2, S6]  (인라인 list) 또는 multi-line list
+        # 레거시 호환: solution-ref: ["S2 — \"...\""]도 허용 (S# 번호만 추출)
+        sol_raw = fm.get("s") or fm.get("solution-ref") or []
+        if isinstance(sol_raw, str):
+            # 인라인 list "[S2, S6]" 또는 단일 "S2 — ..." 모두 처리
+            sol_raw = sol_raw.strip("[]")
+            sol_raw = [x.strip().strip("'\"") for x in sol_raw.split(",") if x.strip()]
+        sol_ids = []
+        for entry in sol_raw:
+            # entry에서 S# 번호만 추출 (레거시 'S2 — "..."' 또는 신규 'S2')
+            m = re.match(r"^(S\d+)", entry.strip())
+            if m:
+                sol_ids.append(m.group(1))
+        if not sol_ids:
+            err(f"❌ {wip}: frontmatter `s` 또는 `solution-ref` 누락. Solution 번호(S#) 필수.")
             ERRORS += 1
             continue
-        wip_solution_ref = "; ".join(sol_refs)
-
-        # 박제 감지 (경고만, 차단 아님)
-        if cps_text:
-            warns = verify_solution_ref(sol_refs, cps_text)
-            for w in warns:
-                err(f"⚠ {wip}: solution-ref 박제 의심 — {w}")
+        wip_solution_ref = "; ".join(sol_ids)
 
         # AC Goal·검증 묶음 추출
         ac = parse_ac_block(body)
@@ -860,71 +801,34 @@ def main() -> int:
                 err(f"❌ {wip}: AC `Goal:` 항목 누락.")
             ERRORS += 1
             continue
-        if not ac["ac_review"]:
-            err(f"❌ {wip}: AC `검증.review` 누락. (skip|self|review|review-deep)")
-            ERRORS += 1
-            continue
-        if ac["ac_review"] not in ("skip", "self", "review", "review-deep"):
-            err(f"❌ {wip}: AC `검증.review` 값 위반 ('{ac['ac_review']}').")
-            ERRORS += 1
-            continue
+        # `검증.review` 5단계 자가 선언 폐기 (2026-05-14 §S-2).
+        # review 호출은 /commit --review/--no-review 플래그로.
         if not ac["ac_tests"]:
             err(f"❌ {wip}: AC `검증.tests` 누락. (pytest 명령 또는 \"없음\")")
             ERRORS += 1
             continue
         if not ac["ac_actual"]:
-            err(f"❌ {wip}: AC `검증.실측` 누락. (구체 명령 또는 \"없음\")")
+            err(f"❌ {wip}: AC `검증.실측` 누락. (구체 명령 또는 \"운용 검증\")")
             ERRORS += 1
             continue
-        ac_review = ac["ac_review"]
         ac_tests = ac["ac_tests"]
         ac_actual = ac["ac_actual"]
 
     # ─────────────────────────────────────────────────────────
-    # Stage 결정 (AC + CPS 단일 룰)
+    # Stage 결정 (2단계: review / no-review)
     # ─────────────────────────────────────────────────────────
     #
-    # 외형 룰 (UPSTREAM_PAT·META_M_PAT·docs 5줄·rename/meta 단독·WIP 단독) 폐기.
-    # 단일 룰: 시크릿(보안 게이트) > CPS Problem 변경 > AC 검증.review 그대로.
+    # 2026-05-14 §S-2 (73% 삭감): Stage 5단계(skip/micro/standard/deep) 폐기.
+    # AC `검증.review` 자가 선언이 분류 의미를 못 가졌음 — review 호출은
+    # commit 스킬의 --review/--no-review 플래그로.
+    #
+    # pre-check은 강제 검사만 유지:
+    #   - 시크릿 line-confirmed → "deep" (보안 게이트, 사용자 플래그 무시)
+    #   - 그 외 → "default" (사용자 플래그가 결정)
 
-    stage = ""
-
-    # 룰 1: 시크릿 line-confirmed → deep (보안 게이트, 작성자 선언 무시)
+    stage = "default"
     if s1_level == "line-confirmed":
-        stage = "deep"
-
-    # 룰 2: CPS Problem 정의 자체 staged → deep (cascade 영향)
-    if not stage and any(CPS_EXEMPT_PATHS.match(f) for f in staged_files):
-        # CPS 면제 파일이 staged면 그게 곧 CPS 본문 변경
-        stage = "deep"
-        # CPS staged + 다른 staged 파일에 solution-ref 있으면 재비교 경고
-        # (CPS 본문이 바뀌었으므로 기존 인용이 박제될 수 있음)
-        non_cps_staged = [f for f in staged_files if not CPS_EXEMPT_PATHS.match(f)
-                          and f.endswith(".md")]
-        for f in non_cps_staged:
-            try:
-                txt = Path(f).read_text(encoding="utf-8")
-                fm = parse_frontmatter(txt)
-                if fm.get("solution-ref"):
-                    err(f"⚠ CPS 본문 변경 + {f} solution-ref 존재 — 인용 박제 재확인 필요")
-            except Exception:
-                pass
-
-    # 룰 3: AC 검증.review 그대로 stage 결정
-    if not stage:
-        if ac_review:
-            REVIEW_TO_STAGE = {
-                "skip": "skip", "self": "micro",
-                "review": "standard", "review-deep": "deep",
-            }
-            stage = REVIEW_TO_STAGE.get(ac_review, "")
-
-    # 폴백: staged WIP 없는 경우 (코드만 staged 가능 — 정당 케이스)
-    # 예: 본 commit (1단계 SSOT) 또는 hot fix
-    # stage = "" 이면 wip_problem·wip_solution_ref도 ""
-    # default standard로 폴백 (외형 metric 회피, 작성자 선언 부재 시 보수)
-    if not stage and not staged_wip:
-        stage = "standard"
+        stage = "deep"  # 보안 게이트 — review 강제
 
     # ─────────────────────────────────────────────────────────
     # 커밋 분리 판정
@@ -954,16 +858,12 @@ def main() -> int:
                     if len(parts_g) >= 3:
                         chars.add(f"char:{parts_g[2]}")
 
-            # split 옵트인 강등 (Phase 3 — 2026-05-02)
-            # 기본: 단일 결정 = 단일 커밋 (atomic). 분할은 명시 옵트인.
-            # 자동 분할 케이스: 거대 커밋 + char 다양성 (사용자 인지 부담 분산 가치 있을 때)
-            #
-            # 분할 트리거 조건 (모두 만족):
+            # split 옵트인 (2026-05-14 §S-2 정정):
             #   1. char 다양성 >= 2
-            #   2. HARNESS_SPLIT_OPT_IN=1 (사용자 명시) OR 거대 커밋 (files>30 OR +>1500 OR ->1500)
-            #   3. stage가 skip 아님 (skip이면 review 분산 효과 0이므로 분할 무의미)
+            #   2. HARNESS_SPLIT_OPT_IN=1 (명시) OR 거대 커밋 (files>30 OR +>1500 OR ->1500)
+            # stage 의존 조건 제거 (skip stage 폐기).
             is_huge = total_files > 30 or added_lines > 1500 or deleted_lines > 1500
-            if len(chars) >= 2 and stage != "skip" and (HARNESS_SPLIT_OPT_IN or is_huge):
+            if len(chars) >= 2 and (HARNESS_SPLIT_OPT_IN or is_huge):
                 split_action = "split"
             else:
                 split_action = "single"
@@ -1027,7 +927,6 @@ def main() -> int:
     print(f"diff_stats: {diff_stats}")
     print(f"wip_problem: {wip_problem or 'none'}")
     print(f"wip_solution_ref: {wip_solution_ref or 'none'}")
-    print(f"ac_review: {ac_review or 'none'}")
     print(f"ac_tests: {ac_tests or 'none'}")
     print(f"ac_actual: {ac_actual or 'none'}")
     print(f"recommended_stage: {stage}")

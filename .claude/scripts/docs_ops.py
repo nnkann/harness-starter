@@ -809,11 +809,193 @@ def cmd_wip_sync(staged_files: list[str]) -> int:
 
 
 # ─────────────────────────────────────────────────────────
+# CPS 명령 (자라는 시스템 — 73% 삭감 wave §S-1)
+# ─────────────────────────────────────────────────────────
+
+CPS_DOC = Path("docs/guides/project_kickoff.md")
+CPS_CASES_DIR = Path("docs/cps")
+
+
+def _extract_problems_from_kickoff() -> list[tuple[str, str]]:
+    """kickoff에서 P# + 1줄 요약 추출. (id, summary) list.
+    헤더 형식 (### P1. 요약) 또는 표 형식 (| P1 | 1줄 요약 |) 모두 인식.
+    """
+    if not CPS_DOC.exists():
+        return []
+    text = CPS_DOC.read_text(encoding="utf-8")
+    results: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    # 1) 헤더 형식
+    for m in re.finditer(r"^#{2,3}\s+(P\d+)[\s.:—\-]+(.+?)$", text, re.MULTILINE):
+        pid = m.group(1)
+        if pid not in seen:
+            results.append((pid, m.group(2).strip()))
+            seen.add(pid)
+    # 2) 표 형식: | P1 | 1줄 |
+    for m in re.finditer(r"^\|\s*(P\d+)\s*\|\s*(.+?)\s*\|", text, re.MULTILINE):
+        pid = m.group(1)
+        if pid not in seen:
+            results.append((pid, m.group(2).strip()))
+            seen.add(pid)
+    # P# 번호 순으로 정렬
+    results.sort(key=lambda x: int(x[0][1:]))
+    return results
+
+
+def _list_case_files() -> list[Path]:
+    """docs/cps/cp_*.md 목록."""
+    if not CPS_CASES_DIR.exists():
+        return []
+    return sorted(CPS_CASES_DIR.glob("cp_*.md"))
+
+
+def cmd_cps_list() -> int:
+    """P# 1줄 요약 출력."""
+    probs = _extract_problems_from_kickoff()
+    if not probs:
+        print("(kickoff에 P# 정의 없음)", file=sys.stderr)
+        return 1
+    for pid, summary in probs:
+        print(f"{pid}\t{summary}")
+    return 0
+
+
+def cmd_cps_add(summary: str) -> int:
+    """새 P# 부여. kickoff에 1줄 append (자라지 않음 원칙 — 정련 시점만 권장)."""
+    if not summary:
+        print("사용법: cps add \"P# 1줄 요약\"", file=sys.stderr)
+        return 1
+    probs = _extract_problems_from_kickoff()
+    next_n = max((int(p[0][1:]) for p in probs), default=0) + 1
+    new_id = f"P{next_n}"
+    if not CPS_DOC.exists():
+        print(f"❌ {CPS_DOC} 없음 (harness-init 미완료)", file=sys.stderr)
+        return 1
+    with CPS_DOC.open("a", encoding="utf-8") as f:
+        f.write(f"\n### {new_id} — {summary}\n")
+    print(f"✅ {new_id} 추가됨")
+    return 0
+
+
+def cmd_cps_cases(p_filter: str = "", tag_filter: str = "", recent: int = 0) -> int:
+    """case 목록 출력. --p / --tag / --recent 필터."""
+    files = _list_case_files()
+    rows = []
+    for f in files:
+        fm = extract_frontmatter(f)
+        if p_filter and p_filter not in str(fm.get("p", "")):
+            continue
+        if tag_filter and tag_filter not in str(fm.get("tags", "")):
+            continue
+        rows.append((str(fm.get("created", "")), f.stem, fm.get("c", "")))
+    rows.sort(reverse=True)
+    if recent > 0:
+        rows = rows[:recent]
+    for created, slug, c in rows:
+        c_short = (c[:60] + "…") if len(c) > 60 else c
+        print(f"{created}\t{slug}\t{c_short}")
+    return 0
+
+
+def cmd_cps_show(target: str) -> int:
+    """P# 정의 또는 case slug 본문 출력."""
+    if not target:
+        print("사용법: cps show <P#|slug>", file=sys.stderr)
+        return 1
+    if re.match(r"^P\d+$", target):
+        probs = _extract_problems_from_kickoff()
+        for pid, summary in probs:
+            if pid == target:
+                print(f"{pid} — {summary}")
+                # 관련 case 최근 5건
+                files = _list_case_files()
+                related = []
+                for f in files:
+                    fm = extract_frontmatter(f)
+                    if target in str(fm.get("p", "")):
+                        related.append((str(fm.get("created", "")), f.stem))
+                related.sort(reverse=True)
+                if related:
+                    print(f"\n관련 case 최근 {min(5, len(related))}건:")
+                    for created, slug in related[:5]:
+                        print(f"  {created}\t{slug}")
+                return 0
+        print(f"{target} 없음", file=sys.stderr)
+        return 1
+    # case slug
+    f = CPS_CASES_DIR / f"{target}.md"
+    if not f.exists():
+        f = CPS_CASES_DIR / f"cp_{target}.md"
+    if not f.exists():
+        print(f"case 없음: {target}", file=sys.stderr)
+        return 1
+    print(f.read_text(encoding="utf-8"))
+    return 0
+
+
+def cmd_cps_stats() -> int:
+    """P# 분포·case 수·신규 P# 빈도 출력."""
+    probs = _extract_problems_from_kickoff()
+    files = _list_case_files()
+    print(f"P# 정의: {len(probs)}개")
+    print(f"case 박제: {len(files)}건")
+    # P# 분포
+    counts: dict[str, int] = {}
+    for f in files:
+        fm = extract_frontmatter(f)
+        p_raw = str(fm.get("p", ""))
+        for pid in re.findall(r"P\d+", p_raw):
+            counts[pid] = counts.get(pid, 0) + 1
+    if counts:
+        print("\nP# 분포 (case 수):")
+        for pid, n in sorted(counts.items(), key=lambda x: -x[1]):
+            print(f"  {pid}\t{n}")
+    return 0
+
+
+def cmd_cps(rest: list[str]) -> int:
+    """cps 서브커맨드 라우터."""
+    if not rest:
+        print("사용법: cps {list|add|cases|show|stats} [args]", file=sys.stderr)
+        return 1
+    sub = rest[0]
+    sub_args = rest[1:]
+    if sub == "list":
+        return cmd_cps_list()
+    if sub == "add":
+        return cmd_cps_add(sub_args[0] if sub_args else "")
+    if sub == "cases":
+        p_filter = ""
+        tag_filter = ""
+        recent = 0
+        i = 0
+        while i < len(sub_args):
+            if sub_args[i] == "--p" and i + 1 < len(sub_args):
+                p_filter = sub_args[i + 1]
+                i += 2
+            elif sub_args[i] == "--tag" and i + 1 < len(sub_args):
+                tag_filter = sub_args[i + 1]
+                i += 2
+            elif sub_args[i] == "--recent" and i + 1 < len(sub_args):
+                recent = int(sub_args[i + 1])
+                i += 2
+            else:
+                i += 1
+        return cmd_cps_cases(p_filter, tag_filter, recent)
+    if sub == "show":
+        return cmd_cps_show(sub_args[0] if sub_args else "")
+    if sub == "stats":
+        return cmd_cps_stats()
+    print(f"cps 알 수 없는 서브커맨드: {sub}", file=sys.stderr)
+    return 1
+
+
+# ─────────────────────────────────────────────────────────
 # 라우팅
 # ─────────────────────────────────────────────────────────
 
 USAGE = """\
-사용법: docs-ops.py {validate|move|reopen|cluster-update|verify-relates|wip-sync} [args]
+사용법: docs-ops.py {validate|move|reopen|cluster-update|verify-relates|wip-sync|cps} [args]
 
 서브커맨드:
   validate                     프론트매터·약어 검증
@@ -822,6 +1004,7 @@ USAGE = """\
   cluster-update               모든 clusters/*.md 재생성
   verify-relates               relates-to.path 정합성 전수 검사
   wip-sync <file> [...]        commit Step 7.5 — staged 파일 체크리스트 ✅ 갱신
+  cps {list|add|cases|show|stats} ...  CPS 시스템 조회·박제
 """
 
 if __name__ == "__main__":
@@ -840,6 +1023,7 @@ if __name__ == "__main__":
         "cluster-update": lambda: cmd_cluster_update(),
         "verify-relates": lambda: cmd_verify_relates(),
         "wip-sync":       lambda: cmd_wip_sync(rest),
+        "cps":            lambda: cmd_cps(rest),
     }
 
     if cmd not in dispatch:

@@ -117,17 +117,39 @@ docs/guides/에 CPS 문서(`project_kickoff.md`)를 Read.
 
 판단 근거 1줄을 WIP `## 메모`에 기록.
 
-#### Solution 인용 (필수)
+#### Solution 인용 (필수, 번호만)
 
-매칭된 Problem의 Solution 충족 기준에서 작업이 다룰 항목 추출:
+매칭된 Problem의 Solution을 번호로 인용 (50자 박제 폐기 — 2026-05-14):
 
 ```yaml
-solution-ref:
-  - S2 — "<원문 50자 이내 또는 substring + (부분)>"
+problem: P3
+s: [S2, S6]                       # Solution 번호 list (인라인)
 ```
 
-여러 충족 기준 다루면 list 항목 분리. 형식 SSOT는 `.claude/rules/docs.md`
-"## CPS 인용".
+여러 Solution 다루면 list 항목 추가. 형식 SSOT: `.claude/rules/docs.md` "## CPS 인용".
+
+#### CPS 정합 substep (확정 전 — 자동)
+
+C·P·S 매칭 직후 결정적 grep으로 정합 측정:
+
+1. C 키워드 추출 (WIP `## 목표` 또는 작업 발화)
+2. P# 정의를 `docs_ops.py cps show P#`로 가져옴
+3. S# 정의를 kickoff 표에서 grep
+4. **3축 교집합 비율**:
+   - C·P 키워드 교집합 비율
+   - P·S 키워드 교집합 비율
+   - C·S 키워드 교집합 비율
+5. **임계값 0.3** (wave 누적되며 좁혀나감)
+6. 임계 미달 1줄 알림 — "C·S 정합 약함" 등
+
+**어긋남 후속 행동**: 감지·알림만. **자동 후보 발굴 없음**.
+사용자/Claude 판단:
+- C 재정의 → WIP 본문 수정
+- 새 P# → `docs_ops.py cps add "1줄"`
+- 무시 → 진행
+
+자가 발화 의존 회피 — 자동 후보 제안은 본 wave 안 박음. 다음 wave 영역.
+옵트인 단독 호출: `/cps-check`.
 
 #### doc-finder 호출 (선택)
 
@@ -283,9 +305,8 @@ created: {YYYY-MM-DD}
 **Acceptance Criteria**:
 - [ ] Goal: {1줄 — 이 작업이 충족하려는 것}
   검증:
-    review: skip | self | review | review-deep
     tests: <pytest 명령 또는 "없음">
-    실측: <구체 명령·조건 또는 "없음">
+    실측: <구체 명령·조건 또는 "운용 검증">
 - [ ] {충족 기준 1}
 - [ ] {충족 기준 2}
 
@@ -296,11 +317,10 @@ created: {YYYY-MM-DD}
 (작업 중 발견한 것, 변경 이유 등)
 ```
 
-- domain·problem·solution-ref는 필수. 누락 시 commit 차단.
+- domain·problem·s는 필수. 누락 시 commit 차단.
 - frontmatter SSOT: `.claude/rules/docs.md` "## CPS 인용".
 - AC SSOT: `.claude/rules/docs.md` "## AC 포맷".
-- Goal·검증 묶음 모두 필수. 누락 시 commit 차단 (default 값 없음 — 작성자가 검증 강도조차 모르면 작업이 정의되지 않은 것).
-- 검증.review 1차 제안: staging.md "## AC 작성 가이드" 표 참조. 작성자가 수정 가능.
+- Goal·tests·실측 3필드 필수. `검증.review` 5단계 자가 선언 폐기 (2026-05-14 §S-2) — review 호출은 `/commit --review`/`--no-review`.
 
 문서가 먼저 존재해야 작업을 시작한다.
 

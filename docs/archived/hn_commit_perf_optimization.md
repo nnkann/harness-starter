@@ -9,7 +9,7 @@ status: abandoned
 created: 2026-04-18
 updated: 2026-05-14
 relates-to:
-  - path: WIP/harness--hn_harness_recovery_v0_41_baseline.md
+  - path: archived/hn_harness_recovery_v0_41_baseline.md
     rel: superseded-by
 ---
 

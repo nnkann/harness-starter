@@ -43,7 +43,7 @@ defends: P7
 본 파일은 **파일명·도메인·약어**만 다룸. 메타데이터는 docs.md SSOT.
 
 ## 도메인 목록
-확정: harness, meta
+확정: harness, meta, cps
 후보:
 
 ## 도메인 등급 (review staging)
@@ -52,7 +52,7 @@ defends: P7
 
 - **critical** (변경 시 무조건 deep): harness
 - **normal** (크기 기준 분기): (없음)
-- **meta** (skip 검토): meta
+- **meta** (skip 검토): meta, cps
 
 다운스트림 프로젝트는 자기 도메인을 추가:
 ```
@@ -83,6 +83,7 @@ defends: P7
 |---------------|-------------|--------------|
 | harness | hn | `docs/clusters/harness.md` |
 | meta | mt | `docs/clusters/meta.md` |
+| cps | cp | `docs/clusters/cps.md` |
 
 다운스트림은 `harness-init`·`harness-adopt`에서 자기 도메인을 "도메인
 목록 > 확정"에 추가할 때 **이 표에도 약어를 함께 등록**한다.
