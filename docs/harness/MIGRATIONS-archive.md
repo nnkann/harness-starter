@@ -43,6 +43,46 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.47.2 — harness-upgrade Step 7 격하 감지 + 클린 패치 안내 (2026-05-15)
+
+### 변경 내용
+
+**harness-upgrade Step 7 확장 — 격하 감지 (B) 신설**:
+- 기존 (A) DELETED 카테고리에 더해 **(B) starter_skills 격하 잔재 감지** 추가
+- (A) DELETED — 사용자 [Y/n/건너뛰기] 응답 (사용자가 fork/커스텀했을 잠재 가능성)
+- (B) 격하 잔재 — **강제 삭제 + 알림만** (starter 소유 자기 파일이므로 보존 가치 0)
+- starter 본인(`is_starter: true`)은 (B) 검사 skip — 자기 파일 오삭제 방어
+
+**MIGRATIONS.md v0.47.1 클린 패치 안내**:
+- 본 wave에서 격하·폐기된 파일이 v0.25.x 시기 채택 다운스트림에 잔재할
+  수 있음을 명시. harness-upgrade Step 7이 자동 처리 — 사용자 명령 복사 불필요
+
+**본 patch의 직접 동기**:
+- 2026-05-15 실측 — v0.42.7 다운스트림에 `harness-dev/` 폴더 잔재 (v0.25.x
+  채택 시점에 받음, v0.35.1 starter_skills 등록 후 회수 메커니즘 부재)
+- harness-upgrade가 새 파일 추가는 처리하지만 "starter_skills 격하" 신호는
+  못 잡음. 본 patch로 갭 해소
+
+### 적용 방법
+
+**자동 적용**: harness-upgrade가 Step 7에서 (A) + (B) 자동 안내.
+
+**수동 확인 불필요**: 본 patch 적용 후 다음 harness-upgrade 1회 실행 시
+모든 격하·폐기 잔재 자동 감지 + [Y/n/건너뛰기] 응답.
+
+### 검증
+
+```bash
+python -m pytest .claude/scripts/tests/test_pre_commit.py -q --deselect .claude/scripts/tests/test_pre_commit.py::TestCommitFinalize
+```
+
+### 회귀 위험
+
+- harness-upgrade Step 7 (B)는 신설 메커니즘. starter 본인 분기 처리로
+  자기 파일 오삭제 방어. 다운스트림 격하 감지는 운용 1~2회 후 사용자 판정 필요.
+
+
+
 ## v0.47.1 — 73% 삭감 wave §S-3·§S-4·§S-5·§S-6·§S-7 일괄 박제 (2026-05-15)
 
 ### 변경 내용

@@ -198,10 +198,8 @@ else
 fi
 ```
 
-**push 성공 후** session snapshot 정리:
-```bash
-rm -f .claude/memory/session-*.txt
-```
+**session snapshot 정리**: `commit_finalize.sh`가 `git commit` 성공 시 자동
+처리 (v0.47.7 — wrapper 흡수). LLM 책임 없음.
 
 **요약 출력**:
 - 커밋 SHA + 메시지 1줄

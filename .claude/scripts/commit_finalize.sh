@@ -57,3 +57,14 @@ fi
 
 # 2. git commit
 git commit "$@"
+COMMIT_RC=$?
+
+# 3. session snapshot 정리 (v0.47.7 — P8 보강)
+#    LLM이 SKILL.md 지침을 자가 발화해 실행해야 했던 흔적 제거 단계를
+#    wrapper에 흡수. 권한 분류기 잔향·LLM 누락 모두 차단.
+#    commit 실패해도 임시 snapshot은 제거 안전 (.gitignore 파일).
+if [ "$COMMIT_RC" -eq 0 ]; then
+  rm -f .claude/memory/session-*.txt
+fi
+
+exit "$COMMIT_RC"
