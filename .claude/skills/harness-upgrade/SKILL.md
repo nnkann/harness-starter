@@ -577,8 +577,8 @@ fi
 
 ```
 📦 upstream에서 제거된 파일 (M개)
-  .claude/rules/anti-defer.md
-  .claude/scripts/orchestrator.py
+  .claude/rules/<deprecated-rule>.md
+  .claude/scripts/<deprecated-script>.py
   ...
 삭제할까요? [Y/n/건너뛰기]
 ```

@@ -145,6 +145,58 @@ python3 .claude/scripts/harness_version_bump.py
 - [ ] **테스트**: AC가 명시 요구하면 그 marker만 실행 (`pytest -m <marker>`). 무조건 전체 실행 금지. 회귀 가드 가치 있는 변경이면 작업 task의 AC `영향 범위:` 항목에 marker 명시
 - [ ] **CPS**: `docs/guides/project_kickoff.md` Solutions 항목 중 이번 변경과 관련된 것 갱신했는가 (새 방어 레이어 추가·기존 Solution 구조 변경 시)
 - [ ] **CPS 무결성**: `python3 .claude/scripts/eval_cps_integrity.py` 실행 — Problem 인용 빈도·Solution 충족 분포 확인
+- [ ] **폐기 동반 본문 정비** (rules·skills·scripts 파일 삭제 시): 아래 폐기 절차 실행
+
+---
+
+## 폐기 절차 — 파일 삭제 시 본문 dead reference 동반 정비
+
+defends P11 (동형 패턴 잠복 — 1차 발견 시 다른 위치 후보 자동 탐색 부재).
+파일을 폐기하면 starter 본문(예시·트리·안내)이 dead reference로 잠복할
+위험이 있다. 폐기 commit 안에서 본문 정비를 의무화한다.
+
+### Step P1. 폐기 파일명 확정
+
+삭제 대상 파일 basename·디렉토리 경로를 정리:
+```
+.claude/rules/<rule-name>.md
+.claude/scripts/<script-name>.py
+.claude/skills/<skill-name>/
+```
+
+### Step P2. 본문 전수 grep
+
+```bash
+git grep -nE "(<file1>|<file2>|...)" .claude/skills/ .claude/agents/ \
+  .claude/rules/ README.md
+```
+
+hit 분류:
+- **dead reference**: 살아있는 안내·예시·트리 구조 → 정비 의무
+- **박제 표현 (면제)**: `폐기`·`흡수`·`삭제`·MIGRATIONS·`변경 이력` 키워드
+  동반 → 의도적 잔존, 정비 불필요
+
+### Step P3. 정비 옵션
+
+| 라인 성격 | 처리 |
+|---|---|
+| 예시 (placeholder 가능) | `<deprecated-rule>.md` 같은 일반화 placeholder로 교체 |
+| 안내·트리 (실재 항목 나열) | 줄 제거 |
+| 다른 살아있는 항목으로 대체 가능 | 실재 파일명으로 교체 |
+| 박제 표현 | 면제 — `(폐기됨, vXX.YY)` 한 줄 보강 권장 |
+
+### Step P4. eval_harness 회귀 확인
+
+```bash
+python3 .claude/scripts/eval_harness.py 2>&1 | grep -A 5 "dead reference"
+```
+
+`검출 0건 ✅`이면 정비 완료. hit 잔존 시 Step P2부터 재실행.
+
+### Step P5. eval_harness 패턴 등록
+
+`eval_harness.py:_DEAD_REF_PATTERNS` 리스트에 폐기 파일명 추가 (재발 방지).
+박제 표현 면제는 `_DEAD_REF_EXEMPT` 정규식이 자동 처리.
 
 ---
 

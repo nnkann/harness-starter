@@ -300,3 +300,43 @@ def test_feedback_reports_bold_inner_paren_does_not_match_prose(tmp_path):
     assert result[0].startswith("⚠️ FR-011:")
     for field in ["관점", "약점", "실천", "심각도"]:
         assert field in result[0]
+
+
+# ────────────────────────────────────────────────────────────────────────
+# 항목 9 — section_dead_reference (P11 첫 누적 case)
+# ────────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.eval
+def test_dead_reference_function_exists():
+    """section_dead_reference 함수가 노출돼야 한다."""
+    mod = _load_eval_harness()
+    assert hasattr(mod, "section_dead_reference")
+    assert hasattr(mod, "_DEAD_REF_PATTERNS")
+    assert hasattr(mod, "_DEAD_REF_EXEMPT")
+
+
+@pytest.mark.eval
+def test_dead_reference_exempt_matches_archive_phrases():
+    """폐기·흡수·삭제 박제 표현은 면제 정규식으로 통과해야 한다."""
+    mod = _load_eval_harness()
+    exempt = mod._DEAD_REF_EXEMPT
+    assert exempt.search("orchestrator.py 696줄 전면 삭제")
+    assert exempt.search("doc-health 흡수")
+    assert exempt.search("check-existing 스킬 폐기")
+    assert exempt.search("MIGRATIONS.md v0.47.7 (deprecated)")
+    # 일반 라인은 면제 X
+    assert not exempt.search(".claude/rules/anti-defer.md")
+
+
+@pytest.mark.eval
+def test_dead_reference_patterns_cover_known_deprecations():
+    """v0.47.x 폐기 파일이 검출 패턴에 모두 등재돼야 한다."""
+    mod = _load_eval_harness()
+    expected = {
+        "anti-defer.md", "bug-interrupt.md", "external-experts.md",
+        "pipeline-design.md", "staging.md", "orchestrator.py",
+        "debug-guard.sh", "check-existing/", "doc-health/",
+    }
+    actual = set(mod._DEAD_REF_PATTERNS)
+    assert expected.issubset(actual), f"누락 패턴: {expected - actual}"

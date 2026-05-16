@@ -43,6 +43,62 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.47.4 — §S-8 AC 체크박스 게이트 + §S-9 S# cascade 정합 게이트 (2026-05-15)
+
+### 변경 내용
+
+**§S-8 AC 체크박스 형식 강제**:
+- pre_commit_check.py에 AC 섹션 체크박스(`- [ ]`/`- [x]`) 형식 검사 추가
+- 자유 텍스트 AC 차단 — 완료 판정 게이트(`docs_ops.py move` 빈 체크박스)
+  작동 보장
+- test_pre_commit.py `@pytest.mark.gate` 4 케이스 신설
+
+**§S-9 S# → AC cascade 정합 게이트**:
+- kickoff `## Problems` 표에 **P10 (본질 미정, catch-all)** 추가
+- kickoff `## Solutions` 표에 **"해결 기준" 컬럼** 신설 — S1~S9 각 1~2줄 박제
+  (archived 본문에서 추출) + **S10 (본질 의심) 추가**
+- pre_commit_check.py 게이트 신설:
+  - `s:` 비어있음 차단 (학습 데이터 입력 의무)
+  - AC 섹션에 각 S# 번호 1개 이상 등장 검사 (substring X — §S-1 함정 회피)
+  - 자기 변경 면제: kickoff·cps_master·docs/cps/* staged 시 skip
+  - P10 인용 시 ℹ️ 안내 (차단 X) — 엄격 기준 + 후보 동반 권장
+- docs.md AC 포맷 박제 강화 — S# 인용 강제 + substring 인용 금지 + P10 엄격 기준
+- test_pre_commit.py `@pytest.mark.gate` 5 케이스 신설
+
+**P10·S10 본질**:
+- 학습 시스템의 관찰 큐 — `docs_ops.py cps cases --p P10` 누적 패턴 조회
+- 엄격 기준: P1~P9 각각 검토 후 어디에도 명확히 안 맞을 때만
+- 부적합 패턴: "잘 모르겠음·귀찮음·빠르게 넘기고 싶음" — 도피처 아님
+- 의심 근거 1줄 박제 의무 + 가장 가까운 후보 P#·S# 동반 권장
+
+**동기**: 사용자 우려 "S#를 선택했으면 그에 합당한 AC가 나와야지. 임의로
+툭 튀어나온 AC가 아니라." cascade 단절(S# 박제와 AC 작성 사이) 해소.
+
+### 적용 방법
+
+**자동 적용**: harness-upgrade가 3-way merge로 처리.
+
+**수동 확인 권장**:
+1. 기존 WIP의 frontmatter `s:`가 빈 list이면 commit 차단됨. wave 내용 검토 후
+   S# 1개 이상 추가 (안 맞으면 P10·S10 사용 단 엄격 기준)
+2. 기존 WIP의 AC 섹션이 자유 텍스트면 차단됨. `- [ ] Goal: ...` 형식으로 변환
+3. `kickoff Solutions` 표 "해결 기준" 컬럼 참조해 AC `검증.실측` 보강 권장
+
+### 검증
+
+```bash
+python -m pytest .claude/scripts/tests/test_pre_commit.py -m "gate" -q --deselect .claude/scripts/tests/test_pre_commit.py::TestCommitFinalize
+```
+
+### 회귀 위험
+
+- 다운스트림 기존 WIP가 자유 텍스트 AC 또는 `s: []`이면 첫 commit 차단.
+  WIP 수정 후 재커밋 필요. 차단 메시지에 보강 가이드 박혀있음.
+- starter 운용 1~2회 후 사용자 판정 (S# 인용 강제가 작업 흐름 마찰 vs
+  학습 신호 품질 향상 균형).
+
+
+
 ## v0.47.3 — 격하 잔재 강제 삭제 정정 (2026-05-15)
 
 ### 변경 내용

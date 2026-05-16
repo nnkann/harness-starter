@@ -70,6 +70,70 @@ def run_cps_integrity() -> int:
 # 항목 6. 방어 활성 기록
 # ──────────────────────────────────────────────────────────────────────
 
+# ──────────────────────────────────────────────────────────────────────
+# 항목 9. starter 본문 dead reference (P11 첫 누적 case 박제 후 추가)
+# ──────────────────────────────────────────────────────────────────────
+
+# 폐기 패턴 — 의도적 박제(폐기·흡수·삭제) 표현은 false positive
+_DEAD_REF_PATTERNS = [
+    "anti-defer.md",
+    "bug-interrupt.md",
+    "external-experts.md",
+    "pipeline-design.md",
+    "staging.md",
+    "orchestrator.py",
+    "debug-guard.sh",
+    "check-existing/",
+    "doc-health/",
+    "HARNESS_MAP.md",
+]
+
+# 박제 표현 — 의도적 폐기 인용. 라인 안에 있으면 면제.
+_DEAD_REF_EXEMPT = re.compile(
+    r"(폐기|흡수|삭제|removed|deprecated|MIGRATIONS|변경 이력|회고)"
+)
+
+# 스캔 대상 — starter 본문 (rules·skills·agents·README)
+_DEAD_REF_SCAN_GLOBS = [
+    ".claude/skills/**/*.md",
+    ".claude/agents/**/*.md",
+    ".claude/rules/**/*.md",
+    "README.md",
+]
+
+
+def section_dead_reference() -> None:
+    """폐기 파일을 본문 예시·안내로 참조하는 dead reference 검출."""
+    print("")
+    print("## starter 본문 dead reference 검사")
+    hits: list[tuple[Path, int, str, str]] = []
+    for pattern_glob in _DEAD_REF_SCAN_GLOBS:
+        for path in REPO_ROOT.glob(pattern_glob):
+            if not path.is_file():
+                continue
+            try:
+                lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+            except Exception:
+                continue
+            for lineno, line in enumerate(lines, start=1):
+                if _DEAD_REF_EXEMPT.search(line):
+                    continue
+                for dead in _DEAD_REF_PATTERNS:
+                    if dead in line:
+                        rel = path.relative_to(REPO_ROOT).as_posix()
+                        hits.append((rel, lineno, dead, line.strip()[:80]))
+                        break
+    if not hits:
+        print("- 검출 0건 ✅")
+        return
+    print(f"- ⚠ 검출 {len(hits)}건 (폐기·흡수·삭제 박제 표현은 면제)")
+    for rel, lineno, dead, snippet in hits[:10]:
+        print(f"  - {rel}:{lineno} | `{dead}` | {snippet}")
+    if len(hits) > 10:
+        print(f"  ... 외 {len(hits) - 10}건")
+    print("  대응: harness-dev SKILL.md '폐기 절차' 참조 — 본문 예시 갱신 또는 박제 표현 명시")
+
+
 def section_defense_record() -> None:
     """signal_defense_success.md 존재·최근 기록 보고."""
     print("")
@@ -328,6 +392,9 @@ def main() -> int:
 
     # 항목 8: 검증 도구 정렬 진단
     section_alignment_diagnostics()
+
+    # 항목 9: starter 본문 dead reference (P11 첫 누적 case 박제 후 추가)
+    section_dead_reference()
 
     # cps_integrity가 차단 exit하면 본 백엔드도 차단
     return 2 if cps_exit == 2 else 0
