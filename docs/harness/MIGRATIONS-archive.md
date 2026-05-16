@@ -43,6 +43,61 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.47.5 — Wiki 그래프 자산 생성 wave (§A frontmatter 보강·§B tag normalize·§C rel 정리) (2026-05-15)
+
+### 변경 내용
+
+73% 삭감 wave §S-7 박제의 자산화 단계. 메커니즘 → 데이터 누적.
+
+**§A. problem 인용률 보강 (39% → 95.8%)**:
+- 72개 누락 문서에 frontmatter `problem`·`s` 일제 추가
+- 자동 분류기 (tag·title 키워드 매칭) + 사용자 검토 7건 정정 + L 22건 본문 검토
+- 최종: 113/118 인용 (면제 5건: sample 3 + MIGRATIONS 2)
+- 분류기 false-positive 7건은 다음 wave 정련 후보로 박제
+
+**§B. tag normalize (271 unique → 정리)**:
+- 단복수 통합: rule→rules, skills→skill, agents→agent, incidents→incident
+- p# tag 제거: p3·p4·p5·p7·p8·p9·p9-candidate (frontmatter problem cascade와
+  이중 박제 회피)
+- 13 파일 수정. 5+ tag: 20개 (review 18·commit 13·downstream 13 등)
+
+**§C. relates-to rel 4종 수렴**:
+- 사용 빈도 측정: 47% (57/121 문서, 75 rel 인스턴스)
+- 유지 4종: extends 35·caused-by 22·references 15·supersedes 1
+- 폐기 3종:
+  - **implements** (2건) → extends 흡수 (의미 겹침)
+  - **precedes** (2건) → 제거 (git history가 시간 SSOT)
+  - **conflicts-with** (0건) → SSOT 정의만 있고 사용 0
+- docs.md rel SSOT: 6종 → 4종 (`extends`·`caused-by`·`references`·`supersedes`)
+
+### 적용 방법
+
+**자동 적용**: harness-upgrade가 3-way merge로 처리.
+
+**수동 확인 권장**:
+1. 다운스트림 문서 frontmatter `relates-to: ... rel: implements|precedes|conflicts-with`
+   사용 시 pre-check 차단 가능성. 4종 중 하나로 변경:
+   - `implements` → `extends`
+   - `precedes` → 제거 또는 본문 언급
+   - `conflicts-with` → `references` 또는 제거
+2. `python .claude/scripts/docs_ops.py cluster-update` 실행 — tag normalize 반영
+
+### 검증
+
+```bash
+python -m pytest .claude/scripts/tests/test_pre_commit.py -m "gate or tag" -q --deselect .claude/scripts/tests/test_pre_commit.py::TestCommitFinalize
+```
+
+### 회귀 위험
+
+- rel 폐기 3종 사용 다운스트림이 있으면 첫 commit 차단 가능 (실측 starter
+  본인 사용 빈도 매우 낮음 — 다운스트림 영향 작을 것으로 추정).
+- p# tag 제거는 cluster 자동 갱신 — 다운스트림 영향 없음.
+- frontmatter problem 보강: 자동 분류기 정확도가 100% 아님 (false-positive 7건
+  실측). 다음 wave에서 eval --harness 인용 빈도로 잘못된 매핑 자연 발견.
+
+
+
 ## v0.47.4 — §S-8 AC 체크박스 게이트 + §S-9 S# cascade 정합 게이트 (2026-05-15)
 
 ### 변경 내용

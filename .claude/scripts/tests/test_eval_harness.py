@@ -340,3 +340,79 @@ def test_dead_reference_patterns_cover_known_deprecations():
     }
     actual = set(mod._DEAD_REF_PATTERNS)
     assert expected.issubset(actual), f"누락 패턴: {expected - actual}"
+
+
+# ────────────────────────────────────────────────────────────────────────
+# scan_dead_reference_paths — pre-check 게이트 재사용 함수 (v0.47.10)
+# ────────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.eval
+def test_scan_dead_reference_paths_detects(tmp_path):
+    """scan_dead_reference_paths가 staged 경로 리스트만 받아 hit 반환."""
+    mod = _load_eval_harness()
+    f = tmp_path / "fake.md"
+    f.write_text("docs reference .claude/rules/anti-defer.md here\n", encoding="utf-8")
+    hits = mod.scan_dead_reference_paths([f])
+    assert len(hits) == 1
+    assert hits[0][2] == "anti-defer.md"
+
+
+@pytest.mark.eval
+def test_scan_dead_reference_paths_exempts_archive_phrase(tmp_path):
+    """박제 표현(폐기·흡수·삭제) 동반 라인은 면제 — 검출 0건."""
+    mod = _load_eval_harness()
+    f = tmp_path / "fake.md"
+    f.write_text("anti-defer.md 폐기 (v0.47.1)\n", encoding="utf-8")
+    hits = mod.scan_dead_reference_paths([f])
+    assert hits == []
+
+
+@pytest.mark.eval
+def test_scan_dead_reference_paths_empty_full_scan(tmp_path):
+    """빈 list 전달 시 REPO_ROOT 전체 글롭 스캔 (eval --harness 동작)."""
+    mod = _load_eval_harness()
+    # 현 starter 상태는 dead ref 0건 (v0.47.9 정비 후)
+    hits = mod.scan_dead_reference_paths([])
+    # archived/ 같은 경로는 _DEAD_REF_SCAN_GLOBS 밖이라 면제
+    # 박제 표현 면제 적용 후 0건
+    assert hits == [] or all("폐기" not in h[3] for h in hits)
+
+
+# ────────────────────────────────────────────────────────────────────────
+# eval_cps_integrity P10/P11 카운트 회귀 (v0.47.10 §C)
+# ────────────────────────────────────────────────────────────────────────
+
+
+def _load_eval_cps_integrity():
+    spec = importlib.util.spec_from_file_location(
+        "eval_cps_integrity", SCRIPTS_DIR / "eval_cps_integrity.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+@pytest.mark.eval
+def test_cps_problem_regex_matches_two_digit():
+    """CPS_REF_PATTERNS 정규식이 P10·P11 두자리수 P# 캡처해야 한다."""
+    mod = _load_eval_cps_integrity()
+    body = "P11 → S11 cascade. P10 충족 보고. P11 연관."
+    refs = mod.detect_cps_problem_refs(body)
+    assert "P10" in refs
+    assert "P11" in refs
+
+
+@pytest.mark.eval
+def test_cps_frontmatter_list_format_parsed(tmp_path):
+    """frontmatter problem: [P7, P11] list 형식이 카운트에 잡혀야 한다."""
+    mod = _load_eval_cps_integrity()
+    doc = tmp_path / "fake.md"
+    doc.write_text(
+        "---\ntitle: fake\nproblem: [P7, P11]\n---\n\nbody\n",
+        encoding="utf-8",
+    )
+    refs: dict = {}
+    mod.scan_doc(doc, "P11 — 동형 패턴", refs)
+    assert refs.get("P7") == 1
+    assert refs.get("P11") == 1

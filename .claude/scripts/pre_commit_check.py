@@ -626,6 +626,50 @@ def main() -> int:
         ERRORS += 1
 
     # ─────────────────────────────────────────────────────────
+    # 3.6. dead reference 게이트 (P11 결정적 차단, v0.47.10 §A)
+    # ─────────────────────────────────────────────────────────
+    # FR-X12 결과: harness-dev Step P 자가 발화 의존으로는 도구 실행 누락
+    # 위험 잔존. staged diff에 폐기 파일 패턴 등장 시 eval_harness 검사 함수를
+    # 직접 호출 — staged 파일만 한정 스캔(전체 repo 스캔 비용 회피).
+    #
+    # 사상: v0.47.7 commit_finalize wrapper 흡수와 동일 — "LLM 책임 → 도구 책임".
+    # SSOT: .claude/scripts/eval_harness.py:scan_dead_reference_paths.
+    _EVAL_HARNESS = Path(__file__).parent / "eval_harness.py"
+    _scan_dead_ref = None
+    if _EVAL_HARNESS.exists():
+        try:
+            import importlib.util as _ilu_eh
+            _spec_eh = _ilu_eh.spec_from_file_location("eval_harness", _EVAL_HARNESS)
+            _eh = _ilu_eh.module_from_spec(_spec_eh)        # type: ignore[arg-type]
+            _spec_eh.loader.exec_module(_eh)                 # type: ignore[union-attr]
+            _scan_dead_ref = _eh.scan_dead_reference_paths
+        except Exception:
+            _scan_dead_ref = None
+    if _scan_dead_ref is not None:
+        # staged 파일 중 본문 스캔 대상만 골라냄 (eval_harness 글롭과 정합)
+        _SCAN_PREFIXES = (
+            ".claude/skills/",
+            ".claude/agents/",
+            ".claude/rules/",
+        )
+        dead_candidates: list[Path] = []
+        for f in staged_files:
+            if f == "README.md" or f.startswith(_SCAN_PREFIXES):
+                if f.endswith(".md"):
+                    dead_candidates.append(Path(f))
+        if dead_candidates:
+            dead_hits = _scan_dead_ref(dead_candidates)
+            if dead_hits:
+                err(f"❌ dead reference 감지 ({len(dead_hits)}건) — staged 본문에 폐기 파일 잔재:")
+                for rel, lineno, dead, snippet in dead_hits[:10]:
+                    err(f"   - {rel}:{lineno} | `{dead}` | {snippet}")
+                if len(dead_hits) > 10:
+                    err(f"   ... 외 {len(dead_hits) - 10}건")
+                err("   대응: harness-dev SKILL.md '폐기 절차 Step P1~P5' 참조 — 본문 정비 또는 박제 표현 명시")
+                err("   (eval --harness 항목 9가 동일 검사 — pre-check이 staged 시점에 결정적 차단)")
+                ERRORS += 1
+
+    # ─────────────────────────────────────────────────────────
     # 4. WIP completed/abandoned 잔재
     # ─────────────────────────────────────────────────────────
 

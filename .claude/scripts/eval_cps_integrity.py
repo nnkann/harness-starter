@@ -124,10 +124,10 @@ def count_cps_problems(cps_text_normalized: str) -> int:
 # 포지티브 매칭만 사용 — CPS 의미 신호가 있는 패턴만 잡고, 자체 라벨은
 # 매칭 안 되므로 제외 패턴 불필요. 본 starter 실측에서 false positive 0건.
 CPS_REF_PATTERNS = [
-    re.compile(r"CPS\s*연결[:\s]*[^\n]*?\b(P\d)\b"),       # "CPS 연결: P1·P2"
-    re.compile(r"\b(P\d)\s*\([^)]*?(?:추측|review|다운스트림|매처|컨텍스트|검증|LLM|hook|MCP)[^)]*?\)"),  # "P1(LLM 추측...)"
-    re.compile(r"\b(P\d)\s*→\s*S\d"),                       # "P6 → S6"
-    re.compile(r"\b(P\d)\s*(?:충족|재발|연관|해결)"),         # "P6 충족"
+    re.compile(r"CPS\s*연결[:\s]*[^\n]*?\b(P\d+)\b"),       # "CPS 연결: P1·P2"
+    re.compile(r"\b(P\d+)\s*\([^)]*?(?:추측|review|다운스트림|매처|컨텍스트|검증|LLM|hook|MCP)[^)]*?\)"),  # "P1(LLM 추측...)"
+    re.compile(r"\b(P\d+)\s*→\s*S\d+"),                     # "P6 → S6" / "P10 → S10"
+    re.compile(r"\b(P\d+)\s*(?:충족|재발|연관|해결)"),       # "P6 충족"
 ]
 
 
@@ -159,10 +159,17 @@ def scan_doc(path: Path, cps_text: str, problem_refs: dict) -> list[str]:
     # 문서별 hit set — frontmatter + 본문 합쳐 중복 제거
     doc_refs: set[str] = set()
 
-    # 1. frontmatter problem 인용
-    prob = fm.get("problem", "")
-    if isinstance(prob, str) and re.match(r"^P\d+$", prob.strip()):
-        doc_refs.add(prob.strip())
+    # 1. frontmatter problem 인용 — str 또는 list 형식 모두 처리
+    prob_raw = fm.get("problem", "")
+    prob_items: list[str] = []
+    if isinstance(prob_raw, str):
+        s = prob_raw.strip().strip("[]")
+        prob_items = [x.strip().strip("'\"") for x in s.split(",") if x.strip()]
+    elif isinstance(prob_raw, list):
+        prob_items = [str(x).strip() for x in prob_raw if str(x).strip()]
+    for item in prob_items:
+        if re.match(r"^P\d+$", item):
+            doc_refs.add(item)
 
     # 2. 본문 CPS 인용 (자체 라벨 제외)
     doc_refs.update(detect_cps_problem_refs(body))

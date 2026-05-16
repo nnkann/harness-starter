@@ -102,27 +102,48 @@ _DEAD_REF_SCAN_GLOBS = [
 ]
 
 
+def scan_dead_reference_paths(
+    paths: list[Path],
+) -> list[tuple[str, int, str, str]]:
+    """주어진 파일 경로 list에서 dead reference 검출 (pre-check 재사용용).
+
+    paths가 빈 list면 _DEAD_REF_SCAN_GLOBS 전체 스캔 (eval --harness 동작).
+    각 hit: (rel_path, lineno, dead_pattern, line_snippet).
+    """
+    hits: list[tuple[str, int, str, str]] = []
+    if not paths:
+        targets = [
+            p
+            for glob in _DEAD_REF_SCAN_GLOBS
+            for p in REPO_ROOT.glob(glob)
+            if p.is_file()
+        ]
+    else:
+        targets = [p for p in paths if p.is_file()]
+    for path in targets:
+        try:
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        except Exception:
+            continue
+        try:
+            rel = path.relative_to(REPO_ROOT).as_posix()
+        except ValueError:
+            rel = path.as_posix()
+        for lineno, line in enumerate(lines, start=1):
+            if _DEAD_REF_EXEMPT.search(line):
+                continue
+            for dead in _DEAD_REF_PATTERNS:
+                if dead in line:
+                    hits.append((rel, lineno, dead, line.strip()[:80]))
+                    break
+    return hits
+
+
 def section_dead_reference() -> None:
     """폐기 파일을 본문 예시·안내로 참조하는 dead reference 검출."""
     print("")
     print("## starter 본문 dead reference 검사")
-    hits: list[tuple[Path, int, str, str]] = []
-    for pattern_glob in _DEAD_REF_SCAN_GLOBS:
-        for path in REPO_ROOT.glob(pattern_glob):
-            if not path.is_file():
-                continue
-            try:
-                lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-            except Exception:
-                continue
-            for lineno, line in enumerate(lines, start=1):
-                if _DEAD_REF_EXEMPT.search(line):
-                    continue
-                for dead in _DEAD_REF_PATTERNS:
-                    if dead in line:
-                        rel = path.relative_to(REPO_ROOT).as_posix()
-                        hits.append((rel, lineno, dead, line.strip()[:80]))
-                        break
+    hits = scan_dead_reference_paths([])
     if not hits:
         print("- 검출 0건 ✅")
         return
