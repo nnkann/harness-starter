@@ -832,6 +832,7 @@ def main() -> int:
             if not TAG_RE.match(t):
                 suggest = re.sub(r"[^a-z0-9-]", "-", t.lower()).strip("-")
                 err(f"❌ {wip}: frontmatter tag '{tag}' 형식 위반. → '{suggest}' (영문 소문자+숫자+하이픈, naming.md tag 정책)")
+                err(f"   auto-fix: python .claude/scripts/docs_ops.py tag-normalize {wip} --apply")
                 ERRORS += 1
 
         # AC Goal·검증 묶음 추출

@@ -997,6 +997,124 @@ def cmd_cps_stats() -> int:
     return 0
 
 
+TAG_VALID = re.compile(r"^[a-z0-9][a-z0-9-]*[a-z0-9]$")
+HANGUL_RE = re.compile(r"[가-힯]")
+
+
+def normalize_tag(raw: str) -> tuple[str | None, str]:
+    """tag 1개를 정규식 형식으로 변환.
+
+    반환: (변환값 또는 None, 사유).
+    None 반환 = 자동 변환 불가 (한글 포함 등) — 사용자 결정 필요.
+    """
+    t = raw.strip()
+    if not t:
+        return ("", "빈 문자열")
+    if TAG_VALID.match(t):
+        return (t, "이미 정합")
+    if HANGUL_RE.search(t):
+        return (None, "한글 포함 — 자동 변환 금지 (영문 매핑 필요)")
+    # camelCase·PascalCase 경계에서 하이픈 삽입 후 소문자화
+    s = re.sub(r"([a-z0-9])([A-Z])", r"\1-\2", t)
+    s = s.lower()
+    # 영숫자·하이픈 외는 하이픈으로
+    s = re.sub(r"[^a-z0-9-]+", "-", s)
+    # 연속 하이픈 압축
+    s = re.sub(r"-+", "-", s)
+    # 시작·끝 하이픈 제거
+    s = s.strip("-")
+    if not s:
+        return (None, "정규화 결과 빈 문자열")
+    if not TAG_VALID.match(s):
+        return (None, f"정규화 후도 형식 위반: '{s}'")
+    return (s, "변환됨")
+
+
+def _parse_tag_list(tags_raw) -> list[str]:
+    """frontmatter tags 필드를 list[str]로 정규화 — 이미 list거나 '[a, b]' 문자열."""
+    if isinstance(tags_raw, list):
+        return [str(x).strip() for x in tags_raw if str(x).strip()]
+    if isinstance(tags_raw, str):
+        s = tags_raw.strip().strip("[]")
+        return [x.strip().strip("'\"") for x in s.split(",") if x.strip()]
+    return []
+
+
+def cmd_tag_normalize(rest: list[str]) -> int:
+    """tag 정규식 위반 검출 + 변환 제안 + 옵션 적용."""
+    apply = "--apply" in rest
+    yes = "--yes" in rest
+    positional = [a for a in rest if not a.startswith("--")]
+    target = Path(positional[0]) if positional else DOCS_DIR
+
+    if target.is_file():
+        targets = [target]
+    elif target.is_dir():
+        targets = sorted(target.rglob("*.md"))
+    else:
+        print(f"❌ 경로 없음: {target}", file=sys.stderr)
+        return 1
+
+    violations = 0
+    modified_files: list[Path] = []
+    skipped_hangul = 0
+
+    for md in targets:
+        fm = extract_frontmatter(md)
+        tags = _parse_tag_list(fm.get("tags", ""))
+        if not tags:
+            continue
+        # 각 tag별 (원본, 결과, 사유) — 정합 tag도 포함시켜 최종 list 재구성
+        results: list[tuple[str, str | None, str]] = [
+            (t, *normalize_tag(t)) for t in tags
+        ]
+        any_violation = any(new != original for original, new, _ in results)
+        if not any_violation:
+            continue
+
+        violations += 1
+        print(f"\n{md}")
+        print(f"  현재: {tags}")
+        new_tags: list[str] = []
+        file_skipped = False
+        for original, new, reason in results:
+            if new is None:
+                print(f"  ⚠ '{original}' — {reason}")
+                skipped_hangul += 1
+                # 한글 tag는 자동 적용 불가 — 원본 보존 + 파일 skip 플래그
+                if original not in new_tags:
+                    new_tags.append(original)
+                file_skipped = True
+            elif new == original:
+                # 정합 tag는 그대로 유지 (중복 제거)
+                if new not in new_tags:
+                    new_tags.append(new)
+            else:
+                print(f"  → '{original}' → '{new}' ({reason})")
+                if new not in new_tags:
+                    new_tags.append(new)
+
+        if apply and not file_skipped:
+            # frontmatter tags 라인 갱신
+            tags_line = "[" + ", ".join(new_tags) + "]"
+            text = md.read_text(encoding="utf-8")
+            new_text = re.sub(
+                r"^tags:\s*.*$", f"tags: {tags_line}", text, count=1, flags=re.MULTILINE
+            )
+            if new_text != text:
+                md.write_text(new_text, encoding="utf-8")
+                write_frontmatter_field(md, "updated", str(date.today()))
+                modified_files.append(md)
+                print("  ✅ 적용됨")
+        elif apply and file_skipped:
+            print("  ⏭ 한글 tag 포함 — 자동 적용 skip (사용자 매핑 필요)")
+        else:
+            print("  (dry-run — 적용하려면 --apply)")
+
+    print(f"\n결과: 위반 문서 {violations}건, 적용 {len(modified_files)}건, 한글 skip {skipped_hangul}건")
+    return 0
+
+
 def cmd_cps(rest: list[str]) -> int:
     """cps 서브커맨드 라우터."""
     if not rest:
@@ -1039,7 +1157,7 @@ def cmd_cps(rest: list[str]) -> int:
 # ─────────────────────────────────────────────────────────
 
 USAGE = """\
-사용법: docs-ops.py {validate|move|reopen|cluster-update|verify-relates|wip-sync|cps} [args]
+사용법: docs-ops.py {validate|move|reopen|cluster-update|verify-relates|wip-sync|cps|tag-normalize} [args]
 
 서브커맨드:
   validate                     프론트매터·약어 검증
@@ -1049,6 +1167,7 @@ USAGE = """\
   verify-relates               relates-to.path 정합성 전수 검사
   wip-sync <file> [...]        commit Step 7.5 — staged 파일 체크리스트 ✅ 갱신
   cps {list|add|cases|show|stats} ...  CPS 시스템 조회·박제
+  tag-normalize [<path>] [--apply] [--yes]  tag 정규식 위반 검출·변환 (dry-run 기본)
 """
 
 if __name__ == "__main__":
@@ -1068,6 +1187,7 @@ if __name__ == "__main__":
         "verify-relates": lambda: cmd_verify_relates(),
         "wip-sync":       lambda: cmd_wip_sync(rest),
         "cps":            lambda: cmd_cps(rest),
+        "tag-normalize":  lambda: cmd_tag_normalize(rest),
     }
 
     if cmd not in dispatch:

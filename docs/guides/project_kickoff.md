@@ -82,3 +82,5 @@ python .claude/scripts/docs_ops.py cps add "1줄"      # 새 P# 등록
 - frontmatter 인용 50자 박제 검사 폐기 (번호만)
 - kickoff 자라지 않음 — 정련은 옵트인 (연 1회 정도)
 - `/cps-check` 옵트인 — 사용자 명시 호출 시 정합 검사 단독 실행
+
+### P11 — 동형 패턴 잠복 — 1차 발견 시 다른 위치 후보 자동 탐색 부재

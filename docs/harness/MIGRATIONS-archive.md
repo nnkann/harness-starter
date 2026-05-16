@@ -43,6 +43,98 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.47.1 — 73% 삭감 wave §S-3·§S-4·§S-5·§S-6·§S-7 일괄 박제 (2026-05-15)
+
+### 변경 내용
+
+**§S-3 (버그 대처 영역)**:
+- `rules/bug-interrupt.md` **삭제** (170줄) — Q1/Q2/Q3 자가 발화 의존 블록 폐기
+- `agents/debug-specialist.md` 4→1~2단계 압축 (214→80줄)
+- `rules/no-speculation.md`에 결정적 신호 트리거(test 실패·exit code) 박제
+
+**§S-4 (스킬 슬림화)**:
+- `skills/implementation/SKILL.md` 465→153 (Phase 6원칙·라우팅 매트릭스 폐기)
+- `skills/commit/SKILL.md` 718→221 (AC 자동 실행·verdict 추출·5단계 stage 폐기)
+- `skills/write-doc/SKILL.md` 248→111 (6종 템플릿·라우팅 태그 폐기)
+- `skills/eval/SKILL.md` 664→163 (--surface·--deep·4관점 병렬 폐기, --quick·--harness만)
+- `skills/doc-health/SKILL.md` **삭제** → eval --harness 흡수
+- `skills/check-existing/SKILL.md` **삭제** → LSP + Grep 1회로 대체
+- `skills/harness-upgrade/SKILL.md` Step 9.3 (HARNESS_MAP 전파 확인) 삭제
+
+**§S-5 (rules 본문 처리)**:
+- `rules/anti-defer.md` **삭제** (70줄) — 자가 점검 의존
+- `rules/external-experts.md` **삭제** (81줄) — 외부 전문가 캐시 폐기
+- `rules/pipeline-design.md` **삭제** (116줄) — 7항목 자가 점검 의존
+- `rules/internal-first.md` 38→24 축약
+- `rules/memory.md` 133→59 축약 (session-* 3파일 정의만)
+- `rules/no-speculation.md` 93→40 축약 (첫 행동 3원칙)
+- `rules/self-verify.md` 141→69 축약
+- `rules/docs.md` 440→311 (구성요소 메타데이터 trigger·Layer·enforced-by 폐기 + wiki 그래프 모델 박제)
+- `rules/naming.md` "tag 정책" 신설 (정규식 + 한글 금지)
+
+**§S-6 (스크립트 슬림화)**:
+- `scripts/orchestrator.py` **전면 삭제** (696줄, hook 무력화 후 사용 0)
+- `scripts/debug-guard.sh` **삭제** (BIT hook 폐기)
+- `scripts/pre_commit_check.py` tag 정규식 차단 게이트 추가 + 자동 split 발동 폐기 (`HARNESS_SPLIT_OPT_IN` 명시 옵트인만 잔존)
+- `scripts/docs_ops.py` cluster-update 갱신: tag 분포·백링크 자동 생성 (2건+ 임계, DRY) + meta cluster 폴백 버그 수정 (sample 자동 등록)
+- `scripts/eval_cps_integrity.py` HARNESS_MAP 점검 + BIT NEW 플래그 폐기 (478→285줄) + 사전 회귀(`get_cps_text`·`verify_solution_ref` import 깨짐) 해소
+- `scripts/session-start.py` BIT 출력 + HARNESS_MAP 출력 폐기
+- `scripts/stop-guard.py` BIT 블록 검사 폐기
+- `tests/test_pre_commit.py` tag 정규식 marker 18 케이스 신설 (`@pytest.mark.tag`)
+
+**§S-7 (Wiki 그래프 모델 신설)**:
+- 발견 본질: "wiki처럼 이어지는 거 — 원래 이걸 원했던 거"
+- domain = 노드 zone (변경 전파 범위), tag = 간선 (cross-domain edge)
+- cluster 파일에 tag 분포·백링크 섹션 자동 생성 (`docs_ops.py cluster-update`)
+- 백링크 임계: tag별 2건 이상만 (1건은 분포 표와 동일 정보 — DRY)
+- tag 정규식: `^[a-z0-9][a-z0-9-]*[a-z0-9]$` — pre-check 결정적 차단
+- 한글 tag 금지 (grep·anchor 호환성, 다운스트림 cascade)
+- meta cluster: sample·template zone, 빈 상태 정상
+- cps cluster 첫 case 박제: `docs/cps/cp_harness_73pct_cut.md` (본 wave 자체)
+
+**잔존 참조 일괄 정리**:
+- `CLAUDE.md`·`agents/review.md`·`agents/researcher.md`·`agents/advisor.md`·`agents/codebase-analyst.md`
+- `skills/harness-upgrade`·`harness-dev`·`harness-adopt`에서 HARNESS_MAP·doc-health·anti-defer·external-experts·BIT 참조 폐기 또는 폐기 의도 명시
+
+> harness-upgrade Step 7 격하 메커니즘 신설은 후속 v0.47.2 patch에 박제 (위 섹션 참조).
+
+### 적용 방법
+
+**자동 적용**: harness-upgrade가 3-way merge로 처리.
+
+**수동 확인 권장**:
+1. 본인 프로젝트 frontmatter `tags`에 영문 소문자+숫자+하이픈 외 문자(대문자·언더바·한글) 있으면 pre-check 차단됨. 사전 grep 권장:
+   ```bash
+   grep -rE "^tags:.*[A-Z_가-힣]" docs/
+   ```
+2. `python .claude/scripts/docs_ops.py cluster-update` 실행 — 신규 tag 분포·백링크 섹션 자동 생성
+3. CPS case 누적은 점진적 — wave 완료 시마다 `docs/cps/cp_{slug}.md` 박제 (선택)
+
+**자동 클린업**: harness-upgrade Step 7이 본 wave에서 폐기·격하된 모든
+파일을 자동 감지하고 삭제를 제안합니다 — 사용자 명령 복사 불필요:
+
+- **DELETED 카테고리** (upstream git rm): rules 4·scripts 4·skills 2 폐기 자동 감지
+- **starter_skills 격하 카테고리** (Step 7 (B) 신설): `harness-dev` 같은 격하 잔재 자동 감지
+
+각 항목 [Y/n/건너뛰기] 1회 응답. 자동 처리 신뢰 우려 시 응답 전 사용자가
+파일 목록 확인 가능.
+
+### 검증
+
+```bash
+python -m pytest .claude/scripts/tests/test_pre_commit.py -m "tag or gate or secret" -q
+python .claude/scripts/eval_cps_integrity.py
+python .claude/scripts/docs_ops.py cluster-update
+```
+
+### 회귀 위험
+
+- upstream 격리 환경에서 관찰된 범위 내에서는 회귀 0. commit_finalize.sh의 Windows 경로 git alternates fail은 본 wave 무관 (사전 환경 결함).
+- 다운스트림이 frontmatter tags에 한글·대문자·언더바를 사용 중이면 첫 commit에서 차단됨 — 위 "수동 확인 권장" grep으로 사전 검증 권장.
+- pytest 84 passed, 4 skipped (commit_finalize 환경 fail 3건 제외)
+
+
+
 ## v0.47.0 — 73% 삭감 wave §S-1 CPS 재설계 + §S-2 AC 단순화 (2026-05-14)
 
 ### 변경 내용
