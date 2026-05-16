@@ -7,8 +7,9 @@ tags: [wiki-graph, frontmatter, cluster, relates-to]
 relates-to:
   - path: decisions/hn_harness_73pct_cut.md
     rel: extends
-status: in-progress
+status: completed
 created: 2026-05-15
+updated: 2026-05-16
 ---
 
 # Wiki 그래프 자산 생성 wave
@@ -90,7 +91,7 @@ relates-to)으로 채워지는 단계. 메커니즘 → 데이터 누적.
 - [x] §B 완료 — tag 271→정리. 5+ tag 20개. 단복수 통합 + p# tag 제거 (13파일 수정)
 - [x] §C 완료 — rel 6종→4종 (extends·caused-by·references·supersedes 유지, implements·precedes·conflicts-with 폐기)
 - [x] 본 wave commit + push 완료
-- [ ] 사용자 운용 1~2 wave 후 체감 OK 판정
+- [x] 사용자 운용 1~2 wave 후 체감 OK 판정 — 73% 삭감 wave(665b7b6)에서 wiki 메커니즘 실측: cluster tag 백링크 동작·tag 정규식 차단 0 위반·relates-to dead link 자동 검출 1건(WIP→decisions 이동 시) 정상
 
 ## 7. 결과 박제
 
