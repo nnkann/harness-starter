@@ -5,7 +5,7 @@ problem: P7
 s: [S7, S9]
 tags: [wiki-graph, frontmatter, cluster, relates-to]
 relates-to:
-  - path: WIP/hn_harness_80pct_cut.md
+  - path: decisions/hn_harness_73pct_cut.md
     rel: extends
 status: in-progress
 created: 2026-05-15
@@ -15,7 +15,7 @@ created: 2026-05-15
 
 ## 0. 박제
 
-본 wave는 73% 삭감 wave(`hn_harness_80pct_cut.md`) §S-7에서 박제한 **별
+본 wave는 73% 삭감 wave(`hn_harness_73pct_cut.md`) §S-7에서 박제한 **별
 wave 후보 3건**의 단일 묶음. 메커니즘은 본 wave에서 신설됐고(`docs_ops.py
 cluster-update` tag 백링크·pre-check tag 정규식·S# 인용 게이트), 자산
 생성·검토는 분량 큼·사람 검토 필요라 별 wave 박제.

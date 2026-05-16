@@ -30,7 +30,7 @@
 - CPS 인용 형식 SSOT: `.claude/rules/docs.md` "## CPS 인용"
 
 ## 절대 규칙
-- 커밋은 반드시 `/commit` 스킬 경유. WIP 없어도 `--no-review` 플래그 사용. `commit_finalize.sh` 직접 호출 금지.
+- 커밋은 반드시 `/commit` 스킬 경유. WIP 없어도 `--no-review` 플래그 사용. 스킬 밖에서 `commit_finalize.sh`·`git commit` 직접 호출 금지 (스킬 Step 7이 지시한 wrapper 호출만 허용).
 - worktree 생성 금지. Agent 호출 시 `isolation: "worktree"` 사용 금지.
 - Bash는 복합 파이프라인·git·스크립트 실행만. 단일 조회는 Glob·Read·Grep. (LSP 가능하면 LSP 우선)
 - 미루기 회피 사유 ("측정 후·다음 세션·데이터 누적 필요" 등) 단독 사용 금지 — 사용자 명시 승인 시만 허용
