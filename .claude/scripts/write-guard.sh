@@ -1,5 +1,5 @@
 #!/bin/bash
-# PreToolUse (Write) — 새 파일 생성 시 check-existing + naming 규칙 안내.
+# PreToolUse (Write) — 새 파일 생성 시 중복 확인 + naming 규칙 안내.
 # stdin으로 JSON이 들어온다.
 
 INPUT=$(cat)
@@ -11,11 +11,11 @@ FILE=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
 # 기존 파일 수정이면 통과 (새 파일 생성만 검사)
 [ -f "$FILE" ] && exit 0
 
-# src/ 하위 새 파일이면 check-existing 안내
+# src/ 하위 새 파일이면 중복 확인 안내
 case "$FILE" in
   src/*|app/*|lib/*|packages/*)
     echo "📌 새 소스 파일 생성 감지: $FILE" >&2
-    echo "   → check-existing 스킬로 중복 확인 했는가?" >&2
+    echo "   → LSP + Grep으로 중복 확인 했는가?" >&2
     echo "   → naming.md 규칙에 맞는 파일명인가?" >&2
     ;;
 esac

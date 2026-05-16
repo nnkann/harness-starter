@@ -43,6 +43,39 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.47.3 — 격하 잔재 강제 삭제 정정 (2026-05-15)
+
+### 변경 내용
+
+**harness-upgrade Step 7 (B) 격하 잔재 — 강제 삭제로 정정**:
+- v0.47.2에서 (B)도 (A)와 동일하게 [Y/n/건너뛰기] 응답으로 처리했으나,
+  격하 폴더는 starter 소유 자기 파일이라 사용자 커스텀 가능성 0 → 보존 가치 0
+- 응답 없이 즉시 삭제 + 알림만 출력으로 정정
+- (A) DELETED는 사용자가 fork/커스텀했을 잠재 가능성으로 [Y/n] 응답 유지
+
+**근거**: 사용자 명시 정정 "삭제 제안이 아니고 삭제해야지. 남겨둘 이유 없잖아?"
+(2026-05-15). 격하 메커니즘 의미상 다운스트림은 격하 폴더를 의도적으로
+보유할 이유가 없음 — starter 전용 도구이므로 다운스트림에 무용.
+
+### 적용 방법
+
+자동. v0.47.2 적용 후 별도 액션 불필요. 다음 harness-upgrade 1회 실행 시
+(B)는 자동 삭제 (응답 불필요), (A)는 [Y/n] 응답.
+
+### 검증
+
+```bash
+python -m pytest .claude/scripts/tests/test_pre_commit.py -q --deselect .claude/scripts/tests/test_pre_commit.py::TestCommitFinalize
+```
+
+### 회귀 위험
+
+- (B) 강제 삭제는 `is_starter: false` 분기 안에서만 실행 — starter 본인
+  자기 파일 오삭제 방어 잔존. 다운스트림 격하 폴더 강제 삭제는 운용 1회
+  후 사용자 판정 (사용자 의도 X → 0 보존 가치 전제 검증).
+
+
+
 ## v0.47.2 — harness-upgrade Step 7 격하 감지 + 클린 패치 안내 (2026-05-15)
 
 ### 변경 내용

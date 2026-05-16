@@ -203,7 +203,8 @@ cluster-update` 자동 생성:
 ## tag별 문서 (백링크)
 
 ### review
-- decisions/hn_review_staging.md
+- decisions/hn_review_tool_budget.md
+- decisions/hn_review_staging_rebalance.md
 - ...
 ```
 

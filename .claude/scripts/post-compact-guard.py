@@ -152,7 +152,7 @@ def section_rules() -> None:
     print("═══ RULES ═══")
     print("1. 린터 에러 0에서만 커밋.")
     print("2. 새 파일 생성 전 naming.md 확인.")
-    print("3. 새 함수 전 check-existing으로 중복 확인.")
+    print("3. 새 함수 전 LSP + Grep으로 중복 확인.")
     print("4. 테스트는 tests/ 폴더에만.")
     print("5. 문서는 docs/ 하위에만.")
     print("6. grep 대신 LSP 우선.")
