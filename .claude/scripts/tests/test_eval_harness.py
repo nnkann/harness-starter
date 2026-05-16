@@ -335,7 +335,7 @@ def test_dead_reference_patterns_cover_known_deprecations():
     mod = _load_eval_harness()
     expected = {
         "anti-defer.md", "bug-interrupt.md", "external-experts.md",
-        "pipeline-design.md", "staging.md", "orchestrator.py",
+        "pipeline-design.md", "rules/staging.md", "orchestrator.py",
         "debug-guard.sh", "check-existing/", "doc-health/",
     }
     actual = set(mod._DEAD_REF_PATTERNS)

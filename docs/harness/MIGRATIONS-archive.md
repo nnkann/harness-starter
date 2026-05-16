@@ -43,6 +43,79 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.47.6 — Step 11 false positive 축소 (FR-X1) + tag-normalize 도구 (FR-X2) + Step 재번호 + P11 신규 (2026-05-16)
+
+### 변경 내용
+
+다운스트림 v0.42.7→v0.47.4 적용 보고에서 받은 FR-X1·X2 두 축 + 사용자 요청 Step 번호 정수화 + 본질 박제 P11 신규.
+
+**FR-X1 — Step 11 (구 Step 9.6) false positive 축소**:
+- 다운스트림 측정: UNAPPLIED 18건 중 14건 false positive (78%) — 진짜 미적용 신호가 noise에 묻힘
+- 분류 코드에 (a) `git log UPSTREAM_REF -- <path>` hit 0건 = upstream 부재 → USER_OWNED 재분류 (b) `git ls-files --others`로 untracked 신규 파일 사전 수집 → `STAGED_PENDING_FILES` 별 카테고리
+- 3 카테고리(USER_OWNED·STARTER_SKILL·UNAPPLIED) → 4 카테고리 (STAGED_PENDING 추가)
+- 시뮬레이션: 18건 → USER_OWNED 11(다운스트림 전용) + STAGED_PENDING 3(untracked) + UNAPPLIED 4(진짜 미적용 의심). false positive 14건 차단
+
+**Step 번호 정수화 (사용자 요청)**:
+- `Step 9.5 → 10` (마이그레이션 액션 표시)
+- `Step 9.6 → 11` (upstream 정합성 검증)
+- `Step 9.7 → 12` (수동 액션 완료 확인)
+- `Step 10 → 13` (완료 처리)
+- SKILL.md 본문 + 내부 참조 + README.md 살아있는 진입점만 갱신. completed 결정 문서(7개)는 박제 본질 보존
+
+**FR-X2 — tag 정규식 누적 부채 auto-fix 도구**:
+- 다운스트림 측정: 7개 문서 tag 정규식 위반 (대문자·언더바·한글) — v0.47.1 정규식 도입 전 작성 문서들. 다음 수정 시 즉시 차단
+- `docs_ops.py tag-normalize` 서브커맨드 신설:
+  - `normalize_tag()` 결정적 변환 (camelCase·언더바·대문자·비허용·중복 dedup)
+  - 한글 포함 tag는 자동 변환 거부 (`None` 반환) — 사용자 영문 매핑 필수
+  - `--apply` 플래그(기본 dry-run), `--yes` 비대화형
+- `pre_commit_check.py` tag 위반 차단 메시지에 `auto-fix: ... tag-normalize <wip> --apply` 한 줄 안내 추가
+- `test_tag_normalize.py` 15케이스 통과
+
+**P11 신규 등록**:
+- "동형 패턴 잠복 — 1차 발견 시 다른 위치 후보 자동 탐색 부재"
+- 사용자 본질 발화: "하나의 증상을 찾았는데 이게 다른 곳에서도 동일하게 있을 수 있다"
+- P7(관계 불투명)과 직교 — P7은 *구조* 관계(wiki 그래프), P11은 *동형 패턴* 관계
+- S11 정의는 별 wave에서 정련 (현재는 본질만 박제)
+- 본 wave 결정 문서들이 P11 동형 잠복 후보를 메모로 박제 (`hn_upgrade_silent_fail_guards.md` Phase 6 + `hn_doc_naming.md` 변경 이력)
+
+### 영향 파일
+
+- `.claude/skills/harness-upgrade/SKILL.md` (Step 11 분류 로직 + 4 헤더 재번호 + 내부 참조)
+- `.claude/scripts/docs_ops.py` (`normalize_tag` + `cmd_tag_normalize` + dispatch + USAGE)
+- `.claude/scripts/pre_commit_check.py` (tag 차단 안내 1줄)
+- `.claude/scripts/tests/test_tag_normalize.py` (신규 15케이스)
+- `README.md` (Step 번호 2곳)
+- `docs/guides/project_kickoff.md` (P11 1줄 추가)
+- `docs/decisions/hn_upgrade_silent_fail_guards.md` (Phase 6 박제, problem `[P3, P11]`)
+- `docs/decisions/hn_doc_naming.md` (변경 이력 + v0.47.6 wave AC + problem `[P7, P11]`)
+
+### 자동 적용
+
+- HARNESS.json version → 0.47.6
+- SKILL.md Step 11 분류 코드는 다운스트림 다음 upgrade 시 자동 적용 (3-way merge)
+- pre-check tag 위반 안내는 다음 commit부터 자동 표시
+
+### 수동 확인 권장
+
+- 다운스트림 누적 tag 위반 문서 점검: `python .claude/scripts/docs_ops.py tag-normalize docs/ --apply` (dry-run 먼저 권장)
+- 한글 tag 포함 문서는 자동 skip — 사용자가 영문 매핑 결정 필요
+- Step 번호 변경은 SKILL.md 내부 참조만 자동 갱신. 다운스트림 자체 문서에 옛 "Step 9.6" 등의 라벨이 있으면 stale (수동 갱신 또는 박제 보존)
+
+### 회귀 위험
+
+- Step 11 분류 로직 변경 — `git log UPSTREAM_REF -- <path>` 호출이 추가됨. 대규모 repo에서 약간의 latency 증가 가능 (drift 파일 수에 비례)
+- tag-normalize `--apply`가 frontmatter `tags:` 라인을 정규식 1회 치환으로 갱신 — multi-line `tags:` 포맷(YAML block) 사용 시 미인식 가능. 본 starter는 inline `[a, b, c]` 표기만 사용하므로 영향 없음. 다운스트림이 block 표기 사용 시 주의
+
+### 다운스트림 보고 요청
+
+본 wave 적용 후 다음 upgrade에서 다음을 측정해 `migration-log.md` `## Feedback Reports`에 응답:
+
+1. **Step 11 UNAPPLIED 카운트 변화**: 본 보강 전(v0.47.5) 대비 false positive 감소율
+2. **tag-normalize 실측**: `--apply` 실행 시 변환 성공 건수 / 한글 skip 건수
+3. **P11 동형 잠복 후보 관찰**: 본 wave에서 박제한 후보들(SEALED 면제 분류, cluster abbr 파싱 등)이 실제 결함을 만들었는지
+
+
+
 ## v0.47.5 — Wiki 그래프 자산 생성 wave (§A frontmatter 보강·§B tag normalize·§C rel 정리) (2026-05-15)
 
 ### 변경 내용

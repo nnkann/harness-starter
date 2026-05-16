@@ -74,13 +74,16 @@ def run_cps_integrity() -> int:
 # 항목 9. starter 본문 dead reference (P11 첫 누적 case 박제 후 추가)
 # ──────────────────────────────────────────────────────────────────────
 
-# 폐기 패턴 — 의도적 박제(폐기·흡수·삭제) 표현은 false positive
+# 폐기 패턴 — 의도적 박제(폐기·흡수·삭제) 표현은 면제 정규식 처리.
+# starter 고유 경로/파일명만 등재. 일반 단어(`staging.md` 등)는
+# 다운스트림 false positive 회피를 위해 경로 prefix로 좁힌다.
+# (v0.47.11 — `staging.md`만 단순 basename → `rules/staging.md` prefix화)
 _DEAD_REF_PATTERNS = [
     "anti-defer.md",
     "bug-interrupt.md",
     "external-experts.md",
     "pipeline-design.md",
-    "staging.md",
+    "rules/staging.md",        # 일반 단어 `staging` false positive 차단
     "orchestrator.py",
     "debug-guard.sh",
     "check-existing/",

@@ -634,6 +634,19 @@ def main() -> int:
     #
     # 사상: v0.47.7 commit_finalize wrapper 흡수와 동일 — "LLM 책임 → 도구 책임".
     # SSOT: .claude/scripts/eval_harness.py:scan_dead_reference_paths.
+    #
+    # v0.47.11 격리: is_starter=true → 차단 (게이트 active).
+    #                is_starter=false (다운스트림) → warn-only (정비 일정 자율).
+    # 이유: starter 폐기 파일명 list가 다운스트림 본문과 우연 충돌해도 작업
+    # 마비 방지. 다운스트림은 alert 후 자기 일정으로 정비.
+    _is_starter_for_gate = False
+    try:
+        import json as _json_gate
+        _hj_gate = _json_gate.loads(Path(".claude/HARNESS.json").read_text(encoding="utf-8"))
+        _is_starter_for_gate = bool(_hj_gate.get("is_starter"))
+    except Exception:
+        _is_starter_for_gate = False
+
     _EVAL_HARNESS = Path(__file__).parent / "eval_harness.py"
     _scan_dead_ref = None
     if _EVAL_HARNESS.exists():
@@ -660,14 +673,19 @@ def main() -> int:
         if dead_candidates:
             dead_hits = _scan_dead_ref(dead_candidates)
             if dead_hits:
-                err(f"❌ dead reference 감지 ({len(dead_hits)}건) — staged 본문에 폐기 파일 잔재:")
+                _gate_label = "❌" if _is_starter_for_gate else "⚠"
+                _gate_action = "차단" if _is_starter_for_gate else "경고 (다운스트림 — warn-only)"
+                err(f"{_gate_label} dead reference 감지 ({len(dead_hits)}건) — staged 본문에 폐기 파일 잔재 [{_gate_action}]:")
                 for rel, lineno, dead, snippet in dead_hits[:10]:
                     err(f"   - {rel}:{lineno} | `{dead}` | {snippet}")
                 if len(dead_hits) > 10:
                     err(f"   ... 외 {len(dead_hits) - 10}건")
                 err("   대응: harness-dev SKILL.md '폐기 절차 Step P1~P5' 참조 — 본문 정비 또는 박제 표현 명시")
                 err("   (eval --harness 항목 9가 동일 검사 — pre-check이 staged 시점에 결정적 차단)")
-                ERRORS += 1
+                if _is_starter_for_gate:
+                    ERRORS += 1
+                else:
+                    err("   ℹ️ 다운스트림 모드 — commit 진행 가능. 정비 일정은 자율 결정.")
 
     # ─────────────────────────────────────────────────────────
     # 4. WIP completed/abandoned 잔재
