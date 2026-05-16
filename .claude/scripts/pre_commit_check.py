@@ -901,7 +901,9 @@ def main() -> int:
         ac = parse_ac_block(body)
         if not ac["goal"]:
             if not ac["ac_section_found"]:
-                err(f"❌ {wip}: AC 섹션 없음. `**Acceptance Criteria**:` (bold 형식) 헤더가 필요합니다. `### Acceptance Criteria` 헤더 형식은 인식하지 않습니다.")
+                err(f"❌ {wip}: AC 섹션 없음. `**Acceptance Criteria**:` (bold 형식) 헤더가 필요합니다.")
+                err(f"   `## Acceptance Criteria` 또는 `### Acceptance Criteria` 헤더 형식은 인식하지 않습니다.")
+                err(f"   auto-fix: sed -i 's/^#\\+\\s*Acceptance Criteria.*$/**Acceptance Criteria**:/' {wip}")
             else:
                 err(f"❌ {wip}: AC `Goal:` 항목 누락.")
             ERRORS += 1

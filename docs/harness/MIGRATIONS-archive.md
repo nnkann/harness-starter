@@ -43,6 +43,64 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.47.7 — docs/harness cascade 화이트리스트 좁힘 + 회고 잔재 자동 정리 + commit_finalize wrapper 흡수 (2026-05-16)
+
+### 변경 내용
+
+starter 내부 회고 문서가 다운스트림에 cascade되던 결함을 원천 차단 + commit 흐름의 자가 발화 의존 1건 wrapper 흡수.
+
+**docs/harness cascade 화이트리스트 좁힘** (harness-upgrade Step 3):
+- 옛 정의: "하네스 파일 범위"에 `docs/harness` 통째 포함 → starter 내부 회고(`hn_*.md`) 38건이 다운스트림 docs/harness/로 따라감
+- 새 정의: `docs/harness/MIGRATIONS.md docs/harness/MIGRATIONS-archive.md` 명시 2건만
+- **opt-in 화이트리스트** — 새 `hn_*.md` 추가돼도 자동 제외, 별도 등록·결정 불필요
+- 다운스트림이 알아야 할 건 "이번 변경 내용"(MIGRATIONS) 한정. 히스토리는 starter에만 박제
+
+**Step 7 (C) starter 회고 잔재 자동 정리** (신설):
+- 옛 버전에서 이미 cascade된 hn_* 잔재 회수 메커니즘
+- 판정: `git cat-file -e $UPSTREAM_REMOTE/main:<path>` hit → upstream 존재 = starter 회고 잔재 → 자동 삭제
+- 다운스트림 자체 작성 hn_* 문서는 upstream 부재로 자동 보존 (false-positive 차단)
+- (A) DELETED + (B) starter_skills 격하 + (C) starter 회고 — 3축 정리 통합
+
+**commit_finalize.sh session snapshot 자동 정리** (wrapper 흡수):
+- 옛 흐름: commit 스킬 Step 8이 LLM에게 `rm -f .claude/memory/session-*.txt` 자가 발화 의존 (P8 패턴)
+- 권한 분류기 잔향·LLM 누락 시 흔적 잔존 결함 발생 (2026-05-16 실측)
+- 새 흐름: `commit_finalize.sh`가 `git commit` 성공 시 직접 정리. LLM 책임 0
+- commit 스킬 Step 8 본문은 "wrapper 자동 처리" 1줄로 단순화
+
+### 영향 파일
+
+- `.claude/skills/harness-upgrade/SKILL.md` (Step 3 화이트리스트 + Step 7 (C) 신설)
+- `.claude/scripts/commit_finalize.sh` (commit 성공 시 session snapshot 정리)
+- `.claude/skills/commit/SKILL.md` (Step 8 본문 단순화)
+
+### 자동 적용
+
+- HARNESS.json version → 0.47.7
+- harness-upgrade 다음 실행 시:
+  - Step 3 화이트리스트로 신규 hn_* cascade 자동 차단
+  - Step 7 (C)가 기존 hn_* 잔재 자동 삭제 + 알림
+- commit_finalize wrapper는 다음 commit부터 자동 정리
+
+### 수동 확인 권장
+
+- (C) 격하 정리 알림 출력 시 starter 회고 파일 목록 검토 — 다운스트림 자체 작성 파일이 우연히 같은 이름이면 false-positive 가능성 (upstream에 같은 이름 파일이 있다면 삭제됨). 본 starter의 38건은 전부 `hn_` prefix + starter 고유 슬러그라 충돌 가능성 낮음. 우려되면 첫 upgrade는 dry-run 검토 후 실행
+- session snapshot 자동 정리는 `git commit` 성공 시만 동작 (실패 시 보존 — 디버깅용)
+
+### 회귀 위험
+
+- Step 3 화이트리스트 좁힘은 **명시 2개 라인 변경**만 — `docs/harness` 통째에서 2건 명시로. 다운스트림 첫 upgrade 시 (C)가 38건 삭제 알림 표출 (대량). 사용자 인지 부담 가능 — 알림 메시지에 "starter 내부 회고 — 다운스트림 미전파" 라벨로 명확화
+- commit_finalize 변경은 `exit "$COMMIT_RC"` 추가 — 기존 묵시적 0 종료에서 명시 종료로. wrapper 호출자가 exit code 검사하면 동일 동작
+
+### 다운스트림 보고 요청
+
+본 wave 적용 후 다음 upgrade에서 다음을 측정해 `migration-log.md` `## Feedback Reports`에 응답:
+
+1. **Step 7 (C) 격하 대상 카운트**: 다운스트림에 누적된 starter 회고 hn_* 파일 수 (보통 30~40건 예상)
+2. **false-positive 발생**: (C)가 다운스트림 자체 작성 hn_* 문서를 잘못 삭제한 사례 있는지
+3. **session snapshot 잔재**: commit 후 `.claude/memory/session-*.txt` 잔존 0건인지 확인
+
+
+
 ## v0.47.6 — Step 11 false positive 축소 (FR-X1) + tag-normalize 도구 (FR-X2) + Step 재번호 + P11 신규 (2026-05-16)
 
 ### 변경 내용
