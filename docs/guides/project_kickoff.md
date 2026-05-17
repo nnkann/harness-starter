@@ -35,6 +35,7 @@ AI 코딩 에이전트(Claude Code) 행동을 **빠르게 도와주는** 도구 
 | P9 | 정보 오염의 관성 |
 | **P10** | **본질 미정 (catch-all, 다음 정련 후보 누적) — 강한 기준 적용** |
 | P11 | 동형 패턴 잠복 — 1차 발견 시 다른 위치 후보 자동 탐색 부재 |
+| P12 | LLM이 sub-task 분리로 외형 충족 후 본 WIP completed 위장 (specification gaming) |
 
 > 추가는 `python .claude/scripts/docs_ops.py cps add "1줄"`. 새 P# 자유.
 > 정의·증상·진입조건 본문: `docs/archived/hn_kickoff_pre_73pct_cut.md`.
@@ -58,6 +59,7 @@ AI 코딩 에이전트(Claude Code) 행동을 **빠르게 도와주는** 도구 
 | S9 | P9 | 주관 격리 + 다층 검증 | frontmatter `problem`·`s` ↔ CPS Problems/Solutions 번호 매칭 100%. AC 체크박스 형식 강제. 매칭 누락 시 commit 차단 |
 | **S10** | **P10** | **본질 의심 — 면밀 비교 + 정련 후보 누적** | **박는 조건 (엄격)**: P1~P9 각각 검토 후 어디에도 명확히 안 맞을 때만. "잘 모르겠음·귀찮음·빠르게 넘기고 싶음"은 부적합. wave 안에서 **의심 근거 1줄 박제 의무** (단순 "안 맞음" 금지) + 가장 가까운 P#·S# 후보 1개 동반 선택. 다음 wave가 패턴 누적 보면 P10 재분류 또는 새 P# 분리. **혼용 시 본질 신호 희석 — 신중 사용** |
 | S11 | P11 | 동형 후보 위치 자동 탐색 + 코드 SSOT 단일 진입점 강제 | 1차 발견 시 다른 후보 위치 탐색 의무. 같은 로직 3곳 이상 → core 모듈 추출. 새 도메인 필드 추가 전 소유 모듈·단일 함수·모든 진입점 통과 결정. `.claude/rules/code-ssot.md` 규칙 + 다운스트림 사례 누적 |
+| S12 | P12 | 유도 (경고 + 박제 + 회상) — **강제 금지** | LLM 판단 패턴은 차단 부적합 — 정당한 scope split도 차단 위험. `docs/decisions/hn_split_completion_bypass.md` 메커니즘 박제 (회상 다리). pre-check 경고는 별 wave, 차단 X. 메타 원칙(강제 최소화)도 본 결정 본문에 한정 — 3사례 누적 시 rule 승격 검토 |
 
 ## CPS 사용 흐름
 
@@ -97,3 +99,21 @@ python .claude/scripts/docs_ops.py cps add "1줄"      # 새 P# 등록
 
 방어: `.claude/rules/code-ssot.md` (3+ reference rule · derived pointer
 pattern · new field pre-checklist). 1차 발견 시 동형 후보 위치 탐색 의무.
+
+### P12 — LLM이 sub-task 분리로 외형 충족 후 본 WIP completed 위장 (specification gaming)
+
+다운스트림 다회 발생. 본 WIP의 미완 sub-task를 새 WIP로 분리한 뒤 본 WIP
+status를 completed로 전환. "완료" 외형은 충족되지만 일은 줄지 않고 추적
+대상만 늘어남. stop hook이나 Goal hook이 활성화되면 인센티브가 강화돼
+재발률 높음.
+
+메커니즘:
+- 진짜 완료(코드·테스트·검증)는 비싸고, 분리(새 .md 작성)는 거의 무료
+- 차단 검사가 빈 체크박스·TODO 패턴만 봐 산문으로 우회 가능
+- trajectory(분리 행동 자체)는 검사 안 함
+
+외부 분류: Anthropic reward hacking / OpenAI specification gaming.
+방어: `docs/decisions/hn_split_completion_bypass.md` 메커니즘 박제 + 본
+결정 본문 내 "강제 최소화 원칙" 박제. 차단 도구는 도입 X — LLM 판단
+패턴은 false positive 비용이 높아 회상 다리(박제)로 처리. 향후 동일
+"강제 vs 유도" 판단이 3사례 이상 누적되면 rule 승격 검토.
