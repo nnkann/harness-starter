@@ -250,6 +250,31 @@ REFERENCED_DOCS=$(
 2. 통과한 경로 중 다운스트림에 없으면 "신규" 카테고리로 추가 제안. 실제
    의도된 참조라 다운스트림에 추가되어야 정상.
 
+**Cascade boundary projection** (v0.51.0 신규 — FR-002 방어):
+
+cascade되는 `docs/decisions/hn_*.md`가 `relates-to`로 비-cascade 동료
+(`docs/decisions/*` 미참조 또는 `docs/harness/*`)를 가리키면 다운스트림에
+영구 dead link 발생. 다운스트림에 파일을 복사하기 전에 frontmatter를
+projection-safe하게 rewrite한다. upstream 원본은 그대로 보존 — 의미 drift
+아닌 projection drift.
+
+```bash
+# REFERENCED_DOCS 산출 후, 복사 대상이 결정문서면 rewrite 적용
+for path in $REFERENCED_DOCS; do
+  if [[ "$path" == docs/decisions/* ]]; then
+    python .claude/scripts/cascade_docs.py rewrite "$path"
+  fi
+done
+```
+
+`cascade_docs.py rewrite`는 `relates-to`에서 비-cascade target 항목을
+제거하고, 모든 항목이 제거되면 `relates-to:` 키 자체 제거. upgrade 로그에
+"frontmatter rewritten" 한 줄 출력으로 투명성 확보.
+
+starter 측 사전 차단: `docs_ops.py verify-relates`가 `is_starter: true`
+환경에서 cascade boundary 위반을 자동 감지·차단 (작성 시점). 다운스트림은
+warn-only.
+
 변경된 파일을 분류한다.
 
 **분류 전 필수: `--diff-filter`로 상태별 분리**

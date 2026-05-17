@@ -627,6 +627,26 @@ def _resolve_relates_path(source: Path, rel_path: str) -> str:
     return rel_path
 
 
+def _is_starter() -> bool:
+    """is_starter 환경 판정 — HARNESS.json 또는 HARNESS_IS_STARTER env."""
+    import os
+    env = os.environ.get("HARNESS_IS_STARTER", "").lower()
+    if env in ("true", "1"):
+        return True
+    if env in ("false", "0"):
+        return False
+    # HARNESS.json fallback
+    harness_json = Path(".claude/HARNESS.json")
+    if harness_json.exists():
+        try:
+            import json
+            data = json.loads(harness_json.read_text(encoding="utf-8"))
+            return bool(data.get("is_starter", False))
+        except Exception:
+            return False
+    return False
+
+
 def cmd_verify_relates() -> int:
     errors = 0
     for md in _verify_relates_scan_files():
@@ -640,8 +660,32 @@ def cmd_verify_relates() -> int:
                 print(f"⚠️  {md}: relates-to '{rp}' (resolved: {rpath}) 존재하지 않음")
                 errors += 1
 
-    print(f"\n결과: 미연결 relates-to {errors} 건")
-    return 1 if errors else 0
+    # starter 전용: cascade boundary 위반 검사 (FR-002 방어, P11)
+    cascade_errors = 0
+    if _is_starter():
+        try:
+            import importlib.util
+            spec = importlib.util.spec_from_file_location(
+                "cascade_docs", Path(__file__).parent / "cascade_docs.py"
+            )
+            cascade_mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(cascade_mod)
+            violations = cascade_mod.check_cascade_boundary_violations()
+            for src, target, rel in violations:
+                print(
+                    f"⚠️  {src}: cascade boundary 위반 — relates-to '{target}' "
+                    f"(rel: {rel})는 비-cascade 결정문서. 다운스트림 dead link 유발"
+                )
+                cascade_errors += 1
+        except Exception as e:
+            print(f"⚠️  cascade boundary 검사 실패: {e}", file=sys.stderr)
+
+    total = errors + cascade_errors
+    if cascade_errors:
+        print(f"\n결과: 미연결 relates-to {errors} 건, cascade boundary 위반 {cascade_errors} 건")
+    else:
+        print(f"\n결과: 미연결 relates-to {errors} 건")
+    return 1 if total else 0
 
 
 # ─────────────────────────────────────────────────────────

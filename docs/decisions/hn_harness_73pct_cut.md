@@ -7,11 +7,9 @@ tags: [redesign, simplify, philosophy-shift, fast-help, adr]
 relates-to:
   - path: archived/hn_harness_recovery_v0_41_baseline.md
     rel: extends
-  - path: decisions/hn_orchestrator_mechanism.md
-    rel: supersedes
 status: completed
 created: 2026-05-14
-updated: 2026-05-16
+updated: 2026-05-17
 ---
 
 # 하네스 73% 삭감 설계 (ADR)
@@ -19,7 +17,8 @@ updated: 2026-05-16
 ## 0. 결정 박제
 
 본 문서 위치: `docs/decisions/hn_harness_73pct_cut.md` (ADR).
-실행 절차 가이드는 별도 분리.
+실행 절차 가이드는 별도 분리. 이전 orchestrator 메커니즘
+(`decisions/hn_orchestrator_mechanism.md`, starter 내부)을 supersede.
 
 **관점**: "잘하게 만든다"(통제) 폐기. "빠르게 도와준다"(가속) 채택.
 

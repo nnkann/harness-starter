@@ -8,8 +8,6 @@ status: completed
 created: 2026-05-17
 updated: 2026-05-17
 relates-to:
-  - path: decisions/hn_runtime_ssot_generation.md
-    rel: caused-by
   - path: decisions/hn_code_ssot_audit.md
     rel: references
 ---

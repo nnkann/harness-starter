@@ -43,6 +43,35 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.47.12 — AC 헤더 차단 메시지에 auto-fix sed 안내 추가 (2026-05-16)
+
+### 변경 내용
+
+다운스트림 보고 동반 관찰 1건 (AC 헤더 `##` vs `**bold**` auto-fix 부재,
+medium) 흡수. **auto-fix 자동 실행은 추가 안 함** — 빈도(wave당 1회) +
+우연 변환 위험 대비 효익 작음.
+
+**pre_commit_check.py L904 차단 메시지 보강**:
+- 기존: "`### Acceptance Criteria` 헤더 형식은 인식하지 않습니다." 1줄
+- 추가: `auto-fix: sed -i 's/^#\+\s*Acceptance Criteria.*$/**Acceptance Criteria**:/' {wip}`
+
+사상: dead-ref 게이트의 `auto-fix: docs_ops.py tag-normalize` 패턴 정합 —
+"결정적 차단 + 복붙 가능 fix 명령".
+
+### 영향
+
+- 다운스트림이 AC 헤더 형식 위반 차단 시 복붙 1회로 해결
+- 자동화 아니지만 학습 곡선 + 수동 sed 작성 시간 제거
+- starter·다운스트림 동일 효과 (메시지 출력 차이 없음)
+
+### 다운스트림 보고 응답
+
+FR 동반 관찰 1번 (AC 헤더 auto-fix 부재, medium):
+- 본 wave로 medium → low 강등
+- 자동 실행이 아니라 복붙 fix 안내라 false positive 위험 0
+
+
+
 ## v0.47.11 — P11 게이트 안전망 보강 (false positive 차단 + 다운스트림 격리) (2026-05-16)
 
 ### 변경 내용
