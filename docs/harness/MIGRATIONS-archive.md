@@ -43,6 +43,76 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.48.0 — P11 본질 재정렬 (SSOT 인용 원칙 + CPS 채널 활성화) (2026-05-17)
+
+### 변경 내용
+
+v0.47.7~v0.47.12 P11 사이클이 `_DEAD_REF_PATTERNS` hardcoded list 누적
+사이클로 빠지려던 순간, 사용자 통찰로 본 메커니즘의 진짜 본질로 복귀:
+
+> "SSOT 호출과 더불어 그 내용이 희석되지 않고 내가 원하는 단계까지 전달이
+> 안된다가 문제의 핵심" / "이 관계를 정의하고 있는게 cps잖아?"
+
+**문제 진단**: 본문이 SSOT의 구체 list(`4종 (X·Y·Z·W)`·`--quick/--harness/
+--surface/--deep 4모드`)를 **복제** → SSOT 갱신 시 본문 drift → P11 잠복.
+`_DEAD_REF_PATTERNS` 누적은 cluster-update hardcoded 표 답습(v0.47.5에서
+폐기 결정한 패턴 재발).
+
+**해결 — 새 메커니즘 X, CPS 채널 활성화**:
+- CPS `rel: references`가 이미 SSOT 인용 그래프 박제 메커니즘
+- `verify-relates` 도구가 이미 cascade 추적 게이트
+- 본문이 복제 대신 SSOT 링크로 박으면 drift 0
+
+**A. `rules/docs.md` "SSOT 인용 원칙" 신설** (defends P11):
+- 본문 복제 금지 + `rel: references` 권장 + 적용 범위 박제
+- "본문 인용 금지: 구체 list" / "본문 인용 허용: 1줄 요약·맥락"
+- 도구 안내: `verify-relates`·`section_dead_reference`·SSOT 원칙 3축
+
+**B. 본문 복제 9곳 → SSOT 링크 전환**:
+- `README.md`: eval 폐기 모드(`--surface`·`--deep`) 줄 제거,
+  "relates-to 4종" → "rel 타입 정의는 rules/docs.md SSOT"
+- `agents/advisor.md`·`threat-analyst.md` description: TRIGGER에서 폐기된
+  `eval --deep` 참조 줄 삭제 (description은 매 LLM 호출 시스템 프롬프트
+  적재라 영향 큼)
+- `skills/advisor/SKILL.md` L43 "eval --deep 2차 검증" 행 삭제
+- `skills/harness-init/SKILL.md` L83 "`--quick`/`--deep`/`--no-review`" →
+  `/commit --review`/`--no-review` 2단계 박제로 교체
+- `skills/harness-init/SKILL.md` L347 `rel: implements` → `rel: extends`
+- `rules/security.md` L42·48 "eval --deep" → "eval --harness"
+
+**C. `_DEAD_REF_PATTERNS` 본문 표현 등록 시도 폐기**:
+- 직전 단계에서 추가했던 `/eval --surface`·`/eval --deep`·`rel: implements`
+  등을 list에서 제거 — hardcoded 누적 사이클 차단
+- 사상: 본문 표현은 SSOT 인용 원칙으로 차단, 파일/경로만 hardcoded 유지
+  (git tree와 1:1 매핑이라 SSOT 자기 일치)
+
+### 영향
+
+- 매 LLM 호출 시스템 프롬프트에 적재되는 agents description의 dead
+  reference 제거 — LLM이 폐기 모드 인지 0
+- README·SKILL 본문이 SSOT 링크로 박혀 미래 SSOT 갱신 시 drift 0
+- `_DEAD_REF_PATTERNS` list가 증식 사이클 중단 — 본문 표현 단속은 SSOT
+  원칙으로 이양
+
+### 다운스트림 영향
+
+- agents description 변경 (advisor·threat-analyst) — 3-way merge로 흡수
+- rules/docs.md "SSOT 인용 원칙" 박제 — 다운스트림 SKILL·본문 작성 가이드
+- harness-init 템플릿 `rel: implements` → `rel: extends` 정합
+- 다운스트림 본문에 `eval --deep`·`rel: implements` 잔재 있어도 본 wave
+  game은 차단 안 함 (본문 표현 단속 폐기 — SSOT 원칙으로 자율 정비)
+
+### 다운스트림 보고 요청
+
+본 wave 적용 후 다음 upgrade에서 `migration-log.md` `## Feedback Reports`에 응답:
+
+1. **SSOT 인용 원칙 인지**: 다음 wave에서 본문 작성 시 복제 대신 SSOT 링크
+   박제가 자연스러웠는지 (자가 발화 없이 원칙 적용 가능했는지)
+2. **rel: references 그래프 활용**: 새 문서 작성 시 `relates-to: rel: references`
+   사용 빈도 (1차 발견 vs 동형 후보 탐색에 활용했는지)
+
+
+
 ## v0.47.12 — AC 헤더 차단 메시지에 auto-fix sed 안내 추가 (2026-05-16)
 
 ### 변경 내용

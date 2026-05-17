@@ -145,6 +145,33 @@ def test_strip_removes_non_cascading_targets(tmp_path, monkeypatch):
 
 
 @pytest.mark.docs_ops
+def test_strip_removes_archived_targets(tmp_path, monkeypatch):
+    """archived/ target도 비-cascade로 판정되어 제거되어야 함."""
+    _init_repo(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    src = tmp_path / "docs" / "decisions" / "hn_src.md"
+    _write(
+        src,
+        _decision(
+            "src",
+            relates=[
+                ("archived/hn_legacy.md", "extends"),
+                ("decisions/hn_in_cascade.md", "references"),
+            ],
+        ),
+    )
+
+    mod = _load("cascade_docs")
+    cascade_set = {"docs/decisions/hn_in_cascade.md", "docs/decisions/hn_src.md"}
+
+    rewritten = mod.rewrite_frontmatter_for_downstream(str(src), cascade_set)
+
+    assert "hn_legacy.md" not in rewritten
+    assert "hn_in_cascade.md" in rewritten
+
+
+@pytest.mark.docs_ops
 def test_strip_keeps_non_decision_relates(tmp_path, monkeypatch):
     """cascade decision이 rules/skills/agents 가리키는 건 유지 (decisions만 검사)."""
     _init_repo(tmp_path)

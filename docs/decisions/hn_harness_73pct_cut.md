@@ -4,9 +4,6 @@ domain: harness
 problem: [P2, P5, P6, P7, P8, P9]
 s: [S2, S5, S6, S7, S8, S9]
 tags: [redesign, simplify, philosophy-shift, fast-help, adr]
-relates-to:
-  - path: archived/hn_harness_recovery_v0_41_baseline.md
-    rel: extends
 status: completed
 created: 2026-05-14
 updated: 2026-05-17
@@ -19,6 +16,8 @@ updated: 2026-05-17
 본 문서 위치: `docs/decisions/hn_harness_73pct_cut.md` (ADR).
 실행 절차 가이드는 별도 분리. 이전 orchestrator 메커니즘
 (`decisions/hn_orchestrator_mechanism.md`, starter 내부)을 supersede.
+v0.41 baseline(`archived/hn_harness_recovery_v0_41_baseline.md`,
+starter 내부)을 확장한 설계.
 
 **관점**: "잘하게 만든다"(통제) 폐기. "빠르게 도와준다"(가속) 채택.
 

@@ -18,12 +18,31 @@ projection drift 정당화: upstream 그래프는 전체 진실, downstream은 c
 
 from __future__ import annotations
 
+import importlib.util
 import re
 import sys
 from pathlib import Path
 
 
 ROOT = Path.cwd().resolve()
+
+
+def _import_docs_ops():
+    """`_resolve_relates_path` SSOT를 docs_ops에서 동적 로드.
+
+    cascade_docs는 helper script로 docs_ops와 같은 디렉토리에 산다.
+    SSOT 단일화: 본 모듈은 자체 정의 안 함 — 본문 복제 금지 원칙(rules/docs.md).
+    """
+    spec = importlib.util.spec_from_file_location(
+        "docs_ops", Path(__file__).parent / "docs_ops.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+_docs_ops = _import_docs_ops()
+_resolve_relates_path_ssot = _docs_ops._resolve_relates_path
 
 # cascade 정책 SSOT — harness-upgrade SKILL.md Step 3과 정합
 SCAN_ROOTS = (
@@ -77,36 +96,33 @@ def find_rule_referenced_decisions() -> set[str]:
 
 
 def _resolve_relates_path(source_path: str, rel_path: str) -> str:
-    """relates-to.path를 repo-root 기준으로 해석.
+    """relates-to.path 해석 — docs_ops SSOT 위임.
 
-    docs_ops._resolve_relates_path와 동일한 규칙 (SSOT는 거기지만 helper
-    독립 실행 위해 local copy).
+    절대경로 source(테스트 환경 tmp_path) 호환을 위해 docs/ 하위 정규화만
+    추가하고, 본 해석 로직은 docs_ops._resolve_relates_path 단일 정의 사용.
     """
-    if rel_path.startswith(("../", "./")):
-        # 상대 경로는 source 파일 디렉토리 기준
-        src_dir = str(Path(source_path).parent).replace("\\", "/")
-        from posixpath import normpath
-        return normpath(f"{src_dir}/{rel_path}")
-    if rel_path.startswith(("docs/", ".claude/", "README.md", "CLAUDE.md")):
-        return rel_path
-    if rel_path.startswith("rules/"):
-        return f".claude/{rel_path}"
-    if rel_path.startswith("skills/"):
-        return f".claude/{rel_path}"
-    if rel_path.startswith("agents/"):
-        return f".claude/{rel_path}"
-    # 기본: source가 docs/ 하위면 docs/ prefix 자동 부착
-    # 절대경로 source도 처리 (테스트 환경에서 tmp_path 절대경로 전달)
     src_norm = source_path.replace("\\", "/")
-    if src_norm.startswith("docs/") or "/docs/" in src_norm:
-        return f"docs/{rel_path}"
-    return rel_path
+    # 절대경로 + /docs/ 포함 → 상대경로 정규화 후 SSOT에 위임
+    if not src_norm.startswith(("docs/", ".claude/")) and "/docs/" in src_norm:
+        idx = src_norm.find("/docs/") + 1
+        src_norm = src_norm[idx:]
+    return _resolve_relates_path_ssot(Path(src_norm), rel_path)
 
 
 def _is_decisions_target(resolved: str) -> bool:
-    """resolved 경로가 docs/decisions/ 또는 docs/harness/ 하위인지."""
+    """resolved 경로가 cascade 정책상 다운스트림 미전파 영역인지.
+
+    검사 대상: docs/decisions/, docs/harness/, docs/archived/
+    - decisions: rules 본문 grep으로 결정되는 동적 cascade (일부만)
+    - harness: starter 내부 회고, never cascade (v0.47.7)
+    - archived: starter 보존용, never cascade
+    """
     norm = resolved.replace("\\", "/")
-    return norm.startswith("docs/decisions/") or norm.startswith("docs/harness/")
+    return (
+        norm.startswith("docs/decisions/")
+        or norm.startswith("docs/harness/")
+        or norm.startswith("docs/archived/")
+    )
 
 
 def strip_non_cascading_relates(
