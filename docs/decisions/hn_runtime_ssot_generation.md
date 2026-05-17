@@ -4,8 +4,9 @@ domain: harness
 problem: [P5, P7, P11]
 s: [S5, S7]
 tags: [codex, ssot, runtime, bridge, generation]
-status: in-progress
+status: completed
 created: 2026-05-17
+updated: 2026-05-17
 relates-to:
   - path: harness/hn_codex_port.md
     rel: extends
@@ -119,19 +120,19 @@ Phase 3은 pre-check 또는 eval에 manifest drift 검사를 연결한다.
 
 **Acceptance Criteria**:
 
-- [ ] Goal: 중립 SSOT에서 Claude와 Codex 런타임 산출물을 관리하는 방식을 검토 가능하게 만든다.
+- [x] Goal: 중립 SSOT에서 Claude와 Codex 런타임 산출물을 관리하는 방식을 검토 가능하게 만든다.
   검증:
     tests: 문서 검토.
     실측: 사용자가 Phase 0 audit, generator, lightweight overlay 중 다음 단계를 판단할 수 있다.
-- [ ] S5: 런타임별 instruction과 skill 복제를 줄여 Codex 컨텍스트 팽창을 줄이는 방향을 제시한다.
+- [x] S5: 런타임별 instruction과 skill 복제를 줄여 Codex 컨텍스트 팽창을 줄이는 방향을 제시한다.
   검증:
     tests: 문서 검토.
     실측: Codex 산출물이 중립 SSOT, runtime marker, overlay 중 어떤 최소 입력만 읽으면 되는지 비교한다.
-- [ ] S7: 구성 요소 관계를 `source -> adapter -> runtime output -> validation` 흐름으로 드러낸다.
+- [x] S7: 구성 요소 관계를 `source -> adapter -> runtime output -> validation` 흐름으로 드러낸다.
   검증:
     tests: 문서 검토.
     실측: Claude 전용 파일과 Codex 전용 파일의 책임 경계가 표로 재구성 가능하다.
-- [ ] P11: 한 런타임에서 발견한 문제를 다른 런타임 후보 위치까지 탐색하는 검증 아이디어를 포함한다.
+- [x] P11: 한 런타임에서 발견한 문제를 다른 런타임 후보 위치까지 탐색하는 검증 아이디어를 포함한다.
   검증:
     tests: 문서 검토.
     실측: 금지어 검사와 manifest drift 검사가 Claude, Codex 양쪽을 모두 대상으로 한다.
