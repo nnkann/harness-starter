@@ -458,9 +458,16 @@ def main() -> int:
         err("   대응: 링크를 수정하거나, 이동된 파일의 새 경로로 갱신")
         ERRORS += 1
 
-    # C. frontmatter relates-to 전수 검사 (docs/ 전체)
+    # C. frontmatter relates-to 전수 검사 (docs/ + .claude graph nodes)
     # TEST_MODE fixture 테스트는 실제 repo staged 상태에 오염되면 안 된다.
     if not TEST_MODE:
+        _is_starter_for_relates = False
+        try:
+            import json as _json_relates
+            _hj_relates = _json_relates.loads(Path(".claude/HARNESS.json").read_text(encoding="utf-8"))
+            _is_starter_for_relates = bool(_hj_relates.get("is_starter"))
+        except Exception:
+            _is_starter_for_relates = False
         # cmd_verify_relates stdout을 suppress해 pre-check key:value 출력 오염 방지
         _vr_buf = io.StringIO()
         _vr_old_stdout = sys.stdout
@@ -480,11 +487,14 @@ def main() -> int:
             )
         ]
         if _vr_rc and _vr_lines:
-            err("❌ frontmatter relates-to 미연결 건 감지 (전수 검사):")
+            _relates_label = "❌" if _is_starter_for_relates else "⚠"
+            _relates_action = "차단" if _is_starter_for_relates else "경고 (다운스트림 — warn-only)"
+            err(f"{_relates_label} frontmatter relates-to 미연결 건 감지 (전수 검사 — {_relates_action}):")
             for line in _vr_lines:
                 err(f"   {line}")
             err("   대응: docs_ops.py verify-relates 로 상세 확인 후 경로 수정 또는 항목 제거")
-            ERRORS += 1
+            if _is_starter_for_relates:
+                ERRORS += 1
 
     # ─────────────────────────────────────────────────────────
     # 3.5. completed 봉인 보호 — status: completed 문서 본문 무단 변경 차단

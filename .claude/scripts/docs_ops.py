@@ -587,17 +587,54 @@ def _parse_relates_paths(path: Path) -> list[str]:
     return paths
 
 
+def _verify_relates_scan_files() -> list[Path]:
+    """relates-to 검증 대상 파일 목록.
+
+    docs/ 외 rules·skills·agents도 frontmatter를 가진 wiki graph 노드다.
+    frontmatter 없는 파일은 _parse_relates_paths()가 자연스럽게 빈 목록을
+    반환하므로 false positive 없이 스캔 대상에 포함할 수 있다.
+    """
+    files: list[Path] = []
+    if DOCS_DIR.exists():
+        files.extend(sorted(DOCS_DIR.rglob("*.md")))
+    for root in (
+        Path(".claude/rules"),
+        Path(".claude/skills"),
+        Path(".claude/agents"),
+    ):
+        if root.exists():
+            files.extend(sorted(root.rglob("*.md")))
+    for root_file in (Path("README.md"), Path("CLAUDE.md")):
+        if root_file.exists():
+            files.append(root_file)
+    return files
+
+
+def _resolve_relates_path(source: Path, rel_path: str) -> str:
+    """relates-to.path를 repo-root 기준 경로로 해석."""
+    if rel_path.startswith(("../", "./")):
+        return resolve_path(str(source.parent).replace("\\", "/"), rel_path)
+    if rel_path.startswith(("docs/", ".claude/", "README.md", "CLAUDE.md")):
+        return rel_path
+    if rel_path.startswith("rules/"):
+        return f".claude/{rel_path}"
+    if rel_path.startswith("skills/"):
+        return f".claude/{rel_path}"
+    if rel_path.startswith("agents/"):
+        return f".claude/{rel_path}"
+    if str(source).replace("\\", "/").startswith("docs/"):
+        return f"docs/{rel_path}"
+    return rel_path
+
+
 def cmd_verify_relates() -> int:
     errors = 0
-    for md in sorted(DOCS_DIR.rglob("*.md")):
+    for md in _verify_relates_scan_files():
         rt_paths = _parse_relates_paths(md)
         for rp in rt_paths:
             if rp.startswith("/"):
                 continue
-            if rp.startswith(("../", "./")):
-                resolved = resolve_path(str(md.parent).replace("\\", "/"), rp)
-            else:
-                resolved = f"docs/{rp}"
+            resolved = _resolve_relates_path(md, rp)
             rpath = resolved.split("#")[0]
             if not Path(rpath).exists():
                 print(f"⚠️  {md}: relates-to '{rp}' (resolved: {rpath}) 존재하지 않음")

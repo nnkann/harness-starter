@@ -40,7 +40,7 @@ FORBIDDEN_TOOL_NAMES = {
     "run_shell_command",
 }
 
-EXPECTED_HOOK_EVENTS = {
+SUPPORTED_HOOK_EVENTS = {
     "PreToolUse",
     "PostToolUse",
     "PostCompact",
@@ -118,12 +118,12 @@ def test_codex_agent_preserves_core_routing_language(path: Path):
 
 @pytest.mark.orchestrator
 def test_codex_hooks_contract():
-    """Codex hooks bridge는 matcher/type/command 계약을 모두 가져야 한다."""
+    """Codex hooks bridge는 opt-in이며, 활성화된 항목만 형식 계약을 검증한다."""
     data = json.loads(CODEX_HOOKS.read_text(encoding="utf-8"))
     hooks = data.get("hooks")
 
     assert isinstance(hooks, dict)
-    assert set(hooks) == EXPECTED_HOOK_EVENTS
+    assert set(hooks).issubset(SUPPORTED_HOOK_EVENTS)
     for event, entries in hooks.items():
         assert isinstance(entries, list) and entries, event
         for entry in entries:

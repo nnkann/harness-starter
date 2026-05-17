@@ -43,6 +43,62 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.47.9 — P11 첫 누적 case + dead reference 일괄 정비 + 구조적 재발 방지 (2026-05-16)
+
+### 변경 내용
+
+다운스트림 StageLink가 v0.47.8 upgrade 후 dead reference 정비 wave에서
+`harness-upgrade SKILL.md L580` 1건 보고 → starter 본인 권장 grep 실행 시
+README에 6건 추가 잠복 발견. **P11(동형 패턴 잠복) 직격 사례 + 첫 누적 case
+박제**.
+
+**A. dead reference 7건 일괄 정비**:
+- `.claude/skills/harness-upgrade/SKILL.md` L580-581: 폐기 파일 예시
+  `anti-defer.md`·`orchestrator.py` → placeholder `<deprecated-rule>.md`·
+  `<deprecated-script>.py` (옵션 A: 미래 폐기 사이클에도 안정)
+- `README.md` rules 트리: external-experts·pipeline-design·staging.md 폐기
+  3건 줄 제거 (12개 → 9개)
+- `README.md` skills 트리: doc-health/·check-existing/ 폐기 2건 줄 제거
+  (14개 → 12개)
+- `README.md` L47: self-verify "pipeline-design 체크리스트 연계" 안내 정정
+- `README.md` "Review 자동 단계화" 섹션: staging.md 폐기 박제로 교체
+  (5줄 룰·13신호 → `/commit --review`/`--no-review` 2단계)
+
+**B. eval_harness.py 항목 9 dead reference 검사 신설**:
+- 폐기 파일 패턴(`anti-defer.md`·`orchestrator.py` 등 10개) staged 본문 grep
+- 박제 표현(`폐기`·`흡수`·`삭제`·`removed`·`deprecated`·MIGRATIONS·`회고`)
+  정규식 면제로 false positive 차단
+- 회귀 보호: `@pytest.mark.eval` 3건 신규 (총 17 passed)
+
+**C. harness-dev SKILL.md 폐기 절차 Step P1~P5 신설**:
+- 파일 삭제 시 본문 전수 grep 의무화 (Step P2)
+- 정비 옵션 표(placeholder·줄 제거·실재 항목 대체) 박제 (Step P3)
+- eval_harness 회귀 확인 + `_DEAD_REF_PATTERNS` 등록 (Step P4·P5)
+
+### 영향
+
+- LLM이 매 세션 시스템 프롬프트 로드 시 dead reference 안내 제거 → 폐기 스킬
+  안내 노이즈 0
+- 다운스트림 다음 upgrade 시 SKILL.md 본문 dead reference 자동 흡수
+- 폐기 commit이 본문 정비 없이 closing되는 시나리오 결정적 차단
+
+### 다운스트림 영향
+
+- harness-upgrade L580 예시 변경 → 다운스트림 3-way merge 시 theirs 자동 적용
+- 다운스트림 자체 작성한 SKIP 결정 박제(예: `hn_dead_ref_cleanup_v0_47.md`)는
+  영향 없음 — 본 변경이 다운스트림 작성 문서를 건드리지 않음
+
+### 다운스트림 보고 요청
+
+본 wave 적용 후 다음 upgrade에서 `migration-log.md` `## Feedback Reports`에 응답:
+
+1. **dead reference 검출 카운트**: 다운스트림 본문에 폐기 파일 잔재가 얼마나
+   잠복하고 있었는지 (`eval --harness` 항목 9 출력)
+2. **harness-dev Step P 운용 실효**: 다음 폐기 wave에서 Step P1~P5가 자가 의존
+   없이 절차 수행 가능했는지
+
+
+
 ## v0.47.8 — 73% 삭감 wave 후 부패 잔재 정리 (check-existing·doc-health·hn_review_staging) (2026-05-16)
 
 ### 변경 내용

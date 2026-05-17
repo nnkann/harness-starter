@@ -1298,6 +1298,81 @@ class TestVerifyRelatesPrecheck:
         _git(["add", "docs/t45b_other/hn_t45b_unrelated.md"], repo)
         out = _run_precheck(repo)
         assert out.get("pre_check_passed") == "false"
+        _git(["rm", "-q", "docs/t45b_src/hn_t45b_broken.md"], repo)
+        _commit(repo, "cleanup T45.2 broken ref")
+        _reset(repo)
+
+    def test_claude_rule_ref_passes(self, integ_repo):
+        """T45.3: .claude/rules frontmatter relates-to 정상 참조 → 통과"""
+        repo = integ_repo
+        _write(repo / ".claude/rules/hn_t45_rule_target.md",
+               "---\ntitle: rule target\ndomain: harness\nstatus: completed\ncreated: 2026-05-17\n---\n")
+        _write(repo / ".claude/rules/hn_t45_rule_ref.md",
+               "---\ntitle: rule ref\ndomain: harness\nrelates-to:\n"
+               "  - path: rules/hn_t45_rule_target.md\n    rel: references\n"
+               "status: completed\ncreated: 2026-05-17\n---\n")
+        _git(["add", ".claude/rules/hn_t45_rule_target.md", ".claude/rules/hn_t45_rule_ref.md"], repo)
+        _commit(repo, "prep T45.3 rule ref")
+        _write(repo / "docs/t45c_other/hn_t45c_unrelated.md",
+               "---\ntitle: unrelated\ndomain: harness\nstatus: in-progress\ncreated: 2026-05-17\n---\n")
+        _git(["add", "docs/t45c_other/hn_t45c_unrelated.md"], repo)
+        out = _run_precheck(repo)
+        assert out.get("pre_check_passed") == "true"
+        _reset(repo)
+
+    def test_claude_rule_broken_ref_blocks_starter(self, integ_repo):
+        """T45.4: starter에서 .claude/rules broken references → 차단"""
+        repo = integ_repo
+        _write(repo / ".claude/rules/hn_t45d_broken_rule.md",
+               "---\ntitle: broken rule\ndomain: harness\nrelates-to:\n"
+               "  - path: rules/hn_t45d_missing.md\n    rel: references\n"
+               "status: completed\ncreated: 2026-05-17\n---\n")
+        _git(["add", ".claude/rules/hn_t45d_broken_rule.md"], repo)
+        _commit(repo, "prep T45.4 broken rule ref")
+        _write(repo / "docs/t45d_other/hn_t45d_unrelated.md",
+               "---\ntitle: unrelated\ndomain: harness\nstatus: in-progress\ncreated: 2026-05-17\n---\n")
+        _git(["add", "docs/t45d_other/hn_t45d_unrelated.md"], repo)
+        out = _run_precheck(repo)
+        assert out.get("pre_check_passed") == "false"
+        _git(["rm", "-q", ".claude/rules/hn_t45d_broken_rule.md"], repo)
+        _commit(repo, "cleanup T45.4 broken rule ref")
+        _reset(repo)
+
+    def test_claude_rule_broken_ref_warn_only_downstream(self, integ_repo):
+        """T45.5: 다운스트림은 .claude/rules broken references를 warn-only 처리"""
+        repo = integ_repo
+        hj = repo / ".claude/HARNESS.json"
+        text = hj.read_text(encoding="utf-8")
+        hj.write_text(text.replace('"is_starter": true', '"is_starter": false'), encoding="utf-8")
+        _write(repo / ".claude/rules/hn_t45e_broken_rule.md",
+               "---\ntitle: broken rule downstream\ndomain: harness\nrelates-to:\n"
+               "  - path: rules/hn_t45e_missing.md\n    rel: references\n"
+               "status: completed\ncreated: 2026-05-17\n---\n")
+        _git(["add", ".claude/HARNESS.json", ".claude/rules/hn_t45e_broken_rule.md"], repo)
+        _commit(repo, "prep T45.5 downstream broken rule ref")
+        _write(repo / "docs/t45e_other/hn_t45e_unrelated.md",
+               "---\ntitle: unrelated\ndomain: harness\nstatus: in-progress\ncreated: 2026-05-17\n---\n")
+        _git(["add", "docs/t45e_other/hn_t45e_unrelated.md"], repo)
+        out = _run_precheck(repo)
+        assert out.get("pre_check_passed") == "true"
+        hj.write_text(hj.read_text(encoding="utf-8").replace('"is_starter": false', '"is_starter": true'), encoding="utf-8")
+        _git(["rm", "-q", ".claude/rules/hn_t45e_broken_rule.md"], repo)
+        _git(["add", ".claude/HARNESS.json"], repo)
+        _commit(repo, "cleanup T45.5 downstream broken rule ref")
+        _reset(repo)
+
+    def test_no_frontmatter_outside_docs_skips(self, integ_repo):
+        """T45.6: frontmatter 없는 .claude 파일은 relates-to 본문이 있어도 skip"""
+        repo = integ_repo
+        _write(repo / ".claude/rules/hn_t45f_plain.md",
+               "relates-to:\n  - path: rules/hn_t45f_missing.md\n    rel: references\n")
+        _git(["add", ".claude/rules/hn_t45f_plain.md"], repo)
+        _commit(repo, "prep T45.6 no frontmatter")
+        _write(repo / "docs/t45f_other/hn_t45f_unrelated.md",
+               "---\ntitle: unrelated\ndomain: harness\nstatus: in-progress\ncreated: 2026-05-17\n---\n")
+        _git(["add", "docs/t45f_other/hn_t45f_unrelated.md"], repo)
+        out = _run_precheck(repo)
+        assert out.get("pre_check_passed") == "true"
         _reset(repo)
 
 
