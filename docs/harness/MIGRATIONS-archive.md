@@ -43,6 +43,65 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.47.10 — P11 결정적 게이트 승격 + FR 양식 동형 후보 + eval_cps_integrity P11 카운트 버그 (2026-05-16)
+
+### 변경 내용
+
+다운스트림 StageLink가 v0.47.9 운용 후 3건 FR(X10·X11·X12) 보고. 핵심:
+
+- **FR-X11 (성공 보고)**: v0.47.9 항목 9 첫 호출에서 7건 검출 — 도구 ROI 100%
+- **FR-X12 (medium)**: 절차 자체의 P11 유발 — pre-check 게이트 승격 권장(옵션 B)
+- **FR-X10 (medium)**: FR 양식에 "동형 후보 위치" 서브섹션 추가
+
+starter eval 부수 발견: **eval_cps_integrity P11 카운트 0건** (실측 5건 인용) —
+list 형식 frontmatter + 두자리수 정규식 누락 합산 버그.
+
+**A. pre-check dead reference 게이트 승격** (FR-X12 옵션 B):
+- `pre_commit_check.py` §3.6 신설 — staged diff에 폐기 파일 패턴 등장 시
+  `eval_harness.scan_dead_reference_paths` 직접 호출
+- 1건 이상이면 commit 차단 + 정비 안내
+- 사상: v0.47.7 commit_finalize wrapper 흡수와 동일 — "LLM 책임 → 도구 책임"
+- `eval_harness.py`: `section_dead_reference` 내부 로직을 `scan_dead_reference_paths`
+  공개 함수로 분리 (pre-check 재사용)
+
+**B. FR 양식 "동형 후보 위치" 서브섹션** (FR-X10):
+- MIGRATIONS.md `## Feedback Reports` 포맷 SSOT 갱신
+- 다운스트림이 1차 발견 시 starter가 동형 grep 대상에 자동 합류
+- 선택적 — P11 인지 시만 작성, 추측만으로 채우지 마라
+
+**C. eval_cps_integrity P11 카운트 버그 수정**:
+- `CPS_REF_PATTERNS` 4개 정규식 `\b(P\d)\b` → `\b(P\d+)\b` (P10·P11 캡처)
+- `scan_doc` frontmatter `problem` 파싱: str 형식만 처리 → str + list 모두
+  처리 (`problem: [P7, P11]` 인식)
+- 결과: P11 0건 → 5건, P7 17건 → 21건 정상화
+
+### 영향
+
+- 다운스트림이 폐기 파일 본문 잔재를 staged 시점에 결정적 차단 — 매 commit
+  pre-check이 자동 실행 (도구 실행 누락 위험 0)
+- FR 양식에 동형 후보 위치 박제 가능 — P11 메커니즘 채널 활성화
+- eval_cps_integrity 카운트 정확도 회복 — 본 wave가 첫 검증 사례
+
+### 다운스트림 영향
+
+- pre-check이 폐기 파일 staged 시 차단 — 다운스트림 본문에 잔재 있으면
+  다음 commit부터 차단 메시지 표시 + 정비 안내
+- FR 양식 갱신은 다운스트림 `migration-log.md` 작성 시 참조용
+- eval_cps_integrity 패치는 다운스트림 P11 인용 누락 카운트 정상화
+
+### 다운스트림 보고 요청
+
+본 wave 적용 후 다음 upgrade에서 `migration-log.md` `## Feedback Reports`에 응답:
+
+1. **pre-check dead-ref 차단 발생 횟수**: 운용 중 staged 시점 차단된 commit
+   수 (도구 ROI 측정)
+2. **동형 후보 위치 서브섹션 활용**: 다음 FR 작성 시 P11 인지 후 동형 위치
+   제안 가능했는지 (1차 발견 외 grep 대상 자동 합류 효과)
+3. **eval_cps_integrity P# 카운트 정합**: 다운스트림 자체 P10·P11 인용 문서가
+   카운트에 정상 잡히는지
+
+
+
 ## v0.47.9 — P11 첫 누적 case + dead reference 일괄 정비 + 구조적 재발 방지 (2026-05-16)
 
 ### 변경 내용

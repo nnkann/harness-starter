@@ -9,6 +9,22 @@
 - 빌드/실행 명령어: python3 .claude/scripts/pre_commit_check.py (pre-check), python3 -m pytest .claude/scripts/tests/ -q (테스트)
 - 배포 방식: git push origin main → 다운스트림이 harness-upgrade로 fetch
 
+## Codex 안전 조회/검증
+
+Codex에서 단순 조회·검증 명령이 반복 승인으로 흐름을 끊으면, 우선
+`.claude/scripts/safe_command.py` dispatcher를 사용한다.
+
+```bash
+python .claude/scripts/safe_command.py status
+python .claude/scripts/safe_command.py cps-list
+python .claude/scripts/safe_command.py verify-relates
+python .claude/scripts/safe_command.py precheck
+```
+
+dispatcher 변경 후에는 `python -m pytest .claude/scripts/tests/test_safe_command.py -q`를 실행한다.
+
+지속 승인 후보 prefix는 위 스크립트 파일까지 포함한 좁은 prefix다. 삭제·이동·커밋·푸시·설정 변경·네트워크·의존성 설치는 dispatcher에 넣지 않는다.
+
 ## 행동 원칙
 
 ### AC (Acceptance Criteria)
