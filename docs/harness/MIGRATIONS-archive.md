@@ -43,6 +43,31 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.47.8 — 73% 삭감 wave 후 부패 잔재 정리 (check-existing·doc-health·hn_review_staging) (2026-05-16)
+
+### 변경 내용
+
+`/eval --harness`에서 발견된 부패 4건 + HARNESS.json `skills` 목록 잔재 정리.
+73% 삭감 wave §S-4에서 폐기한 스킬(`check-existing`·`doc-health`)이 일부
+hook 안내·설정 목록에 그대로 남아 매 세션·매 compact·매 Write 호출마다
+존재하지 않는 스킬을 안내하던 부패 잔재.
+
+### 영향
+
+- `.claude/scripts/session-start.py:350`·`post-compact-guard.py:155`:
+  "check-existing으로 중복 확인" → "LSP + Grep으로 중복 확인"
+- `.claude/scripts/write-guard.sh`: 헤더 주석·src 안내 메시지 동일 교체
+- `.claude/rules/docs.md` cluster 예시: 폐기된 `hn_review_staging.md` 참조
+  → 실재 문서(`hn_review_tool_budget.md`·`hn_review_staging_rebalance.md`)로 교체
+- `.claude/HARNESS.json` `skills`: `check-existing`·`doc-health` 제거
+
+### 다운스트림 영향
+
+`harness-upgrade` 자동 적용 시 hook 출력 1줄 + skills 목록 정합화. 다운스트림
+사용자 행동 변화 없음 (안내 메시지만 정확해짐).
+
+
+
 ## v0.47.7 — docs/harness cascade 화이트리스트 좁힘 + 회고 잔재 자동 정리 + commit_finalize wrapper 흡수 (2026-05-16)
 
 ### 변경 내용

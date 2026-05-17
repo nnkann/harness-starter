@@ -78,6 +78,9 @@ def run_cps_integrity() -> int:
 # starter 고유 경로/파일명만 등재. 일반 단어(`staging.md` 등)는
 # 다운스트림 false positive 회피를 위해 경로 prefix로 좁힌다.
 # (v0.47.11 — `staging.md`만 단순 basename → `rules/staging.md` prefix화)
+# (v0.47.13 — 본문 표현(eval 모드·rel 타입) 등록 시도 → 사용자 우려로 폐기.
+#  본문 표현은 SSOT 인용 원칙(rules/docs.md "SSOT 인용 원칙")으로 차단.
+#  파일/경로만 hardcoded — git tree와 1:1 매핑이라 SSOT 자기 일치)
 _DEAD_REF_PATTERNS = [
     "anti-defer.md",
     "bug-interrupt.md",

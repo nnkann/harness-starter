@@ -5,8 +5,8 @@ description: >-
   공개를 가정하고 외부 공격자 관점에서 뚫을 구멍을 찾는다.
   TRIGGER when: (1) 공개 repo의 시크릿·자격 증명 노출 점검, (2) 클라이언트
   번들의 서버 전용 env inline 검사, (3) admin/debug 엔드포인트 production
-  가드 부재, (4) RLS bypass 가능 경로, (5) eval --deep의 외부 관점, (6) 보안·
-  인증 구조 변경 직후 외부 공격면 재검토.
+  가드 부재, (4) RLS bypass 가능 경로, (5) 보안·인증 구조 변경 직후 외부
+  공격면 재검토.
   SKIP: (1) 내부 코드 패턴·재사용 기회 분석(→ codebase-analyst),
   (2) 내부 위험·유지보수 부채(→ risk-analyst),
   (3) 성능·N+1(→ performance-analyst),

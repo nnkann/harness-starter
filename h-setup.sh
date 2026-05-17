@@ -6,7 +6,7 @@
 # 멱등성 보장: 기존 파일을 덮어쓰지 않음.
 #
 # 프로파일:
-#   minimal  (기본) — harness-init, commit, implementation + rules + CLAUDE.md
+#   minimal  (기본) — harness-init, commit, implementation + rules + CLAUDE.md/AGENTS.md
 #   standard        — minimal + check-existing, naming-convention
 #   full            — 전부 (coding-convention, eval, advisor 포함)
 # 필요한 스킬은 나중에 `bash h-setup.sh --add <skill>`로 추가 가능.
@@ -190,7 +190,7 @@ EOF
     echo "═══ 하네스 업그레이드 ═══"
     echo ""
     echo "harness-upstream remote 감지."
-    echo "Claude Code에서 /harness-upgrade를 실행하세요."
+    echo "Claude Code 또는 Codex에서 /harness-upgrade를 실행하세요."
     echo "스킬이 fetch → 변경 분석 → 3-way merge를 한 번에 처리합니다."
     exit 0
   fi
@@ -296,6 +296,24 @@ EOF
     stage_or_copy "$src" "$dst"
   done
 
+  # Codex skills bridge (.agents/skills)
+  echo ""
+  echo "📁 .agents/skills/ ($CUR_PROFILE)"
+  for skill in $SKILLS; do
+    src="$SCRIPT_DIR/.agents/skills/$skill/SKILL.md"
+    [ -f "$src" ] || continue
+    stage_or_copy "$src" "$TARGET/.agents/skills/$skill/SKILL.md"
+  done
+  for src in "$SCRIPT_DIR/.agents/skills/"*/SKILL.md; do
+    [ -f "$src" ] || continue
+    skill=$(basename "$(dirname "$src")")
+    dst="$TARGET/.agents/skills/$skill/SKILL.md"
+    [ -f "$dst" ] || continue
+    echo "$SKILLS" | grep -qw "$skill" && continue
+    echo "$STARTER_SKILLS" | grep -qw "$skill" && continue
+    stage_or_copy "$src" "$dst"
+  done
+
   # rules
   USER_TEMPLATE_RULES="coding.md naming.md"
   echo ""
@@ -318,9 +336,19 @@ EOF
     fi
   done
 
-  # CLAUDE.md
+  # CLAUDE.md / AGENTS.md
   echo ""
   echo "⏭  CLAUDE.md — 사용자 커스터마이징 파일, 업그레이드 제외"
+  echo "⏭  AGENTS.md — 사용자 커스터마이징 파일, 업그레이드 제외"
+
+  # Codex bridge
+  echo ""
+  echo "📁 .codex/"
+  for f in "$SCRIPT_DIR/.codex/agents/"*; do
+    [ -f "$f" ] || continue
+    stage_or_copy "$f" "$TARGET/.codex/agents/$(basename "$f")"
+  done
+  [ -f "$SCRIPT_DIR/.codex/hooks.json" ] && stage_or_copy "$SCRIPT_DIR/.codex/hooks.json" "$TARGET/.codex/hooks.json"
 
   # settings.json — hook 누락 감지
   MISSING_HOOKS=""
@@ -408,7 +436,7 @@ EOF
 
 ## 다음 단계
 
-Claude Code에서 아래를 실행하세요:
+Claude Code 또는 Codex에서 아래를 실행하세요:
 
 > harness-upgrade 스킬을 실행해줘
 EOF
@@ -435,7 +463,7 @@ EOF
   echo ""
 
   if [ "$STAGED_COUNT" -gt 0 ]; then
-    echo "다음: Claude Code에서 'harness-upgrade 스킬을 실행해줘'"
+    echo "다음: Claude Code 또는 Codex에서 'harness-upgrade 스킬을 실행해줘'"
   else
     if command -v jq > /dev/null 2>&1; then
       jq --arg v "$SRC_VERSION" --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -474,9 +502,12 @@ copy_if_new() {
   fi
 }
 
-# CLAUDE.md
+# CLAUDE.md / AGENTS.md
 echo "📄 CLAUDE.md"
 copy_if_new "$SCRIPT_DIR/CLAUDE.md" "$TARGET/CLAUDE.md"
+
+echo "📄 AGENTS.md"
+copy_if_new "$SCRIPT_DIR/AGENTS.md" "$TARGET/AGENTS.md"
 
 # .claude/rules/
 echo ""
@@ -495,6 +526,16 @@ for skill in $SKILLS; do
   src="$SCRIPT_DIR/.claude/skills/$skill/SKILL.md"
   [ -f "$src" ] || { echo -e "  ${RED}❌ 스킬 누락: $skill${NC}"; continue; }
   copy_if_new "$src" "$TARGET/.claude/skills/$skill/SKILL.md"
+done
+
+# .agents/skills/ (Codex runtime, 프로파일 기준, starter_skills 제외)
+echo ""
+echo "📁 .agents/skills/ ($PROFILE)"
+for skill in $SKILLS; do
+  echo "$STARTER_SKILLS_INSTALL" | grep -qw "$skill" && continue  # starter 전용 스킬 제외
+  src="$SCRIPT_DIR/.agents/skills/$skill/SKILL.md"
+  [ -f "$src" ] || { echo -e "  ${RED}❌ Codex 스킬 누락: $skill${NC}"; continue; }
+  copy_if_new "$src" "$TARGET/.agents/skills/$skill/SKILL.md"
 done
 
 # .claude/agents/
@@ -520,6 +561,15 @@ done
 echo ""
 echo "⚙️  .claude/settings.json"
 copy_if_new "$SCRIPT_DIR/.claude/settings.json" "$TARGET/.claude/settings.json"
+
+# .codex bridge
+echo ""
+echo "📁 .codex/"
+for f in "$SCRIPT_DIR/.codex/agents/"*; do
+  [ -f "$f" ] || continue
+  copy_if_new "$f" "$TARGET/.codex/agents/$(basename "$f")"
+done
+copy_if_new "$SCRIPT_DIR/.codex/hooks.json" "$TARGET/.codex/hooks.json"
 
 # docs/
 echo ""
@@ -604,7 +654,7 @@ if [ ! -f "$KICKOFF" ] && [ ! -f "$TARGET/docs/guides/project_kickoff.md" ]; the
 
 ## 다음 할 일
 
-Claude Code에서 아래를 실행하세요:
+Claude Code 또는 Codex에서 아래를 실행하세요:
 
 > harness-init 스킬을 실행해줘
 
@@ -652,4 +702,6 @@ echo "═══ 완료 ═══"
 echo -e "  ${GREEN}생성: ${CREATED}개${NC}"
 echo -e "  ${YELLOW}스킵: ${SKIPPED}개${NC}"
 echo ""
-echo "다음: claude code에서 프로젝트 열고 'harness-init 스킬을 실행해줘'"
+echo "다음: Claude Code 또는 Codex에서 프로젝트 열고 'harness-init 스킬을 실행해줘'"
+
+

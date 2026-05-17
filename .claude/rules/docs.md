@@ -112,6 +112,48 @@ s: [S2, S6]                       # Solution 번호 list
 
 자세히: `docs/decisions/hn_harness_73pct_cut.md` §S-1.
 
+## SSOT 인용 원칙 — 본문 복제 금지
+
+defends P11 (동형 패턴 잠복 — 1차 발견 시 다른 위치 후보 자동 탐색 부재).
+
+**SSOT의 구체 list·정의·열거는 다른 문서 본문에 복제하지 마라**. 복제는
+drift를 만들고, 폐기·갱신 시 cascade 추적이 불가능해진다 (P11의 직접 원인).
+
+### 금지
+
+```markdown
+❌ README.md: "relates-to 4종 (extends, caused-by, references, supersedes)"
+❌ SKILL.md: "/eval --quick / --harness / --surface / --deep 4모드"
+❌ rule.md: "Problem 9개 (P1~P9): ..."
+```
+
+위 패턴은 SSOT가 변경되면 본문이 drift된 채 잠복 → dead reference로 진화.
+
+### 권장 — `rel: references` 링크 (CPS 채널 활용)
+
+```markdown
+✅ README.md 본문:
+   문서 간 관계 4종은 `rules/docs.md` "프론트매터 — wiki 그래프 모델" SSOT.
+
+✅ frontmatter (그래프 박제 — verify-relates가 자동 추적):
+   relates-to:
+     - path: .claude/rules/docs.md
+       rel: references
+```
+
+### 적용 범위
+
+- **본문 인용 금지**: 구체 list (5종·4모드·N항목 같은 열거)
+- **본문 인용 허용**: 1줄 요약·맥락 설명 (drift 위험 작음)
+- **frontmatter 박제**: `rel: references`로 그래프에 박아두면 `verify-relates`
+  게이트가 SSOT 이동·이름 변경 시 cascade 자동 추적
+
+### 도구
+
+- `verify-relates` (docs_ops.py): 깨진 references 자동 검출
+- `eval_harness section_dead_reference`: 파일명 단위 dead reference (보조 안전망)
+- 본문 표현 단위 dead reference는 본 SSOT 원칙으로 차단 (hardcoded 패턴 답습 회피)
+
 ## AC (Acceptance Criteria) 포맷
 
 WIP task 블록의 AC:

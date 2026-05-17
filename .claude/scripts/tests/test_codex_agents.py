@@ -45,7 +45,6 @@ EXPECTED_HOOK_EVENTS = {
     "PostToolUse",
     "PostCompact",
     "SessionStart",
-    "UserPromptSubmit",
     "Stop",
 }
 

@@ -41,3 +41,4 @@ description: >-
 | harness-init | Step 6 | 스택 결정 전 — 단일 researcher로 족한 경우 직접 호출 권장 |
 | commit | Step 7 | 큰 결정 hit 시 review와 병렬 |
 | eval --deep | 2차 검증 | 4 specialist 고정 병렬 (advisor.md "예외" 섹션 SSOT) |
+

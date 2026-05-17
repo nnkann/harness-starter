@@ -78,9 +78,8 @@ init 시작 전 **반드시** 다음을 확인한다:
 - 어떤 제약이 있는가? (시간, 인력, 예산, 기술)
 
 > **하네스 강도 필드 폐기 (audit #2·9, 2026-04-22)**: 이전의 light/strict
-> 선택 단계는 제거. review 강도는 commit 스킬이 staging 자동 판정
-> (`skip/micro/standard/deep`)으로 결정하며, 사용자는 필요 시
-> `--quick`/`--deep`/`--no-review` 플래그로 개별 커밋마다 오버라이드.
+> 선택 단계는 제거. review 호출은 `/commit --review`/`--no-review` 2단계로
+> 단순화 (v0.47.x §S-2 73% 삭감 — staging 5단계 자동 분기 폐기).
 
 **Problem** — 구체적 문제.
 - 해결해야 할 핵심 문제를 1~3개로 정의한다.
@@ -344,7 +343,7 @@ domain: [도메인명]
 tags: []
 relates-to:
   - path: guides/project_kickoff.md
-    rel: implements
+    rel: extends
 status: pending
 created: {YYYY-MM-DD}
 ---

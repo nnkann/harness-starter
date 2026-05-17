@@ -108,3 +108,45 @@ medium) 흡수. **auto-fix 자동 실행은 추가 안 함** — 빈도(wave당 
 - 사상: dead-ref 게이트의 `auto-fix: docs_ops.py tag-normalize` 패턴 정합
   ("결정적 차단 + 복붙 가능 fix 명령")
 - 다운스트림 medium → low 강등 (자동화 아니지만 1회 복붙으로 해소)
+
+### 2026-05-17 — v0.47.13 P11 본질 재정렬 (SSOT 인용 원칙 + CPS 채널 활성화)
+
+사용자 통찰로 본 사이클의 정체성 재정의:
+
+> "SSOT 호출과 더불어 그 내용이 희석되지 않고 내가 원하는 단계까지 전달이
+> 안된다가 문제의 핵심이지 않나? ... 이 관계를 정의하고 있는게 cps잖아?"
+
+**문제 진단**: `_DEAD_REF_PATTERNS` hardcoded list 누적은 cluster-update
+hardcoded 표 답습(v0.47.5에서 폐기 결정한 패턴 재발). 진짜 본질은 **본문이
+SSOT를 복제** → drift → P11 잠복.
+
+**해결 — 새 메커니즘 X, CPS 채널 활성화**:
+- CPS `rel: references`가 이미 SSOT 인용 그래프 박제 메커니즘
+- `verify-relates` 도구가 이미 cascade 추적 게이트
+- 본문이 복제 대신 링크로 박으면 drift 0
+
+**3축 처리**:
+- **A. `rules/docs.md` "SSOT 인용 원칙" 신설**: 본문 복제 금지 + `rel: references`
+  권장 + 적용 범위 박제 (defends P11)
+- **B. 본문 복제 9곳 → SSOT 링크 전환**:
+  - README L181-185 eval 폐기 모드(--surface·--deep) 줄 제거
+  - README L208 "4종 (extends·...)" → "rel 타입 정의는 rules/docs.md SSOT"
+  - advisor.md description TRIGGER (7) `eval --deep` 줄 삭제 (description은
+    매 LLM 호출 시스템 프롬프트 적재 — 영향 큼)
+  - threat-analyst.md TRIGGER (5) `eval --deep` 줄 삭제
+  - advisor SKILL.md L43 "eval --deep 2차 검증" 행 삭제
+  - harness-init SKILL.md L83 "`--quick`/`--deep`/`--no-review`" → review
+    2단계 박제로 교체
+  - harness-init SKILL.md L347 `rel: implements` → `rel: extends` (4종 정합)
+  - security.md L42·48 "eval --deep" → "eval --harness"
+- **C. `_DEAD_REF_PATTERNS` 본문 표현(eval 모드·rel 타입) 등록 시도 폐기**:
+  - 직전 단계에서 추가했던 `/eval --surface`·`/eval --deep`·`rel: implements`
+    등을 list에서 제거
+  - 사상: 본문 표현은 SSOT 인용 원칙으로 차단 — hardcoded list 답습 회피
+  - 파일/경로만 잔존 (git tree와 1:1 매핑, SSOT 자기 일치)
+
+**박제 메타패턴**: "패턴 추가" vs "SSOT 채널 활성화". 본 사이클이 hardcoded
+list 누적 사이클로 빠지려던 순간 사용자 통찰이 본 메커니즘의 진짜 본질로
+복귀시킴. cluster-update 폐기 결정(v0.47.5)과 동일 사상.
+
+- test 22 passed (회귀 0), eval --harness 0건 유지
