@@ -43,6 +43,51 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.47.11 — P11 게이트 안전망 보강 (false positive 차단 + 다운스트림 격리) (2026-05-16)
+
+### 변경 내용
+
+v0.47.10 P11 결정적 게이트 승격 직후 사용자 우려로 재검증 → 위험 2건 식별
+후 즉시 보강. 다운스트림 적용 전 안전망 보장.
+
+**Patch A — `_DEAD_REF_PATTERNS` false positive 차단** (eval_harness.py):
+- `staging.md` 단순 basename → `rules/staging.md` 경로 prefix화
+- 이유: `staging.md`는 배포 staging 환경 등 일반 단어와 충돌 가능. 다운스트림
+  `docs/staging.md` 같은 무관 파일이 false positive로 차단되는 위험 회피
+- 검증: 일반 `staging.md` 0건 매칭, `rules/staging.md` 1건 정상 매칭
+
+**Patch B — 다운스트림 격리** (pre_commit_check.py §3.6):
+- `HARNESS.json` `is_starter` 분기 추가
+- `is_starter: true` (starter): `❌` + ERRORS++ → commit 차단 (결정적 게이트)
+- `is_starter: false` (다운스트림): `⚠` + commit 진행 → warn-only
+- 이유: starter 폐기 파일명 list가 다운스트림 본문과 우연 충돌 시 작업
+  마비 방지. 다운스트림은 alert 받고 자기 일정으로 정비
+- 다운스트림 출력 끝에 `ℹ️ 다운스트림 모드 — commit 진행 가능. 정비 일정은
+  자율 결정.` 안내
+
+### 영향
+
+- starter: 게이트 동작 동일 (차단 유지)
+- 다운스트림: alert 받지만 commit 안 막힘 — 정비를 자기 wave로 처리
+- false positive 패턴 1건 정밀화 (`rules/staging.md` 경로 한정)
+
+### 다운스트림 영향
+
+- 다운스트림이 폐기 파일 본문 잔재를 staged할 때 차단 대신 경고 표시
+- 정비 일정은 다운스트림 자율 (긴급 작업 중에도 commit 가능)
+- 안내 메시지로 정비 필요 인지 + harness-dev Step P1~P5 참조
+
+### 다운스트림 보고 요청
+
+본 wave 적용 후 다음 upgrade에서 `migration-log.md` `## Feedback Reports`에 응답:
+
+1. **warn-only 안내 발생 빈도**: 본 게이트가 warn-only로 출력한 commit 수
+   (다운스트림 잠재 잔재 누적 측정)
+2. **false positive 제로 검증**: `rules/staging.md` prefix화 후 무관 파일이
+   잘못 매칭된 사례 있는지
+
+
+
 ## v0.47.10 — P11 결정적 게이트 승격 + FR 양식 동형 후보 + eval_cps_integrity P11 카운트 버그 (2026-05-16)
 
 ### 변경 내용

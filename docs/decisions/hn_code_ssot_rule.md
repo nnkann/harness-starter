@@ -4,8 +4,9 @@ domain: harness
 problem: [P11]
 s: [S11]
 tags: [code-ssot, ssot, rule, downstream-cascade]
-status: pending
+status: completed
 created: 2026-05-17
+updated: 2026-05-17
 relates-to:
   - path: decisions/hn_runtime_ssot_generation.md
     rel: caused-by
@@ -15,8 +16,8 @@ relates-to:
 
 # code-ssot 규칙 신설 — 동형 SSOT 패턴 starter 흡수
 
-> **상태**: 본 wave(`runtime_ssot_generation`) 종료 후 즉시 진입 예정.
-> 박제 시점에는 결정·근거·AC만 기록. 본문 작성 + rule 신설은 다음 wave.
+> **상태**: 본격 작업 진입. 박제 시점 결정·근거 그대로 유지하며 rule
+> 신설·P11 본문 보강·MIGRATIONS 갱신 진행.
 
 ## Context
 
@@ -83,6 +84,13 @@ advisor(Claude) · Gemini · Codex 3엔진 비교 결과 합의 도달:
 - 본 결정은 **다운스트림 코드 영역 SSOT** (데이터 필드 lifecycle drift,
   P11 매핑). 분리 근거 충족 — references로만 연결.
 
+## 부산물 인지 (박제 시점 발견 — 박제 안 함)
+
+- 본 박제 commit 흐름에서 `pre_commit_check.py`가 `status: pending` WIP까지
+  AC 헤더 형식·필수 필드를 본격 작업 기준으로 강제하는 동작 발견. 박제
+  의도(작업 안 들어감)와 게이트 의도 불일치. 통증 누적 2~3회 시 별 wave
+  박제 — 현재는 인지만.
+
 ## 부수 정비 (다음 wave 진입 시 함께)
 
 - `project_kickoff.md` Solutions 표가 S10에서 끝남. P11 정의는 §S-11 박제로
@@ -90,18 +98,46 @@ advisor(Claude) · Gemini · Codex 3엔진 비교 결과 합의 도달:
   박제 차단 요인은 아니지만, P11 정의된 wave에 S11 행도 함께 추가하는 게
   표 정합. AC에 포함.
 
+## 결정 사항
+
+- `.claude/rules/code-ssot.md` 신설. defends: P11. 본문 3개 원칙
+  (3+ reference rule · derived pointer pattern · new field pre-checklist).
+- `coding.md` 흡수 거부 — Surgical Changes는 변경 범위 통제, code-ssot는
+  구조 판정으로 판단 타이밍이 다름. 충돌 해소 룰은 `code-ssot.md` 본문에
+  명시 ("발견 = 즉시 추출 아님. 발견 = 박제 + 다음 wave 의무").
+- `project_kickoff.md` Problems 표에 P11 행 추가, Solutions 표에 S11 행
+  추가, P11 본문에 field lifecycle 표면(normalization·derivation·
+  persistence entry points) 보강.
+- 다운스트림 사례명(특정 도메인 데이터 필드) starter 본문에 박지 않음.
+  다운스트림은 `rel: references`로 starter 규칙 가리키는 형식.
+- 새 P# 신설 안 함. P12는 합의 후 미래에만 (Codex 권고 그대로).
+
+## 메모
+
+- 3엔진 만장일치(advisor·Gemini·Codex): 신규 파일 신설 · P11 단독 매핑 ·
+  starter 일반원칙 + 다운스트림 references 구조.
+- Codex 추가 정밀: P11 본문 field lifecycle 예시 보강(반영), P12 분기
+  조건(현재 미적용 — 합의 트리거 누적 대기), 되돌릴 조건 5개(본 문서
+  "Codex 추가 정밀" 섹션 보존).
+- Gemini 추가 사각지대: Surgical Changes 충돌 해소 룰(반영 — code-ssot.md
+  본문 "Surgical Changes 충돌 해소" 섹션).
+- 면제 메커니즘 스크립트 변경은 본 wave 범위 아님 — 통증 2~3회 누적 시
+  별 wave (직전 wave commit 흐름에서 결정).
+- CPS 갱신: P11·S11 표 항목 추가, P11 본문 보강. Problem 정의 자체는
+  변경 없음.
+
 **Acceptance Criteria**:
 
-- [ ] Goal: starter에 `.claude/rules/code-ssot.md` 신설로 동형 SSOT 패턴
+- [x] Goal: starter에 `.claude/rules/code-ssot.md` 신설로 동형 SSOT 패턴
   cascade 학습 비용 압축 (S11)
   검증:
     tests: 없음
     실측: 운용 검증 — 다운스트림 1개 이상이 references로 가리키는지
           6개월 관찰
-- [ ] `code-ssot.md` 본문: 3+ reference rule · derived pointer pattern ·
+- [x] `code-ssot.md` 본문: 3+ reference rule · derived pointer pattern ·
   new field pre-checklist 3개 원칙만 (S11)
-- [ ] frontmatter `defends: P11` 매핑 (S11)
-- [ ] Surgical Changes 충돌 해소 룰 1줄 명시 (S11)
-- [ ] `project_kickoff.md` P11 본문에 field lifecycle 예시 보강 + S11 행
+- [x] frontmatter `defends: P11` 매핑 (S11)
+- [x] Surgical Changes 충돌 해소 룰 1줄 명시 (S11)
+- [x] `project_kickoff.md` P11 본문에 field lifecycle 예시 보강 + S11 행
   Solutions 표 추가 (S11)
-- [ ] MIGRATIONS.md 갱신 (S11)
+- [x] MIGRATIONS.md 갱신 (S11)

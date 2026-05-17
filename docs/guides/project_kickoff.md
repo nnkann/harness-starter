@@ -34,6 +34,7 @@ AI 코딩 에이전트(Claude Code) 행동을 **빠르게 도와주는** 도구 
 | P8 | 자가 발화 의존 규칙의 일반 실패 |
 | P9 | 정보 오염의 관성 |
 | **P10** | **본질 미정 (catch-all, 다음 정련 후보 누적) — 강한 기준 적용** |
+| P11 | 동형 패턴 잠복 — 1차 발견 시 다른 위치 후보 자동 탐색 부재 |
 
 > 추가는 `python .claude/scripts/docs_ops.py cps add "1줄"`. 새 P# 자유.
 > 정의·증상·진입조건 본문: `docs/archived/hn_kickoff_pre_73pct_cut.md`.
@@ -56,6 +57,7 @@ AI 코딩 에이전트(Claude Code) 행동을 **빠르게 도와주는** 도구 
 | S8 | P8 | 강제 트리거 우선 + 자가 의존 보조 | 자가 발화 의존 규칙 미발화 패턴 실측 시 강제 트리거(hook·pre-check)가 보강. 결정적 신호 시만 트리거 (test 실패·exit code·git log 2회 반복) |
 | S9 | P9 | 주관 격리 + 다층 검증 | frontmatter `problem`·`s` ↔ CPS Problems/Solutions 번호 매칭 100%. AC 체크박스 형식 강제. 매칭 누락 시 commit 차단 |
 | **S10** | **P10** | **본질 의심 — 면밀 비교 + 정련 후보 누적** | **박는 조건 (엄격)**: P1~P9 각각 검토 후 어디에도 명확히 안 맞을 때만. "잘 모르겠음·귀찮음·빠르게 넘기고 싶음"은 부적합. wave 안에서 **의심 근거 1줄 박제 의무** (단순 "안 맞음" 금지) + 가장 가까운 P#·S# 후보 1개 동반 선택. 다음 wave가 패턴 누적 보면 P10 재분류 또는 새 P# 분리. **혼용 시 본질 신호 희석 — 신중 사용** |
+| S11 | P11 | 동형 후보 위치 자동 탐색 + 코드 SSOT 단일 진입점 강제 | 1차 발견 시 다른 후보 위치 탐색 의무. 같은 로직 3곳 이상 → core 모듈 추출. 새 도메인 필드 추가 전 소유 모듈·단일 함수·모든 진입점 통과 결정. `.claude/rules/code-ssot.md` 규칙 + 다운스트림 사례 누적 |
 
 ## CPS 사용 흐름
 
@@ -84,3 +86,14 @@ python .claude/scripts/docs_ops.py cps add "1줄"      # 새 P# 등록
 - `/cps-check` 옵트인 — 사용자 명시 호출 시 정합 검사 단독 실행
 
 ### P11 — 동형 패턴 잠복 — 1차 발견 시 다른 위치 후보 자동 탐색 부재
+
+같은 의미의 로직·필드·결정이 여러 위치에 분산된 상태에서 한 곳만
+고치고 나머지 후보 위치를 자동 탐색하지 못하면 drift가 잠복한다.
+
+대표 표면 — field lifecycle:
+- field normalization (파싱·정규화가 여러 진입점에 분산)
+- representative derivation (Record/배열에서 "현재 대표값" 임시 파생)
+- persistence entry points (DB 저장 로직이 호출부마다 흩어짐)
+
+방어: `.claude/rules/code-ssot.md` (3+ reference rule · derived pointer
+pattern · new field pre-checklist). 1차 발견 시 동형 후보 위치 탐색 의무.
