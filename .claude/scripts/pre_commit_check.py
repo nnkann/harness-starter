@@ -705,7 +705,8 @@ def main() -> int:
     # ─────────────────────────────────────────────────────────
 
     _kickoff_path = "docs/guides/project_kickoff.md"
-    _new_p_rows: list[str] = []
+    _added_p_rows: set[str] = set()
+    _removed_p_rows: set[str] = set()
     if any(p.replace("\\", "/") == _kickoff_path for p in staged_files):
         _in_kickoff = False
         for _line in diff_u0_raw.splitlines():
@@ -717,12 +718,18 @@ def main() -> int:
                 continue
             if not _in_kickoff:
                 continue
-            # 신규 추가 행만 (+로 시작, +++ 헤더 제외)
+            # 추가 행 (+로 시작, +++ 헤더 제외)
             if _line.startswith("+") and not _line.startswith("++"):
-                # `| P12 | ... |` 형식 (bold 마커 포함 가능)
                 _m = re.match(r"^\+\|\s*\*{0,2}(P\d+)\*{0,2}\s*\|", _line)
                 if _m:
-                    _new_p_rows.append(_m.group(1))
+                    _added_p_rows.add(_m.group(1))
+            # 삭제 행 (-로 시작, --- 헤더 제외) — 같은 P# 행 갱신 감지용
+            elif _line.startswith("-") and not _line.startswith("--"):
+                _m = re.match(r"^-\|\s*\*{0,2}(P\d+)\*{0,2}\s*\|", _line)
+                if _m:
+                    _removed_p_rows.add(_m.group(1))
+    # 진짜 신규 P# = 추가됐지만 같은 P#가 삭제 행에 없는 경우
+    _new_p_rows = list(_added_p_rows - _removed_p_rows)
 
     if _new_p_rows:
         _new_case_files = [

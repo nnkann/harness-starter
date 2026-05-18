@@ -1935,6 +1935,23 @@ class TestCpsNewProblemCaseGate:
         assert "cp_{slug}.md 박제 누락" not in (r.stderr + r.stdout), \
             f"P# 표 변경 없는데 게이트 발동. output: {r.stderr + r.stdout}"
 
+    def test_existing_p_row_update_no_block(self):
+        """기존 P# 행 텍스트 갱신은 신규 신설 아님 — 게이트 미발동 (v0.51.4 회귀 가드)."""
+        # 같은 P11 행이 - 와 + 둘 다 — 신규 행이 아니라 갱신
+        r = self._run(
+            name_status="M\tdocs/guides/project_kickoff.md",
+            diff_u0=(
+                "diff --git a/docs/guides/project_kickoff.md b/docs/guides/project_kickoff.md\n"
+                "--- a/docs/guides/project_kickoff.md\n"
+                "+++ b/docs/guides/project_kickoff.md\n"
+                "@@ -37,1 +37,1 @@\n"
+                "-| P11 | 동형 패턴 잠복 — 기존 정의 |\n"
+                "+| P11 | 동형 패턴 잠복 — 갱신된 정의 + sub-task 분리 우회 금지 |\n"
+            ),
+        )
+        assert "cp_{slug}.md 박제 누락" not in (r.stderr + r.stdout), \
+            f"기존 P# 행 갱신인데 게이트 발동. output: {r.stderr + r.stdout}"
+
 
 @pytest.mark.docs_ops
 class TestCpsAddTableInsert:

@@ -43,6 +43,46 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.50.0 — code-ssot 규칙 신설 (동형 SSOT 패턴 starter 흡수) (2026-05-17)
+
+### 변경 내용
+
+다운스트림이 4건 incident(필드 lifecycle drift) 누적 후 자체 작성하던
+"코드 SSOT 단일화 규칙"을 starter가 일반 원칙으로 흡수. 다른 다운스트림이
+같은 학습 곡선을 독립 재발견하는 비용 차단.
+
+- `.claude/rules/code-ssot.md` 신설 (defends: P11). 3개 원칙:
+  - **3+ reference rule**: 같은 로직 3곳 이상 → core 모듈 추출
+  - **Derived pointer pattern**: Record/배열 "현재 대표값" 파생은 단일 함수
+  - **New field pre-checklist**: 소유 모듈·단일 함수·모든 진입점 통과·
+    추출/매칭/처리 통합 4개 결정 없이 새 필드 추가 금지
+- **Surgical Changes 충돌 해소 룰** 본문에 명시: 발견 = 즉시 추출 아님.
+  발견 = 박제 + 다음 wave 의무
+- `project_kickoff.md` Problems 표에 P11 행 추가, Solutions 표에 S11 행
+  추가, P11 본문에 field lifecycle 예시(normalization·derivation·
+  persistence entry points) 보강
+
+### 다운스트림 영향
+
+- 자동: `harness-upgrade` 시 `.claude/rules/code-ssot.md` 신규 파일 fetch.
+  기존 규칙과 무충돌
+- 권장 수동: 다운스트림에 자체 SSOT 감사 문서가 있으면
+  `rel: references`로 `.claude/rules/code-ssot.md` 가리키는 형식으로 전환.
+  사례명·필드명·사고 경위는 다운스트림 잔류, 일반 원칙은 starter 참조
+- defends P11이 적용되는 코드 영역에서 새 필드 추가 시 본 규칙
+  pre-checklist 4개 결정 의무
+
+### 결정 근거
+
+3엔진(advisor·Gemini·Codex) 만장일치:
+- 신규 단독 파일 (coding.md 흡수 거부 — 판단 타이밍 다름)
+- defends: P11 단독 (신규 P# 신설 안 함)
+- starter=일반 원칙 / 다운스트림=사례부 + `rel: references`
+
+자세히: `docs/decisions/hn_code_ssot_rule.md`.
+
+
+
 ## v0.49.0 — Codex 안전 조회/검증 dispatcher 신설 (2026-05-17)
 
 ### 변경 내용

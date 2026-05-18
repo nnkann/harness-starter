@@ -34,6 +34,24 @@ defends: P7
 
 **라이프사이클**: commit 성공 → 스킬 끝에서 `rm -f .claude/memory/session-*.txt`.
 
+## signal_* 파일 스키마
+
+`.claude/memory/signal_*.md` — 반복 패턴 회상 신호. SessionStart에서
+glob 자동 로드 (session-start.py). frontmatter 5필드:
+
+```yaml
+---
+signal: <1줄 — 패턴 본질>
+domain: harness
+keywords: [회상-키워드]
+strength: weak | medium | strong
+candidate_p: P#  # 가까운 CPS Problem (없으면 P10)
+---
+```
+
+본문은 자유 형식. 운용 로그 누적(`signal_defense_success.md` 패턴)도
+허용 — strength·candidate_p가 메타로 작동.
+
 ## 누적 감사 로그 (snapshot과 별개)
 
 snapshot은 commit마다 정리되지만 감사 로그는 **세션 횡단 누적**. gitignore.

@@ -28,7 +28,7 @@ created: 2026-05-18
 
 본 wave가 처음 시도한 흐름:
 
-- decision (`hn_split_completion_bypass.md`) + rule (`harness-minimal-force.md`)
+- decision (`archived/hn_split_completion_bypass.md`) + rule (`harness-minimal-force.md`)
   2개 파일 분리 박제
 - 사용자 질문: "rule 따로 만들 이유 있나? P12 한 케이스에서 나온 일반화인데"
 - codex·gemini 병렬 의견 → **둘 다 rule 분리 거부 (D·B)**
@@ -52,7 +52,7 @@ created: 2026-05-18
 ## 박제된 SSOT
 
 - `docs/guides/project_kickoff.md` P12·S12 (Problem 표·Solution 표·P12 본문)
-- `docs/decisions/hn_split_completion_bypass.md` (메커니즘·외부 분류·메타 원칙·방어)
+- `docs/decisions/archived/hn_split_completion_bypass.md` (메커니즘·외부 분류·메타 원칙·방어)
 
 ## 다음 wave 후보 (본 wave decision 메모에 박제)
 

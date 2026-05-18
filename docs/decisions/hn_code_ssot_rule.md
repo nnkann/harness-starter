@@ -6,7 +6,7 @@ s: [S11]
 tags: [code-ssot, ssot, rule, downstream-cascade]
 status: completed
 created: 2026-05-17
-updated: 2026-05-17
+updated: 2026-05-18
 relates-to:
   - path: decisions/hn_code_ssot_audit.md
     rel: references
@@ -56,6 +56,12 @@ advisor(Claude) · Gemini · Codex 3엔진 비교 결과 합의 도달:
   / persistence entry points" 추가
 - **P12 신설 분기 조건**: "P11이 코드 위치 탐색만 의미하고 lifecycle
   ownership 실패를 담을 수 없다"는 합의가 생길 때만. 미리 만들지 말 것
+  > **사후 박제 (v0.51.4)**: P12 실제 신설(v0.51.0 specification gaming)
+  > 했다가 박제 직후 LLM이 정확히 P12 패턴 위반 실측 → P12·S12 폐기,
+  > P11에 "sub-task 분리 우회 금지" 흡수. 본 분기 가정 자체가 옳지 않았음
+  > — P11이 충분했고 P12가 오히려 P11 게이트 회피 통로로 작동.
+  > 폐기 박제: `docs/archived/hn_split_completion_bypass.md`,
+  > 사례: `docs/cps/cp_split_completion_p12.md`
 - **되돌릴 조건 5개**:
   1. 2개 이상 다운스트림에서 2-use 로직까지 과추상화하는 PR 반복
   2. P11 매핑이 review에서 무관한 중복 제거 지적으로 확장
