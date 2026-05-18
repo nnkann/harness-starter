@@ -1,6 +1,7 @@
 ---
 name: harness-upgrade
 description: 하네스 업그레이드. harness-upstream remote에서 fetch → 변경 분석 → 3-way merge 대화형 병합. 구 파일 자동 마이그레이션 포함. "harness-upgrade", "하네스 업그레이드", "하네스 업데이트" 요청 시 사용.
+serves: S3, S9
 ---
 
 # harness-upgrade 스킬

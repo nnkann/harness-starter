@@ -1,6 +1,7 @@
 ---
 name: harness-adopt
 description: 기존 프로젝트에 하네스를 이식한다. .claude/ 충돌 감지·병합, docs/ 재분류, 프론트매터 추가를 대화형으로 진행. "기존 프로젝트에 하네스 적용", "하네스 이식", "harness-adopt" 요청 시 사용.
+serves: S3, S9
 ---
 
 # harness-adopt 스킬

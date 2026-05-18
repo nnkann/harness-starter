@@ -5,6 +5,7 @@ description: >-
   사용자가 "이 작업의 C·P·S 어떻게 봐?", "정합 확인해줘", "cps-check" 등 명시
   호출 시. SKIP: 호출 안 했으면 자동 실행 금지. implementation Step 2의 자동
   정합 substep과 같은 로직, 사용자 의견 개진용으로 단독 실행.
+serves: S9
 ---
 
 # CPS Check (옵트인)

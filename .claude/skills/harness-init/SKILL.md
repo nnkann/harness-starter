@@ -1,6 +1,7 @@
 ---
 name: harness-init
 description: 프로젝트 시작 시 PRD/아이디어로부터 기술 스택을 결정하고, 하네스 파일의 빈 칸을 채우는 대화형 흐름. CPS Agent + Standards Agent 행동 원칙 내장. 선택지 제시 + 추천 근거 → 사용자 최종 결정.
+serves: S6, S9
 ---
 
 # 하네스 초기화

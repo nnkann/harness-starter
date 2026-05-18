@@ -11,6 +11,7 @@ description: >-
   여부를 확인.
   SKIP: 답이 명확한 단순 질문, 이미 결정된 사항, 컨벤션 문제
   (naming.md/coding.md 참조).
+serves: S1, S8
 ---
 
 # /advisor 스킬

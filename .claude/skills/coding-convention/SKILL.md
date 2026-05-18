@@ -1,6 +1,7 @@
 ---
 name: coding-convention
 description: 코드 스타일, 패턴, 금지 패턴을 정의하고 관리. harness-init에서 스택이 결정된 후 실행. Standards 행동 원칙 참조. 결과물은 린터 설정 + .claude/rules/coding.md.
+serves: S6
 ---
 
 # 코딩 컨벤션

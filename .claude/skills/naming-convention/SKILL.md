@@ -1,6 +1,7 @@
 ---
 name: naming-convention
 description: 네이밍 컨벤션 설정 및 관리. 아키텍처별 폴더 규칙 분기, 파일/함수/메소드 규칙을 .claude/rules/naming.md에 정의. 새 도메인 등록도 여기서.
+serves: S6
 ---
 
 # 네이밍 컨벤션

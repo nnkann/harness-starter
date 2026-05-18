@@ -2,6 +2,7 @@
 name: harness-dev
 description: harness-starter 개발자 전용. 스크립트·에이전트·스킬 추가 시 h-setup.sh·README.md·HARNESS.json·MIGRATIONS.md를 자동 갱신. 다운스트림 전달 안 됨 (starter_skills).
 audience: starter
+serves: S3, S6
 ---
 
 # harness-dev 스킬

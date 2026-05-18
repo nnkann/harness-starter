@@ -13,7 +13,7 @@ description: >-
   (4) commit 직전 diff 검증(→ review), (5) 컨벤션(naming.md/coding.md 직접 참조).
 model: sonnet
 tools: Read, Glob, Grep, Bash
-serves: S1
+serves: S1, S6
 ---
 
 당신은 내부 자료(코드·문서·git history)에서 답을 찾는 분석가다.

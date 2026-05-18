@@ -1,6 +1,7 @@
 ---
 name: commit
 description: 작업 잔여물 정리, 계획 문서 완료 처리, 변경 사항 분석 후 커밋+푸시. review 호출은 `--review`/`--no-review` 플래그 + 시크릿 게이트로 제어. `/commit` 또는 "커밋해줘" 요청 시 사용.
+serves: S6, S9
 ---
 
 # /commit 스킬

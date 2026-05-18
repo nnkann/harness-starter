@@ -43,6 +43,51 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.49.0 — Codex 안전 조회/검증 dispatcher 신설 (2026-05-17)
+
+### 변경 내용
+
+Codex CLI의 untrusted 기본 정책이 `rg`·`git status`·`docs_ops.py` 조회처럼
+부작용 없는 명령마다 명시 승인을 요구해 문서 작성·검토 흐름이 끊기는 문제를
+해소.
+
+#### 신규 — `.claude/scripts/safe_command.py`
+
+Codex(및 Claude) 워크플로용 read-only/검증 dispatcher. 좁은 prefix 하나
+(`python .claude/scripts/safe_command.py <cmd>`)만 지속 승인하면 14개 안전
+명령을 모두 커버. 화이트리스트 방식 + workspace 경로 격리 +
+`--ext-diff`·`--pre` 같은 우회 인자 blocklist 3중 방어.
+
+허용 명령: `status`·`diff`·`log`·`show`·`rg`·`read`·`docs-list`·`docs-show`·
+`docs-validate`·`cps-list`·`cps-show`·`cps-stats`·`verify-relates`·`precheck`.
+
+쓰기·삭제·커밋·푸시·hook 변경·네트워크·의존성 설치는 의도적으로 제외 — 계속
+명시 승인 대상.
+
+#### 갱신 — `AGENTS.md`
+
+"Codex 안전 조회/검증" 섹션 추가. dispatcher 사용 예시 + 제외 작업 명시.
+
+#### 신규 WIP — `docs/WIP/hn_codex_approval_policy.md`
+
+- 위험도 3분류(항상 허용 / 조건부 / 강승인)
+- `.codex/config.toml` 신설은 보류 (Codex CLI 명령별 allowlist 스키마 미확인)
+- `.claude/rules/hooks.md` argument-constraint 금지 원칙과의 영역 분리 명시
+
+`.codex/hooks.json`은 빈 상태 유지. 신규 hook 없음 — false positive 사고
+재발 위험 0 유지.
+
+### 영향
+- Codex 사용자: 한 번만 dispatcher prefix를 지속 승인하면 read-only 흐름이 매끄러워짐
+- Claude 사용자: 동일 dispatcher를 동일 경로에서 호출 가능 (런타임 중립)
+- `.codex/scripts/`는 빈 상태로 정리됨 — `.codex/`는 Codex CLI 직접 설정만 남음
+
+### 다운스트림 작업
+- 자동: `harness-upgrade`가 `.claude/scripts/safe_command.py` 신설 + `AGENTS.md` 섹션 추가 반영
+- 수동: Codex 사용자는 `python .claude/scripts/safe_command.py status`를 1회 실행해 해당 prefix를 지속 승인
+
+
+
 ## v0.48.1 — SSOT 인용 원칙 메커니즘 활성화 (verify-relates 스코프 확장 + is_starter 격리) (2026-05-17)
 
 ### 변경 내용

@@ -1,6 +1,7 @@
 ---
 name: eval
 description: 하네스·코드 건강 검진. --quick은 30초 헬스체크. --harness는 하네스 문서 품질 평가 + 레거시 문서 정비 안내 (doc-health 흡수). 주기적으로 돌리는 건강 체크.
+serves: S6, S7
 ---
 
 # /eval 스킬

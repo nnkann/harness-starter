@@ -5,6 +5,7 @@ description: >-
   TRIGGER when: "기록해줘", "문서 만들어", "결정 남겨", "가이드 작성해", "인시던트 정리해",
   "회고 작성" 등 문서 생성 의도가 있는 요청.
   SKIP: 코드 구현과 함께 문서가 만들어지는 경우(→ implementation), 기존 문서 수정, 탐색/검색.
+serves: S7, S9
 ---
 
 # write-doc

@@ -34,6 +34,16 @@ defends: P7
 
 **라이프사이클**: commit 성공 → 스킬 끝에서 `rm -f .claude/memory/session-*.txt`.
 
+## 누적 감사 로그 (snapshot과 별개)
+
+snapshot은 commit마다 정리되지만 감사 로그는 **세션 횡단 누적**. gitignore.
+
+| 파일 | 내용 | write | read |
+|------|------|-------|------|
+| `stop_hook_audit.log` | Stop hook A·B·C 신호 hit (timestamp + reason + WIP 경로) | stop-guard.py | eval --quick (누적 빈도 보고) |
+
+확장 금지 — 새 누적 감사 로그는 본 표 추가 후 도입.
+
 ## 저장 대상
 
 | 우선순위 | 타입 | 예시 |
