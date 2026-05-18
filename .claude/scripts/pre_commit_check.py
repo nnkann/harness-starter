@@ -698,6 +698,50 @@ def main() -> int:
                     err("   ℹ️ 다운스트림 모드 — commit 진행 가능. 정비 일정은 자율 결정.")
 
     # ─────────────────────────────────────────────────────────
+    # 3.7. CPS P# 신설 wave — cp_{slug}.md 박제 누락 차단 (P11)
+    # project_kickoff.md 표에 `| P\d+ |` 신규 행이 추가된 staged diff면
+    # docs/cps/cp_*.md 신규 파일 staged 동반 필수. 누락 시 차단.
+    # 자기 변경 면제: kickoff·cp/* 자체만 변경되는 wave는 면제 (정의·index만 갱신).
+    # ─────────────────────────────────────────────────────────
+
+    _kickoff_path = "docs/guides/project_kickoff.md"
+    _new_p_rows: list[str] = []
+    if any(p.replace("\\", "/") == _kickoff_path for p in staged_files):
+        _in_kickoff = False
+        for _line in diff_u0_raw.splitlines():
+            if _line.startswith("+++ b/") and _line.endswith(_kickoff_path):
+                _in_kickoff = True
+                continue
+            if _line.startswith("+++ b/") and not _line.endswith(_kickoff_path):
+                _in_kickoff = False
+                continue
+            if not _in_kickoff:
+                continue
+            # 신규 추가 행만 (+로 시작, +++ 헤더 제외)
+            if _line.startswith("+") and not _line.startswith("++"):
+                # `| P12 | ... |` 형식 (bold 마커 포함 가능)
+                _m = re.match(r"^\+\|\s*\*{0,2}(P\d+)\*{0,2}\s*\|", _line)
+                if _m:
+                    _new_p_rows.append(_m.group(1))
+
+    if _new_p_rows:
+        _new_case_files = [
+            p for p, (status, _) in zip(staged_files, [(s, p) for s, p in ns_parsed])
+            if p.replace("\\", "/").startswith("docs/cps/cp_") and p.endswith(".md")
+        ]
+        # name_status에서 A(추가) status만 추출
+        _added_cases = [
+            p.replace("\\", "/") for s, p in ns_parsed
+            if s.startswith("A") and p.replace("\\", "/").startswith("docs/cps/cp_") and p.endswith(".md")
+        ]
+        if not _added_cases:
+            err(f"❌ CPS P# 신설 wave에 cp_{{slug}}.md 박제 누락: {', '.join(_new_p_rows)}")
+            err("   project_kickoff.md 표에 신규 P# 행이 추가됐는데 docs/cps/cp_*.md 신규 파일이 staged에 없음.")
+            err("   대응: docs/cps/cp_{slug}.md 신설 후 git add (frontmatter: c·tags·p·s·result·wave)")
+            err("   SSOT: project_kickoff.md '## CPS 사용 흐름' 6번 — '/commit 시 cp_{slug}.md 박제'")
+            ERRORS += 1
+
+    # ─────────────────────────────────────────────────────────
     # 4. WIP completed/abandoned 잔재
     # ─────────────────────────────────────────────────────────
 

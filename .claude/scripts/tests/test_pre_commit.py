@@ -1863,3 +1863,114 @@ class TestClusterUpdateGating:
             if wip.exists():
                 wip.unlink()
             self._run_cluster_update(repo)  # 정리
+
+
+# ─────────────────────────────────────────────────────────
+# P12 wave 노출 결함: CPS P# 신설 + cp_{slug}.md 박제 누락 차단
+# (decisions/hn_split_completion_bypass.md follow-up wave)
+# ─────────────────────────────────────────────────────────
+
+
+@pytest.mark.gate
+class TestCpsNewProblemCaseGate:
+    """P# 신설 staged 시 docs/cps/cp_*.md 신규 파일 동반 staged 필수.
+
+    P11 직격 — wave 박제 위치 분산(P# 표·S# 표·decision·case·cluster)에서
+    case 박제 누락이 1차 발견. pre-check 결정적 차단.
+    """
+
+    def _build_kickoff_diff(self, new_pid: str = "P99") -> str:
+        """project_kickoff.md에 신규 P# 표 행 추가 diff (unified=0)."""
+        return (
+            "diff --git a/docs/guides/project_kickoff.md b/docs/guides/project_kickoff.md\n"
+            "--- a/docs/guides/project_kickoff.md\n"
+            "+++ b/docs/guides/project_kickoff.md\n"
+            "@@ -37,0 +38,1 @@\n"
+            f"+| {new_pid} | 테스트용 P# 추가 |\n"
+        )
+
+    def _run(self, name_status: str, diff_u0: str) -> subprocess.CompletedProcess:
+        env = {
+            **os.environ,
+            "TEST_MODE": "1",
+            "_TEST_NAME_STATUS": name_status,
+            "_TEST_NUMSTAT": "",
+            "_TEST_DIFF_U0": diff_u0,
+        }
+        return subprocess.run(
+            [sys.executable, str(PY_SCRIPT)],
+            env=env, capture_output=True, text=True,
+        )
+
+    def test_new_p_row_without_case_blocks(self):
+        """P# 표 행만 추가, cp_*.md 신규 파일 없으면 차단 메시지 출력."""
+        r = self._run(
+            name_status="M\tdocs/guides/project_kickoff.md",
+            diff_u0=self._build_kickoff_diff("P99"),
+        )
+        assert "cp_{slug}.md 박제 누락" in (r.stderr + r.stdout), \
+            f"P# 신설인데 case 누락이 차단되지 않음. output: {r.stderr + r.stdout}"
+
+    def test_new_p_row_with_case_passes(self):
+        """P# 표 행 + 신규 cp_*.md 동반 staged → 차단 없음."""
+        r = self._run(
+            name_status="M\tdocs/guides/project_kickoff.md\nA\tdocs/cps/cp_test_p99.md",
+            diff_u0=self._build_kickoff_diff("P99"),
+        )
+        assert "cp_{slug}.md 박제 누락" not in (r.stderr + r.stdout), \
+            f"동반 staged인데 차단 발생. output: {r.stderr + r.stdout}"
+
+    def test_no_new_p_row_no_block(self):
+        """P# 표 변경 없으면 게이트 미발동."""
+        r = self._run(
+            name_status="M\tdocs/guides/project_kickoff.md",
+            diff_u0=(
+                "diff --git a/docs/guides/project_kickoff.md b/docs/guides/project_kickoff.md\n"
+                "--- a/docs/guides/project_kickoff.md\n"
+                "+++ b/docs/guides/project_kickoff.md\n"
+                "@@ -100,0 +101,1 @@\n"
+                "+본문 갱신만.\n"
+            ),
+        )
+        assert "cp_{slug}.md 박제 누락" not in (r.stderr + r.stdout), \
+            f"P# 표 변경 없는데 게이트 발동. output: {r.stderr + r.stdout}"
+
+
+@pytest.mark.docs_ops
+class TestCpsAddTableInsert:
+    """cmd_cps_add가 Problems 표 행을 삽입한다 (v0.52.0 보강).
+
+    v0.51.x까지: 본문 헤더만 append → 표 갱신 누락 → P11 동형 박제 잠복.
+    """
+
+    def _run_cps_add(self, repo: Path, summary: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, ".claude/scripts/docs_ops.py", "cps", "add", summary],
+            cwd=repo, capture_output=True, text=True,
+        )
+
+    def test_table_row_inserted(self, tmp_path):
+        """cps add 후 Problems 표 마지막 P# 행 뒤에 새 행 삽입."""
+        repo = tmp_path / "repo"
+        _clone_repo(repo)
+        # docs_ops.py를 working tree에서 sandbox로 복사
+        src = REPO_ROOT / ".claude" / "scripts" / "docs_ops.py"
+        dst = repo / ".claude" / "scripts" / "docs_ops.py"
+        shutil.copy2(src, dst)
+
+        kickoff = repo / "docs/guides/project_kickoff.md"
+        before = kickoff.read_text(encoding="utf-8")
+        # 기존 마지막 P#·다음 P# 번호 추출
+        existing_pids = re.findall(r"^\|\s*\*{0,2}(P\d+)\*{0,2}\s*\|", before, re.MULTILINE)
+        assert existing_pids, "기존 P# 표 없음 — fixture 손상"
+        next_pid = f"P{max(int(p[1:]) for p in existing_pids) + 1}"
+
+        r = self._run_cps_add(repo, "회귀 테스트용 신규 P#")
+        assert r.returncode == 0, f"cps add 실패: {r.stderr}"
+
+        after = kickoff.read_text(encoding="utf-8")
+        # 새 P# 표 행 존재
+        assert re.search(rf"^\|\s*{next_pid}\s*\|\s*회귀 테스트용 신규 P#\s*\|", after, re.MULTILINE), \
+            f"표 행 삽입 누락. {next_pid} 행이 표에 없음"
+        # 본문 헤더도 함께 append (기존 동작 보존)
+        assert f"### {next_pid} — 회귀 테스트용 신규 P#" in after, "본문 헤더 누락"

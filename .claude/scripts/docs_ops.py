@@ -986,7 +986,11 @@ def cmd_cps_list() -> int:
 
 
 def cmd_cps_add(summary: str) -> int:
-    """새 P# 부여. kickoff에 1줄 append (자라지 않음 원칙 — 정련 시점만 권장)."""
+    """새 P# 부여. kickoff Problems 표에 행 삽입 + ### P# 본문 헤더 append.
+
+    v0.52.0: 표 행 삽입 추가. 이전엔 본문 헤더만 append라 표 누락 발견됨
+    (P11 직격 — 동형 박제 위치 자동 탐색 부재).
+    """
     if not summary:
         print("사용법: cps add \"P# 1줄 요약\"", file=sys.stderr)
         return 1
@@ -996,8 +1000,35 @@ def cmd_cps_add(summary: str) -> int:
     if not CPS_DOC.exists():
         print(f"❌ {CPS_DOC} 없음 (harness-init 미완료)", file=sys.stderr)
         return 1
-    with CPS_DOC.open("a", encoding="utf-8") as f:
-        f.write(f"\n### {new_id} — {summary}\n")
+
+    text = CPS_DOC.read_text(encoding="utf-8")
+    new_row = f"| {new_id} | {summary} |"
+
+    # Problems 표의 마지막 `| P\d+ |` 행 뒤에 삽입
+    lines = text.splitlines(keepends=True)
+    last_p_idx = -1
+    in_problems_section = False
+    for i, line in enumerate(lines):
+        stripped = line.lstrip()
+        if stripped.startswith("## Problems"):
+            in_problems_section = True
+            continue
+        if in_problems_section and stripped.startswith("## "):
+            break
+        if in_problems_section and re.match(r"^\|\s*\*{0,2}P\d+\*{0,2}\s*\|", stripped):
+            last_p_idx = i
+
+    if last_p_idx >= 0:
+        # 신규 행 삽입 (마지막 P# 행 다음 줄). 줄바꿈 보존
+        existing = lines[last_p_idx]
+        suffix = "\n" if not existing.endswith("\n") else ""
+        lines.insert(last_p_idx + 1, f"{new_row}\n" if existing.endswith("\n") else f"{suffix}{new_row}\n")
+        text = "".join(lines)
+    # 본문 헤더 append (기존 동작 보존 — show/cases 명령이 헤더 인식)
+    if not text.endswith("\n"):
+        text += "\n"
+    text += f"\n### {new_id} — {summary}\n"
+    CPS_DOC.write_text(text, encoding="utf-8")
     print(f"✅ {new_id} 추가됨")
     return 0
 

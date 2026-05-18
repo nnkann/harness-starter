@@ -43,6 +43,69 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.48.1 — SSOT 인용 원칙 메커니즘 활성화 (verify-relates 스코프 확장 + is_starter 격리) (2026-05-17)
+
+### 변경 내용
+
+v0.48.0이 박은 "SSOT 인용 원칙"의 실제 작동 메커니즘 활성화. 사용자 지적:
+
+> "원칙은 박았지만 메커니즘 작동을 실측 검증 안 했음. 이게 어떻게 CPS에
+> 적용되는지 부실하다."
+
+v0.48.0 한계 직시:
+- `rules/docs.md` "SSOT 인용 원칙" 원칙문은 있으나
+- CPS `rel: references` 그래프에 실제 박힌 link 0개
+- verify-relates가 `docs/` 폴더만 검사 — `.claude/` 외부 추적 불가
+- 미래 본문 복제 재발 시 잡을 메커니즘 0
+
+**A. verify-relates 스코프 확장** (`docs_ops.py:cmd_verify_relates`):
+- 검사 대상 확장: `docs/` + `.claude/rules`·`.claude/skills`·`.claude/agents`
+  + `README.md` + `CLAUDE.md`
+- 경로 해석 보강: `rules/X.md`·`skills/X.md`·`agents/X.md` 단축 경로 →
+  `.claude/{root}/X.md`로 자동 변환
+- frontmatter 없는 파일은 `_parse_relates_paths()`가 자연스럽게 빈 list 반환
+  → false positive 0건 보장
+
+**B. pre-check verify-relates 통합 + is_starter 분기** (`pre_commit_check.py`):
+- 매 commit pre-check이 `cmd_verify_relates` 직접 호출 (suppressed stdout)
+- starter (`is_starter: true`): `❌` + ERRORS++ → 깨진 references 차단
+- 다운스트림 (`is_starter: false`): `⚠` + commit 진행 → warn-only
+- v0.47.11 dead-ref 게이트 격리 사상과 동일
+
+**C. 회귀 보호** (`@pytest.mark.docs_ops` 신규 6 케이스):
+- 정상 reference 통과 (docs/·.claude/rules/)
+- 깨진 reference 차단 (starter)
+- 깨진 reference warn-only (다운스트림)
+- frontmatter 없는 파일 skip
+- TestVerifyRelatesPrecheck 6 passed / docs_ops 마커 31 passed
+
+### 영향
+
+- CPS `rel: references` 그래프가 실제로 cascade 추적 가능 — wiki 그래프 일원
+  화된 `.claude/` 노드까지 검사
+- SSOT 이동·이름 변경 시 자동 검출 — drift 방지
+- 본문 복제 단속 폐기 (v0.48.0 §C 정합) + 본문 표현 단속 없이 SSOT 원칙으로
+  자율 정비 사상 유지
+
+### 다운스트림 영향
+
+- 다운스트림이 `.claude/rules/`·`.claude/skills/` frontmatter에 깨진
+  `rel: references` 박혀 있으면 warn-only로 noticed (차단 X)
+- frontmatter 없는 파일은 자동 skip — false positive 0
+- 다음 wave에서 `rel: references` 박제 시 cascade 추적 자동 작동
+
+### 다운스트림 보고 요청
+
+본 wave 적용 후 다음 upgrade에서 `migration-log.md` `## Feedback Reports`에 응답:
+
+1. **warn-only relates-to 알림 발생 빈도**: 본 게이트가 다운스트림에서 깨진
+   references warn-only로 출력한 commit 수 (잠재 잔재 누적 측정)
+2. **rel: references frontmatter 박제 시도**: 다음 wave에서 SSOT 인용 시
+   본문 복제 대신 frontmatter 박제 선택 빈도 (자가 발화 없이 원칙 적용
+   가능 여부)
+
+
+
 ## v0.48.0 — P11 본질 재정렬 (SSOT 인용 원칙 + CPS 채널 활성화) (2026-05-17)
 
 ### 변경 내용
