@@ -988,7 +988,7 @@ def cmd_cps_list() -> int:
 def cmd_cps_add(summary: str) -> int:
     """새 P# 부여. kickoff Problems 표에 행 삽입 + ### P# 본문 헤더 append.
 
-    v0.52.0: 표 행 삽입 추가. 이전엔 본문 헤더만 append라 표 누락 발견됨
+    v0.51.2: 표 행 삽입 추가. 이전엔 본문 헤더만 append라 표 누락 발견됨
     (P11 직격 — 동형 박제 위치 자동 탐색 부재).
     """
     if not summary:

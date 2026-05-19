@@ -43,6 +43,35 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.51.1 — cascade_docs SSOT 회수 + archived target 검사 확장 (2026-05-17)
+
+### 변경 내용
+
+v0.51.0 직후 review 관찰 + Step 0 감사 잔여 회수.
+
+- **SSOT 회수**: `cascade_docs.py`의 `_resolve_relates_path` local copy 제거.
+  `docs_ops._resolve_relates_path`를 동적 import로 SSOT 단일 정의 보존
+  (본문 복제 금지 원칙 — `rules/docs.md`). 절대경로 source(테스트 환경
+  tmp_path) 호환은 wrapper 1줄로 분리
+- **archived target 검사 확장**: `_is_decisions_target`에 `docs/archived/`
+  추가. v0.47.7 cascade 정책상 archived/도 다운스트림 미전파 → 같은 dead
+  link 발생 메커니즘
+- **cleanup 1건**: `hn_harness_73pct_cut.md`의 `extends archived/...`
+  제거 + 본문 §0에 baseline 확장 정보 1줄 보전
+- **회귀 테스트** 7번째 케이스 추가 (`test_strip_removes_archived_targets`)
+
+### 다운스트림 영향
+
+- 자동: cascade_docs 동작 동일 (SSOT 회수는 내부 리팩토링). archived
+  target도 자동 정제 — 다운스트림 작업 0
+- starter 측: `cascade_docs.py check` 위반 0건 (1건 발견·해소)
+
+### 회귀 위험
+
+관찰 범위 내. 7/7 테스트 통과 + starter 실측 cascade check 0건.
+
+
+
 ## v0.51.0 — cascade boundary projection (FR-002 방어) (2026-05-17)
 
 ### 변경 내용

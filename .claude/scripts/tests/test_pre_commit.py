@@ -1008,6 +1008,15 @@ def _write(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
+def _set_is_starter(repo: Path, value: bool) -> None:
+    """테스트 sandbox의 starter/downstream 정책을 명시적으로 고정."""
+    hj = repo / ".claude/HARNESS.json"
+    text = hj.read_text(encoding="utf-8")
+    new_value = "true" if value else "false"
+    text = re.sub(r'"is_starter"\s*:\s*(true|false)', f'"is_starter": {new_value}', text)
+    hj.write_text(text, encoding="utf-8")
+
+
 @pytest.fixture(scope="module")
 def integ_repo(tmp_path_factory):
     """module 스코프 sandbox: git clone + 최신 스크립트 복사."""
@@ -1025,6 +1034,9 @@ def integ_repo(tmp_path_factory):
         dst = repo / ".claude" / "rules" / name
         if src.exists():
             shutil.copy2(src, dst)
+    _set_is_starter(repo, True)
+    _git(["add", ".claude/HARNESS.json"], repo)
+    _commit(repo, "test fixture starter mode")
     yield repo
 
 
@@ -1350,9 +1362,7 @@ class TestVerifyRelatesPrecheck:
     def test_claude_rule_broken_ref_warn_only_downstream(self, integ_repo):
         """T45.5: 다운스트림은 .claude/rules broken references를 warn-only 처리"""
         repo = integ_repo
-        hj = repo / ".claude/HARNESS.json"
-        text = hj.read_text(encoding="utf-8")
-        hj.write_text(text.replace('"is_starter": true', '"is_starter": false'), encoding="utf-8")
+        _set_is_starter(repo, False)
         _write(repo / ".claude/rules/hn_t45e_broken_rule.md",
                "---\ntitle: broken rule downstream\ndomain: harness\nrelates-to:\n"
                "  - path: rules/hn_t45e_missing.md\n    rel: references\n"
@@ -1364,7 +1374,7 @@ class TestVerifyRelatesPrecheck:
         _git(["add", "docs/t45e_other/hn_t45e_unrelated.md"], repo)
         out = _run_precheck(repo)
         assert out.get("pre_check_passed") == "true"
-        hj.write_text(hj.read_text(encoding="utf-8").replace('"is_starter": false', '"is_starter": true'), encoding="utf-8")
+        _set_is_starter(repo, True)
         _git(["rm", "-q", ".claude/rules/hn_t45e_broken_rule.md"], repo)
         _git(["add", ".claude/HARNESS.json"], repo)
         _commit(repo, "cleanup T45.5 downstream broken rule ref")
@@ -1964,7 +1974,7 @@ class TestCpsNewProblemCaseGate:
 
 @pytest.mark.docs_ops
 class TestCpsAddTableInsert:
-    """cmd_cps_add가 Problems 표 행을 삽입한다 (v0.52.0 보강).
+    """cmd_cps_add가 Problems 표 행을 삽입한다 (v0.51.6 보강).
 
     v0.51.x까지: 본문 헤더만 append → 표 갱신 누락 → P11 동형 박제 잠복.
     """
@@ -1983,6 +1993,13 @@ class TestCpsAddTableInsert:
         src = REPO_ROOT / ".claude" / "scripts" / "docs_ops.py"
         dst = repo / ".claude" / "scripts" / "docs_ops.py"
         shutil.copy2(src, dst)
+        _write(repo / "docs/guides/project_kickoff.md",
+               "---\ntitle: Project Kickoff\ndomain: guide\nstatus: completed\ncreated: 2026-05-19\n---\n\n"
+               "## Problems\n\n"
+               "| ID | Problem |\n"
+               "|----|---------|\n"
+               "| P1 | 기존 문제 |\n\n"
+               "### P1 — 기존 문제\n")
 
         kickoff = repo / "docs/guides/project_kickoff.md"
         before = kickoff.read_text(encoding="utf-8")
