@@ -416,3 +416,97 @@ def test_cps_frontmatter_list_format_parsed(tmp_path):
     mod.scan_doc(doc, "P11 — 동형 패턴", refs)
     assert refs.get("P7") == 1
     assert refs.get("P11") == 1
+
+
+@pytest.mark.eval
+def test_solution_problem_map_from_kickoff_table():
+    """Solutions 표의 S# → P# 매핑을 추출해야 한다."""
+    mod = _load_eval_cps_integrity()
+    cps = """
+## Solutions
+
+| ID | Problem | Mechanism |
+|----|---------|-----------|
+| S7 | P7 | 알림 |
+| S8 | P8 | 자산화 |
+"""
+    assert mod.extract_solution_problem_map(cps) == {"S7": "P7", "S8": "P8"}
+    assert mod.extract_cps_solution_ids(cps) == ["S7", "S8"]
+
+
+@pytest.mark.eval
+def test_solution_refs_count_supports_s_and_solution_ref(tmp_path):
+    """solution-ref뿐 아니라 현재 frontmatter `s:` 필드도 S# 보조 신호로 센다."""
+    mod = _load_eval_cps_integrity()
+    docs_root = tmp_path / "docs"
+    (docs_root / "decisions").mkdir(parents=True)
+    (docs_root / "WIP").mkdir(parents=True)
+    (docs_root / "decisions" / "a.md").write_text(
+        "---\ntitle: a\ns: [S8]\n---\n\nbody\n",
+        encoding="utf-8",
+    )
+    (docs_root / "WIP" / "b.md").write_text(
+        "---\ntitle: b\nsolution-ref:\n  - S8 — 후행 자산화\n---\n\nbody\n",
+        encoding="utf-8",
+    )
+
+    counts = mod.count_solution_refs(docs_root)
+    assert counts["S8"] == 2
+
+
+@pytest.mark.eval
+def test_wip_problem_signals_count_related_solution(tmp_path):
+    """진행 중 WIP의 관련 S# 언급은 primary problem 0건의 보조 신호다."""
+    mod = _load_eval_cps_integrity()
+    docs_root = tmp_path / "docs"
+    (docs_root / "WIP").mkdir(parents=True)
+    (docs_root / "WIP" / "decisions--mp_notification_system.md").write_text(
+        "---\ntitle: 알림 시스템\nsolution-ref:\n  - S8 — 후행 자산화\n---\n\nLayer 1 이후 S8 독립 wave.\n",
+        encoding="utf-8",
+    )
+
+    counts = mod.count_wip_problem_signals(docs_root, {"P8": ["S8"]})
+    assert counts["P8"] == 1
+
+
+@pytest.mark.eval
+def test_cps_integrity_unreferenced_problem_with_solution_signal_is_not_strong_discard(
+    tmp_path, monkeypatch, capsys
+):
+    """problem: 0이어도 관련 S# WIP 신호가 있으면 폐기·병합 강권으로 출력하지 않는다."""
+    mod = _load_eval_cps_integrity()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(mod, "CPS_DOC", "docs/guides/project_kickoff.md")
+
+    (tmp_path / "docs" / "guides").mkdir(parents=True)
+    (tmp_path / "docs" / "decisions").mkdir(parents=True)
+    (tmp_path / "docs" / "WIP").mkdir(parents=True)
+    (tmp_path / "docs" / "guides" / "project_kickoff.md").write_text(
+        """# Kickoff
+
+## Problems
+
+| P1 | 즉시 문제 |
+| P2 | 장기 문제 |
+
+## Solutions
+
+| S1 | P1 | 즉시 해결 | 기준 |
+| S2 | P2 | 후행 자산화 | 기준 |
+""",
+        encoding="utf-8",
+    )
+    (tmp_path / "docs" / "decisions" / "hn_now.md").write_text(
+        "---\ntitle: now\nproblem: P1\ns: [S1]\n---\n\nbody\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "docs" / "WIP" / "decisions--hn_later.md").write_text(
+        "---\ntitle: later\nsolution-ref:\n  - S2 — 후행 자산화\n---\n\nLayer 1 이후 S2 독립 wave.\n",
+        encoding="utf-8",
+    )
+
+    assert mod.main() == 0
+    out = capsys.readouterr().out
+    assert "ℹ primary 인용 0건이나 보조 신호가 있는 Problem: P2" in out
+    assert "related S: S2" in out
+    assert "⚠ primary 인용 0건 Problem (정체 의심): P2" not in out

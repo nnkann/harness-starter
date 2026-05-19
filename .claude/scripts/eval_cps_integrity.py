@@ -67,7 +67,7 @@ def extract_cps_solution_ids(cps_text: str) -> list[str]:
     """CPS 본문에서 S# Solution ID 목록을 순서대로 추출.
     "### S1 ..." 헤더 패턴 및 "**S1**" 굵은 글씨 패턴 모두 지원.
     """
-    ids = re.findall(r"(?:###\s+|\*\*)(S\d+)\b", cps_text)
+    ids = re.findall(r"(?:###\s+|\*\*|\|\s*)(S\d+)\b", cps_text)
     # 순서 유지 + 중복 제거
     seen: set[str] = set()
     result = []
@@ -78,8 +78,34 @@ def extract_cps_solution_ids(cps_text: str) -> list[str]:
     return result
 
 
+def extract_solution_problem_map(cps_text: str) -> dict[str, str]:
+    """CPS Solutions 표에서 S# → P# 매핑을 추출한다.
+
+    예: `| S8 | P8 | ... |`
+    """
+    mapping: dict[str, str] = {}
+    for m in re.finditer(r"^\|\s*(S\d+)\s*\|\s*(P\d+)\s*\|", cps_text, re.MULTILINE):
+        mapping[m.group(1)] = m.group(2)
+    return mapping
+
+
+def _frontmatter_list(value) -> list[str]:
+    """frontmatter 필드를 list[str]로 정규화한다."""
+    if not value:
+        return []
+    if isinstance(value, list):
+        return [str(x).strip() for x in value if str(x).strip()]
+    if isinstance(value, str):
+        s = value.strip()
+        if s.startswith("[") and s.endswith("]"):
+            s = s.strip("[]")
+            return [x.strip().strip("'\"") for x in s.split(",") if x.strip()]
+        return [s] if s else []
+    return [str(value).strip()]
+
+
 def count_solution_refs(docs_root: Path) -> dict[str, int]:
-    """docs/ 하위 모든 .md 파일의 frontmatter solution-ref에서 S# 카운트.
+    """docs/ 하위 모든 .md 파일의 frontmatter solution-ref/s에서 S# 카운트.
     parse_frontmatter는 YAML 리스트 항목의 `- ` 마크를 제거해 반환.
     따라서 각 항목은 "S2 — ..." 형식 (앞 하이픈 없음).
     Returns: {S1: 3, S2: 12, ...}
@@ -92,16 +118,35 @@ def count_solution_refs(docs_root: Path) -> dict[str, int]:
         except Exception:
             continue
         fm, _ = parse_frontmatter(text)
-        sol_refs = fm.get("solution-ref", [])
-        if not sol_refs:
-            continue
-        if isinstance(sol_refs, str):
-            sol_refs = [sol_refs]
+        sol_refs = _frontmatter_list(fm.get("solution-ref", []))
+        sol_refs.extend(_frontmatter_list(fm.get("s", [])))
         for ref in sol_refs:
             m = pat.match(str(ref).strip())
             if m:
                 sid = f"S{m.group(1)}"
                 counts[sid] = counts.get(sid, 0) + 1
+    return counts
+
+
+def count_wip_problem_signals(docs_root: Path, problem_to_solutions: dict[str, list[str]]) -> dict[str, int]:
+    """진행 중 WIP에서 P# 또는 관련 S#가 언급된 횟수를 센다.
+
+    primary `problem:` 인용이 없어도 WIP의 하위 목표나 `solution-ref`로 살아 있는
+    장기 Problem을 폐기 후보로 오판하지 않기 위한 보조 신호다.
+    """
+    counts: dict[str, int] = {}
+    wip_root = docs_root / "WIP"
+    if not wip_root.is_dir():
+        return counts
+    for md in sorted(wip_root.rglob("*.md")):
+        try:
+            text = md.read_text(encoding="utf-8")
+        except Exception:
+            continue
+        for pid, sids in problem_to_solutions.items():
+            tokens = [pid, *sids]
+            if any(re.search(rf"\b{re.escape(token)}\b", text) for token in tokens):
+                counts[pid] = counts.get(pid, 0) + 1
     return counts
 
 
@@ -203,6 +248,10 @@ def main() -> int:
 
     problem_count = count_cps_problems(cps_text)
     solution_ids = extract_cps_solution_ids(cps_text)
+    solution_problem_map = extract_solution_problem_map(cps_text)
+    problem_to_solutions: dict[str, list[str]] = {}
+    for sid, pid in solution_problem_map.items():
+        problem_to_solutions.setdefault(pid, []).append(sid)
     # 인플레이션 임계값: CPS Problem 수 기반 동적 계산 (고정 6 폐기)
     # 기준: Problem 수 + 2 (소규모 추가 여유), 최소 8
     inflation_threshold = max(8, problem_count + 2)
@@ -221,6 +270,7 @@ def main() -> int:
         all_warnings.extend(scan_doc(md, cps_text, problem_refs))
 
     solution_counts = count_solution_refs(docs_root)
+    wip_problem_signals = count_wip_problem_signals(docs_root, problem_to_solutions)
 
     # BIT NEW 플래그 폐기 (§S-3 73% 삭감). BIT 자가 발화 의존 메커니즘
     # 전체 폐기 — 본 집계도 함께 폐기.
@@ -253,8 +303,28 @@ def main() -> int:
                 unreferenced.append(pid)
         if unreferenced:
             print(f"")
-            print(f"⚠ 인용 0건 Problem (정체 의심): {', '.join(unreferenced)}")
-            print(f"  6개월 이상 인용 0이면 Problem 폐기 또는 병합 검토 권고")
+            dormant: list[str] = []
+            supported: list[str] = []
+            for pid in unreferenced:
+                related_sids = sorted(problem_to_solutions.get(pid, []), key=lambda x: int(x[1:]))
+                related_solution_refs = sum(solution_counts.get(sid, 0) for sid in related_sids)
+                wip_mentions = wip_problem_signals.get(pid, 0)
+                if related_solution_refs or wip_mentions:
+                    sid_label = ",".join(related_sids) if related_sids else "-"
+                    supported.append(
+                        f"{pid} (related S: {sid_label}, solution refs: {related_solution_refs}, WIP mentions: {wip_mentions})"
+                    )
+                else:
+                    dormant.append(pid)
+            if dormant:
+                print(f"⚠ primary 인용 0건 Problem (정체 의심): {', '.join(dormant)}")
+                print(
+                    "  problem: 0 + related solution-ref/s: 0 + 진행 중 WIP 언급 0이 "
+                    "6개월 이상 지속될 때 Problem 폐기 또는 병합 검토 권고"
+                )
+            if supported:
+                print(f"ℹ primary 인용 0건이나 보조 신호가 있는 Problem: {', '.join(supported)}")
+                print("  폐기·병합 전 Solution 인용, 진행 중 WIP, kickoff 보존 사유를 함께 확인")
 
     # 관계 그래프 점검 — HARNESS_MAP.md 폐기 (§S-1 CPS 재설계).
     # wiki 그래프 모델로 대체 (cluster + tag 백링크). 본 점검 폐기.

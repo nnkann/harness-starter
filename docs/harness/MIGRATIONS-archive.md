@@ -43,6 +43,24 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.51.2 — CPS P# 신설 cp_{slug}.md 박제 누락 차단 + cps_add 표 갱신 (2026-05-18)
+
+P12 박제 wave에서 노출된 동형 박제 위치 분산 결함 (P11 직격) 차단.
+
+### 자동 적용
+- `pre_commit_check.py` §3.7 신설 — staged diff에 `project_kickoff.md` `| P\d+ |` 신규 행 + `docs/cps/cp_*.md` 신규 파일 동반 staging 없으면 차단
+- `docs_ops.py cmd_cps_add` — Problems 표 마지막 P# 행 뒤에 새 P# 행 자동 삽입 (기존엔 `### P# — ...` 헤더만 append, 표 누락 잠복)
+- 회귀 테스트 4건 (TestCpsNewProblemCaseGate 3건 + TestCpsAddTableInsert 1건)
+
+### 수동 확인
+- 다운스트림 영향 없음 — starter 본문 차단 게이트라 다운스트림 commit 흐름 변경 없음
+- `cps add` 호출자: 표 행 자동 삽입 추가됐으나 헤더 append는 동일 → 기존 사용 패턴 호환
+
+### 회귀 위험
+- 낮음. 표 인식 정규식이 기존 행을 못 잡으면 표 갱신 누락 → 본문 헤더만 append (기존 동작 유지)
+
+
+
 ## v0.51.1 — cascade_docs SSOT 회수 + archived target 검사 확장 (2026-05-17)
 
 ### 변경 내용
