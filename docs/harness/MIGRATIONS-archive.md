@@ -43,6 +43,66 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.51.0 — cascade boundary projection (FR-002 방어) (2026-05-17)
+
+### 변경 내용
+
+다운스트림 보고 FR-002 처리. starter `docs/decisions/hn_*.md` 부분 cascade
+정책(v0.47.7)에서 cascade되는 decision이 `relates-to`로 비-cascade 동료를
+가리키면 다운스트림에 영구 dead link 발생. 3엔진(advisor·Gemini·Codex) 비교
+후 **옵션 1+3 결합** 채택.
+
+- **신규** `.claude/scripts/cascade_docs.py` — projection-safe helper:
+  - `compute_cascade_set()`: rules·skills·agents·CLAUDE.md·README.md 본문에서
+    `docs/decisions/*.md` 패턴 grep → 현재 cascade되는 decisions 경로 집합
+  - `strip_non_cascading_relates()`: frontmatter에서 비-cascade target
+    relates-to 항목 제거. 모두 제거되면 `relates-to:` 키 자체 제거
+  - `rewrite_frontmatter_for_downstream()`: 파일 단위 wrapper
+  - `check_cascade_boundary_violations()`: 전수 감사 (starter lint용)
+  - CLI: `cascade_docs.py check` (위반 보고) / `rewrite <path>` (정제)
+- **`docs_ops.py cmd_verify_relates` 확장**: starter 환경
+  (`is_starter: true` HARNESS.json 또는 `HARNESS_IS_STARTER=true` env)에서
+  cascade boundary 위반 자동 감지·차단. 다운스트림은 일반 dead-link
+  warn-only 정책 그대로 (간섭 없음)
+- **`harness-upgrade` Step 3 호출 추가**: cascade되는 결정문서를 다운스트림에
+  복사하기 전 frontmatter projection-safe 정제. upstream 원본 불변
+- **starter 기존 cleanup 2건**:
+  - `hn_code_ssot_rule.md`: `caused-by hn_runtime_ssot_generation` 제거.
+    발화 위치는 본문에 이미 인용되어 정보 보존
+  - `hn_harness_73pct_cut.md`: `supersedes hn_orchestrator_mechanism` 제거.
+    본문 §0 결정 박제 단락에 supersede 정보 1줄 추가로 보전
+- **회귀 테스트** `test_cascade_boundary.py` 신설 — 6 케이스
+  (compute_cascade_set 2건 + strip 3건 + verify-relates 통합 1건)
+
+### 다운스트림 영향
+
+- 자동: `harness-upgrade` v0.51.0 적용 시 cascade되는 decisions의
+  frontmatter가 projection-safe 정제된 채 다운스트림에 도착. 기존 영구
+  dead-link 경고 자동 해소
+- 수동: 없음. 다운스트림 측 작업 0
+- starter 측 행동 변화: `pre_commit_check.py` → `docs_ops.py verify-relates`
+  호출 체인에서 cascade boundary 위반 자동 차단 (작성 시점)
+
+### 결정 근거
+
+3엔진(advisor·Gemini·Codex):
+- 옵션 2 (신규 `rel` type) 만장일치 탈락 — taxonomy 오염·one-way door
+- 옵션 1 (lint) 만장일치 채택
+- 옵션 3 (cascade-time rewrite): advisor는 drift 우려, Gemini·Codex는
+  "projection drift는 의미 drift 아님" 정당화로 채택
+- **Step 0 감사에서 이미 2건 잠복 사례 발견** → 옵션 3 필요성 증명 (lint만으로
+  기존 사례 해결 불가)
+
+자세히: `docs/decisions/hn_decisions_cascade_partial_graph.md`.
+
+### 회귀 위험
+
+관찰 범위 내. cascade-time rewrite는 upstream 원본 보존 + downstream에만
+적용 — projection drift는 의미 drift 아님. starter lint는 작성 시점 차단으로
+회귀 신호 즉시 감지.
+
+
+
 ## v0.50.0 — code-ssot 규칙 신설 (동형 SSOT 패턴 starter 흡수) (2026-05-17)
 
 ### 변경 내용

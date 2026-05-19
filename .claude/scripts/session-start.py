@@ -108,12 +108,17 @@ def section_memory() -> None:
     if not mem.is_file():
         return
     try:
-        count = sum(1 for line in mem.read_text(encoding="utf-8").splitlines()
-                    if line.startswith("- "))
+        count = sum(
+            1 for line in mem.read_text(encoding="utf-8").splitlines()
+            if line.startswith("- ")
+        )
     except Exception:
         count = 0
     print()
-    print(f"🧠 메모리: {count}개 항목 로드됨")
+    if count:
+        print(f"🧠 memory index: {count} links available; content not injected")
+    else:
+        print("🧠 memory index: empty; content not injected")
 
 
 def section_todo() -> None:
@@ -323,23 +328,18 @@ def section_repeated_files(in_git: bool) -> None:
         return
 
     msg1, msg2 = commits[0][0], commits[1][0]
+    repeated_sorted = sorted(repeated)
+    shown = repeated_sorted[:5]
+    hidden = len(repeated_sorted) - len(shown)
     print()
-    print("⛔ 연속 동일 파일 수정 감지: 아래 파일이 최근 2 커밋 연속 수정됐습니다.", file=sys.stderr)
-    print()
-    print("⛔ 연속 동일 파일 수정 감지: 아래 파일이 최근 2 커밋 연속 수정됐습니다.")
+    print(f"⛔ 연속 동일 파일 수정 감지: 최근 2커밋 공통 {len(repeated_sorted)}개")
     print(f"  HEAD:   {msg1}")
     print(f"  HEAD~1: {msg2}")
-    for f in sorted(repeated):
+    for f in shown:
         print(f"  - {f}")
-    print()
-    print("<important>")
-    print('동일 영역 반복 수정 = no-speculation.md "동일 수정 2회 이상" 트리거.')
-    print("직접 수정 전 debug-specialist 에이전트를 즉시 호출하라.")
-    print('Agent 도구로 subagent_type: "debug-specialist" 호출 — 호출 전에 증상·재현 조건·직전 수정 내용을 명시하라.')
-    print()
-    print("예외: 메타 파일(HARNESS.json·README.md·MIGRATIONS.md·clusters)은 이미 제외됨.")
-    print("그 외에도 단순 docs 갱신·버전 범프 동반 변경이 명확하면 사용자에게 알리고 진행 가능.")
-    print("</important>")
+    if hidden:
+        print(f"  ... {hidden}개 더 있음")
+    print("  action: 같은 원인인지 확인. 불명확하면 debug-specialist 호출.")
 
 
 def section_rules() -> None:

@@ -68,7 +68,7 @@ def section_in_progress_wip() -> None:
         print(f"📋 in-progress 작업 {count}개 남아있음.", file=sys.stderr)
 
 
-def section_abc_check(uncommitted: int) -> None:
+def section_abc_check(uncommitted: int) -> list[str]:
     """3. 조건 A·B·C AND 발화 (P8 Phase 3 SSOT).
 
     A: uncommitted > 0
@@ -76,10 +76,10 @@ def section_abc_check(uncommitted: int) -> None:
     C: 그 WIP에 빈 체크박스 `- [ ]` 또는 BIT 판단 블록 부재
     """
     if uncommitted == 0:
-        return
+        return []
     wip_dir = Path("docs/WIP")
     if not wip_dir.is_dir():
-        return
+        return []
 
     # 변경된 파일 중 WIP만 추출 (조건 B 후보)
     porcelain = run(["git", "status", "--porcelain"])
@@ -94,7 +94,7 @@ def section_abc_check(uncommitted: int) -> None:
             if p.is_file():
                 changed_wip.append(p)
     if not changed_wip:
-        return
+        return []
 
     risk_files: list[str] = []
     for f in changed_wip:
@@ -124,13 +124,14 @@ def section_abc_check(uncommitted: int) -> None:
         log_path = mem_dir / "stop_hook_audit.log"
         with log_path.open("a", encoding="utf-8") as fp:
             fp.write(f"{ts} | A·B·C hit | {files_str}\n")
+    return risk_files
 
 
-def section_memory_reminder() -> None:
+def section_memory_reminder(risk_files: list[str]) -> None:
     """4a. memory 저장 환기 (강제 아님)."""
-    if Path(".claude/memory").is_dir():
+    if risk_files and Path(".claude/memory").is_dir():
         print(
-            "💭 이번 세션에서 memory에 저장할 feedback·project 있나? (/clear 전 확인)",
+            "💭 미완료 WIP 위험 신호 있음. 재발 패턴이면 memory signal 갱신 검토.",
             file=sys.stderr,
         )
 
@@ -146,8 +147,8 @@ def section_cleanup_compact_count() -> None:
 def main() -> None:
     uncommitted = section_uncommitted()
     section_in_progress_wip()
-    section_abc_check(uncommitted)
-    section_memory_reminder()
+    risk_files = section_abc_check(uncommitted)
+    section_memory_reminder(risk_files)
     section_cleanup_compact_count()
 
 

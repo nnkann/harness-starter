@@ -38,6 +38,7 @@ def _init_repo(tmp_path: Path) -> None:
     # 최소 디렉토리 구조
     (tmp_path / "docs" / "WIP").mkdir(parents=True)
     (tmp_path / "docs" / "decisions").mkdir(parents=True)
+    (tmp_path / "docs" / "cps").mkdir(parents=True)
     (tmp_path / "docs" / "clusters").mkdir(parents=True)
     (tmp_path / ".claude" / "rules").mkdir(parents=True)
     (tmp_path / ".claude" / "memory").mkdir(parents=True)
@@ -48,7 +49,8 @@ def _init_repo(tmp_path: Path) -> None:
         "## 도메인 약어 (abbr)\n\n"
         "| 도메인 (full) | 약어 (abbr) | cluster 파일 |\n"
         "|---------------|-------------|--------------|\n"
-        "| harness | hn | docs/clusters/harness.md |\n",
+        "| harness | hn | docs/clusters/harness.md |\n"
+        "| cps | cp | docs/clusters/cps.md |\n",
         encoding="utf-8",
     )
 
@@ -74,6 +76,32 @@ def _write_wip(tmp_path: Path, slug: str = "hn_test_wave") -> Path:
         "# 테스트\n\n"
         "## 작업\n\n"
         "- [x] Goal: 테스트 ✅\n",
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "add", str(wip)], cwd=tmp_path, check=True)
+    return wip
+
+
+def _write_cps_wip(tmp_path: Path, slug: str = "cp_test_case") -> Path:
+    """AC 모두 [x] 상태인 CPS case WIP 파일 작성 (cmd_move 통과용)."""
+    wip = tmp_path / "docs" / "WIP" / f"cps--{slug}.md"
+    wip.write_text(
+        "---\n"
+        "title: CPS 테스트 WIP\n"
+        "domain: cps\n"
+        "problem: [P6]\n"
+        "s: [S6]\n"
+        "tags: [test]\n"
+        "status: in-progress\n"
+        "created: 2026-05-19\n"
+        "---\n\n"
+        "# CPS 테스트\n\n"
+        "**Acceptance Criteria**:\n"
+        "- [x] Goal: 테스트\n"
+        "  검증:\n"
+        "    review: self\n"
+        "    tests: 없음\n"
+        "    실측: 문서 이동\n",
         encoding="utf-8",
     )
     subprocess.run(["git", "add", str(wip)], cwd=tmp_path, check=True)
@@ -151,6 +179,25 @@ def test_move_stages_frontmatter_update(tmp_path, monkeypatch):
     assert "docs/decisions/hn_move_test.md" in staged
     # unstaged 잔여 없음 (frontmatter 갱신분이 묻혀 있지 않음)
     assert "docs/decisions/hn_move_test.md" not in _unstaged_files(tmp_path)
+
+
+@pytest.mark.eval
+def test_move_supports_cps_case_folder(tmp_path, monkeypatch):
+    """cmd_move가 wave case 박제 폴더 docs/cps/를 지원한다."""
+    _init_repo(tmp_path)
+    wip = _write_cps_wip(tmp_path, "cp_move_test")
+    monkeypatch.chdir(tmp_path)
+    mod = _load_docs_ops()
+
+    subprocess.run(["git", "commit", "-q", "-m", "cps wip"], cwd=tmp_path, check=True)
+
+    rc = mod.cmd_move(str(Path("docs/WIP") / wip.name))
+    assert rc == 0
+
+    dest = tmp_path / "docs" / "cps" / "cp_move_test.md"
+    assert dest.exists()
+    assert "docs/cps/cp_move_test.md" in _staged_files(tmp_path)
+    assert "docs/cps/cp_move_test.md" not in _unstaged_files(tmp_path)
 
 
 @pytest.mark.eval

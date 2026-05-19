@@ -294,11 +294,11 @@ def cmd_move(src_str: str) -> int:
 
     bn = src.name
     if "--" not in bn:
-        print(f"❌ 접두사 없음 (decisions--/guides--/... 필요): {bn}", file=sys.stderr)
+        print(f"❌ 접두사 없음 (decisions--/guides--/cps--/... 필요): {bn}", file=sys.stderr)
         return 1
     prefix, rest = bn.split("--", 1)
 
-    folders = {"decisions", "guides", "incidents", "harness"}
+    folders = {"decisions", "guides", "incidents", "harness", "cps"}
     if prefix not in folders:
         print(f"❌ 접두사 '{prefix}--' 인식 불가. {folders} 중 하나여야 함", file=sys.stderr)
         return 1
@@ -392,7 +392,7 @@ def cmd_reopen(src_str: str) -> int:
         print(f"❌ 이미 WIP: {src}", file=sys.stderr); return 1
 
     folder = src.parent.name
-    if folder not in {"decisions", "guides", "incidents", "harness"}:
+    if folder not in {"decisions", "guides", "incidents", "harness", "cps"}:
         print(f"❌ 지원되지 않는 폴더: {folder}", file=sys.stderr); return 1
 
     dest = Path(f"docs/WIP/{folder}--{src.name}")

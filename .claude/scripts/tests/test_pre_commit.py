@@ -71,14 +71,23 @@ def stage(out: dict) -> str:
     return out.get("recommended_stage", "")
 
 
-def _clone_repo(dest: Path) -> None:
+def _clone_repo(dest: Path, *, shared: bool = True) -> None:
     """테스트 sandbox용 빠른 clone.
 
     반복 fixture setup이 전체 테스트 시간을 지배하므로 local object를 공유한다.
     sandbox는 테스트 종료 후 버려지며 push하지 않는다.
     """
+    cmd = ["git", "clone", "-q"]
+    if shared:
+        cmd.append("--shared")
+    else:
+        # commit_finalize.sh는 Git Bash 안에서 실행된다. Windows 절대경로가
+        # alternates에 들어가면 Bash git이 normalize하지 못하므로 이 fixture만
+        # 독립 clone을 쓴다.
+        cmd.append("--no-hardlinks")
+    cmd.extend([str(REPO_ROOT), str(dest)])
     subprocess.run(
-        ["git", "clone", "-q", "--shared", str(REPO_ROOT), str(dest)],
+        cmd,
         capture_output=True,
         check=True,
     )
@@ -351,7 +360,7 @@ def finalize_repo(tmp_path_factory):
     """commit_finalize.sh 테스트 sandbox: 본 repo clone + wrapper 복사."""
     tmp = tmp_path_factory.mktemp("finalize")
     repo = tmp / "repo"
-    _clone_repo(repo)
+    _clone_repo(repo, shared=False)
     # wrapper + docs_ops가 working tree에만 있을 수 있어 복사
     for name in ("commit_finalize.sh", "docs_ops.py"):
         src = REPO_ROOT / ".claude" / "scripts" / name
