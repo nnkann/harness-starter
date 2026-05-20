@@ -152,6 +152,20 @@ drift를 만들고, 폐기·갱신 시 cascade 추적이 불가능해진다 (P11
 - **frontmatter 박제**: `rel: references`로 그래프에 박아두면 `verify-relates`
   게이트가 SSOT 이동·이름 변경 시 cascade 자동 추적
 
+### SSOT drift 발견 시 통합 의무
+
+작업 중 같은 행동 계약·판정 기준·절차가 2곳 이상에서 발견되면 **그 자체가
+본 작업의 문제**다. "이번에는 한 곳만 수정"으로 완료 선언하지 않는다.
+
+처리 순서:
+1. owner SSOT 1곳을 지정한다. 코드 판정은 스크립트, 실행 절차는 해당 skill
+   Step, 다운스트림 안내는 MIGRATIONS처럼 역할 기준으로 고른다.
+2. 나머지는 본문 재서술을 줄이고 owner SSOT 참조 또는 active mirror로 역할을
+   축소한다.
+3. 유지해야 하는 중복이면 역할을 명시한다. 예: 코드=판정, skill=절차,
+   MIGRATIONS=다운스트림 안내, decision=이유.
+4. WIP AC에 "SSOT 통합/역할 분리 완료"를 포함한다. 통합 전 완료 선언 금지.
+
 ### 도구
 
 - `verify-relates` (docs_ops.py): 깨진 references 자동 검출

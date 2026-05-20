@@ -43,6 +43,27 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.51.7 — CPS 0건 Problem 폐기 권고 보조 신호 보강 (2026-05-20)
+
+다운스트림 FR-011 반영. `eval --harness`가 `problem:` primary 인용 0건만으로
+장기 도메인 Problem을 폐기·병합 후보로 강하게 권고하면, 관련 Solution 인용과
+진행 중 WIP의 하위 목표를 놓칠 수 있다.
+
+### 자동 적용
+- `.claude/scripts/eval_cps_integrity.py`: CPS Solutions 표에서 `S# → P#` 매핑을 추출하고, `solution-ref`와 `s:` frontmatter 인용을 모두 S# 보조 신호로 집계
+- 진행 중 `docs/WIP` 문서에 P# 또는 관련 S# 언급이 있으면 primary 인용 0건 Problem의 보조 신호로 표시
+- primary 인용 0건이더라도 관련 Solution/WIP 신호가 있으면 폐기·병합 강권 대신 "보조 신호 있음 — 보존 사유 확인" 문구로 낮춤
+- `.claude/scripts/tests/test_eval_harness.py`: FR-011 재현 테스트 포함 4건 추가
+
+### 수동 확인
+- 다운스트림에서 `eval --harness` 출력의 "primary 인용 0건" 항목을 확인할 때 related S# 인용과 WIP mentions를 함께 본다
+- 장기 Problem은 `project_kickoff.md` 본문에 보존 사유를 남겨 후속 eval 해석 기준으로 삼는다
+
+### 회귀 위험
+- 낮음. eval 출력의 해석 보강이며 차단 게이트가 아니다. 다만 기존 "6개월 이상 인용 0이면 폐기/병합" 문구가 더 보수적으로 바뀐다
+
+
+
 ## v0.51.6 — 다운스트림 pytest fixture 격리 보강 (2026-05-19)
 
 다운스트림 `harness-upgrade` 직후 upstream/starter 테스트를 실행하면
