@@ -5,7 +5,8 @@ description: >-
   분석·탐색·검증은 specialist에 위임. 이 스킬은 "언제 누구를 부를지"만 결정.
   TRIGGER when: (1) 사용자가 기능 구현·버그 수정·리팩토링 요청 ("~해줘", "~만들어", "~고쳐"),
   (2) 직전 턴에 구체 계획 제시된 상태에서 승인 표현 ("진행해줘", "OK", "고", "이대로"),
-  (3) 직전 작업이 implementation이었어도 후속 작업 트리거는 재발화.
+  (3) 직전 작업이 implementation이었어도 후속 작업 트리거는 재발화,
+  (4) 코드·테스트·스크립트·룰 감사/개선을 위한 계획 문서부터 만들라는 요청.
   SKIP: 단순 질문·설명, 문서만 수정(→ write-doc), settings.json 키-값 토글,
   커밋 요청(→ commit), 1줄 타이포.
 serves: S1, S6
@@ -72,10 +73,16 @@ s: [S2, S6]
 
 ## Step 3. WIP 생성 (분리 필요할 때만)
 
+사용자가 "먼저 계획 문서부터"라고 해도, 이후 코드·테스트·스크립트·룰 변경으로
+이어지는 작업이면 본 Step이 WIP를 만든다. write-doc은 문서 자체가 최종 산출물일
+때만 사용한다.
+
 **파일명** (`.claude/rules/naming.md` SSOT):
-- `{abbr}_{slug}.md` (라우팅 태그 폐기 — wave에서 결정)
+- `{대상폴더}--{abbr}_{slug}.md`
+- 대상폴더: completed 이동 대상 폴더 (`decisions`, `guides`, `incidents`, `harness`, `cps`)
 - abbr: naming.md "도메인 약어" 표
 - slug: snake_case 의미명. 날짜 suffix 금지
+- 현재 `docs_ops.py move`가 `{대상폴더}--` 접두사로 이동 대상을 판정한다.
 
 **frontmatter** (필수):
 ```yaml
@@ -113,6 +120,10 @@ created: YYYY-MM-DD
 - **자동화 가능**: Bash로 실행 후 결과 제시
 - **자동화 불가** (Claude 행동·UI·운용 효과): "자동 검증 불가 — 운용에서 확인 필요" 명시
 - **테스트**: AC `검증.tests`에 `pytest -m <marker>` 명시될 때만 실행 (`self-verify.md` 트리거 매트릭스 SSOT)
+- **검증 다이어트**: pytest는 무거운 작업이다. 기본값은 변경 파일에 직접 대응하는
+  단일 테스트 파일·단일 test id·좁은 marker다. 전체 스위트는 사용자가 요청했거나,
+  릴리즈/커밋 직전 고위험 공유 코어 변경에서 최종 1회만 실행한다. 문구·WIP 기록만
+  바뀐 경우 pytest를 다시 돌리지 않는다.
 - **AC 미통과 → "완료" 선언 금지**. 원인 파악 후 재수정
 
 **WIP 갱신**:

@@ -379,6 +379,53 @@ def test_scan_dead_reference_paths_empty_full_scan(tmp_path):
     assert hits == [] or all("폐기" not in h[3] for h in hits)
 
 
+@pytest.mark.eval
+def test_loose_coupling_observability_contracts_clean():
+    """eval --harness가 스킬 라우팅·WIP 파일명 drift를 주기 관찰한다."""
+    mod = _load_eval_harness()
+    assert mod.observe_loose_coupling_contracts() == []
+
+
+@pytest.mark.eval
+def test_token_diet_observability_reports_repeated_work_candidates():
+    """eval --harness가 반복 스캔·batch 처리 상태를 토큰 다이어트 관점으로 보고한다."""
+    mod = _load_eval_harness()
+    report = mod.observe_token_diet()
+    assert report["eval_cps_docs_rglob_passes"] == 1
+    assert report["docs_ops_wip_glob_passes"] == 1
+    assert report["candidates"] == []
+    assert any("cluster-update" in item for item in report["improvements"])
+
+
+@pytest.mark.eval
+def test_c_reinforcement_observability_detects_missing_c_and_silent_exception(
+    tmp_path, monkeypatch
+):
+    """C 보강 루프는 C 없는 WIP와 조용히 삼키는 except 후보를 드러낸다."""
+    mod = _load_eval_harness()
+    monkeypatch.setattr(mod, "REPO_ROOT", tmp_path)
+
+    wip = tmp_path / "docs" / "WIP" / "decisions--hn_missing_c.md"
+    wip.parent.mkdir(parents=True)
+    wip.write_text(
+        "---\ntitle: missing c\nproblem: P7\ns: [S7]\nstatus: in-progress\n---\n\n"
+        "# Missing C\n",
+        encoding="utf-8",
+    )
+    script = tmp_path / ".claude" / "scripts" / "quiet.py"
+    script.parent.mkdir(parents=True)
+    script.write_text(
+        "try:\n    risky()\nexcept Exception:\n    pass\n",
+        encoding="utf-8",
+    )
+
+    report = mod.observe_c_reinforcement()
+    assert report["c_missing"] == ["docs/WIP/decisions--hn_missing_c.md"]
+    assert report["silent_exceptions"] == [
+        ".claude/scripts/quiet.py:3 | except Exception:"
+    ]
+
+
 # ────────────────────────────────────────────────────────────────────────
 # eval_cps_integrity P10/P11 카운트 회귀 (v0.47.10 §C)
 # ────────────────────────────────────────────────────────────────────────
@@ -429,9 +476,45 @@ def test_solution_problem_map_from_kickoff_table():
 |----|---------|-----------|
 | S7 | P7 | 알림 |
 | S8 | P8 | 자산화 |
+| **S10** | **P10** | 본질 의심 |
 """
-    assert mod.extract_solution_problem_map(cps) == {"S7": "P7", "S8": "P8"}
-    assert mod.extract_cps_solution_ids(cps) == ["S7", "S8"]
+    assert mod.extract_solution_problem_map(cps) == {
+        "S7": "P7",
+        "S8": "P8",
+        "S10": "P10",
+    }
+    assert mod.extract_cps_solution_ids(cps) == ["S7", "S8", "S10"]
+
+
+@pytest.mark.eval
+def test_cps_solution_coupling_detects_orphan_and_dangling():
+    """P#↔S# 결합도는 orphan Problem, unmapped Solution, dangling P#를 분리해 보여야 한다."""
+    mod = _load_eval_cps_integrity()
+    cps = """
+## Problems
+
+| ID | 1줄 요약 |
+|----|---------|
+| P1 | 활성 |
+| **P2** | 장기 |
+
+## Solutions
+
+| ID | 대상 P# | 1줄 메커니즘 |
+|----|---------|-------------|
+| S1 | P1 | 해결 |
+| S2 | P99 | 깨진 매핑 |
+| S3 |  | 미매핑 |
+"""
+    problems = mod.extract_cps_problem_ids(cps)
+    solutions = mod.extract_cps_solution_ids(cps)
+    mapping = mod.extract_solution_problem_map(cps)
+
+    coupling = mod.assess_cps_solution_coupling(problems, solutions, mapping)
+    assert problems == ["P1", "P2"]
+    assert coupling["orphan_problems"] == ["P2"]
+    assert coupling["dangling_solutions"] == ["S2->P99"]
+    assert coupling["unmapped_solutions"] == ["S3"]
 
 
 @pytest.mark.eval
@@ -509,4 +592,46 @@ def test_cps_integrity_unreferenced_problem_with_solution_signal_is_not_strong_d
     out = capsys.readouterr().out
     assert "ℹ primary 인용 0건이나 보조 신호가 있는 Problem: P2" in out
     assert "related S: S2" in out
+    assert "⚠ primary 인용 0건 Problem (정체 의심): P2" not in out
+
+
+@pytest.mark.eval
+def test_cps_integrity_signal_mute_secondary_only_prevents_destructive_warning(
+    tmp_path, monkeypatch, capsys
+):
+    """primary problem 인용을 0으로 mute해도 related S#가 있으면 강한 폐기 문구로 가지 않는다."""
+    mod = _load_eval_cps_integrity()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(mod, "CPS_DOC", "docs/guides/project_kickoff.md")
+
+    (tmp_path / "docs" / "guides").mkdir(parents=True)
+    (tmp_path / "docs" / "decisions").mkdir(parents=True)
+    (tmp_path / "docs" / "guides" / "project_kickoff.md").write_text(
+        """# Kickoff
+
+## Problems
+
+| P1 | 활성 문제 |
+| P2 | 장기 문제 |
+
+## Solutions
+
+| S1 | P1 | 활성 해결 | 기준 |
+| S2 | P2 | 장기 해결 | 기준 |
+""",
+        encoding="utf-8",
+    )
+    (tmp_path / "docs" / "decisions" / "hn_active.md").write_text(
+        "---\ntitle: active\nproblem: P1\ns: [S1]\n---\n\nbody\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "docs" / "decisions" / "hn_secondary_only.md").write_text(
+        "---\ntitle: secondary\ns: [S2]\n---\n\nbody\n",
+        encoding="utf-8",
+    )
+
+    assert mod.main() == 0
+    out = capsys.readouterr().out
+    assert "ℹ primary 인용 0건이나 보조 신호가 있는 Problem: P2" in out
+    assert "solution refs: 1" in out
     assert "⚠ primary 인용 0건 Problem (정체 의심): P2" not in out

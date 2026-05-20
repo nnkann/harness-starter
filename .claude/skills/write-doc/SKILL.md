@@ -3,8 +3,8 @@ name: write-doc
 description: >-
   코드 작업 없이 문서만 단독 생성할 때 사용. 폴더 판단, 프론트매터 검증, WIP 파일명 규칙을 강제한다.
   TRIGGER when: "기록해줘", "문서 만들어", "결정 남겨", "가이드 작성해", "인시던트 정리해",
-  "회고 작성" 등 문서 생성 의도가 있는 요청.
-  SKIP: 코드 구현과 함께 문서가 만들어지는 경우(→ implementation), 기존 문서 수정, 탐색/검색.
+  "회고 작성" 등 문서 자체가 최종 산출물인 요청.
+  SKIP: 코드 구현·감사·리팩토링·테스트 보강을 앞둔 계획 문서, 또는 코드 작업과 함께 문서가 만들어지는 경우(→ implementation), 기존 문서 수정, 탐색/검색.
 serves: S7, S9
 ---
 
@@ -17,9 +17,15 @@ serves: S7, S9
 | 상황 | 담당 |
 |------|------|
 | 코드 부산물 문서 | implementation Step 3 |
+| 코드·테스트 감사/리팩토링/구현을 시작하기 위한 계획 문서 | implementation Step 3 |
 | 문서 자체가 목적 | **write-doc** |
 | 문서 이동 (WIP → 최종) | commit |
 | 문서 탐색 | doc-finder |
+
+사용자 발화가 "먼저 계획 문서부터", "감사 계획", "개선 계획"처럼 문서 생성을
+요청하더라도, 뒤에 코드·테스트·스크립트·룰 변경이 자연스럽게 이어질 작업이면
+write-doc이 아니라 implementation으로 라우팅한다. write-doc은 문서 자체가 완료
+상태의 주 산출물일 때만 쓴다.
 
 ## Step 1. 대상 폴더 + domain·abbr 결정
 
@@ -59,12 +65,12 @@ serves: S7, S9
 
 ## Step 3. WIP 생성
 
-**파일명** (`.claude/rules/naming.md` SSOT): `{abbr}_{slug}.md`
+**파일명** (`.claude/rules/naming.md` SSOT): `{대상폴더}--{abbr}_{slug}.md`
 
+- 대상폴더: completed 이동 대상 폴더 (`decisions`, `guides`, `incidents`, `harness`, `cps`)
 - abbr: Step 1 조회한 약어
 - slug: snake_case, 30자 이내
-- 라우팅 태그 `{폴더}--` 폐기 (§S-4 73% 삭감). frontmatter `domain` + 폴더는
-  commit 스킬이 결정
+- 현재 `docs_ops.py move`가 `{대상폴더}--` 접두사로 이동 대상을 판정한다.
 - **날짜 suffix 전면 금지** — 같은 주제 = 같은 파일 갱신. 사용자 명시 요구도 거부
 
 **frontmatter** (`docs.md` SSOT):

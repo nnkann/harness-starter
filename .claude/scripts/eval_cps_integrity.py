@@ -78,15 +78,63 @@ def extract_cps_solution_ids(cps_text: str) -> list[str]:
     return result
 
 
+def extract_cps_problem_ids(cps_text: str) -> list[str]:
+    """CPS Problems 표에서 P# Problem ID 목록을 순서대로 추출한다."""
+    ids = re.findall(r"^\|\s*\*{0,2}(P\d+)\*{0,2}\s*\|", cps_text, re.MULTILINE)
+    seen: set[str] = set()
+    result = []
+    for pid in ids:
+        if pid not in seen:
+            seen.add(pid)
+            result.append(pid)
+    return result
+
+
 def extract_solution_problem_map(cps_text: str) -> dict[str, str]:
     """CPS Solutions 표에서 S# → P# 매핑을 추출한다.
 
     예: `| S8 | P8 | ... |`
     """
     mapping: dict[str, str] = {}
-    for m in re.finditer(r"^\|\s*(S\d+)\s*\|\s*(P\d+)\s*\|", cps_text, re.MULTILINE):
+    pat = r"^\|\s*\*{0,2}(S\d+)\*{0,2}\s*\|\s*\*{0,2}(P\d+)\*{0,2}\s*\|"
+    for m in re.finditer(pat, cps_text, re.MULTILINE):
         mapping[m.group(1)] = m.group(2)
     return mapping
+
+
+def assess_cps_solution_coupling(
+    problem_ids: list[str],
+    solution_ids: list[str],
+    solution_problem_map: dict[str, str],
+) -> dict[str, list[str] | dict[str, list[str]]]:
+    """P#↔S# 결합 누락·dangling을 판정한다."""
+    problems = set(problem_ids)
+    solutions = set(solution_ids)
+    p_to_s: dict[str, list[str]] = {pid: [] for pid in problem_ids}
+
+    unmapped_solutions = [sid for sid in solution_ids if sid not in solution_problem_map]
+    dangling_solutions = []
+    for sid in solution_ids:
+        pid = solution_problem_map.get(sid)
+        if not pid:
+            continue
+        if pid not in problems:
+            dangling_solutions.append(f"{sid}->{pid}")
+            continue
+        p_to_s.setdefault(pid, []).append(sid)
+
+    orphan_problems = [pid for pid in problem_ids if not p_to_s.get(pid)]
+    unknown_map_entries = [
+        sid for sid in sorted(solution_problem_map)
+        if sid not in solutions
+    ]
+    return {
+        "p_to_s": p_to_s,
+        "orphan_problems": orphan_problems,
+        "unmapped_solutions": unmapped_solutions,
+        "dangling_solutions": dangling_solutions,
+        "unknown_map_entries": unknown_map_entries,
+    }
 
 
 def _frontmatter_list(value) -> list[str]:
@@ -104,27 +152,32 @@ def _frontmatter_list(value) -> list[str]:
     return [str(value).strip()]
 
 
+def accumulate_solution_refs(fm: dict, counts: dict[str, int]) -> None:
+    """frontmatter solution-ref/s 필드의 S# 인용을 counts에 누적한다."""
+    pat = re.compile(r"^S(\d+)\b")
+    sol_refs = _frontmatter_list(fm.get("solution-ref", []))
+    sol_refs.extend(_frontmatter_list(fm.get("s", [])))
+    for ref in sol_refs:
+        m = pat.match(str(ref).strip())
+        if m:
+            sid = f"S{m.group(1)}"
+            counts[sid] = counts.get(sid, 0) + 1
+
+
 def count_solution_refs(docs_root: Path) -> dict[str, int]:
     """docs/ 하위 모든 .md 파일의 frontmatter solution-ref/s에서 S# 카운트.
     parse_frontmatter는 YAML 리스트 항목의 `- ` 마크를 제거해 반환.
     따라서 각 항목은 "S2 — ..." 형식 (앞 하이픈 없음).
     Returns: {S1: 3, S2: 12, ...}
     """
-    pat = re.compile(r"^S(\d+)\b")
     counts: dict[str, int] = {}
-    for md in sorted(docs_root.rglob("*.md")):
+    for md in sorted(docs_root.glob("**/*.md")):
         try:
             text = md.read_text(encoding="utf-8")
         except Exception:
             continue
         fm, _ = parse_frontmatter(text)
-        sol_refs = _frontmatter_list(fm.get("solution-ref", []))
-        sol_refs.extend(_frontmatter_list(fm.get("s", [])))
-        for ref in sol_refs:
-            m = pat.match(str(ref).strip())
-            if m:
-                sid = f"S{m.group(1)}"
-                counts[sid] = counts.get(sid, 0) + 1
+        accumulate_solution_refs(fm, counts)
     return counts
 
 
@@ -187,7 +240,12 @@ def detect_cps_problem_refs(body: str) -> set[str]:
     return refs
 
 
-def scan_doc(path: Path, cps_text: str, problem_refs: dict) -> list[str]:
+def scan_doc(
+    path: Path,
+    cps_text: str,
+    problem_refs: dict,
+    solution_counts: dict[str, int] | None = None,
+) -> list[str]:
     """단일 문서 frontmatter + 본문 검사.
     - solution-ref 박제 grep
     - problem 카운트 누적 (frontmatter + 본문 인용, 문서당 Problem 1회)
@@ -200,6 +258,8 @@ def scan_doc(path: Path, cps_text: str, problem_refs: dict) -> list[str]:
 
     fm, body_start = parse_frontmatter(text)
     body = "\n".join(text.splitlines()[body_start:])
+    if solution_counts is not None:
+        accumulate_solution_refs(fm, solution_counts)
 
     # 문서별 hit set — frontmatter + 본문 합쳐 중복 제거
     doc_refs: set[str] = set()
@@ -246,9 +306,11 @@ def main() -> int:
         print(f"❌ docs/ 디렉토리 없음", file=sys.stderr)
         return 2
 
-    problem_count = count_cps_problems(cps_text)
+    problem_ids = extract_cps_problem_ids(cps_text)
+    problem_count = len(problem_ids) or count_cps_problems(cps_text)
     solution_ids = extract_cps_solution_ids(cps_text)
     solution_problem_map = extract_solution_problem_map(cps_text)
+    coupling = assess_cps_solution_coupling(problem_ids, solution_ids, solution_problem_map)
     problem_to_solutions: dict[str, list[str]] = {}
     for sid, pid in solution_problem_map.items():
         problem_to_solutions.setdefault(pid, []).append(sid)
@@ -258,6 +320,7 @@ def main() -> int:
 
     all_warnings: list[str] = []
     problem_refs: dict = {}  # P# → 인용 문서 수 (진전 신호 proxy)
+    solution_counts: dict[str, int] = {}
     scanned = 0
     for md in sorted(docs_root.rglob("*.md")):
         md_posix = str(md).replace("\\", "/")
@@ -267,9 +330,8 @@ def main() -> int:
         if md_posix.startswith("docs/harness/") or "/docs/harness/" in md_posix:
             continue
         scanned += 1
-        all_warnings.extend(scan_doc(md, cps_text, problem_refs))
+        all_warnings.extend(scan_doc(md, cps_text, problem_refs, solution_counts))
 
-    solution_counts = count_solution_refs(docs_root)
     wip_problem_signals = count_wip_problem_signals(docs_root, problem_to_solutions)
 
     # BIT NEW 플래그 폐기 (§S-3 73% 삭감). BIT 자가 발화 의존 메커니즘
@@ -345,6 +407,25 @@ def main() -> int:
             print(f"")
             print(f"  인용 0건 Solution: {', '.join(zero_solutions)}")
             print(f"  (미충족 의심 — 최근 등록·구현 전·문서화 지연 등 맥락 확인 필요. 사람 판단)")
+
+    print(f"")
+    print(f"### CPS P↔S 결합도")
+    if coupling["orphan_problems"]:
+        print(f"- ⚠ Solution 없는 Problem: {', '.join(coupling['orphan_problems'])}")
+    else:
+        print("- Problem→Solution coverage: 100% ✅")
+    if coupling["unmapped_solutions"]:
+        print(f"- ⚠ 대상 P# 매핑 없는 Solution: {', '.join(coupling['unmapped_solutions'])}")
+    if coupling["dangling_solutions"]:
+        print(f"- ⚠ 존재하지 않는 P#를 가리키는 Solution: {', '.join(coupling['dangling_solutions'])}")
+    if coupling["unknown_map_entries"]:
+        print(f"- ⚠ Solution 목록에 없는 매핑 entry: {', '.join(coupling['unknown_map_entries'])}")
+    if not (
+        coupling["unmapped_solutions"]
+        or coupling["dangling_solutions"]
+        or coupling["unknown_map_entries"]
+    ):
+        print("- Solution→Problem mapping: 100% ✅")
 
     # 피드백 리포트 포맷 검증
     fb_warnings = check_feedback_reports(docs_root)

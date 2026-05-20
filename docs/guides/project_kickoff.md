@@ -52,10 +52,10 @@ AI 코딩 에이전트(Claude Code) 행동을 **빠르게 도와주는** 도구 
 | S3 | P3 | 5중 방어 | 새 버전 릴리즈 시 MIGRATIONS.md에 해당 버전 섹션 존재. 다운스트림 permissions.allow가 upstream과 동기화. downstream-readiness.sh 누락 0건 |
 | S4 | P4 | 단일 hook + 금지 규칙 | `bash -n` 같은 정당 명령 hook 차단 0건. settings.json diff argument-constraint 패턴 추가 시 review 차단 |
 | S5 | P5 | 압축 + 최소화 | 서브에이전트 spawn 컨텍스트 < 500k 토큰. SKILL.md·rules MVR(최소 필수 규칙셋) 적용 |
-| S6 | P6 | 검증 책임 위치 고정 + 증거 구분 | AC `검증.tests`·`검증.실측`이 현재 wave에서 닫힘. 무관 테스트 통과·도구 실종·자동 검증 불가가 완료 증거로 포장되지 않음. SKILL.md·rules 변경 커밋은 필요한 pytest 또는 명시적 실측 기록 존재 |
-| S7 | P7 | wiki 그래프 + 소유권·출력 계약 명시 | cluster/tag/relates-to 정합. `defends:`·`serves:`가 유효 P/S를 가리킴. upstream/downstream·owner 승인권·hook/stdout/status 출력 의미가 문서나 규칙에 드러남 |
+| S6 | P6 | 검증 책임 위치 고정 + 증거 구분 | AC `검증.tests`·`검증.실측`이 현재 wave에서 닫힘. 무관 테스트 통과·도구 실종·자동 검증 불가·silent exception이 완료 증거로 포장되지 않음. SKILL.md·rules 변경 커밋은 필요한 타깃 테스트 또는 명시적 실측 기록 존재 |
+| S7 | P7 | wiki 그래프 + 소유권·출력 계약 명시 | cluster/tag/relates-to 정합. `defends:`·`serves:`가 유효 P/S를 가리킴. upstream/downstream·owner 승인권·hook/stdout/status·skip/warn/pass 출력 의미와 silent exception 처리 의미가 문서나 규칙에 드러남 |
 | S8 | P8 | 강제 트리거 우선 + reminder 상태화 | 자가 발화·memory·reminder 의존 신호가 WIP, signal_*, hook 출력, pre-check 중 하나의 상태로 남음. "나중에" 항목은 owner·조건·재호출 지점 없이 사라지지 않음 |
-| S9 | P9 | 주관 격리 + 다층 검증 + 회귀 가드 기본값 | 라벨·count·PASS·자가 선언·오래된 memory가 단독 증거로 쓰이지 않음. P9가 primary면 회귀 테스트 또는 재오염 방지 실측이 AC에 존재. frontmatter `problem`·`s` ↔ CPS 번호 매칭 100%. AC 체크박스 형식 강제. 매칭 누락 시 commit 차단 |
+| S9 | P9 | 주관 격리 + 다층 검증 + 회귀 가드 기본값 | 라벨·count·PASS·skip·자가 선언·오래된 memory·삼킨 예외가 단독 증거로 쓰이지 않음. P9가 primary면 회귀 테스트 또는 재오염 방지 실측이 AC에 존재. frontmatter `problem`·`s` ↔ CPS 번호 매칭 100%. AC 체크박스 형식 강제. 매칭 누락 시 commit 차단 |
 | **S10** | **P10** | **본질 의심 — 면밀 비교 + 정련 후보 누적** | **박는 조건 (엄격)**: P1~P9 각각 검토 후 어디에도 명확히 안 맞을 때만. "잘 모르겠음·귀찮음·빠르게 넘기고 싶음"은 부적합. wave 안에서 **의심 근거 1줄 박제 의무** (단순 "안 맞음" 금지) + 가장 가까운 P#·S# 후보 1개 동반 선택. 다음 wave가 패턴 누적 보면 P10 재분류 또는 새 P# 분리. **혼용 시 본질 신호 희석 — 신중 사용** |
 | S11 | P11 | 동형 후보 위치 자동 탐색 + 단일 wave 통합 처리 + 코드 SSOT 단일 진입점 강제 | 1차 발견 시 같은 구조의 후보 위치 탐색 의무. **본 wave 영역 안 발견 항목은 본 wave에서 처리 — sub-task 별 WIP 분리 금지** (v0.51.4 P12 흡수). 같은 로직 3곳 이상 → core 모듈 추출. `.claude/rules/code-ssot.md` 규칙 |
 

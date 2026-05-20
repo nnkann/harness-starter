@@ -49,8 +49,8 @@ serves: S6, S9
 
 **`git mv` 직접 금지** — 역참조 dead link 누락.
 
-**파일명 이동 규칙** (naming.md SSOT): `{abbr}_{slug}.md`. 라우팅 태그 폐기.
-폴더는 frontmatter `domain` + abbr로 자동 결정.
+**파일명 이동 규칙** (naming.md SSOT): `{대상폴더}--{abbr}_{slug}.md`.
+`docs_ops.py move`가 `{대상폴더}--` 접두사로 completed 이동 대상 폴더를 판정한다.
 
 **차단 조건**: `.claude/rules/docs.md` "## completed 전환 차단" SSOT. 키워드
 hit 시 [c] 차단 → [p] 분리 권장.

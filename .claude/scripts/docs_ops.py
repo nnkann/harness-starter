@@ -729,8 +729,9 @@ def cmd_wip_sync(staged_files: list[str]) -> int:
 
     # abbr → 해당 abbr을 가진 WIP 파일 목록 (복수 오탐 방지용)
     abbr_to_wips: dict[str, list[Path]] = {}
+    all_wips = sorted(wip_dir.glob("*.md"))
     if staged_abbrs:
-        for wip in sorted(wip_dir.glob("*.md")):
+        for wip in all_wips:
             wip_abbr = detect_abbr(wip, abbrs)
             if wip_abbr and wip_abbr in staged_abbrs:
                 abbr_to_wips.setdefault(wip_abbr, []).append(wip)
@@ -756,7 +757,8 @@ def cmd_wip_sync(staged_files: list[str]) -> int:
     if abbr_to_wips:
         candidate_wips = sorted({w for wips in abbr_to_wips.values() for w in wips})
     else:
-        candidate_wips = sorted(wip_dir.glob("*.md"))
+        candidate_wips = all_wips
+    needs_cluster_update = False
 
     for wip in candidate_wips:
         text = wip.read_text(encoding="utf-8")
@@ -918,11 +920,14 @@ def cmd_wip_sync(staged_files: list[str]) -> int:
         )
         if r.returncode == 0:
             moved_wips += 1
-            subprocess.run([sys.executable, __file__, "cluster-update"],
-                           capture_output=True)
+            needs_cluster_update = True
         else:
             print(f"⚠️  자동 이동 실패 — 수동 처리 필요: {wip}", file=sys.stderr)
             print(r.stderr, file=sys.stderr, end="")
+
+    if needs_cluster_update:
+        subprocess.run([sys.executable, __file__, "cluster-update"],
+                       capture_output=True)
 
     print(f"wip_sync_matched: {matched_wips}")
     print(f"wip_sync_moved: {moved_wips}")

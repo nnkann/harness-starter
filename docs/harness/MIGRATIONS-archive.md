@@ -43,6 +43,24 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.51.3 — .claude/ 잔재 정리 + skills/agents serves: 다중 매핑 (2026-05-18)
+
+P11/P12 자기 적용. codebase-analyst + codex + gemini 3개 의견 종합.
+
+### 자동 적용
+- skills 13개 + agents 9개 frontmatter `serves: S#` 다중 매핑 정착 (advisor S5→S1,S8 등)
+- `.claude/memory/MEMORY.md` 인덱스 6개 누락 등록 + signal_* 섹션 분리
+- `.claude/rules/memory.md` "누적 감사 로그" 섹션 신설 + stop_hook_audit.log 박제
+- 별 wave 후보 4건 WIP 분리 (P12 위반 회피 — guard 점검·보안 P# 신설·signal 스키마·Solutions dead link)
+
+### 수동 확인
+- 다운스트림 영향: skills/agents serves: 메타데이터만 갱신. 행동 동작 변경 없음. 다운스트림 cascade 시 frontmatter 동기화
+
+### 회귀 위험
+- 낮음. 메타데이터 정합성 영역. signal_defense_success.md는 본 wave에서 의미 직교 확인 후 유지
+
+
+
 ## v0.51.2 — CPS P# 신설 cp_{slug}.md 박제 누락 차단 + cps_add 표 갱신 (2026-05-18)
 
 P12 박제 wave에서 노출된 동형 박제 위치 분산 결함 (P11 직격) 차단.

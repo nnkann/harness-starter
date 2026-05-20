@@ -1362,23 +1362,48 @@ class TestVerifyRelatesPrecheck:
     def test_claude_rule_broken_ref_warn_only_downstream(self, integ_repo):
         """T45.5: 다운스트림은 .claude/rules broken references를 warn-only 처리"""
         repo = integ_repo
-        _set_is_starter(repo, False)
-        _write(repo / ".claude/rules/hn_t45e_broken_rule.md",
-               "---\ntitle: broken rule downstream\ndomain: harness\nrelates-to:\n"
-               "  - path: rules/hn_t45e_missing.md\n    rel: references\n"
-               "status: completed\ncreated: 2026-05-17\n---\n")
-        _git(["add", ".claude/HARNESS.json", ".claude/rules/hn_t45e_broken_rule.md"], repo)
-        _commit(repo, "prep T45.5 downstream broken rule ref")
-        _write(repo / "docs/t45e_other/hn_t45e_unrelated.md",
-               "---\ntitle: unrelated\ndomain: harness\nstatus: in-progress\ncreated: 2026-05-17\n---\n")
-        _git(["add", "docs/t45e_other/hn_t45e_unrelated.md"], repo)
-        out = _run_precheck(repo)
-        assert out.get("pre_check_passed") == "true"
-        _set_is_starter(repo, True)
-        _git(["rm", "-q", ".claude/rules/hn_t45e_broken_rule.md"], repo)
-        _git(["add", ".claude/HARNESS.json"], repo)
-        _commit(repo, "cleanup T45.5 downstream broken rule ref")
-        _reset(repo)
+        try:
+            _set_is_starter(repo, False)
+            _write(repo / ".claude/rules/hn_t45e_broken_rule.md",
+                   "---\ntitle: broken rule downstream\ndomain: harness\nrelates-to:\n"
+                   "  - path: rules/hn_t45e_missing.md\n    rel: references\n"
+                   "status: completed\ncreated: 2026-05-17\n---\n")
+            _git(["add", ".claude/HARNESS.json", ".claude/rules/hn_t45e_broken_rule.md"], repo)
+            _commit(repo, "prep T45.5 downstream broken rule ref")
+            _write(repo / "docs/t45e_other/hn_t45e_unrelated.md",
+                   "---\ntitle: unrelated\ndomain: harness\nstatus: in-progress\ncreated: 2026-05-17\n---\n")
+            _git(["add", "docs/t45e_other/hn_t45e_unrelated.md"], repo)
+            out = _run_precheck(repo)
+            assert out.get("pre_check_passed") == "true"
+        finally:
+            _set_is_starter(repo, True)
+            _git(["rm", "-q", ".claude/rules/hn_t45e_broken_rule.md"], repo)
+            _git(["add", ".claude/HARNESS.json"], repo)
+            _commit(repo, "cleanup T45.5 downstream broken rule ref")
+            _reset(repo)
+
+    def test_docs_broken_ref_warn_only_downstream(self, integ_repo):
+        """T45.7: 다운스트림은 docs/ broken relates-to도 전수 검사 warn-only로 둔다."""
+        repo = integ_repo
+        try:
+            _set_is_starter(repo, False)
+            _write(repo / "docs/t45g_src/hn_t45g_broken.md",
+                   "---\ntitle: broken docs downstream\ndomain: harness\nrelates-to:\n"
+                   "  - path: ../t45g_nowhere/hn_ghost.md\n    rel: references\n"
+                   "status: completed\ncreated: 2026-05-20\n---\n")
+            _git(["add", ".claude/HARNESS.json", "docs/t45g_src/hn_t45g_broken.md"], repo)
+            _commit(repo, "prep T45.7 downstream docs broken ref")
+            _write(repo / "docs/t45g_other/hn_t45g_unrelated.md",
+                   "---\ntitle: unrelated\ndomain: harness\nstatus: in-progress\ncreated: 2026-05-20\n---\n")
+            _git(["add", "docs/t45g_other/hn_t45g_unrelated.md"], repo)
+            out = _run_precheck(repo)
+            assert out.get("pre_check_passed") == "true"
+        finally:
+            _set_is_starter(repo, True)
+            _git(["rm", "-q", "docs/t45g_src/hn_t45g_broken.md"], repo)
+            _git(["add", ".claude/HARNESS.json"], repo)
+            _commit(repo, "cleanup T45.7 downstream docs broken ref")
+            _reset(repo)
 
     def test_no_frontmatter_outside_docs_skips(self, integ_repo):
         """T45.6: frontmatter 없는 .claude 파일은 relates-to 본문이 있어도 skip"""
