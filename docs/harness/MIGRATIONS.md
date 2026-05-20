@@ -4,7 +4,7 @@ domain: harness
 tags: [migration, upgrade, downstream]
 status: completed
 created: 2026-04-19
-updated: 2026-04-28
+updated: 2026-05-21
 ---
 
 # 다운스트림 마이그레이션 가이드
