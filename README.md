@@ -49,8 +49,9 @@ AGENTS.md                        Codex 루트 인스트럭션
 .claude/
 ├── settings.json                hook source mirror (단일 bash-guard.sh로 통합)
 ├── HARNESS.json                 하네스 메타 (버전, 프로파일, is_starter, installed_from_ref)
-├── rules/                       자동 로드 규칙 (9개)
+├── rules/                       자동 로드 규칙 (10개)
 │   ├── self-verify.md           [상시] 작업 중 자기 검증 (AC 트리거 매트릭스)
+│   ├── code-ssot.md             [상시] 코드 심볼 SSOT drift 방지
 │   ├── coding.md                [상시] 코딩 컨벤션 (Surgical Changes)
 │   ├── naming.md                [paths] 네이밍 + 도메인 등급 + cluster 자동 매핑
 │   ├── docs.md                  [상시] 문서 구조 + 프론트매터 + 탐색 규칙 + completed 차단 키워드
@@ -81,10 +82,18 @@ AGENTS.md                        Codex 루트 인스트럭션
 │   ├── performance-analyst.md   성능·N+1·동시성 (sonnet)
 │   ├── threat-analyst.md        외부 위협 분석 (public repo·번들·RLS bypass, sonnet)
 │   └── review.md                커밋 전 diff 단위 검증 (2축 + 회귀 알파 + 조기 중단, sonnet)
-└── scripts/                     hook 스크립트 + 회귀 테스트 (15개)
-    ├── session-start.sh         SessionStart hook
-    ├── stop-guard.sh            Stop hook
-    ├── post-compact-guard.sh    PostCompact hook
+├── memory/                      프로젝트 memory (자동 주입 아님, session-start가 제한 노출)
+│   ├── MEMORY.md                memory index
+│   ├── reminders/               active reminder routing signal
+│   │   └── reminder_*.md        반복 패턴·후속 판단 회상 후보
+│   ├── feedback_*.md            다운스트림/운영 피드백
+│   ├── project_eval_last.md     최근 eval 관찰 기록
+│   ├── stop_hook_audit.log      Stop hook 감사 로그
+│   └── session-*.txt            세션 snapshot (gitignore)
+└── scripts/                     hook 스크립트 + 회귀 테스트
+    ├── session-start.py         SessionStart hook
+    ├── stop-guard.py            Stop hook
+    ├── post-compact-guard.py    PostCompact hook
     ├── auto-format.sh           PostToolUse 포매터
     ├── write-guard.sh           Write 가드
     ├── bash-guard.sh            Bash 단일 hook (jq 토큰 파싱 + git commit 직접 호출 차단)
@@ -96,8 +105,11 @@ AGENTS.md                        Codex 루트 인스트럭션
     ├── task_groups.py           staged 파일을 WIP task × abbr × kind로 그룹화 (분리 판정)
     ├── split-commit.sh          커밋 분리 실행 (task_groups.py 기반)
     ├── install-starter-hooks.sh starter 전용 pre-commit hook 설치 (버전 범프 체크 포함)
-    ├── test_pre_commit.py       회귀 테스트 (51 케이스, pytest — 단위+통합)
-    └── test-bash-guard.sh       회귀 테스트 (18 케이스, 강제 경유 G1~G5 포함)
+    ├── tests/                   pytest 회귀 테스트
+    │   ├── test_pre_commit.py
+    │   ├── test_eval_harness.py
+    │   └── test_session_start.py
+    └── test-bash-guard.sh       Bash hook 회귀 테스트
 scripts/                         유틸 스크립트 (하네스 외부)
 └── install-secret-scan-hook.sh  pre-commit 시크릿 스캔 훅 설치 (gitleaks 우선, grep 폴백)
 docs/
@@ -164,7 +176,7 @@ docs/
   /harness-upgrade       스테이징된 파일을 대화형 병합.
 
 업그레이드 후 검증:
-  pytest .claude/scripts/test_pre_commit.py  # 51/51 기대
+  pytest .claude/scripts/tests/test_pre_commit.py
   bash .claude/scripts/test-bash-guard.sh   # 18/18 기대
   bash .claude/scripts/downstream-readiness.sh  # 0 누락 기대
 ```
