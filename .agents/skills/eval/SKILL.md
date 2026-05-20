@@ -91,7 +91,7 @@ python3 .claude/scripts/eval_harness.py
 **5. CPS 무결성** — `eval_cps_integrity.py` 위임. Problem 인용 빈도·인플레이션·
 Solution 충족 인용 분포.
 
-**6. 방어 활성 기록** — `.claude/memory/signal_defense_success.md` 최근 3개.
+**6. 방어 활성 기록** — `.claude/memory/reminders/reminder_defense_success.md` 최근 3개.
 
 **7. 피드백 리포트** — 다운스트림 `migration-log.md` `## Feedback Reports`
 4필드(관점·약점·실천·심각도) 검증.

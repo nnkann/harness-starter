@@ -59,6 +59,12 @@ dispatcher 변경 후에는 `python -m pytest .claude/scripts/tests/test_safe_co
 wave별 case는 `docs/cps/cp_{slug}.md`로 박제. git history가 박제 SSOT.
 빠른 조회: `python .claude/scripts/docs_ops.py cps list/cases/show/stats`.
 
+## Reminder
+
+작업 중 사용자가 "리마인더로 남기자"라고 하면 관련 WIP 흡수 가능성을 먼저 본다.
+반복 회상 신호가 필요할 때만 `.claude/memory/reminders/reminder_*.md`에 규격대로
+얇게 남긴다. `docs/`는 SSOT 자리이므로 active reminder를 새 폴더로 만들지 않는다.
+
 ## 진입점
 
 | 상황 | 진입 |

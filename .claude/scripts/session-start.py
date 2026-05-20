@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 세션 시작 시 프로젝트 상태를 실제로 확인한다.
-session-start.sh의 Python 재작성 — bash spawn 비용 제거.
+기존 shell hook을 Python hook으로 전환 — bash spawn 비용 제거.
 """
 
 import os

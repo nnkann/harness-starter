@@ -43,6 +43,27 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.51.9 — 버전 범프 스테이징 계약 보강 (2026-05-20)
+
+`harness_version_bump.py`가 staged 변경이 없을 때 `none`만 출력해 실제 patch/minor
+필요성을 숨기던 흐름을 보강했다. 지원하지 않는 CLI 인자도 기본 체크로 조용히
+폴백하지 않고 usage와 함께 실패한다.
+
+### 자동 적용
+- `.claude/scripts/harness_version_bump.py`: staged 변경이 없더라도 unstaged/untracked 핵심 변경이 있으면 `stage_required: true`와 `pending_bump`를 출력
+- `.claude/scripts/harness_version_bump.py`: `--archive`, `--help` 외 unsupported arg는 exit 2로 실패
+- `.claude/skills/commit`, `.claude/skills/harness-dev`: 버전 범프 스크립트가 제안/검사 도구이며 HARNESS.json은 직접 갱신해야 한다는 계약 명시
+- `.claude/scripts/tests/test_harness_version_bump.py`: stage-required, staged patch, untracked minor, unsupported arg 회귀 테스트 추가
+
+### 수동 확인
+- 다운스트림에서 harness-starter 변경을 만들고 `harness_version_bump.py`를 stage 전 실행하면 `stage_required: true`가 보이는지 확인
+- unsupported arg를 쓰던 로컬 alias가 있다면 `--archive` 또는 기본 실행으로 정리
+
+### 회귀 위험
+- 낮음. 버전 제안 출력과 CLI 실패 계약만 바뀐다. 기존 `version_bump: patch|minor|none` staged 계약은 유지된다
+
+
+
 ## v0.51.8 — 느슨한 결합 관측 + CPS 결합도 + 검증 다이어트 (2026-05-20)
 
 관측 지표가 단일 신호로 오판하거나, 오류가 skip/warn/pass 뒤에 묻히는 문제를

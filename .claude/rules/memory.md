@@ -269,7 +269,7 @@ snapshot은 commit마다 정리되지만 감사 로그는 **세션 횡단 누적
 
 - 세션 시작: `MEMORY.md` 자동 로드
 - 사용자 "기억해" 명시: 즉시 저장
-- 세션 종료 직전: `stop-guard.sh`가 1줄 환기
+- 세션 종료 직전: `stop-guard.py`가 1줄 환기
 
 memory와 현재 코드 충돌 시 현재 코드 신뢰, memory 업데이트.
 memory가 현재 코드·git log·docs와 충돌하면 memory는 stale이다. stale 신호는

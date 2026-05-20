@@ -172,9 +172,9 @@ Step 2부터 순서대로 진행합니다.
 ## settings.json 병합 계획
 
 추가될 hooks:
-  + SessionStart: session-start.sh
-  + Stop: stop-guard.sh
-  + PostCompact: post-compact-guard.sh
+  + SessionStart: session-start.py
+  + Stop: stop-guard.py
+  + PostCompact: post-compact-guard.py
   + PostToolUse(Write|Edit): auto-format.sh
   + PreToolUse(git commit --no-verify): 차단 hook
   + PreToolUse(git commit): pre_commit_check.py + 테스트 커버리지 에이전트

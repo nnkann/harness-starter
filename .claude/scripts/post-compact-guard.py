@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """PostCompact hook — 컴팩션 후 컨텍스트 재주입.
 
-post-compact-guard.sh의 Python 재작성 (자기증식 차단 + sed/grep/awk 혼재
+기존 PostCompact shell hook의 Python 전환 (자기증식 차단 + sed/grep/awk 혼재
 제거 + wip_util.py SSOT 사용). 6개 동작 절 1:1 포팅:
 
 1. 컴팩션 카운터 증가 (.claude/.compact_count)

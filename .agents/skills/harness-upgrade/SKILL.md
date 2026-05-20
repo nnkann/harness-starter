@@ -345,7 +345,7 @@ MSYS_NO_PATHCONV=1 git show <upstream_ref>:<파일경로> > <파일경로>
 ```
 📦 자동 덮어쓰기 (스크립트/인프라)
 
-  .claude/scripts/session-start.sh
+  .claude/scripts/session-start.py
   .claude/scripts/pre_commit_check.py
   h-setup.sh
 

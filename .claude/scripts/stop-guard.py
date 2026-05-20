@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Stop hook — 에이전트 응답 완료 시 실행. 미커밋 변경/WIP 상태 경고.
 
-stop-guard.sh의 Python 재작성 (자기증식 차단 + Git Bash 호환 자동 + 자매
+기존 Stop shell hook의 Python 전환 (자기증식 차단 + Git Bash 호환 자동 + 자매
 hook session-start.py와 일관성). 4개 동작 절 1:1 포팅:
 
 1. 미커밋 변경 카운트 (git status --porcelain)

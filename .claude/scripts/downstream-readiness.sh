@@ -93,7 +93,7 @@ if [ ! -f ".claude/settings.json" ]; then
   add_warning "settings.json 없음"
 else
   # 핵심 hook 존재 확인
-  for matcher in 'session-start.sh' 'bash-guard.sh'; do
+  for matcher in 'session-start.py' 'bash-guard.sh'; do
     if ! grep -q "$matcher" .claude/settings.json; then
       add_warning "settings.json: '$matcher' 관련 hook 누락 가능"
     fi
@@ -137,7 +137,7 @@ fi
 if [ ! -f ".claude/scripts/pre_commit_check.py" ]; then
   add_issue "pre_commit_check.py 없음"
 else
-  for key in 'signals:' 'recommended_stage:' 's1_level:'; do
+  for key in 'pre_check_passed:' 'recommended_stage:' 's1_level:'; do
     if ! grep -q "\"$key" .claude/scripts/pre_commit_check.py; then
       add_warning "pre_commit_check.py: '$key' stdout 누락 — 구버전 가능성"
     fi
@@ -150,7 +150,7 @@ fi
 if [ ! -f ".claude/agents/review.md" ]; then
   add_issue "review.md 없음"
 else
-  for category in '전제 컨텍스트' '오염 검토' '허위 후속 감지'; do
+  for category in '전제 컨텍스트' '오염 검토' 'implementation 스킬 우회 감지'; do
     if ! grep -q "$category" .claude/agents/review.md; then
       add_warning "review.md: '$category' 카테고리 누락 — 구버전 가능성"
     fi
