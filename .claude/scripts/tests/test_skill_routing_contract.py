@@ -46,3 +46,18 @@ def test_wip_filename_contract_matches_docs_ops_move_prefix_requirement():
     for text in (implementation, write_doc, commit):
         assert "{대상폴더}--{abbr}_{slug}.md" in text
         assert "라우팅 태그 폐기" not in text
+
+
+@pytest.mark.routing
+def test_commit_push_contract_uses_noninteractive_shell_specific_commands():
+    """push 단계가 Windows Codex에서 bash 래핑 대기로 빠지지 않게 고정한다."""
+    claude_commit = _read(".claude/skills/commit/SKILL.md")
+    agents_commit = _read(".agents/skills/commit/SKILL.md")
+
+    for text in (claude_commit, agents_commit):
+        assert "$env:GIT_TERMINAL_PROMPT='0'" in text
+        assert "$env:GCM_INTERACTIVE='never'" in text
+        assert "git push --porcelain origin main" in text
+        assert "GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never HARNESS_DEV=1 git push --porcelain origin main" in text
+        assert "bash -lc 'HARNESS_DEV=1 git push" in text
+        assert "HARNESS_DEV=1 git push origin main" not in text

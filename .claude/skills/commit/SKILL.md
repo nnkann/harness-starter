@@ -193,15 +193,28 @@ downstream: <harness-upgrade 시 주의 1줄>
 
 ## Step 8. push
 
-`.claude/HARNESS.json`의 `is_starter`로 분기:
+`.claude/HARNESS.json`의 `is_starter`로 분기한다.
 
+**Codex Windows/PowerShell 기본값**:
+```powershell
+$env:GIT_TERMINAL_PROMPT='0'
+$env:GCM_INTERACTIVE='never'
+if ($IS_STARTER -eq 'true') { $env:HARNESS_DEV='1' }
+git push --porcelain origin main
+```
+
+**macOS/Linux Bash**:
 ```bash
 if [ "$IS_STARTER" = "true" ]; then
-  HARNESS_DEV=1 git push origin main
+  GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never HARNESS_DEV=1 git push --porcelain origin main
 else
-  git push origin main
+  GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never git push --porcelain origin main
 fi
 ```
+
+**금지**: Codex Windows에서 `bash -lc 'HARNESS_DEV=1 git push ...'` 형태로
+push를 감싸지 않는다. Git for Windows + GCM 조합에서 하위 git 프로세스가
+대기 상태로 남아 타임아웃될 수 있다. PowerShell env 방식으로 실행한다.
 
 **session snapshot 정리**: `commit_finalize.sh`가 `git commit` 성공 시 자동
 처리 (v0.47.7 — wrapper 흡수). LLM 책임 없음.

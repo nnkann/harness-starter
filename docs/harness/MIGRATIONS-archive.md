@@ -43,6 +43,33 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.51.5 — CPS P# 정련 + memory/reminder 회귀 계약 보강 (2026-05-19)
+
+P12~P15 대량 신설안을 폐기하고, 신규 P# 0개 원칙으로 기존 P6/P7/P8/P9/P11의
+경계를 보강했다. 특히 memory count·stale signal·PASS 라벨이 판단 baseline을
+오염시키는 P9 사례와, reminder/incident가 작업 시점에 환기되지 않는 P8 사례를
+C-P-S-AC 연결 계약으로 정리했다.
+
+### 자동 적용
+- `project_kickoff.md`: P6/P7/P8/P9/P11 Problems 표와 S6/S7/S8/S9/S11 해결 기준 보강. S9는 P9 primary 작업의 회귀 가드 기본값을 명시
+- `.claude/rules/docs.md`: WIP frontmatter `c:` 권장, CPS Rationale 형식, AC `review/tests/실측` 4필드 명시
+- `.claude/rules/memory.md`: memory를 판단 원자료가 아닌 reminder 신호로 재정의. 회귀 signal 사용 계약(환기→재확인→검증 선택) 추가
+- `.claude/rules/self-verify.md`: 닫히지 않는 AC, `tests: 없음`, PASS/WARN/SKIP 단독 증거 금지와 P9 회귀 가드 기본값 보강
+- `.claude/rules/hooks.md`: hook stdout/stderr 출력 의미 계약 추가
+- `.claude/rules/code-ssot.md`: 새 PR/WIP 분리 원칙과 C-P-S-AC 기준 분리 정당 조건 보강
+- `session-start.py`·`stop-guard.py`: memory count 단독 출력과 상시 reminder 노이즈 축소
+- `docs_ops.py`: `cps--` WIP를 `docs/cps/`로 completed 이동할 수 있게 보강. 회귀 테스트 1건 추가
+
+### 수동 확인
+- 다운스트림은 기존 P12~P15 신설안이 있다면 폐기하고 P6/P7/P8/P9/P11 조합으로 재분류
+- P9 primary 작업은 회귀 테스트 또는 재오염 방지 실측을 AC에 남기는지 확인
+- pytest 효율과 회귀 라우팅 재정렬은 별도 WIP로 분리됨
+
+### 회귀 위험
+- 중간. 문서 계약과 hook 출력 의미가 함께 바뀐다. memory/reminder 출력은 판단 근거가 아니라 환기 신호로 읽어야 한다
+
+
+
 ## v0.51.4 — P12·S12 폐기 + P11에 흡수 (2026-05-18)
 
 P12 박제 직후 LLM이 정확히 P12 패턴 위반 실측 (별 WIP 4개 자기 분리).
