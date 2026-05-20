@@ -63,31 +63,50 @@ def verify_solution_ref(sol_refs, cps_text: str) -> list[str]:
     return warnings
 
 
+def _dedupe_ordered(ids: list[str]) -> list[str]:
+    """순서를 유지하며 중복 ID를 제거한다."""
+    seen: set[str] = set()
+    result: list[str] = []
+    for item in ids:
+        if item not in seen:
+            seen.add(item)
+            result.append(item)
+    return result
+
+
+def _extract_ordered_ids(cps_text: str, patterns: list[str]) -> list[str]:
+    """여러 패턴에서 찾은 ID를 원문 등장 순서대로 정렬해 반환한다."""
+    matches: list[tuple[int, str]] = []
+    for pat in patterns:
+        for m in re.finditer(pat, cps_text, re.MULTILINE):
+            matches.append((m.start(), m.group(1)))
+    return _dedupe_ordered([item for _, item in sorted(matches, key=lambda x: x[0])])
+
+
 def extract_cps_solution_ids(cps_text: str) -> list[str]:
     """CPS 본문에서 S# Solution ID 목록을 순서대로 추출.
     "### S1 ..." 헤더 패턴 및 "**S1**" 굵은 글씨 패턴 모두 지원.
     """
-    ids = re.findall(r"(?:###\s+|\*\*|\|\s*)(S\d+)\b", cps_text)
-    # 순서 유지 + 중복 제거
-    seen: set[str] = set()
-    result = []
-    for sid in ids:
-        if sid not in seen:
-            seen.add(sid)
-            result.append(sid)
-    return result
+    patterns = [
+        r"^\|\s*\*{0,2}(S\d+)\*{0,2}\s*\|",
+        r"^#{2,6}\s+\*{0,2}(S\d+)\*{0,2}(?:\b|[.\s:—-])",
+        r"^\s*[-*]?\s*\*{2}(S\d+)\b",
+    ]
+    return _extract_ordered_ids(cps_text, patterns)
 
 
 def extract_cps_problem_ids(cps_text: str) -> list[str]:
-    """CPS Problems 표에서 P# Problem ID 목록을 순서대로 추출한다."""
-    ids = re.findall(r"^\|\s*\*{0,2}(P\d+)\*{0,2}\s*\|", cps_text, re.MULTILINE)
-    seen: set[str] = set()
-    result = []
-    for pid in ids:
-        if pid not in seen:
-            seen.add(pid)
-            result.append(pid)
-    return result
+    """CPS Problems에서 P# Problem ID 목록을 순서대로 추출한다.
+
+    표 형식과 헤더/굵은 글씨 형식을 모두 지원한다:
+    `| P1 | ... |`, `### P5. ...`, `**P1 — ...**`.
+    """
+    patterns = [
+        r"^\|\s*\*{0,2}(P\d+)\*{0,2}\s*\|",
+        r"^#{2,6}\s+\*{0,2}(P\d+)\*{0,2}(?:\b|[.\s:—-])",
+        r"^\s*[-*]?\s*\*{2}(P\d+)\b",
+    ]
+    return _extract_ordered_ids(cps_text, patterns)
 
 
 def extract_solution_problem_map(cps_text: str) -> dict[str, str]:
@@ -100,7 +119,7 @@ def extract_solution_problem_map(cps_text: str) -> dict[str, str]:
     for m in re.finditer(table_pat, cps_text, re.MULTILINE):
         mapping[m.group(1)] = m.group(2)
 
-    header_pat = r"^###\s+\*{0,2}(S\d+)\*{0,2}\s+\(for\s+\*{0,2}(P\d+)\*{0,2}\)"
+    header_pat = r"^#{2,6}\s+\*{0,2}(S\d+)\*{0,2}(?:\b|[.\s:—-]).*?\b(?:for|대상|Problem|P#)?\s*\*{0,2}(P\d+)\*{0,2}\b"
     for m in re.finditer(header_pat, cps_text, re.MULTILINE | re.IGNORECASE):
         mapping.setdefault(m.group(1), m.group(2))
     return mapping

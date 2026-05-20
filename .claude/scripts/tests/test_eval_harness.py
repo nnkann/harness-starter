@@ -770,6 +770,42 @@ def test_solution_problem_map_from_solution_headers():
 
 
 @pytest.mark.eval
+def test_cps_problem_ids_from_header_and_bold_formats():
+    """헤더형/굵은 글씨형 Problems도 P# 목록으로 추출해야 한다."""
+    mod = _load_eval_cps_integrity()
+    cps = """
+## Problems
+
+**P1 — 정보 파편화**
+
+### P5. MCP·플러그인 컨텍스트 팽창
+
+#### **P8** — reminder 의존 실패
+"""
+    assert mod.extract_cps_problem_ids(cps) == ["P1", "P5", "P8"]
+
+
+@pytest.mark.eval
+def test_solution_problem_map_from_dotted_solution_header():
+    """`### S7. ... P8` 같은 헤더형 매핑을 추출해야 한다."""
+    mod = _load_eval_cps_integrity()
+    cps = """
+## Solutions
+
+### S7. 후행 자산화 (P8)
+본문.
+
+### **S8** — 자동 트리거 대상 **P8**
+본문.
+"""
+    assert mod.extract_cps_solution_ids(cps) == ["S7", "S8"]
+    assert mod.extract_solution_problem_map(cps) == {
+        "S7": "P8",
+        "S8": "P8",
+    }
+
+
+@pytest.mark.eval
 def test_cps_solution_coupling_detects_orphan_and_dangling():
     """P#↔S# 결합도는 orphan Problem, unmapped Solution, dangling P#를 분리해 보여야 한다."""
     mod = _load_eval_cps_integrity()

@@ -43,6 +43,29 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.52.1 — eval false positive + 버전 범프 opt-in 복구 (2026-05-20)
+
+`eval --harness` false positive 수정이 버전 범프 없이 push되며 다운스트림
+upgrade 경로에서 사라질 수 있던 문제를 복구했다. scripts 수정은 기본적으로
+자동 patch를 강제하지 않되, 다운스트림에 전파되어야 하는 버그 수정이면
+`HARNESS_BUMP=patch`로 명시 patch를 제안하도록 계약을 코드와 commit Step 4에
+반영했다.
+
+### 자동 적용
+- `.claude/scripts/eval_cps_integrity.py`: 헤더형 `### S# (for P#)` Solution 매핑 파싱 지원
+- `.claude/scripts/eval_harness.py`: 자기 진단 스크립트를 silent exception 사용자 조치 후보에서 제외
+- `.claude/scripts/harness_version_bump.py`: `HARNESS_BUMP=patch|minor` 명시 범프 제안 지원
+- `.claude/skills/commit`, `.agents/skills/commit`: scripts 수정이 다운스트림 동작에 영향 있으면 `HARNESS_BUMP=patch`로 Step 4를 재실행하도록 명시
+
+### 수동 확인
+- 다운스트림에서 `/eval --harness`를 실행해 CPS P↔S 결합도 false positive와 eval 자기 진단 스크립트 경고가 줄었는지 확인
+- starter 개발자는 `.claude/scripts/*.py|*.sh` 기존 파일 수정 시 `version_bump: none`이 나오면 다운스트림 영향 여부를 판단하고, 영향이 있으면 `HARNESS_BUMP=patch python .claude/scripts/harness_version_bump.py`로 재확인
+
+### 회귀 위험
+- 낮음. eval 출력과 버전 제안 계약 보강이다. 다만 scripts 수정은 여전히 자동 patch가 아니므로 작성자가 다운스트림 영향 여부를 판단해야 한다
+
+
+
 ## v0.52.0 — commit push 타임아웃 재발 방지 (2026-05-20)
 
 Codex Windows 환경에서 `bash -lc 'HARNESS_DEV=1 git push ...'` 형태가 Git for
