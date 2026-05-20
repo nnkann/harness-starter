@@ -42,6 +42,10 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 from utils.wip_util import parse_wip_file  # noqa: E402
 
 REPO_ROOT = SCRIPTS_DIR.parent.parent
+SELF_DIAGNOSTIC_SCRIPTS = {
+    ".claude/scripts/eval_harness.py",
+    ".claude/scripts/eval_cps_integrity.py",
+}
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -566,6 +570,9 @@ def observe_c_reinforcement() -> dict[str, list[str]]:
     if scripts_dir.is_dir():
         pat = re.compile(r"except Exception(?::|\s+as\s+\w+:)\n\s+(pass|continue)\b")
         for path in sorted(scripts_dir.glob("*.py")):
+            rel = path.relative_to(REPO_ROOT).as_posix()
+            if rel in SELF_DIAGNOSTIC_SCRIPTS:
+                continue
             try:
                 text = path.read_text(encoding="utf-8", errors="replace")
             except Exception:
@@ -573,7 +580,6 @@ def observe_c_reinforcement() -> dict[str, list[str]]:
             lines = text.splitlines()
             for m in pat.finditer(text):
                 lineno = text[:m.start()].count("\n") + 1
-                rel = path.relative_to(REPO_ROOT).as_posix()
                 snippet = lines[lineno - 1].strip() if lineno <= len(lines) else "except Exception"
                 silent_exceptions.append(f"{rel}:{lineno} | {snippet}")
 

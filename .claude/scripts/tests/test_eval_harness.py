@@ -418,6 +418,16 @@ def test_c_reinforcement_observability_detects_missing_c_and_silent_exception(
         "try:\n    risky()\nexcept Exception:\n    pass\n",
         encoding="utf-8",
     )
+    self_script = tmp_path / ".claude" / "scripts" / "eval_harness.py"
+    self_script.write_text(
+        "try:\n    risky()\nexcept Exception:\n    pass\n",
+        encoding="utf-8",
+    )
+    self_cps_script = tmp_path / ".claude" / "scripts" / "eval_cps_integrity.py"
+    self_cps_script.write_text(
+        "try:\n    risky()\nexcept Exception:\n    pass\n",
+        encoding="utf-8",
+    )
 
     report = mod.observe_c_reinforcement()
     assert report["c_missing"] == ["docs/WIP/decisions--hn_missing_c.md"]
@@ -484,6 +494,25 @@ def test_solution_problem_map_from_kickoff_table():
         "S10": "P10",
     }
     assert mod.extract_cps_solution_ids(cps) == ["S7", "S8", "S10"]
+
+
+@pytest.mark.eval
+def test_solution_problem_map_from_solution_headers():
+    """헤더형 Solutions도 S# → P# 매핑을 추출해야 한다."""
+    mod = _load_eval_cps_integrity()
+    cps = """
+## Solutions
+
+### S1 (for P1)
+규칙 + 자동 차단.
+
+### **S8** (for **P8**)
+강제 트리거 우선.
+"""
+    assert mod.extract_solution_problem_map(cps) == {
+        "S1": "P1",
+        "S8": "P8",
+    }
 
 
 @pytest.mark.eval

@@ -91,14 +91,18 @@ def extract_cps_problem_ids(cps_text: str) -> list[str]:
 
 
 def extract_solution_problem_map(cps_text: str) -> dict[str, str]:
-    """CPS Solutions 표에서 S# → P# 매핑을 추출한다.
+    """CPS Solutions에서 S# → P# 매핑을 추출한다.
 
-    예: `| S8 | P8 | ... |`
+    예: `| S8 | P8 | ... |`, `### S8 (for P8)`
     """
     mapping: dict[str, str] = {}
-    pat = r"^\|\s*\*{0,2}(S\d+)\*{0,2}\s*\|\s*\*{0,2}(P\d+)\*{0,2}\s*\|"
-    for m in re.finditer(pat, cps_text, re.MULTILINE):
+    table_pat = r"^\|\s*\*{0,2}(S\d+)\*{0,2}\s*\|\s*\*{0,2}(P\d+)\*{0,2}\s*\|"
+    for m in re.finditer(table_pat, cps_text, re.MULTILINE):
         mapping[m.group(1)] = m.group(2)
+
+    header_pat = r"^###\s+\*{0,2}(S\d+)\*{0,2}\s+\(for\s+\*{0,2}(P\d+)\*{0,2}\)"
+    for m in re.finditer(header_pat, cps_text, re.MULTILINE | re.IGNORECASE):
+        mapping.setdefault(m.group(1), m.group(2))
     return mapping
 
 

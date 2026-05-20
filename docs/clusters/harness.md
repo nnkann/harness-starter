@@ -33,6 +33,7 @@ updated: 2026-05-20
 - [다운스트림 증폭 측정 — Phase 4-A baseline 수집·가설 검증](../decisions/hn_downstream_amplification.md)
 - [eval CPS 무결성 감시 — 박제 감지·Problem 인플레이션](../decisions/hn_eval_cps_integrity.md)
 - [eval --harness CLI 백엔드 + LSP/검증 도구 정렬 진단](../decisions/hn_eval_harness_cli_lsp_drift.md)
+- [eval harness false positive 보정](../decisions/hn_eval_harness_false_positive.md)
 - [eval --harness medium 결과 정비 (5-4 Feedback Reports 인식 + 5-5 self-verify 모호성)](../decisions/hn_eval_harness_medium_fixes.md)
 - [프론트매터 그래프 스펙 설계](../decisions/hn_frontmatter_graph_spec.md)
 - [하네스 엔지니어링 적합성 분석](../decisions/hn_gap_analysis.md)
@@ -86,6 +87,8 @@ updated: 2026-05-20
 - [하네스 유기체화 설계 — HARNESS_MAP.md 신경망 허브 구현 방안](../guides/hn_harness_organism_design.md)
 - [하네스 스타터 업그레이드 전파 전략](../guides/hn_upgrade_propagation.md)
 - [harness-starter CPS — C 판단 프롬프트](../guides/project_kickoff.md)
+- [다운스트림 마이그레이션 가이드 — 아카이브](../harness/MIGRATIONS-archive.md)
+- [다운스트림 마이그레이션 가이드](../harness/MIGRATIONS.md)
 - [advisor 전면 재설계 — 의사결정 프레임 라이브러리 + 판단 경로 명시](../harness/hn_advisor_decision_framework.md)
 - [Codex 포팅 재동기화](../harness/hn_codex_port.md)
 - [커밋 프로세스 감사 — #18 false-negative 축 보강](../harness/hn_commit_process_audit.md)
@@ -125,8 +128,6 @@ updated: 2026-05-20
 - [업스트림 전용 로직·기록 전수 감사 — 다운스트림 전파 파일 청소](../harness/hn_upstream_only_audit.md)
 - [검증 파이프라인 강화 — MIGRATIONS 자동생성·AC 강제·CPS 갱신 강제](../harness/hn_verification_pipeline.md)
 - [WIP 완료 자동화 구조적 결함 — Step 7.5 미동작 + SSOT 드리프트 + 이동 미연결](../harness/hn_wip_completion_gap.md)
-- [다운스트림 마이그레이션 가이드 — 아카이브](../harness/MIGRATIONS-archive.md)
-- [다운스트림 마이그레이션 가이드](../harness/MIGRATIONS.md)
 - [PreToolUse Bash -n 오탐으로 정당한 명령 차단](../incidents/hn_bash_n_flag_overblock.md)
 - [커밋 프로세스 갭 — 검증 부재·dead code·split 자동화 미완 (2026-04-27)](../incidents/hn_commit_process_gaps.md)
 - [docs-ops.sh cluster-update 성능 저하 — extract_abbrs() 반복 호출](../incidents/hn_docs_ops_cluster_update_perf.md)
@@ -149,7 +150,7 @@ updated: 2026-05-20
 
 ## tag 분포 (간선)
 
-review (18건) | downstream (17건) | commit (15건) | cps (12건) | eval (11건) | skill (11건) | ssot (11건) | hook (9건) | staging (9건) | upgrade (9건) | audit (8건) | pre-check (8건) | rules (8건) | ac (6건) | false-positive (6건) | harness-upgrade (6건) | migration (6건) | wip-sync (6건) | dead-link (5건) | docs-ops (5건) | harness-dev (5건) | split (5건) | agent (4건) | cascade (4건) | contamination (4건) | frontmatter (4건) | implementation (4건) | incident (4건) | refactor (4건) | starter (4건) | advisor (3건) | codex (3건) | docs (3건) | drift (3건) | governance (3건) | harness-adopt (3건) | harness-init (3건) | harness-map (3건) | measurement (3건) | memory (3건) | orchestration (3건) | p11 (3건) | performance (3건) | pipeline (3건) | python (3건) | regression (3건) | relates-to (3건) | sealed (3건) | secret-scan (3건) | self-verify (3건) | simplification (3건) | trigger (3건) | upstream-rule (3건) | verify-relates (3건) | archive (2건) | automation (2건) | bit (2건) | clusters (2건) | commit-skill (2건) | doc-finder (2건) | duplication (2건) | efficiency (2건) | escalation (2건) | false-block (2건) | fast-path (2건) | feedback-report (2건) | guardrails (2건) | harness-starter (2건) | information-flow (2건) | isolation (2건) | lint (2건) | move (2건) | naming (2건) | port (2건) | pre-tool-use (2건) | propagation (2건) | push (2건) | regex-gap (2건) | routing (2건) | search (2건) | self-dependency (2건) | self-violation (2건) | test (2건) | testing (2건) | tokens (2건) | verdict (2건) | whitelist (2건) | wip (2건) | write-doc (2건) | abbr (1건) | adr (1건) | advisor-flow (1건) | agent-context (1건) | agent-orchestration (1건) | agent-spec (1건) | aggregation (1건) | ambiguity (1건) | amplification (1건) | anomaly (1건) | anti-defer (1건) | apply (1건) | approval (1건) | architecture (1건) | atomic (1건) | baseline (1건) | bash (1건) | benchmark (1건) | bidirectional (1건) | brainstorm (1건) | bridge (1건) | bug (1건) | bug-triage (1건) | claude-dir-audit (1건) | cleanup (1건) | cli (1건) | cluster (1건) | cluster-update (1건) | code (1건) | code-ssot (1건) | coding-convention (1건) | commit-flow (1건) | completed (1건) | completion (1건) | completion-gate (1건) | compliance (1건) | context (1건) | context7 (1건) | cost (1건) | cps-cascade (1건) | cps-integrity (1건) | dead-code (1건) | dead-reference (1건) | dead-rule (1건) | debug (1건) | debug-guard (1건) | decision-framework (1건) | decisions (1건) | defense (1건) | delegation (1건) | diagnosis-discipline (1건) | diet (1건) | diff (1건) | doc-health (1건) | docs-structure (1건) | docs_ops (1건) | downstream-cascade (1건) | downstream-name (1건) | dynamic-resolution (1건) | enoent (1건) | env (1건) | env-var (1건) | eval-cps (1건) | eval-harness (1건) | eval-integrity (1건) | execution (1건) | exempt (1건) | external-docs (1건) | false-completion (1건) | false-warning (1건) | fast-help (1건) | feedback (1건) | feedback-reports (1건) | fixture (1건) | force-trigger (1건) | format (1건) | friction (1건) | gap-analysis (1건) | gate-promotion (1건) | gate-redesign (1건) | gating (1건) | gemini (1건) | generation (1건) | generic (1건) | git-remote (1건) | glob (1건) | graph (1건) | guard (1건) | handoff (1건) | harness-json (1건) | historical (1건) | hook-strength (1건) | improvement (1건) | incremental-update (1건) | index-removal (1건) | inflation (1건) | init-check (1건) | integrity (1건) | internalization (1건) | interrupt (1건) | json-schema (1건) | judgment (1건) | karpathy (1건) | kickoff (1건) | layering (1건) | legacy (1건) | living-harness (1건) | lsp (1건) | matcher (1건) | matching (1건) | maxturns (1건) | mcp (1건) | memory-index (1건) | memory-system (1건) | merge (1건) | meta-decision (1건) | metadata (1건) | migration-log (1건) | migrations (1건) | milestones (1건) | mvi (1건) | mvr (1건) | no-speculation (1건) | objectification (1건) | observability (1건) | orchestrator (1건) | organism (1건) | overhaul (1건) | parallel-meta-update (1건) | perf (1건) | permissions (1건) | phase (1건) | phase3 (1건) | philosophy-shift (1건) | prd (1건) | pre-abstraction (1건) | pre-commit-check (1건) | problem (1건) | profile (1건) | promise (1건) | protection (1건) | pytest (1건) | quality (1건) | read-enforce (1건) | readme (1건) | redesign (1건) | regex (1건) | rel-references (1건) | reliability (1건) | reminder (1건) | reopen (1건) | reporting (1건) | research (1건) | review-agent (1건) | review-pattern (1건) | rollback (1건) | routing-tag (1건) | rule (1건) | rule-origin (1건) | runtime (1건) | sandbox (1건) | scoring (1건) | security (1건) | self-correction (1건) | self-invocation (1건) | self-multiplication (1건) | session-handoff (1건) | session-start (1건) | session-summary (1건) | sh (1건) | signal (1건) | silent-fail (1건) | simplify (1건) | skill-md (1건) | snapshot (1건) | solution-ref (1건) | specialist (1건) | ssot-citation (1건) | starter_skills (1건) | step7.5 (1건) | stop-guard (1건) | structure (1건) | subagent (1건) | sync (1건) | task_groups (1건) | test-diet (1건) | test-results (1건) | threat-analyst (1건) | three-way-merge (1건) | tool-budget (1건) | tool-usage (1건) | typecheck (1건) | upstream (1건) | upstream-feedback (1건) | upstream-only (1건) | v0.42.4-regression (1건) | verification (1건) | version-bump (1건) | versioning (1건) | wiki-graph (1건) | wip-parsing (1건) | wip-template (1건) | workflow (1건)
+review (18건) | downstream (17건) | commit (15건) | cps (13건) | eval (12건) | skill (11건) | ssot (11건) | hook (9건) | staging (9건) | upgrade (9건) | audit (8건) | pre-check (8건) | rules (8건) | false-positive (7건) | ac (6건) | harness-upgrade (6건) | migration (6건) | wip-sync (6건) | dead-link (5건) | docs-ops (5건) | harness-dev (5건) | split (5건) | agent (4건) | cascade (4건) | contamination (4건) | frontmatter (4건) | implementation (4건) | incident (4건) | refactor (4건) | starter (4건) | advisor (3건) | codex (3건) | docs (3건) | drift (3건) | governance (3건) | harness-adopt (3건) | harness-init (3건) | harness-map (3건) | measurement (3건) | memory (3건) | orchestration (3건) | p11 (3건) | performance (3건) | pipeline (3건) | python (3건) | regression (3건) | relates-to (3건) | sealed (3건) | secret-scan (3건) | self-verify (3건) | simplification (3건) | trigger (3건) | upstream-rule (3건) | verify-relates (3건) | archive (2건) | automation (2건) | bit (2건) | clusters (2건) | commit-skill (2건) | doc-finder (2건) | duplication (2건) | efficiency (2건) | escalation (2건) | false-block (2건) | fast-path (2건) | feedback-report (2건) | guardrails (2건) | harness-starter (2건) | information-flow (2건) | isolation (2건) | lint (2건) | move (2건) | naming (2건) | port (2건) | pre-tool-use (2건) | propagation (2건) | push (2건) | regex-gap (2건) | routing (2건) | search (2건) | self-dependency (2건) | self-violation (2건) | test (2건) | testing (2건) | tokens (2건) | verdict (2건) | whitelist (2건) | wip (2건) | write-doc (2건) | abbr (1건) | adr (1건) | advisor-flow (1건) | agent-context (1건) | agent-orchestration (1건) | agent-spec (1건) | aggregation (1건) | ambiguity (1건) | amplification (1건) | anomaly (1건) | anti-defer (1건) | apply (1건) | approval (1건) | architecture (1건) | atomic (1건) | baseline (1건) | bash (1건) | benchmark (1건) | bidirectional (1건) | brainstorm (1건) | bridge (1건) | bug (1건) | bug-triage (1건) | claude-dir-audit (1건) | cleanup (1건) | cli (1건) | cluster (1건) | cluster-update (1건) | code (1건) | code-ssot (1건) | coding-convention (1건) | commit-flow (1건) | completed (1건) | completion (1건) | completion-gate (1건) | compliance (1건) | context (1건) | context7 (1건) | cost (1건) | cps-cascade (1건) | cps-integrity (1건) | dead-code (1건) | dead-reference (1건) | dead-rule (1건) | debug (1건) | debug-guard (1건) | decision-framework (1건) | decisions (1건) | defense (1건) | delegation (1건) | diagnosis-discipline (1건) | diet (1건) | diff (1건) | doc-health (1건) | docs-structure (1건) | docs_ops (1건) | downstream-cascade (1건) | downstream-name (1건) | dynamic-resolution (1건) | enoent (1건) | env (1건) | env-var (1건) | eval-cps (1건) | eval-harness (1건) | eval-integrity (1건) | execution (1건) | exempt (1건) | external-docs (1건) | false-completion (1건) | false-warning (1건) | fast-help (1건) | feedback (1건) | feedback-reports (1건) | fixture (1건) | force-trigger (1건) | format (1건) | friction (1건) | gap-analysis (1건) | gate-promotion (1건) | gate-redesign (1건) | gating (1건) | gemini (1건) | generation (1건) | generic (1건) | git-remote (1건) | glob (1건) | graph (1건) | guard (1건) | handoff (1건) | harness-json (1건) | historical (1건) | hook-strength (1건) | improvement (1건) | incremental-update (1건) | index-removal (1건) | inflation (1건) | init-check (1건) | integrity (1건) | internalization (1건) | interrupt (1건) | json-schema (1건) | judgment (1건) | karpathy (1건) | kickoff (1건) | layering (1건) | legacy (1건) | living-harness (1건) | lsp (1건) | matcher (1건) | matching (1건) | maxturns (1건) | mcp (1건) | memory-index (1건) | memory-system (1건) | merge (1건) | meta-decision (1건) | metadata (1건) | migration-log (1건) | migrations (1건) | milestones (1건) | mvi (1건) | mvr (1건) | no-speculation (1건) | objectification (1건) | observability (1건) | orchestrator (1건) | organism (1건) | overhaul (1건) | parallel-meta-update (1건) | perf (1건) | permissions (1건) | phase (1건) | phase3 (1건) | philosophy-shift (1건) | prd (1건) | pre-abstraction (1건) | pre-commit-check (1건) | problem (1건) | profile (1건) | promise (1건) | protection (1건) | pytest (1건) | quality (1건) | read-enforce (1건) | readme (1건) | redesign (1건) | regex (1건) | rel-references (1건) | reliability (1건) | reminder (1건) | reopen (1건) | reporting (1건) | research (1건) | review-agent (1건) | review-pattern (1건) | rollback (1건) | routing-tag (1건) | rule (1건) | rule-origin (1건) | runtime (1건) | sandbox (1건) | scoring (1건) | security (1건) | self-correction (1건) | self-invocation (1건) | self-multiplication (1건) | session-handoff (1건) | session-start (1건) | session-summary (1건) | sh (1건) | signal (1건) | silent-fail (1건) | simplify (1건) | skill-md (1건) | snapshot (1건) | solution-ref (1건) | specialist (1건) | ssot-citation (1건) | starter_skills (1건) | step7.5 (1건) | stop-guard (1건) | structure (1건) | subagent (1건) | sync (1건) | task_groups (1건) | test-diet (1건) | test-results (1건) | threat-analyst (1건) | three-way-merge (1건) | tool-budget (1건) | tool-usage (1건) | typecheck (1건) | upstream (1건) | upstream-feedback (1건) | upstream-only (1건) | v0.42.4-regression (1건) | verification (1건) | version-bump (1건) | versioning (1건) | wiki-graph (1건) | wip-parsing (1건) | wip-template (1건) | workflow (1건)
 
 ## tag별 문서 (백링크, 2건+)
 
@@ -184,12 +185,12 @@ review (18건) | downstream (17건) | commit (15건) | cps (12건) | eval (11건
 - [자가 발화 의존 규칙의 일반 실패 — P8 등록 + debug-guard.sh 확장](../decisions/hn_self_invocation_failure.md)
 - [테스트 다이어트 + 트리거 좁힘 — AC 기반 시스템과 중복 제거](../decisions/hn_test_diet.md)
 - [harness-upgrade silent fail 차단 보강 (FR-001/002/003 + FR-006)](../decisions/hn_upgrade_silent_fail_guards.md)
+- [다운스트림 마이그레이션 가이드 — 아카이브](../harness/MIGRATIONS-archive.md)
+- [다운스트림 마이그레이션 가이드](../harness/MIGRATIONS.md)
 - [Codex 포팅 재동기화](../harness/hn_codex_port.md)
 - [다운스트림 피드백 채널 포맷 규격화 + eval --harness 테스트](../harness/hn_feedback_channel_format.md)
 - [하네스 효율성 전면 점검 — 3계층 통합 (split·다운스트림 증폭·흐름 유기성)](../harness/hn_harness_efficiency_overhaul.md)
 - [업스트림 전용 로직·기록 전수 감사 — 다운스트림 전파 파일 청소](../harness/hn_upstream_only_audit.md)
-- [다운스트림 마이그레이션 가이드 — 아카이브](../harness/MIGRATIONS-archive.md)
-- [다운스트림 마이그레이션 가이드](../harness/MIGRATIONS.md)
 - [다운스트림 pytest fixture가 starter 정책과 프로젝트 CPS 형식을 물려받은 사고](../incidents/hn_downstream_pytest_fixture_leak.md)
 - [광역 매처 오탐으로 무관한 명령 차단 + harness-upgrade가 README 덮어쓸 위험](../incidents/hn_matcher_false_block.md)
 - [starter 12커밋 push 누락 — 다운스트림이 업스트림 변경 못 봄](../incidents/hn_starter_push_skipped.md)
@@ -220,6 +221,7 @@ review (18건) | downstream (17건) | commit (15건) | cps (12건) | eval (11건
 - [CPS 진입 신호 계층화 — 3층 책임 분리 + 도구 frontmatter trigger + HARNESS_MAP 역생성](../decisions/hn_cps_entry_signal_layering.md)
 - [CPS Problem 인용 빈도 검토 — P1·P3·P4·P6 정체 의심 판정](../decisions/hn_cps_problem_inflation_review.md)
 - [eval CPS 무결성 감시 — 박제 감지·Problem 인플레이션](../decisions/hn_eval_cps_integrity.md)
+- [eval harness false positive 보정](../decisions/hn_eval_harness_false_positive.md)
 - [SSOT 인용 원칙 — CPS 채널 적용 + verify-relates 스코프 확장 설계](../decisions/hn_ssot_citation_mechanism.md)
 - [starter 모호성 흡수 + CPS Problem 임계 상향 + S7 미정의 명시](../decisions/hn_starter_ambiguity_absorption.md)
 - [harness-starter CPS — C 판단 프롬프트](../guides/project_kickoff.md)
@@ -231,6 +233,7 @@ review (18건) | downstream (17건) | commit (15건) | cps (12건) | eval (11건
 
 - [eval CPS 무결성 감시 — 박제 감지·Problem 인플레이션](../decisions/hn_eval_cps_integrity.md)
 - [eval --harness CLI 백엔드 + LSP/검증 도구 정렬 진단](../decisions/hn_eval_harness_cli_lsp_drift.md)
+- [eval harness false positive 보정](../decisions/hn_eval_harness_false_positive.md)
 - [eval --harness medium 결과 정비 (5-4 Feedback Reports 인식 + 5-5 self-verify 모호성)](../decisions/hn_eval_harness_medium_fixes.md)
 - [느슨한 결합 관측 지표 전수 감사 계획](../decisions/hn_loose_coupling_observability.md)
 - [eval --deep 보안 강화 패치 타 프로젝트 이식 가이드](../guides/hn_eval_security_patch_port.md)
@@ -300,9 +303,9 @@ review (18건) | downstream (17건) | commit (15건) | cps (12건) | eval (11건
 - [Harness-Starter 업그레이드 계획](../decisions/hn_upgrade.md)
 - [harness-upgrade silent fail 차단 보강 (FR-001/002/003 + FR-006)](../decisions/hn_upgrade_silent_fail_guards.md)
 - [하네스 스타터 업그레이드 전파 전략](../guides/hn_upgrade_propagation.md)
-- [harness-starter 이상 징후 묶음 (다운스트림 발견)](../harness/hn_upstream_anomalies.md)
 - [다운스트림 마이그레이션 가이드 — 아카이브](../harness/MIGRATIONS-archive.md)
 - [다운스트림 마이그레이션 가이드](../harness/MIGRATIONS.md)
+- [harness-starter 이상 징후 묶음 (다운스트림 발견)](../harness/hn_upstream_anomalies.md)
 - [다운스트림 pytest fixture가 starter 정책과 프로젝트 CPS 형식을 물려받은 사고](../incidents/hn_downstream_pytest_fixture_leak.md)
 
 ### audit
@@ -338,6 +341,16 @@ review (18건) | downstream (17건) | commit (15건) | cps (12건) | eval (11건
 - [룰-스킬 SSOT 적용 — Phase 1 commit/SKILL.md](../decisions/hn_rule_skill_ssot_apply.md)
 - [Rules 파일 다이어트 — 분리한 메타·배경·자동 감지 상세](../decisions/hn_rules_metadata.md)
 
+### false-positive
+
+- [eval harness false positive 보정](../decisions/hn_eval_harness_false_positive.md)
+- [docs_ops.py wip-sync 부분 매칭 버그 — 매칭 정밀화](../decisions/hn_wip_sync_match_precision.md)
+- [PreToolUse Bash -n 오탐으로 정당한 명령 차단](../incidents/hn_bash_n_flag_overblock.md)
+- [다운스트림 pytest fixture가 starter 정책과 프로젝트 CPS 형식을 물려받은 사고](../incidents/hn_downstream_pytest_fixture_leak.md)
+- [v0.18.3 린터 ENOENT 패턴 — 오탐 가능성·OS 커버리지 갭](../incidents/hn_lint_enoent_pattern_gaps.md)
+- [광역 매처 오탐으로 무관한 명령 차단 + harness-upgrade가 README 덮어쓸 위험](../incidents/hn_matcher_false_block.md)
+- [pre-check 시크릿 line 면제 갭 — agents/threat-analyst.md 잘못 차단](../incidents/hn_secret_line_exempt_gap.md)
+
 ### ac
 
 - [BIT cascade 객관화 — Q3·NEW 플래그·CPS P# 매칭 자가 발화 의존 해소](../decisions/hn_bit_cascade_objectification.md)
@@ -346,15 +359,6 @@ review (18건) | downstream (17건) | commit (15건) | cps (12건) | eval (11건
 - [Karpathy 원칙 적용 — 코딩 컨벤션·행동 원칙·self-verify·staging·commit SSOT](../decisions/hn_karpathy_principles.md)
 - [테스트 다이어트 + 트리거 좁힘 — AC 기반 시스템과 중복 제거](../decisions/hn_test_diet.md)
 - [검증 파이프라인 강화 — MIGRATIONS 자동생성·AC 강제·CPS 갱신 강제](../harness/hn_verification_pipeline.md)
-
-### false-positive
-
-- [docs_ops.py wip-sync 부분 매칭 버그 — 매칭 정밀화](../decisions/hn_wip_sync_match_precision.md)
-- [PreToolUse Bash -n 오탐으로 정당한 명령 차단](../incidents/hn_bash_n_flag_overblock.md)
-- [다운스트림 pytest fixture가 starter 정책과 프로젝트 CPS 형식을 물려받은 사고](../incidents/hn_downstream_pytest_fixture_leak.md)
-- [v0.18.3 린터 ENOENT 패턴 — 오탐 가능성·OS 커버리지 갭](../incidents/hn_lint_enoent_pattern_gaps.md)
-- [광역 매처 오탐으로 무관한 명령 차단 + harness-upgrade가 README 덮어쓸 위험](../incidents/hn_matcher_false_block.md)
-- [pre-check 시크릿 line 면제 갭 — agents/threat-analyst.md 잘못 차단](../incidents/hn_secret_line_exempt_gap.md)
 
 ### harness-upgrade
 
@@ -369,10 +373,10 @@ review (18건) | downstream (17건) | commit (15건) | cps (12건) | eval (11건
 
 - [stop-guard.sh → stop-guard.py 전환 (자기증식 차단)](../decisions/hn_stop_guard_py_migration.md)
 - [자기복제 케이스 sh 적용 점검 + WIP 파싱 SSOT 통합 (wip_util.py + 3 hook 마이그레이션)](../decisions/hn_wip_util_ssot.md)
-- [하네스 자잘한 버그 묶음 — MIGRATIONS 누락·starter_skills 오염·permissions.allow 미전파·h-setup.sh 오분류·신규설치 필터 누락·harness-sync 경계 불명확·docs/harness 전달 오염](../harness/hn_migrations_version_gap.md)
-- [검증 파이프라인 강화 — MIGRATIONS 자동생성·AC 강제·CPS 갱신 강제](../harness/hn_verification_pipeline.md)
 - [다운스트림 마이그레이션 가이드 — 아카이브](../harness/MIGRATIONS-archive.md)
 - [다운스트림 마이그레이션 가이드](../harness/MIGRATIONS.md)
+- [하네스 자잘한 버그 묶음 — MIGRATIONS 누락·starter_skills 오염·permissions.allow 미전파·h-setup.sh 오분류·신규설치 필터 누락·harness-sync 경계 불명확·docs/harness 전달 오염](../harness/hn_migrations_version_gap.md)
+- [검증 파이프라인 강화 — MIGRATIONS 자동생성·AC 강제·CPS 갱신 강제](../harness/hn_verification_pipeline.md)
 
 ### wip-sync
 
