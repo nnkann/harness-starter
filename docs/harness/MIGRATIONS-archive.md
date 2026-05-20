@@ -43,6 +43,26 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.51.6 — 다운스트림 pytest fixture 격리 보강 (2026-05-19)
+
+다운스트림 `harness-upgrade` 직후 upstream/starter 테스트를 실행하면
+다운스트림의 `is_starter: false` 정책과 프로젝트별 CPS 문서 형식 때문에
+starter 전용 회귀 테스트가 false failure를 냈다.
+
+### 자동 적용
+- `.claude/scripts/tests/test_pre_commit.py`: 통합 sandbox를 starter 정책으로 명시 고정. `relates-to` 차단 기대 테스트는 `is_starter: true`, 다운스트림 warn-only 케이스는 `is_starter: false`를 테스트 내부에서 명시
+- `TestCpsAddTableInsert`: 실제 다운스트림 `project_kickoff.md` 형식에 의존하지 않도록 starter형 synthetic kickoff fixture 사용
+- `.claude/scripts/docs_ops.py`: `cmd_cps_add` docstring의 잘못된 미래 버전 표기 정정
+
+### 수동 확인
+- 다운스트림에서 `python -m pytest .claude/scripts/tests/ -q`를 직접 실행하는 경우, 이번 버전 이후 동일 성격 false failure가 사라지는지 확인
+- `harness-upgrade` 자체 적용에는 추가 수동 조치 없음
+
+### 회귀 위험
+- 낮음. 제품 동작 변경이 아니라 테스트 fixture 격리 보강. starter 차단 정책과 다운스트림 warn-only 정책을 테스트 안에서 분리한다
+
+
+
 ## v0.51.5 — CPS P# 정련 + memory/reminder 회귀 계약 보강 (2026-05-19)
 
 P12~P15 대량 신설안을 폐기하고, 신규 P# 0개 원칙으로 기존 P6/P7/P8/P9/P11의

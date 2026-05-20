@@ -1,6 +1,7 @@
 """harness_version_bump.py CLI 계약 테스트."""
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -15,6 +16,27 @@ def run(cmd: list[str], cwd: Path, check: bool = True) -> subprocess.CompletedPr
     result = subprocess.run(
         cmd,
         cwd=cwd,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    if check:
+        assert result.returncode == 0, result.stderr
+    return result
+
+
+def run_with_env(
+    cmd: list[str],
+    cwd: Path,
+    env: dict[str, str],
+    check: bool = True,
+) -> subprocess.CompletedProcess[str]:
+    merged_env = os.environ.copy()
+    merged_env.update(env)
+    result = subprocess.run(
+        cmd,
+        cwd=cwd,
+        env=merged_env,
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -88,6 +110,29 @@ def test_untracked_new_script_reports_pending_minor(tmp_path: Path):
     assert "version_bump: none" in result.stdout
     assert "stage_required: true" in result.stdout
     assert "pending_bump: minor" in result.stdout
+
+
+@pytest.mark.version
+def test_harness_bump_patch_opt_in_reports_patch_for_script_change(tmp_path: Path):
+    repo = init_starter_repo(tmp_path)
+    script_path = repo / ".claude" / "scripts" / "existing.py"
+    script_path.parent.mkdir(parents=True)
+    script_path.write_text("print('old')\n", encoding="utf-8")
+    run(["git", "add", ".claude/scripts/existing.py"], repo)
+    run(["git", "commit", "-q", "-m", "add script"], repo)
+
+    script_path.write_text("print('new')\n", encoding="utf-8")
+    run(["git", "add", ".claude/scripts/existing.py"], repo)
+
+    result = run_with_env(
+        [sys.executable, str(SCRIPT)],
+        repo,
+        {"HARNESS_BUMP": "patch"},
+    )
+
+    assert "version_bump: patch" in result.stdout
+    assert "next_version: 0.51.9" in result.stdout
+    assert "HARNESS_BUMP=patch 명시" in (result.stdout + result.stderr)
 
 
 @pytest.mark.version

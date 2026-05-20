@@ -68,8 +68,21 @@ hit 시 [c] 차단 → [p] 분리 권장.
 python3 .claude/scripts/harness_version_bump.py
 ```
 
+이 스크립트는 **staged 변경 기반 제안/검사 도구**다. HARNESS.json을 직접
+수정하지 않는다.
+`.claude/scripts/*.py|*.sh` 기존 파일 수정은 기본 `none`일 수 있다. 다운스트림에
+전파되어야 하는 버그 수정·동작 변경이면 작성자가 명시적으로:
+
+```bash
+HARNESS_BUMP=patch python3 .claude/scripts/harness_version_bump.py
+```
+
+로 재실행한다. 주석·테스트 fixture처럼 다운스트림 동작 영향이 없을 때만
+`none`을 그대로 둔다.
+
+- `stage_required: true` → 의도한 변경을 먼저 stage한 뒤 재실행
 - `version_bump: none` → Step 5로
-- `version_bump: patch|minor` → 사용자 확인 후 5개 일괄 처리:
+- `version_bump: patch|minor` → 사용자 확인 후 5개를 수동 일괄 처리:
   1. **HARNESS.json** `version` 갱신
   2. **MIGRATIONS.md** 새 섹션 삽입 (포맷 SSOT는 본 파일 상단)
   3. **archive 자동**: `harness_version_bump.py --archive` (6개째부터 이동)

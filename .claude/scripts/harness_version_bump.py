@@ -8,6 +8,7 @@ staged 변경 분석 → minor/patch/none 범프 타입 제안 출력.
 """
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -74,6 +75,11 @@ def parse_name_status(name_status: str) -> list[tuple[str, str]]:
 def classify_bump(changes: list[tuple[str, str]]) -> tuple[str, list[str]]:
     bump_type = "none"
     reasons: list[str] = []
+    requested = os.environ.get("HARNESS_BUMP", "").strip().lower()
+    if requested in {"patch", "minor"}:
+        bump_type = requested
+        reasons.append(f"HARNESS_BUMP={requested} 명시")
+        return bump_type, reasons
 
     # minor: 신규 핵심 파일 추가
     new_critical = [path for status, path in changes
