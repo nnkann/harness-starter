@@ -69,7 +69,7 @@ def compute_cascade_set() -> set[str]:
     rules·skills·agents·CLAUDE.md·README.md 본문에서 `docs/decisions/*.md`
     패턴을 grep으로 추출. 실제 존재 파일만 포함 (오탐 방어).
 
-    Returns: repo-root 기준 경로 문자열 set ("docs/decisions/hn_x.md" 형식).
+    Returns: repo-root 기준 경로 문자열 set (예시: "docs/decisions/hn_x.md" 형식).
     """
     referenced: set[str] = set()
 

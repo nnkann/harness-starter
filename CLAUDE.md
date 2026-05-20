@@ -9,6 +9,12 @@
 - 빌드/실행 명령어: python3 .claude/scripts/pre_commit_check.py (pre-check), python3 -m pytest .claude/scripts/tests/ -q (테스트)
 - 배포 방식: git push origin main → 다운스트림이 harness-upgrade로 fetch
 
+## 검증 레이어
+
+- pre-check은 staged Python을 `python -m py_compile`, staged Shell을 `bash -n`으로 검사한다.
+- `eval --harness`와 pre-check은 루트 안내·하네스 스크립트의 path contract drift를 관측/차단한다.
+- `ruff`, `pyright`, `mypy`, `shellcheck`는 가용성을 보고하며, 미설치 도구는 실행된 검증으로 간주하지 않는다.
+
 ## 행동 원칙
 
 ### AC (Acceptance Criteria)

@@ -26,6 +26,10 @@ add_ok() {
   REPORT="${REPORT}\n[OK]   $1"
 }
 
+add_observation() {
+  REPORT="${REPORT}\n[관측] $1"
+}
+
 echo ""
 echo "═══ 다운스트림 하네스 적용 자가 진단 ═══"
 
@@ -166,6 +170,17 @@ fi
 if [ ! -f ".claude/scripts/test-bash-guard.sh" ]; then
   add_warning "test-bash-guard.sh 없음 — 회귀 검증 불가"
 fi
+
+# ─────────────────────────────────────────────
+# 7. 검증 도구 가용성 관측
+# ─────────────────────────────────────────────
+for tool in ruff pyright mypy shellcheck; do
+  if command -v "$tool" >/dev/null 2>&1; then
+    add_ok "검증 도구 '$tool' 사용 가능"
+  else
+    add_observation "검증 도구 '$tool' 없음 — 해당 lint/LSP 검사는 실행되지 않을 수 있음"
+  fi
+done
 
 # ─────────────────────────────────────────────
 # 결과

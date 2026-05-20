@@ -542,6 +542,46 @@ def test_scan_dead_reference_paths_empty_full_scan(tmp_path):
 
 
 @pytest.mark.eval
+def test_scan_path_contracts_detects_missing_live_path(tmp_path, monkeypatch):
+    """라이브 안내의 현재 없는 하네스 경로를 검출한다."""
+    mod = _load_eval_harness()
+    monkeypatch.setattr(mod, "REPO_ROOT", tmp_path)
+    f = tmp_path / "README.md"
+    f.write_text("hook은 .claude/scripts/session-start.sh 를 호출한다\n", encoding="utf-8")
+
+    hits = mod.scan_path_contracts([f])
+
+    assert len(hits) == 1
+    assert hits[0][2] == ".claude/scripts/session-start.sh"
+
+
+@pytest.mark.eval
+def test_scan_path_contracts_exempts_archive_file(tmp_path, monkeypatch):
+    """MIGRATIONS archive는 박제 영역이라 path contract lint 대상이 아니다."""
+    mod = _load_eval_harness()
+    monkeypatch.setattr(mod, "REPO_ROOT", tmp_path)
+    f = tmp_path / "docs" / "harness" / "MIGRATIONS-archive.md"
+    f.parent.mkdir(parents=True)
+    f.write_text("old hook .claude/scripts/session-start.sh\n", encoding="utf-8")
+
+    assert mod.scan_path_contracts([f]) == []
+
+
+@pytest.mark.eval
+def test_scan_path_contracts_accepts_existing_path(tmp_path, monkeypatch):
+    """존재하는 하네스 경로는 drift로 보지 않는다."""
+    mod = _load_eval_harness()
+    monkeypatch.setattr(mod, "REPO_ROOT", tmp_path)
+    target = tmp_path / ".claude" / "scripts" / "session-start.py"
+    target.parent.mkdir(parents=True)
+    target.write_text("print('ok')\n", encoding="utf-8")
+    f = tmp_path / "CLAUDE.md"
+    f.write_text("hook은 .claude/scripts/session-start.py 를 호출한다\n", encoding="utf-8")
+
+    assert mod.scan_path_contracts([f]) == []
+
+
+@pytest.mark.eval
 def test_loose_coupling_observability_contracts_clean():
     """eval --harness가 스킬 라우팅·WIP 파일명 drift를 주기 관찰한다."""
     mod = _load_eval_harness()

@@ -266,7 +266,7 @@ def main() -> int:
     diff_stats  = f"files={total_files},+{added_lines},-{deleted_lines}"
 
     ERRORS = 0
-    ALREADY_VERIFIED = "lint todo_fixme test_location wip_cleanup"
+    ALREADY_VERIFIED = "lint syntax todo_fixme test_location wip_cleanup"
 
     # ─────────────────────────────────────────────────────────
     # 1. 린터
@@ -322,6 +322,45 @@ def main() -> int:
                 for l in output.splitlines()[-20:]:
                     err(f"   {l}")
                 ERRORS += 1
+
+    # ─────────────────────────────────────────────────────────
+    # 1.5. staged Python/Shell 문법 검사
+    # ─────────────────────────────────────────────────────────
+
+    py_syntax_files = [f for f in staged_files if f.endswith(".py") and Path(f).exists()]
+    for f in py_syntax_files:
+        r = subprocess.run(
+            [sys.executable, "-m", "py_compile", f],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        if r.returncode != 0:
+            err(f"❌ Python 문법 오류: {f}")
+            for l in (r.stdout + r.stderr).splitlines()[-10:]:
+                err(f"   {l}")
+            ERRORS += 1
+
+    sh_syntax_files = [f for f in staged_files if f.endswith(".sh") and Path(f).exists()]
+    if sh_syntax_files:
+        bash_cmd = shutil.which("bash")
+        if not bash_cmd:
+            err("⚠ bash 미설치 — staged shell 문법 검사 스킵")
+        else:
+            for f in sh_syntax_files:
+                r = subprocess.run(
+                    [bash_cmd, "-n", f],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                )
+                if r.returncode != 0:
+                    err(f"❌ Shell 문법 오류: {f}")
+                    for l in (r.stdout + r.stderr).splitlines()[-10:]:
+                        err(f"   {l}")
+                    ERRORS += 1
 
     # ─────────────────────────────────────────────────────────
     # 2. TODO/FIXME
@@ -659,6 +698,7 @@ def main() -> int:
 
     _EVAL_HARNESS = Path(__file__).parent / "eval_harness.py"
     _scan_dead_ref = None
+    _scan_path_contracts = None
     if _EVAL_HARNESS.exists():
         try:
             import importlib.util as _ilu_eh
@@ -666,8 +706,10 @@ def main() -> int:
             _eh = _ilu_eh.module_from_spec(_spec_eh)        # type: ignore[arg-type]
             _spec_eh.loader.exec_module(_eh)                 # type: ignore[union-attr]
             _scan_dead_ref = _eh.scan_dead_reference_paths
+            _scan_path_contracts = _eh.scan_path_contracts
         except Exception:
             _scan_dead_ref = None
+            _scan_path_contracts = None
     if _scan_dead_ref is not None:
         # staged 파일 중 본문 스캔 대상만 골라냄 (eval_harness 글롭과 정합)
         _SCAN_PREFIXES = (
@@ -692,6 +734,42 @@ def main() -> int:
                     err(f"   ... 외 {len(dead_hits) - 10}건")
                 err("   대응: harness-dev SKILL.md '폐기 절차 Step P1~P5' 참조 — 본문 정비 또는 박제 표현 명시")
                 err("   (eval --harness 항목 9가 동일 검사 — pre-check이 staged 시점에 결정적 차단)")
+                if _is_starter_for_gate:
+                    ERRORS += 1
+                else:
+                    err("   ℹ️ 다운스트림 모드 — commit 진행 가능. 정비 일정은 자율 결정.")
+
+    if _scan_path_contracts is not None:
+        path_contract_candidates: list[Path] = []
+        for f in staged_files:
+            normalized = f.replace("\\", "/")
+            if normalized in {"CLAUDE.md", "AGENTS.md", "README.md", "docs/harness/MIGRATIONS.md"}:
+                path_contract_candidates.append(Path(f))
+            elif normalized.startswith(
+                (
+                    ".claude/skills/",
+                    ".agents/skills/",
+                    ".claude/agents/",
+                    ".claude/rules/",
+                    ".claude/scripts/",
+                )
+            ):
+                if normalized.startswith(".claude/scripts/tests/"):
+                    continue
+                if normalized.endswith((".md", ".py", ".sh")):
+                    path_contract_candidates.append(Path(f))
+        if path_contract_candidates:
+            path_hits = _scan_path_contracts(path_contract_candidates)
+            if path_hits:
+                _gate_label = "❌" if _is_starter_for_gate else "⚠"
+                _gate_action = "차단" if _is_starter_for_gate else "경고 (다운스트림 — warn-only)"
+                err(f"{_gate_label} path contract drift 감지 ({len(path_hits)}건) — staged 라이브 안내/스크립트 경로 불일치 [{_gate_action}]:")
+                for rel, lineno, missing, snippet in path_hits[:10]:
+                    err(f"   - {rel}:{lineno} | `{missing}` | {snippet}")
+                if len(path_hits) > 10:
+                    err(f"   ... 외 {len(path_hits) - 10}건")
+                err("   대응: 경로 문자열을 현재 파일 트리로 갱신하거나 archive/history/legacy/fallback 박제 표현을 명시")
+                err("   (eval --harness path contract lint가 동일 검사 — pre-check이 staged 시점에 결정적 차단)")
                 if _is_starter_for_gate:
                     ERRORS += 1
                 else:

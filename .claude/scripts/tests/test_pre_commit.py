@@ -1024,7 +1024,7 @@ def integ_repo(tmp_path_factory):
     repo = tmp / "repo"
     _clone_repo(repo)
     # 미커밋 최신 파일 덮어쓰기
-    for name in ("pre_commit_check.py", "docs_ops.py"):
+    for name in ("pre_commit_check.py", "docs_ops.py", "eval_harness.py"):
         src = REPO_ROOT / ".claude" / "scripts" / name
         dst = repo / ".claude" / "scripts" / name
         if src.exists():
@@ -1053,6 +1053,45 @@ class TestIntegDeadLink:
         _git(["add", "docs/test_target/hn_dummy.md", "docs/test_cluster/harness_t35.md"], repo)
         _commit(repo, "prep T35.1")
         _git(["rm", "-q", "docs/test_target/hn_dummy.md"], repo)
+        out = _run_precheck(repo)
+        assert out.get("pre_check_passed") == "false"
+        _reset(repo)
+
+
+@pytest.mark.docs_ops
+class TestPathContractAndSyntaxGate:
+    def test_path_contract_blocks_missing_live_path(self, integ_repo):
+        """라이브 안내에 사라진 하네스 경로가 들어오면 starter pre-check이 차단."""
+        repo = integ_repo
+        readme = repo / "README.md"
+        readme.write_text(
+            readme.read_text(encoding="utf-8")
+            + "\n테스트 hook: .claude/scripts/session-start.sh\n",
+            encoding="utf-8",
+        )
+        _git(["add", "README.md"], repo)
+        out = _run_precheck(repo)
+        assert out.get("pre_check_passed") == "false"
+        _reset(repo)
+
+    def test_python_syntax_error_blocks(self, integ_repo):
+        """staged Python 파일은 py_compile 문법 실패 시 차단."""
+        repo = integ_repo
+        path = repo / ".claude" / "scripts" / "syntax_bad_for_test.py"
+        path.write_text("def broken(:\n    pass\n", encoding="utf-8")
+        _git(["add", ".claude/scripts/syntax_bad_for_test.py"], repo)
+        out = _run_precheck(repo)
+        assert out.get("pre_check_passed") == "false"
+        _reset(repo)
+
+    def test_shell_syntax_error_blocks_when_bash_available(self, integ_repo):
+        """bash가 있는 환경에서는 staged shell 파일 bash -n 실패 시 차단."""
+        if shutil.which("bash") is None:
+            pytest.skip("bash 없음")
+        repo = integ_repo
+        path = repo / ".claude" / "scripts" / "syntax_bad_for_test.sh"
+        path.write_text("if true; then\n  echo ok\n", encoding="utf-8")
+        _git(["add", ".claude/scripts/syntax_bad_for_test.sh"], repo)
         out = _run_precheck(repo)
         assert out.get("pre_check_passed") == "false"
         _reset(repo)

@@ -74,7 +74,7 @@ fi
 # ─────────────────────────────────────────────
 if [[ $COMMAND =~ (^|[[:space:]])git[[:space:]]+worktree[[:space:]]+add([[:space:]]|$) ]]; then
   echo "❌ git worktree add 금지 (CLAUDE.md 절대 규칙)." >&2
-  echo "   근거: docs/incidents/hn_upstream_anomalies.md E 항목" >&2
+  echo "   근거: docs/harness/hn_upstream_anomalies.md E 항목" >&2
   echo "   list/remove/prune은 허용." >&2
   _record_defense "git worktree add 차단"
   exit 2

@@ -21,9 +21,16 @@ python .claude/scripts/safe_command.py verify-relates
 python .claude/scripts/safe_command.py precheck
 ```
 
-dispatcher 변경 후에는 `python -m pytest .claude/scripts/tests/test_safe_command.py -q`를 실행한다.
+dispatcher 변경 후에는 `python -m py_compile .claude/scripts/safe_command.py`와
+`python -m pytest .claude/scripts/tests/test_pre_commit.py -q`를 실행한다.
 
 지속 승인 후보 prefix는 위 스크립트 파일까지 포함한 좁은 prefix다. 삭제·이동·커밋·푸시·설정 변경·네트워크·의존성 설치는 dispatcher에 넣지 않는다.
+
+## 검증 레이어
+
+- pre-check은 staged Python을 `python -m py_compile`, staged Shell을 `bash -n`으로 검사한다.
+- `eval --harness`와 pre-check은 루트 안내·하네스 스크립트의 path contract drift를 관측/차단한다.
+- `ruff`, `pyright`, `mypy`, `shellcheck`는 가용성을 보고하며, 미설치 도구는 실행된 검증으로 간주하지 않는다.
 
 ## 행동 원칙
 

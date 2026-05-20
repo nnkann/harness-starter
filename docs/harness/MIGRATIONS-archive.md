@@ -43,6 +43,26 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.52.0 — commit push 타임아웃 재발 방지 (2026-05-20)
+
+Codex Windows 환경에서 `bash -lc 'HARNESS_DEV=1 git push ...'` 형태가 Git for
+Windows/GCM 하위 프로세스 대기로 타임아웃될 수 있어 commit Step 8 push 계약을
+비대화형·shell별 명령으로 고정했다.
+
+### 자동 적용
+- `.claude/skills/commit`: Codex Windows 기본 push를 PowerShell env 방식과 `--porcelain` 출력으로 명시
+- `.claude/skills/commit`: Bash push도 `GIT_TERMINAL_PROMPT=0`, `GCM_INTERACTIVE=never`를 포함하도록 명시
+- `.claude/scripts/tests/test_skill_routing_contract.py`: `.claude`와 `.agents` commit 스킬의 push 계약 회귀 테스트 추가
+
+### 수동 확인
+- Codex Windows에서는 push를 `bash -lc`로 감싸지 않고 PowerShell env 방식으로 실행한다
+- 인증 프롬프트가 필요하면 Codex 밖에서 credential을 갱신한 뒤 다시 push한다
+
+### 회귀 위험
+- 낮음. commit 스킬의 push 실행 절차만 바꾸며, pre-push guard와 origin/main 대상은 유지된다
+
+
+
 ## v0.51.9 — 버전 범프 스테이징 계약 보강 (2026-05-20)
 
 `harness_version_bump.py`가 staged 변경이 없을 때 `none`만 출력해 실제 patch/minor
