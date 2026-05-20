@@ -43,6 +43,28 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.51.4 — P12·S12 폐기 + P11에 흡수 (2026-05-18)
+
+P12 박제 직후 LLM이 정확히 P12 패턴 위반 실측 (별 WIP 4개 자기 분리).
+codex·gemini 재검토 합의로 P12·S12 폐기, P11에 "sub-task 분리 우회 금지" 흡수.
+
+### 자동 적용
+- `project_kickoff.md`: P12·S12 Problems/Solutions 표·본문 섹션 모두 폐기. P11/S11 본문에 "sub-task 분리 우회 금지" 흡수
+- `.claude/rules/code-ssot.md`: "sub-task 분리 우회 금지" 1단락 보강
+- `docs/decisions/hn_split_completion_bypass.md` → `docs/archived/`로 이동
+- `docs/cps/cp_split_completion_p12.md` 사례 잔류 (P11 첫 회피 사례 박제)
+- `pre_commit_check.py` §3.7 게이트 정밀화 — 기존 P# 행 갱신 vs 신규 신설 구분
+- 회귀 테스트 1건 추가 (`test_existing_p_row_update_no_block`)
+
+### 수동 확인
+- 다운스트림 cascade: P# 표 변경 + rule 본문 갱신. harness-upgrade 시 frontmatter 동기화
+- P12 박제 참조하던 다운스트림은 P11로 매핑 갱신 필요 (다운스트림 자율)
+
+### 회귀 위험
+- 낮음. 게이트 정밀화는 false positive만 차단 (false negative 영역 변경 없음)
+
+
+
 ## v0.51.3 — .claude/ 잔재 정리 + skills/agents serves: 다중 매핑 (2026-05-18)
 
 P11/P12 자기 적용. codebase-analyst + codex + gemini 3개 의견 종합.

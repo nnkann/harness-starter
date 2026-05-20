@@ -101,47 +101,21 @@ copy_if_new "$src" "$TARGET/.claude/scripts/$(basename "$src")"
 
 #### 버전 범프 실행
 
-```bash
-python3 .claude/scripts/harness_version_bump.py
-# 출력 예: version_bump: minor → 0.25.0 → 0.26.0
-```
-
-스크립트가 HARNESS.json `version` 필드를 갱신한다.
+절차 SSOT는 `commit` 스킬 Step 4. 이 스킬은 범프 필요 여부만 판단하고,
+실행·HARNESS.json 갱신·MIGRATIONS.md 작성·README 정리는 commit 흐름에서
+처리한다.
 
 #### MIGRATIONS.md 섹션 작성
 
-버전 범프 후 `docs/harness/MIGRATIONS.md`에 새 버전 섹션 추가.
-**포맷 SSOT는 MIGRATIONS.md 상단 "## 포맷" 섹션.** 반드시 그 포맷을 따른다.
-
-```markdown
-## v0.X — 한 줄 요약
-
-### 변경 내용
-이번 버전에서 달라진 것. 다운스트림이 맥락 파악용 최소 설명.
-
-### 적용 방법
-
-**자동 적용**: harness-upgrade가 처리. 확인만.
-- ...
-
-**수동 적용**: upgrade 후 직접 실행. 안 하면 미동작.
-- 없음  ← 수동 액션 없을 때도 이 줄 명시
-
-### 검증
-적용 후 확인 방법. 생략 가능.
-```
-
-**작성 원칙**:
-- "수동 적용 없음"도 `없음`으로 명시 (누락인지 없는 건지 구분)
-- 배경 설명·긴 이력은 제거. 다운스트림이 "뭘 해야 하는가"에만 집중
-- 다운스트림 고유명사 금지 (docs.md "오염 면제" 참조)
+포맷 SSOT는 `docs/harness/MIGRATIONS.md` 상단 표준 섹션. 여기에는 템플릿을
+복제하지 않는다.
 
 ### Step 6. 완료 확인
 
 - [ ] h-setup.sh: 새 스크립트 호출이 반영됐는가 (필요 시)
 - [ ] README.md: 파일 목록에 추가됐는가
 - [ ] HARNESS.json: 올바른 필드(`skills`/`starter_skills`)에 등록됐는가
-- [ ] 버전 범프: `harness_version_bump.py` 실행하고 HARNESS.json `version` 갱신됐는가
+- [ ] 버전 범프: 코드·동작 변경이면 `commit` 스킬 Step 4 절차로 처리했는가
 - [ ] MIGRATIONS.md: 새 버전 섹션 추가됐는가 (포맷 준수)
 - [ ] **테스트**: AC가 명시 요구하면 그 marker만 실행 (`pytest -m <marker>`). 무조건 전체 실행 금지. 회귀 가드 가치 있는 변경이면 작업 task의 AC `영향 범위:` 항목에 marker 명시
 - [ ] **CPS**: `docs/guides/project_kickoff.md` Solutions 항목 중 이번 변경과 관련된 것 갱신했는가 (새 방어 레이어 추가·기존 Solution 구조 변경 시)

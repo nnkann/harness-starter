@@ -2,6 +2,7 @@
 """
 staged 변경 분석 → minor/patch/none 범프 타입 제안 출력.
       실제 HARNESS.json 수정은 Claude/사용자가 수행.
+      staged가 없지만 worktree 핵심 변경이 있으면 stage_required 신호 출력.
 
 버전 자리수 규칙: patch 0~9 (10이상→minor 올림), minor 0~99
 """
@@ -13,6 +14,25 @@ import sys
 from pathlib import Path
 
 HARNESS_JSON = Path(".claude/HARNESS.json")
+
+MINOR_PATTERNS = re.compile(
+    r"^(\.claude/skills/[^/]+/SKILL\.md"
+    r"|\.claude/agents/[^/]+\.md"
+    r"|\.claude/rules/[^/]+\.md"
+    r"|\.claude/scripts/[^/]+\.(sh|py))$"
+)
+# Phase 2 (hn_harness_recovery_v0_41_baseline, 2026-05-13):
+# patch 자동 트리거 좁힘. 9b29f23 이전 패턴은 .claude/scripts/*.{sh,py} 1줄
+# 수정에도 patch를 강제했고, 그 결과 도돌이표 commit이 매번 patch를 발행.
+# 본 wave 결정: patch는 사용자 명시 옵트인(HARNESS_BUMP=patch) 또는
+# 다운스트림 직접 영향 영역(skills SKILL.md·rules·agents·CLAUDE.md)만.
+# scripts/*.{sh,py} 단순 수정은 promotion=none (작성자 명시할 때만 patch).
+PATCH_PATTERNS = re.compile(
+    r"^(\.claude/skills/[^/]+/SKILL\.md"
+    r"|\.claude/rules/[^/]+\.md"
+    r"|\.claude/agents/[^/]+\.md"
+    r"|CLAUDE\.md)$"
+)
 
 
 def run(cmd: list[str]) -> str:
@@ -41,6 +61,61 @@ def next_version(current: str, bump_type: str) -> str:
     return f"{major}.{minor}.{patch}"
 
 
+def parse_name_status(name_status: str) -> list[tuple[str, str]]:
+    changes: list[tuple[str, str]] = []
+    for line in name_status.splitlines():
+        parts = line.split("\t")
+        if len(parts) >= 2:
+            # rename/copy는 마지막 경로가 현재 worktree 경로다.
+            changes.append((parts[0], parts[-1]))
+    return changes
+
+
+def classify_bump(changes: list[tuple[str, str]]) -> tuple[str, list[str]]:
+    bump_type = "none"
+    reasons: list[str] = []
+
+    # minor: 신규 핵심 파일 추가
+    new_critical = [path for status, path in changes
+                    if status == "A" and MINOR_PATTERNS.match(path)]
+    if new_critical:
+        bump_type = "minor"
+        reasons.append(f"신규 핵심 파일: {','.join(new_critical[:3])}")
+
+    # patch: 기존 핵심 파일 수정
+    if bump_type == "none":
+        modified_critical = [path for status, path in changes
+                              if status != "A" and PATCH_PATTERNS.match(path)]
+        if modified_critical:
+            bump_type = "patch"
+            reasons.append(f"기존 핵심 파일 수정: {','.join(modified_critical[:3])}")
+
+    return bump_type, reasons
+
+
+def collect_worktree_changes() -> list[tuple[str, str]]:
+    changes = parse_name_status(run(["git", "diff", "--name-status"]))
+    untracked = run(["git", "ls-files", "--others", "--exclude-standard"])
+    for path in untracked.splitlines():
+        if path:
+            changes.append(("A", path))
+    return changes
+
+
+def print_stage_required(data: dict) -> int:
+    pending_bump, reasons = classify_bump(collect_worktree_changes())
+    print("version_bump: none")
+    print(f"current_version: {data.get('version', 'unknown')}")
+    if pending_bump != "none":
+        print("stage_required: true")
+        print(f"pending_bump: {pending_bump}")
+        if reasons:
+            print(f"reasons:\n   - " + "\n   - ".join(reasons), file=sys.stderr)
+    else:
+        print("stage_required: false")
+    return 0
+
+
 def main() -> int:
     # 1. is_starter 판정
     if not HARNESS_JSON.exists():
@@ -55,53 +130,13 @@ def main() -> int:
     # 2. staged 파일 수집
     name_status = run(["git", "diff", "--cached", "--name-status"])
     if not name_status:
-        print("version_bump: none (staged 없음)")
-        return 0
+        return print_stage_required(data)
 
     # (status, path) 파싱
-    staged: list[tuple[str, str]] = []
-    for line in name_status.splitlines():
-        parts = line.split("\t", 1)
-        if len(parts) == 2:
-            staged.append((parts[0], parts[1]))
+    staged = parse_name_status(name_status)
 
     # 3. 범프 타입 결정
-    MINOR_PATTERNS = re.compile(
-        r"^(\.claude/skills/[^/]+/SKILL\.md"
-        r"|\.claude/agents/[^/]+\.md"
-        r"|\.claude/rules/[^/]+\.md"
-        r"|\.claude/scripts/[^/]+\.(sh|py))$"
-    )
-    # Phase 2 (hn_harness_recovery_v0_41_baseline, 2026-05-13):
-    # patch 자동 트리거 좁힘. 9b29f23 이전 패턴은 .claude/scripts/*.{sh,py} 1줄
-    # 수정에도 patch를 강제했고, 그 결과 도돌이표 commit이 매번 patch를 발행.
-    # 본 wave 결정: patch는 사용자 명시 옵트인(HARNESS_BUMP=patch) 또는
-    # 다운스트림 직접 영향 영역(skills SKILL.md·rules·agents·CLAUDE.md)만.
-    # scripts/*.{sh,py} 단순 수정은 promotion=none (작성자 명시할 때만 patch).
-    PATCH_PATTERNS = re.compile(
-        r"^(\.claude/skills/[^/]+/SKILL\.md"
-        r"|\.claude/rules/[^/]+\.md"
-        r"|\.claude/agents/[^/]+\.md"
-        r"|CLAUDE\.md)$"
-    )
-
-    bump_type = "none"
-    reasons: list[str] = []
-
-    # minor: 신규 핵심 파일 추가
-    new_critical = [path for status, path in staged
-                    if status == "A" and MINOR_PATTERNS.match(path)]
-    if new_critical:
-        bump_type = "minor"
-        reasons.append(f"신규 핵심 파일: {','.join(new_critical[:3])}")
-
-    # patch: 기존 핵심 파일 수정
-    if bump_type == "none":
-        modified_critical = [path for status, path in staged
-                              if status != "A" and PATCH_PATTERNS.match(path)]
-        if modified_critical:
-            bump_type = "patch"
-            reasons.append(f"기존 핵심 파일 수정: {','.join(modified_critical[:3])}")
+    bump_type, reasons = classify_bump(staged)
 
     # 4. 출력
     # HEAD 버전: 범프 기준점 (디스크는 이미 범프됐을 수 있으므로 HEAD에서 읽음)
@@ -226,8 +261,32 @@ def archive_old_versions(keep: int = 5) -> int:
     return 0
 
 
+def print_usage() -> None:
+    print(
+        "usage: harness_version_bump.py [--archive [KEEP]]\n"
+        "       harness_version_bump.py --help",
+        file=sys.stderr,
+    )
+
+
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == "--archive":
-        keep = int(sys.argv[2]) if len(sys.argv) > 2 else 5
+    args = sys.argv[1:]
+    if not args:
+        sys.exit(main())
+    if args[0] in ("-h", "--help"):
+        print_usage()
+        sys.exit(0)
+    if args[0] == "--archive":
+        if len(args) > 2:
+            print_usage()
+            sys.exit(2)
+        try:
+            keep = int(args[1]) if len(args) == 2 else 5
+        except ValueError:
+            print_usage()
+            sys.exit(2)
         sys.exit(archive_old_versions(keep))
-    sys.exit(main())
+
+    print(f"unsupported_arg: {args[0]}", file=sys.stderr)
+    print_usage()
+    sys.exit(2)
