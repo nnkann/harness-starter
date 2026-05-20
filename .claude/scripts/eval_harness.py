@@ -6,7 +6,7 @@ LLM 해석 영역(모호성·모순·부패·강제력 배치)은 SKILL.md에 �
 
 본 백엔드 책임:
 1. CPS 무결성 (eval_cps_integrity.py 호출 — 항목 5)
-2. 방어 활성 기록 (signal_defense_success.md — 항목 6)
+2. 방어 활성 기록 (reminder_defense_success.md — 항목 6)
 3. 피드백 리포트 (eval_cps_integrity가 처리 — 항목 7)
 4. 검증 도구 정렬 진단 (LSP/lint/tsc 산출물 vs src — 항목 8 신규)
 5. 느슨한 결합 관측 (스킬 라우팅·WIP 파일명 계약 drift — 항목 10)
@@ -26,6 +26,7 @@ import json
 import re
 import subprocess
 import sys
+from datetime import date
 from pathlib import Path
 
 # Windows cp949 안전 처리 (eval_cps_integrity.py 답습)
@@ -167,10 +168,10 @@ def section_dead_reference() -> None:
 
 
 def section_defense_record() -> None:
-    """signal_defense_success.md 존재·최근 기록 보고."""
+    """reminder_defense_success.md 존재·최근 기록 보고."""
     print("")
     print("## 방어 활성 기록")
-    sig = REPO_ROOT / ".claude/memory/signal_defense_success.md"
+    sig = reminder_file_path("reminder_defense_success.md")
     if not sig.exists():
         print("- 방어 기록 없음 (한 번도 차단 없었거나 Wave A 이전 버전)")
         return
@@ -186,6 +187,203 @@ def section_defense_record() -> None:
         print("- 최근 3건:")
         for line in items[-3:]:
             print(f"  {line}")
+
+
+# ──────────────────────────────────────────────────────────────────────
+# 항목 6.5. memory/reminder frontmatter lint
+# ──────────────────────────────────────────────────────────────────────
+
+_KV_GROUP_RE = re.compile(r"^[a-z0-9][a-z0-9-]*/P\d+/[a-z0-9][a-z0-9-]*$")
+
+
+def reminder_file_path(name: str) -> Path:
+    """신규 reminders/ 경로 우선, 없으면 루트 legacy 경로를 반환한다."""
+    mem_dir = REPO_ROOT / ".claude" / "memory"
+    preferred = mem_dir / "reminders" / name
+    if preferred.exists():
+        return preferred
+    return mem_dir / name
+
+
+def iter_reminder_paths() -> list[Path]:
+    """신규 reminders/ 우선, 루트 reminder/signal은 legacy fallback으로 읽는다."""
+    mem_dir = REPO_ROOT / ".claude" / "memory"
+    paths: list[Path] = []
+    seen: set[str] = set()
+    for directory in (mem_dir / "reminders", mem_dir):
+        if not directory.is_dir():
+            continue
+        for path in sorted({*directory.glob("reminder_*.md"), *directory.glob("signal_*.md")}):
+            if path.name in seen:
+                continue
+            seen.add(path.name)
+            paths.append(path)
+    return paths
+
+
+def parse_simple_frontmatter(text: str) -> dict[str, str]:
+    """단순 frontmatter key:value 파서. eval warning용이라 list 정규화는 하지 않는다."""
+    if not text.startswith("---"):
+        return {}
+    lines = text.splitlines()
+    fm: dict[str, str] = {}
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        m = re.match(r"^([a-zA-Z_-]+):\s*(.*)$", line)
+        if m:
+            fm[m.group(1)] = m.group(2).strip()
+    return fm
+
+
+def analyze_reminder_frontmatter() -> dict[str, list[str]]:
+    """reminder/signal frontmatter 보강 후보를 보고용으로 분류한다.
+
+    hard block이 아니라 eval --harness warning/report 채널이다.
+    """
+    report = {
+        "missing_kv_group": [],
+        "invalid_kv_group": [],
+        "overbroad_kv_group": [],
+        "oversplit_kv_group": [],
+        "candidate_mismatch": [],
+        "stale_candidates": [],
+        "legacy_signals": [],
+        "missing_status": [],
+    }
+    for path in iter_reminder_paths():
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            continue
+        fm = parse_simple_frontmatter(text)
+        name = path.name
+        is_legacy = name.startswith("signal_")
+        if is_legacy:
+            report["legacy_signals"].append(name)
+
+        reminder = fm.get("reminder") or fm.get("signal")
+        if not reminder:
+            continue
+        status = fm.get("status", "")
+        strength = fm.get("strength", "weak")
+        candidate_p = fm.get("candidate_p", "")
+        kv_group = fm.get("kv_group", "")
+
+        if not status and not is_legacy:
+            report["missing_status"].append(name)
+        if not kv_group and (not is_legacy or strength == "strong"):
+            report["missing_kv_group"].append(name)
+        if kv_group:
+            parts = kv_group.split("/")
+            if len(parts) < 3:
+                report["overbroad_kv_group"].append(f"{name}: {kv_group}")
+            elif len(parts) > 3:
+                report["oversplit_kv_group"].append(f"{name}: {kv_group}")
+            if not _KV_GROUP_RE.match(kv_group):
+                report["invalid_kv_group"].append(f"{name}: {kv_group}")
+            elif candidate_p and len(parts) == 3 and parts[1] != candidate_p:
+                report["candidate_mismatch"].append(
+                    f"{name}: candidate_p={candidate_p}, kv_group={kv_group}"
+                )
+
+        valid_until = fm.get("valid_until", "")
+        if valid_until:
+            try:
+                if date.fromisoformat(valid_until) < date.today():
+                    report["stale_candidates"].append(f"{name}: valid_until={valid_until}")
+            except ValueError:
+                report["stale_candidates"].append(f"{name}: valid_until={valid_until} (invalid)")
+
+    return report
+
+
+def analyze_reminder_promotion_candidates() -> list[str]:
+    """관련 WIP 흡수 또는 정식 WIP 승격 후보 reminder를 보고한다.
+
+    reminder는 backlog가 아니라 routing signal이다. 길거나 강하거나 근거 owner가
+    약한 항목은 관련 작업에 흡수하거나 WIP를 거쳐 decision/incident/rules로
+    승격할 후보로 본다.
+    """
+    candidates: list[str] = []
+    group_counts: dict[str, list[str]] = {}
+    for path in iter_reminder_paths():
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            continue
+        fm = parse_simple_frontmatter(text)
+        name = path.name
+        reminder = fm.get("reminder") or fm.get("signal")
+        if not reminder:
+            continue
+        status = fm.get("status", "active")
+        if status in {"archived", "suppressed"}:
+            continue
+        strength = fm.get("strength", "weak")
+        source = fm.get("source", "")
+        kv_group = fm.get("kv_group", "")
+        if kv_group:
+            group_counts.setdefault(kv_group, []).append(name)
+
+        body_lines = [
+            line for line in text.splitlines()
+            if line.strip() and line.strip() != "---"
+        ]
+        if len(body_lines) > 35:
+            candidates.append(f"{name}: 본문 {len(body_lines)}줄 — 관련 WIP 흡수 또는 WIP 승격 후보")
+        if strength == "strong" and source in {"", "user", "audit"}:
+            candidates.append(f"{name}: strong + source={source or 'none'} — SSOT owner 필요")
+
+    for group, names in sorted(group_counts.items()):
+        active_names = sorted(names)
+        if len(active_names) > 3:
+            candidates.append(
+                f"{group}: active reminder {len(active_names)}건 — 관련 WIP 흡수·병합 또는 WIP 승격 후보"
+            )
+
+    return candidates
+
+
+def section_reminder_frontmatter_lint() -> None:
+    """reminder frontmatter 보강 후보를 eval --harness에서 보고한다."""
+    print("")
+    print("## memory/reminder frontmatter lint")
+    report = analyze_reminder_frontmatter()
+    promotion = analyze_reminder_promotion_candidates()
+    total = sum(len(v) for v in report.values())
+    if total == 0 and not promotion:
+        print("- 보강 후보 0건 ✅")
+        return
+
+    print("- pre-check hard block 아님. 신규/strong/stale/legacy 순서로 보강 권장.")
+    labels = {
+        "missing_kv_group": "kv_group 누락",
+        "invalid_kv_group": "kv_group 형식 오류",
+        "overbroad_kv_group": "과대 group",
+        "oversplit_kv_group": "과소 group",
+        "candidate_mismatch": "candidate_p 불일치",
+        "stale_candidates": "stale 후보",
+        "legacy_signals": "legacy signal",
+        "missing_status": "status 누락",
+    }
+    for key, label in labels.items():
+        items = report[key]
+        if not items:
+            continue
+        print(f"- ⚠ {label}: {len(items)}건")
+        for item in items[:8]:
+            print(f"  - {item}")
+        if len(items) > 8:
+            print(f"  ... 외 {len(items) - 8}건")
+
+    if promotion:
+        print("- ⚠ 관련 WIP 흡수/승격 후보:")
+        for item in promotion[:8]:
+            print(f"  - {item}")
+        if len(promotion) > 8:
+            print(f"  ... 외 {len(promotion) - 8}건")
+        print("  대응: 관련 WIP가 있으면 흡수하고, 없으면 docs/WIP/ 정식 작업으로 승격 후 decision/incident/rules로 이동")
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -550,17 +748,13 @@ def observe_c_reinforcement() -> dict[str, list[str]]:
             except Exception as e:
                 c_missing.append(f"{path.relative_to(REPO_ROOT).as_posix()}: read 실패 ({e})")
                 continue
-            fm = {}
-            try:
-                fm = parse_wip_file(path).frontmatter
-            except Exception:
-                fm = {}
+            fm = parse_simple_frontmatter(text)
             has_c = bool(str(fm.get("c", "")).strip())
             has_rationale = (
                 "## CPS Rationale" in text
-                and "C → P" in text
-                and "P → S" in text
-                and "S → AC" in text
+                and ("C → P" in text or "C -> P" in text)
+                and ("P → S" in text or "P -> S" in text)
+                and ("S → AC" in text or "S -> AC" in text)
             )
             if not (has_c or has_rationale):
                 c_missing.append(path.relative_to(REPO_ROOT).as_posix())
@@ -624,6 +818,9 @@ def main() -> int:
 
     # 항목 6: 방어 활성 기록
     section_defense_record()
+
+    # 항목 6.5: memory/reminder frontmatter lint
+    section_reminder_frontmatter_lint()
 
     # 항목 8: 검증 도구 정렬 진단
     section_alignment_diagnostics()

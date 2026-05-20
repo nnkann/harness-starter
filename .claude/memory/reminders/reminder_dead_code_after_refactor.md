@@ -1,9 +1,14 @@
 ---
-signal: 리팩토링 후 dead code(미사용 함수 정의) 잔존 반복
+reminder: 리팩토링 후 dead code(미사용 함수 정의) 잔존 반복
 domain: harness
-keywords: [refactor, dead code, 미사용, 함수 정의]
+keywords: [refactor, dead-code, unused, function]
 strength: medium
 candidate_p: P6
+kv_group: harness/P6/ssot-validation
+status: active
+source: docs/incidents/hn_commit_process_gaps.md
+owner: harness
+last_validated: 2026-05-21
 ---
 
 함수 호출을 제거할 때 정의도 함께 제거 안 함. grep만으로 dead code 추적

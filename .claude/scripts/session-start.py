@@ -8,6 +8,8 @@ import os
 import re
 import subprocess
 import sys
+from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 
 # cwd 보정 — hook 실행 시 cwd가 .claude/scripts/로 들어오는 케이스
@@ -188,60 +190,227 @@ def section_upgrade(in_git: bool) -> None:
         print("╚════════════════════════════════════════════════════════════╝")
 
 
-def get_wip_domains() -> set[str]:
-    """현재 WIP 파일들의 frontmatter domain 값 수집. 없으면 빈 set."""
+@dataclass(frozen=True)
+class WipContext:
+    domains: set[str]
+    problems: set[str]
+    tokens: set[str]
+
+
+@dataclass(frozen=True)
+class ReminderItem:
+    line: str
+    strength: str
+    stale: bool
+    kv_group: str
+    group_hit: bool
+    cross_domain: bool
+
+
+def iter_reminder_paths(mem_dir: Path) -> list[Path]:
+    """신규 reminders/ 우선, 루트 reminder/signal은 legacy fallback으로 읽는다."""
+    paths: list[Path] = []
+    seen: set[str] = set()
+    for directory in (mem_dir / "reminders", mem_dir):
+        if not directory.is_dir():
+            continue
+        for path in sorted({*directory.glob("reminder_*.md"), *directory.glob("signal_*.md")}):
+            if path.name in seen:
+                continue
+            seen.add(path.name)
+            paths.append(path)
+    return paths
+
+
+def _frontmatter_value(text: str, key: str) -> str:
+    m = re.search(rf"^{re.escape(key)}:\s*(.+)", text, re.MULTILINE)
+    return m.group(1).strip() if m else ""
+
+
+def _frontmatter_ids(text: str, key: str, prefix: str) -> set[str]:
+    value = _frontmatter_value(text, key)
+    if not value:
+        return set()
+    return set(re.findall(rf"\b{re.escape(prefix)}\d+\b", value))
+
+
+def _frontmatter_list_tokens(text: str, key: str) -> set[str]:
+    value = _frontmatter_value(text, key)
+    if not value:
+        return set()
+    tokens = re.findall(r"[a-z0-9][a-z0-9-]*", value.lower())
+    return set(tokens)
+
+
+def _slug_tokens(path: Path) -> set[str]:
+    return set(re.findall(r"[a-z0-9][a-z0-9-]*", path.name.lower()))
+
+
+def get_wip_context() -> WipContext:
+    """현재 WIP의 domain/problem/tags/slug로 reminder query context 생성."""
     domains: set[str] = set()
+    problems: set[str] = set()
+    tokens: set[str] = set()
     wip_dir = Path("docs/WIP")
     if not wip_dir.is_dir():
-        return domains
+        return WipContext(domains, problems, tokens)
     for f in wip_dir.glob("*.md"):
         try:
             text = f.read_text(encoding="utf-8")
-            m = re.search(r"^domain:\s*(\S+)", text, re.MULTILINE)
-            if m:
-                domains.add(m.group(1).strip())
+            domain = _frontmatter_value(text, "domain")
+            if domain:
+                domains.add(domain)
+                tokens.add(domain.lower())
+            problems.update(_frontmatter_ids(text, "problem", "P"))
+            tokens.update(_frontmatter_list_tokens(text, "tags"))
+            tokens.update(_slug_tokens(f))
         except Exception:
             pass
-    return domains
+    changed = run(["git", "diff", "--name-only"])
+    changed_cached = run(["git", "diff", "--cached", "--name-only"])
+    for path in (changed + "\n" + changed_cached).splitlines():
+        tokens.update(re.findall(r"[a-z0-9][a-z0-9-]*", path.lower()))
+    return WipContext(domains, problems, tokens)
 
 
-def section_signals() -> None:
-    """현재 WIP domain과 매칭되는 신호만 출력. archived 신호는 약한 톤."""
-    sig_dir = Path(".claude/memory")
-    if not sig_dir.is_dir():
+def get_wip_domains() -> set[str]:
+    """현재 WIP 파일들의 frontmatter domain 값 수집. 없으면 빈 set."""
+    return get_wip_context().domains
+
+
+def derive_kv_query_groups(context: WipContext) -> set[str]:
+    """WIP context에서 보수적인 grouped active reminder query 후보 생성."""
+    groups: set[str] = set()
+    if not context.domains or not context.problems:
+        return groups
+
+    family_rules = {
+        "review-commit": {"review", "commit", "pre-check", "precheck", "stage", "staged"},
+        "stale-memory": {"memory", "reminder", "signal", "stale", "valid", "valid-until"},
+        "session-start": {"session-start", "session", "start", "hook", "hooks"},
+        "ssot-validation": {"ssot", "rules", "docs", "validation", "verify", "cps"},
+    }
+    families = {
+        family for family, markers in family_rules.items()
+        if context.tokens & markers
+    }
+    for domain in context.domains:
+        for problem in context.problems:
+            for family in families:
+                groups.add(f"{domain}/{problem}/{family}")
+    return groups
+
+
+def section_reminders() -> None:
+    """현재 WIP domain과 매칭되는 reminder만 출력. signal_*은 legacy alias."""
+    mem_dir = Path(".claude/memory")
+    if not mem_dir.is_dir():
         return
-    signals = sorted(sig_dir.glob("signal_*.md"))
-    if not signals:
+    reminders = iter_reminder_paths(mem_dir)
+    if not reminders:
         return
-    domains = get_wip_domains()
-    matched: list[str] = []
-    for f in signals:
+    context = get_wip_context()
+    domains = context.domains
+    query_groups = derive_kv_query_groups(context)
+    matched: list[ReminderItem] = []
+    cross_domain_strong: list[ReminderItem] = []
+    for f in reminders:
         try:
             text = f.read_text(encoding="utf-8")
-            m_sig = re.search(r"^signal:\s*(.+)", text, re.MULTILINE)
+            m_sig = re.search(r"^(?:reminder|signal):\s*(.+)", text, re.MULTILINE)
             m_dom = re.search(r"^domain:\s*(\S+)", text, re.MULTILINE)
             m_str = re.search(r"^strength:\s*(\S+)", text, re.MULTILINE)
-            m_arc = re.search(r"^archived:\s*(true|True|TRUE)", text, re.MULTILINE)
+            m_status = re.search(r"^status:\s*(\S+)", text, re.MULTILINE)
+            m_valid = re.search(r"^valid_until:\s*(\d{4}-\d{2}-\d{2})", text, re.MULTILINE)
+            m_legacy_arc = re.search(r"^archived:\s*(true|True|TRUE)", text, re.MULTILINE)
+            m_group = re.search(r"^kv_group:\s*(\S+)", text, re.MULTILINE)
             if not m_sig:
                 continue
             sig_domain = m_dom.group(1).strip() if m_dom else ""
-            if domains and sig_domain and sig_domain not in domains:
+            strength = m_str.group(1).strip() if m_str else "weak"
+            status = m_status.group(1).strip() if m_status else "active"
+            if m_legacy_arc:
+                status = "archived"
+            if status in {"archived", "suppressed"}:
                 continue
-            archived = bool(m_arc)
-            if archived:
-                # archived 신호는 약한 톤 — 회상 다리만 유지 (P8 Phase 3)
-                matched.append(f"  · (archived) {m_sig.group(1).strip()}")
-            else:
-                strength = m_str.group(1).strip() if m_str else "weak"
-                icon = {"weak": "🔸", "medium": "🔶", "strong": "🔴"}.get(strength, "🔸")
-                matched.append(f"  {icon} {m_sig.group(1).strip()}")
+
+            stale = False
+            if m_valid:
+                try:
+                    stale = date.fromisoformat(m_valid.group(1).strip()) < date.today()
+                except ValueError:
+                    stale = True
+
+            icon = {"weak": "🔸", "medium": "🔶", "strong": "🔴"}.get(strength, "🔸")
+            suffix = " (stale 후보 — 재확인 필요)" if stale else ""
+            line = f"  {icon} {m_sig.group(1).strip()}{suffix}"
+            kv_group = m_group.group(1).strip() if m_group else ""
+            group_hit = bool(kv_group and kv_group in query_groups)
+            item = ReminderItem(
+                line=line,
+                strength=strength,
+                stale=stale,
+                kv_group=kv_group,
+                group_hit=group_hit,
+                cross_domain=False,
+            )
+
+            if domains and sig_domain and sig_domain not in domains:
+                if strength == "strong" and len(cross_domain_strong) < 2:
+                    cross_domain_strong.append(
+                        ReminderItem(
+                            line=line,
+                            strength=strength,
+                            stale=stale,
+                            kv_group=kv_group,
+                            group_hit=group_hit,
+                            cross_domain=True,
+                        )
+                    )
+                continue
+            matched.append(item)
         except Exception:
             pass
+    matched.extend(cross_domain_strong)
     if matched:
+        strength_rank = {"strong": 3, "medium": 2, "weak": 1}
+        matched.sort(
+            key=lambda item: (
+                not item.group_hit,
+                item.stale,
+                -strength_rank.get(item.strength, 0),
+                item.kv_group,
+                item.line,
+            )
+        )
+        if len(matched) > 8:
+            shown: list[ReminderItem] = []
+            group_counts: dict[str, int] = {}
+            for item in matched:
+                if item.group_hit and item.kv_group:
+                    count = group_counts.get(item.kv_group, 0)
+                    if count >= 2:
+                        continue
+                    group_counts[item.kv_group] = count + 1
+                shown.append(item)
+                if len(shown) >= 8:
+                    break
+            hidden = len(matched) - len(shown)
+        else:
+            shown = matched
+            hidden = 0
+
         print()
-        print("📡 반복 신호 (memory):")
-        for line in matched:
-            print(line)
+        print("📌 리마인더 (memory):")
+        for item in shown:
+            print(item.line)
+        if hidden:
+            print(f"  · 추가 후보 {hidden}건은 memory index에서 확인")
+
+
+def section_signals() -> None:
+    # 기존 호출자 호환용 진입점. 새 개념명은 reminder.
+    section_reminders()
 
 
 def section_incidents() -> None:

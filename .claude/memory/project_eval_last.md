@@ -28,7 +28,7 @@ type: project
 ## 장기 부채
 
 - **CPS Problem 인플레이션 (7개 > 임계 6)** — P5(컨텍스트 팽창)·P7(미완독 회피)가 "상호 악화" 관계. 진단 가치는 분리 시 더 크지만, 임계 초과 자체는 모니터링 신호. 6개월 단위 병합 검토.
-- **인용 0건 Problem: P4** — bash-guard.sh 차단 성공이 너무 잘 작동해 인용 안 됨(역설). CPS 본문에 운용 약점으로 명시됨. signal_defense_success.md 8건 기록이 활성 증명. 정상 정체.
+- **인용 0건 Problem: P4** — bash-guard.sh 차단 성공이 너무 잘 작동해 인용 안 됨(역설). CPS 본문에 운용 약점으로 명시됨. reminder_defense_success.md 8건 기록이 활성 증명. 정상 정체.
 
 ## 다음 행동
 

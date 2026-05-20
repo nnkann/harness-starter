@@ -1,9 +1,14 @@
 ---
-signal: /commit 호출이 "이미 완료" 암묵적 신호로 작동해 AC 체크박스 갱신 생략
+reminder: /commit 호출이 "이미 완료" 암묵적 신호로 작동해 AC 체크박스 갱신 생략
 domain: harness
-keywords: [commit, AC, 체크박스, self-verify, Phase 완료]
+keywords: [commit, ac, checkbox, self-verify, phase]
 strength: strong
 candidate_p: P8
+kv_group: harness/P8/review-commit
+status: active
+source: docs/incidents/hn_commit_process_gaps.md
+owner: harness
+last_validated: 2026-05-21
 ---
 
 수정 후 테스트·AC 체크 없이 `/commit` 직행. commit 스킬 호출 행위

@@ -1,9 +1,14 @@
 ---
-signal: WIP 이동 시 역참조 relates-to dead link 생성 반복
+reminder: WIP 이동 시 역참조 relates-to dead link 생성 반복
 domain: harness
-keywords: [WIP, move, dead link, relates-to, git mv]
+keywords: [wip, move, dead-link, relates-to, git-mv]
 strength: medium
 candidate_p: P6
+kv_group: harness/P6/ssot-validation
+status: active
+source: docs/incidents/hn_commit_process_gaps.md
+owner: harness
+last_validated: 2026-05-21
 ---
 
 WIP completed 전환 시 다른 문서의 `relates-to` 경로가 옛 `WIP/`

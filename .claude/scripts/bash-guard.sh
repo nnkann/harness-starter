@@ -29,13 +29,14 @@ fi
 [ -z "$COMMAND" ] && exit 0
 
 # 차단 성공 기록 함수 — background append, hook 실행시간 영향 없음
-# signal_defense_success.md: P4 방어 활성 데이터. eval --harness가 읽음.
+# reminder_defense_success.md: P4 방어 활성 데이터. eval --harness가 읽음.
 _record_defense() {
   local reason="$1"
-  local sig_file=".claude/memory/signal_defense_success.md"
+  local sig_file=".claude/memory/reminders/reminder_defense_success.md"
   {
+    mkdir -p "$(dirname "$sig_file")"
     if [ ! -f "$sig_file" ]; then
-      printf -- "---\nsignal: bash-guard 차단 성공 기록\ndomain: harness\nkeywords: [bash-guard, defense, p4]\nstrength: medium\ncandidate_p: P4\n---\n\n" > "$sig_file"
+      printf -- "---\nreminder: bash-guard 차단 성공 기록\ndomain: harness\nkeywords: [bash-guard, defense, p4]\nstrength: medium\ncandidate_p: P4\nkv_group: harness/P4/ssot-validation\nstatus: active\nsource: audit\nowner: harness\nlast_validated: $(date '+%Y-%m-%d')\n---\n\n" > "$sig_file"
     fi
     printf -- "- %s | %s\n" "$(date '+%Y-%m-%d')" "$reason" >> "$sig_file"
   } 2>/dev/null &

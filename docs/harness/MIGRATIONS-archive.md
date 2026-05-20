@@ -43,6 +43,31 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.51.8 — 느슨한 결합 관측 + CPS 결합도 + 검증 다이어트 (2026-05-20)
+
+관측 지표가 단일 신호로 오판하거나, 오류가 skip/warn/pass 뒤에 묻히는 문제를
+줄였다. 다운스트림 피드백과 작업 중 발견된 drift를 바탕으로 `eval --harness`가
+CPS P↔S 결합도, C 보강 루프, silent exception 후보, 토큰 다이어트 상태를 함께
+보고한다.
+
+### 자동 적용
+- `.claude/scripts/eval_cps_integrity.py`: CPS Problems/Solutions 표에서 P↔S 결합도를 검사. orphan Problem, unmapped Solution, dangling P#를 분리해 출력
+- `.claude/scripts/eval_harness.py`: 느슨한 결합 관측, 토큰 다이어트 관측, C 보강·회귀 루프 관측 섹션 추가
+- `.claude/scripts/docs_ops.py`: `wip-sync`의 WIP glob을 1회로 줄이고, 자동 이동 후 `cluster-update`를 batch 1회 실행
+- `.claude/skills/implementation`, `write-doc`, `commit`: WIP 파일명 계약을 `docs_ops.py move`의 `{대상폴더}--{abbr}_{slug}.md` 요구사항에 맞춤
+- `.claude/skills/implementation`, `eval`: pytest 전체 스위트 반복 실행 금지. 기본은 단일 파일·test id·좁은 marker
+- `project_kickoff.md`: S6/S7/S9 해결 기준에 silent exception, skip/warn/pass 의미, 타깃 테스트 기준 반영
+
+### 수동 확인
+- 다운스트림에서 `eval --harness` 실행 후 `CPS P↔S 결합도`, `C 보강·회귀 루프 관측`, `토큰 다이어트 관측` 섹션을 확인
+- `silent exception 후보`가 표시되면 intentional skip과 진짜 swallow를 분류하고, 필요한 경우 warning/return reason으로 바꾼다
+- pytest는 기본 검증으로 전체 실행하지 않는다. 변경 파일에 대응하는 단일 test id 또는 marker를 우선 사용
+
+### 회귀 위험
+- 중간. eval 출력 섹션이 늘어나고 일부 기준이 더 엄격하게 보인다. 다만 기본 동작은 관측 중심이며 차단 게이트가 아니다. WIP 이동 규칙 문서는 기존 `docs_ops.py move` 실제 동작에 맞춰진다
+
+
+
 ## v0.51.7 — CPS 0건 Problem 폐기 권고 보조 신호 보강 (2026-05-20)
 
 다운스트림 FR-011 반영. `eval --harness`가 `problem:` primary 인용 0건만으로

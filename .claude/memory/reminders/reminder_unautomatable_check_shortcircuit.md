@@ -1,9 +1,14 @@
 ---
-signal: 자동화 불가 검증을 자동화한 것처럼 포장하는 단락 패턴
+reminder: 자동화 불가 검증을 자동화한 것처럼 포장하는 단락 패턴
 domain: harness
-keywords: [self-verify, 검증, 테스트 통과, 완료 선언, Claude 행동]
+keywords: [self-verify, validation, test-pass, done, claude-behavior]
 strength: medium
 candidate_p: P6
+kv_group: harness/P6/ssot-validation
+status: active
+source: docs/incidents/hn_commit_process_gaps.md
+owner: harness
+last_validated: 2026-05-21
 ---
 
 "테스트 통과 = 기능 동작 확인" 등식을 검증 없이 적용. 테스트가 커버

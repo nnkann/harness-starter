@@ -1,9 +1,14 @@
 ---
-signal: bash-guard 차단 성공 기록
+reminder: bash-guard 차단 성공 기록
 domain: harness
 keywords: [bash-guard, defense, p4]
 strength: medium
 candidate_p: P4
+kv_group: harness/P4/ssot-validation
+status: active
+source: audit
+owner: harness
+last_validated: 2026-05-21
 ---
 
 - 2026-05-06 | git commit 직접 호출 차단

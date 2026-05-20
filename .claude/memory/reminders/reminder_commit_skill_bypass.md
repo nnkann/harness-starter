@@ -1,9 +1,14 @@
 ---
-signal: 커밋 요청 시 /commit 스킬 대신 commit_finalize.sh 직접 호출 반복
+reminder: 커밋 요청 시 /commit 스킬 대신 commit_finalize.sh 직접 호출 반복
 domain: harness
-keywords: [commit, commit_finalize, 우회]
+keywords: [commit, commit-finalize, bypass]
 strength: strong
 candidate_p: P6
+kv_group: harness/P6/review-commit
+status: active
+source: user
+owner: harness
+last_validated: 2026-05-21
 ---
 
 WIP 없거나 review stage 불명확할 때 스킬 대신 직접 호출로 넘어가는 패턴.

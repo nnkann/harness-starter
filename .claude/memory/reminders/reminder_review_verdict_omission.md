@@ -1,9 +1,14 @@
 ---
-signal: review 에이전트 응답에 verdict 단어(pass|warn|block) 첫 호출에서 누락 반복
+reminder: review 에이전트 응답에 verdict 단어(pass|warn|block) 첫 호출에서 누락 반복
 domain: harness
 keywords: [review, verdict, agent, prompt-compliance, extract-fail]
 strength: medium
 candidate_p: P8
+kv_group: harness/P8/review-commit
+status: active
+source: docs/decisions/hn_review_verdict_compliance.md
+owner: harness
+last_validated: 2026-05-21
 ---
 
 # review verdict 누락 패턴

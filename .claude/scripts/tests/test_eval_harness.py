@@ -342,6 +342,168 @@ def test_dead_reference_patterns_cover_known_deprecations():
     assert expected.issubset(actual), f"누락 패턴: {expected - actual}"
 
 
+@pytest.mark.eval
+def test_reminder_frontmatter_lint_reports_kv_group_and_stale_candidates(
+    tmp_path, monkeypatch
+):
+    """eval --harness가 reminder 보강 후보를 warning/report로 분류한다."""
+    mod = _load_eval_harness()
+    monkeypatch.setattr(mod, "REPO_ROOT", tmp_path)
+    mem = tmp_path / ".claude" / "memory"
+    mem.mkdir(parents=True)
+    reminders = mem / "reminders"
+    reminders.mkdir()
+    (reminders / "reminder_missing.md").write_text(
+        "---\n"
+        "reminder: 신규 reminder는 kv_group 보강 후보\n"
+        "domain: harness\n"
+        "strength: weak\n"
+        "candidate_p: P8\n"
+        "status: active\n"
+        "---\n",
+        encoding="utf-8",
+    )
+    (reminders / "reminder_stale.md").write_text(
+        "---\n"
+        "reminder: stale 후보\n"
+        "domain: harness\n"
+        "strength: strong\n"
+        "candidate_p: P8\n"
+        "kv_group: harness/P9/stale-memory\n"
+        "status: active\n"
+        "valid_until: 2000-01-01\n"
+        "---\n",
+        encoding="utf-8",
+    )
+    (mem / "signal_legacy.md").write_text(
+        "---\n"
+        "signal: legacy alias\n"
+        "domain: harness\n"
+        "strength: weak\n"
+        "candidate_p: P8\n"
+        "---\n",
+        encoding="utf-8",
+    )
+
+    report = mod.analyze_reminder_frontmatter()
+
+    assert report["missing_kv_group"] == ["reminder_missing.md"]
+    assert report["candidate_mismatch"] == [
+        "reminder_stale.md: candidate_p=P8, kv_group=harness/P9/stale-memory"
+    ]
+    assert report["stale_candidates"] == [
+        "reminder_stale.md: valid_until=2000-01-01"
+    ]
+    assert report["legacy_signals"] == ["signal_legacy.md"]
+
+
+@pytest.mark.eval
+def test_reminder_frontmatter_lint_detects_group_shape(tmp_path, monkeypatch):
+    """과대/과소/형식 오류 group은 eval 보고 대상이다."""
+    mod = _load_eval_harness()
+    monkeypatch.setattr(mod, "REPO_ROOT", tmp_path)
+    mem = tmp_path / ".claude" / "memory"
+    mem.mkdir(parents=True)
+    reminders = mem / "reminders"
+    reminders.mkdir()
+    (reminders / "reminder_broad.md").write_text(
+        "---\nreminder: broad\ndomain: harness\ncandidate_p: P8\n"
+        "kv_group: harness/P8\nstatus: active\n---\n",
+        encoding="utf-8",
+    )
+    (reminders / "reminder_split.md").write_text(
+        "---\nreminder: split\ndomain: harness\ncandidate_p: P8\n"
+        "kv_group: harness/P8/review/commit\nstatus: active\n---\n",
+        encoding="utf-8",
+    )
+
+    report = mod.analyze_reminder_frontmatter()
+
+    assert report["overbroad_kv_group"] == ["reminder_broad.md: harness/P8"]
+    assert report["oversplit_kv_group"] == [
+        "reminder_split.md: harness/P8/review/commit"
+    ]
+    assert "reminder_broad.md: harness/P8" in report["invalid_kv_group"]
+    assert "reminder_split.md: harness/P8/review/commit" in report["invalid_kv_group"]
+
+
+@pytest.mark.eval
+def test_reminder_promotion_candidates_detect_heavy_and_strong_user_items(
+    tmp_path, monkeypatch
+):
+    """무거운/강한 reminder는 관련 WIP 흡수 또는 정식 WIP 승격 후보로 보고한다."""
+    mod = _load_eval_harness()
+    monkeypatch.setattr(mod, "REPO_ROOT", tmp_path)
+    mem = tmp_path / ".claude" / "memory"
+    mem.mkdir(parents=True)
+    reminders = mem / "reminders"
+    reminders.mkdir()
+    heavy_body = "\n".join(f"- detail {i}" for i in range(36))
+    (reminders / "reminder_heavy.md").write_text(
+        "---\n"
+        "reminder: 너무 긴 reminder\n"
+        "domain: harness\n"
+        "strength: medium\n"
+        "candidate_p: P8\n"
+        "kv_group: harness/P8/session-start\n"
+        "status: active\n"
+        "source: docs/decisions/x.md\n"
+        "---\n\n"
+        f"{heavy_body}\n",
+        encoding="utf-8",
+    )
+    (reminders / "reminder_strong_user.md").write_text(
+        "---\n"
+        "reminder: strong user reminder\n"
+        "domain: harness\n"
+        "strength: strong\n"
+        "candidate_p: P8\n"
+        "kv_group: harness/P8/review-commit\n"
+        "status: active\n"
+        "source: user\n"
+        "---\n",
+        encoding="utf-8",
+    )
+
+    candidates = mod.analyze_reminder_promotion_candidates()
+
+    assert any("reminder_heavy.md: 본문" in item for item in candidates)
+    assert (
+        "reminder_strong_user.md: strong + source=user — SSOT owner 필요"
+        in candidates
+    )
+
+
+@pytest.mark.eval
+def test_reminder_promotion_candidates_detect_dense_group(tmp_path, monkeypatch):
+    """같은 kv_group active reminder 과밀은 관련 WIP 흡수/병합/승격 후보."""
+    mod = _load_eval_harness()
+    monkeypatch.setattr(mod, "REPO_ROOT", tmp_path)
+    mem = tmp_path / ".claude" / "memory"
+    mem.mkdir(parents=True)
+    reminders = mem / "reminders"
+    reminders.mkdir()
+    for idx in range(4):
+        (reminders / f"reminder_dense_{idx}.md").write_text(
+            "---\n"
+            f"reminder: dense {idx}\n"
+            "domain: harness\n"
+            "strength: weak\n"
+            "candidate_p: P8\n"
+            "kv_group: harness/P8/review-commit\n"
+            "status: active\n"
+            "source: docs/decisions/x.md\n"
+            "---\n",
+            encoding="utf-8",
+        )
+
+    candidates = mod.analyze_reminder_promotion_candidates()
+
+    assert candidates == [
+        "harness/P8/review-commit: active reminder 4건 — 관련 WIP 흡수·병합 또는 WIP 승격 후보"
+    ]
+
+
 # ────────────────────────────────────────────────────────────────────────
 # scan_dead_reference_paths — pre-check 게이트 재사용 함수 (v0.47.10)
 # ────────────────────────────────────────────────────────────────────────
@@ -434,6 +596,58 @@ def test_c_reinforcement_observability_detects_missing_c_and_silent_exception(
     assert report["silent_exceptions"] == [
         ".claude/scripts/quiet.py:3 | except Exception:"
     ]
+
+
+@pytest.mark.eval
+def test_c_reinforcement_observability_accepts_frontmatter_c(tmp_path, monkeypatch):
+    """frontmatter c:가 있으면 WIP C 신호 누락으로 보고하지 않는다."""
+    mod = _load_eval_harness()
+    monkeypatch.setattr(mod, "REPO_ROOT", tmp_path)
+
+    wip = tmp_path / "docs" / "WIP" / "decisions--hn_has_c.md"
+    wip.parent.mkdir(parents=True)
+    wip.write_text(
+        "---\n"
+        "title: has c\n"
+        "c: 사용자 발화 원문\n"
+        "problem: P8\n"
+        "s: [S8]\n"
+        "status: in-progress\n"
+        "---\n\n"
+        "# Has C\n",
+        encoding="utf-8",
+    )
+
+    report = mod.observe_c_reinforcement()
+    assert report["c_missing"] == []
+
+
+@pytest.mark.eval
+def test_c_reinforcement_observability_accepts_ascii_cps_arrows(
+    tmp_path, monkeypatch
+):
+    """CPS Rationale의 ASCII 화살표도 C 신호로 인정한다."""
+    mod = _load_eval_harness()
+    monkeypatch.setattr(mod, "REPO_ROOT", tmp_path)
+
+    wip = tmp_path / "docs" / "WIP" / "decisions--hn_ascii_arrows.md"
+    wip.parent.mkdir(parents=True)
+    wip.write_text(
+        "---\n"
+        "title: ascii arrows\n"
+        "problem: P8\n"
+        "s: [S8]\n"
+        "status: in-progress\n"
+        "---\n\n"
+        "## CPS Rationale\n\n"
+        "- C -> P: 관찰\n"
+        "- P -> S: 해결\n"
+        "- S -> AC: 검증\n",
+        encoding="utf-8",
+    )
+
+    report = mod.observe_c_reinforcement()
+    assert report["c_missing"] == []
 
 
 # ────────────────────────────────────────────────────────────────────────
