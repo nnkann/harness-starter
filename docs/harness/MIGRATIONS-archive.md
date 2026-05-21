@@ -43,6 +43,27 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.52.2 — SSOT drift 통합 의무 보강 (2026-05-20)
+
+작업 중 SSOT가 여러 곳에 나뉜 것을 발견하면 그 자체를 본 작업의 문제로
+처리하도록 규칙을 보강했다. 문서·절차뿐 아니라 함수, 메서드, 변수, 상수,
+정규식, schema key, 환경변수 이름 같은 코드 심볼도 owner 지정·참조화·mirror
+역할 분리 대상임을 명시했다.
+
+### 자동 적용
+- `.claude/rules/docs.md`: SSOT drift 발견 시 owner SSOT 지정, 참조화, 역할 분리, WIP AC 포함을 의무화
+- `.claude/rules/code-ssot.md`: 코드 심볼 SSOT drift 규칙 추가
+- `.claude/skills/implementation`, `.agents/skills/implementation`: Step 2에 SSOT drift와 코드 심볼 SSOT 실행 절차 추가
+
+### 수동 확인
+- 작업 중 같은 의미의 절차·판정·심볼이 2곳 이상 보이면 한 곳만 고치지 말고 owner SSOT와 mirror/참조 역할을 먼저 정한다
+- 같은 로직이 3곳 이상이면 기존 `code-ssot.md` 3+ reference rule에 따라 별도 core 추출 wave를 검토한다
+
+### 회귀 위험
+- 낮음. 절차·규칙 보강이며 런타임 동작 변경은 없다. 다만 implementation 단계에서 SSOT 탐색·정리 범위가 더 엄격해질 수 있다
+
+
+
 ## v0.52.1 — eval false positive + 버전 범프 opt-in 복구 (2026-05-20)
 
 `eval --harness` false positive 수정이 버전 범프 없이 push되며 다운스트림
