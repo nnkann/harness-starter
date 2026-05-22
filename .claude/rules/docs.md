@@ -189,6 +189,11 @@ WIP task 블록의 AC:
 
 **필수 필드**: `Goal`·`검증.review`·`검증.tests`·`검증.실측` 4개. 누락 시 commit 차단.
 
+**implementation WIP 실행성**: implementation WIP의 AC는 다음 단계 진입 조건을
+드러내야 한다. 실행 단계 섹션과 단계별 산출물 점검은
+`.claude/skills/implementation/SKILL.md` Step 3·5가 soft warning으로 담당한다.
+순수 결정문·조사문·사고 기록·write-doc 산출물은 이 경고 대상이 아니다.
+
 **C-P-S-AC 연결**: WIP는 가능한 한 `c:` frontmatter 또는 본문
 `## CPS Rationale`에 아래 3줄을 남긴다. pre-check 보강 전까지 차단은
 아니지만, review·self-verify의 첫 판단 기준이다.

@@ -43,6 +43,29 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.52.3 — reminder memory 계약 정리 (2026-05-21)
+
+reminder를 `docs/`의 SSOT 문서가 아니라 `.claude/memory/reminders/` 아래의
+routing signal로 정리했다. 관련 WIP가 있으면 reminder를 새 backlog처럼 쌓지
+않고 AC·메모·결정 사항에 흡수하며, 독립 판단 단위가 될 때만 WIP를 거쳐
+decision/incident/guide로 승격한다.
+
+### 자동 적용
+- `.claude/memory/reminders/`: starter 본체의 기존 `signal_*.md` memory를 `reminder_*.md`로 승격·이동
+- `.claude/scripts/session-start.py`: 새 reminder 폴더 우선 로드, 루트 `reminder_*.md`/`signal_*.md` fallback 유지, `kv_group` hit 우선 정렬 추가
+- `.claude/scripts/eval_harness.py`: reminder frontmatter/stale/group lint와 관련 WIP 흡수·승격 후보 보고 추가
+- `.claude/scripts/bash-guard.sh`: 방어 성공 기록을 `reminders/reminder_defense_success.md`에 append
+- `.claude/rules/memory.md`, `.claude/memory/MEMORY.md`, `.claude/skills/eval/SKILL.md`: reminder 위치·lifecycle·eval 계약 갱신
+
+### 수동 확인
+- 다운스트림에 루트 `.claude/memory/reminder_*.md` 또는 `signal_*.md`가 남아 있으면 그대로 동작하지만, 신규 reminder는 `.claude/memory/reminders/`에 생성한다
+- 작업 중 “리마인더로 남기자” 요청이 나오면 관련 WIP 흡수 가능성을 먼저 확인하고, 필요한 경우 얇은 `reminders/reminder_*.md`만 남긴다
+- `/eval --harness`를 실행해 memory/reminder lint가 stale·과밀·strong+source 약함 후보를 보고하는지 확인한다
+
+### 회귀 위험
+- 중간. memory 파일 위치와 session-start/eval 로딩 경로가 바뀐다. 루트 fallback을 유지해 즉시 단절 위험은 낮췄지만, downstream custom script가 루트 `reminder_*.md`만 직접 glob하면 새 표준 경로를 반영해야 한다
+
+
 ## v0.52.2 — SSOT drift 통합 의무 보강 (2026-05-20)
 
 작업 중 SSOT가 여러 곳에 나뉜 것을 발견하면 그 자체를 본 작업의 문제로
