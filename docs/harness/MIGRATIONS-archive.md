@@ -43,6 +43,28 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.52.4 — 루트 지침·mirror 경로 정합 복구 (2026-05-21)
+
+v0.52.3 이후 루트 지침과 skill mirror 일부에 예전 hook·memory 경로가 남아 있던
+문제를 정리했다. downstream-readiness도 현재 pre-check stdout과 review 카테고리를
+기준으로 검사하도록 갱신했다.
+
+### 자동 적용
+- `CLAUDE.md`, `AGENTS.md`: 사용자가 "리마인더로 남기자"라고 할 때의 active reminder 저장 계약 추가
+- `.claude/skills/harness-adopt`, `.agents/skills/harness-adopt`: SessionStart/Stop/PostCompact hook 예시를 `.py` 경로로 갱신
+- `.claude/skills/harness-upgrade`, `.agents/skills/harness-upgrade`: 자동 덮어쓰기 예시의 `session-start.sh`를 `session-start.py`로 갱신
+- `.claude/skills/eval`, `.agents/skills/eval`: 방어 활성 기록 경로를 `reminders/reminder_defense_success.md`로 통일
+- `.claude/scripts/downstream-readiness.sh`: settings hook 검사와 pre-check/review 신호 검사를 현재 계약에 맞게 갱신
+
+### 수동 확인
+- 다운스트림에서 `bash .claude/scripts/downstream-readiness.sh` 실행 시 hook 경로·review 카테고리 관련 stale 경고가 사라지는지 확인한다
+- custom 문서나 로컬 스크립트가 `session-start.sh`, `stop-guard.sh`, `post-compact-guard.sh`, `signal_defense_success.md`를 직접 참조하면 현재 `.py`/`reminders/` 경로로 갱신한다
+
+### 회귀 위험
+- 낮음. 런타임 로직 변경은 readiness 검사와 문서/스킬 경로 정합 복구에 한정된다. 다만 stale 경로를 기대하던 다운스트림 custom check는 새 경로로 맞춰야 한다
+
+
+
 ## v0.52.3 — reminder memory 계약 정리 (2026-05-21)
 
 reminder를 `docs/`의 SSOT 문서가 아니라 `.claude/memory/reminders/` 아래의

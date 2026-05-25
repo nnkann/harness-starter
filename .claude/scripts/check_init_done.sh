@@ -28,7 +28,7 @@ fi
 # 매칭: "status: sample"·"status:sample"·"status: sample # comment"·"status: sample  "
 # 미매칭: "status: completed"·"status: in-progress"
 if grep -qE "^status:[[:space:]]*sample([[:space:]]+#.*)?[[:space:]]*$" "$KICKOFF"; then
-  echo "init 미완료: $KICKOFF가 sample 상태" >&2
+  echo "init 미완료: ${KICKOFF}가 sample 상태" >&2
   exit 2
 fi
 
