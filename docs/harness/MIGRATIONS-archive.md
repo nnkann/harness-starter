@@ -43,6 +43,28 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.52.5 — path contract lint + 검증 도구 가용성 관측 (2026-05-21)
+
+### 자동 적용
+- `pre_commit_check.py`: staged Python 파일은 `python -m py_compile`, staged Shell 파일은 `bash -n`으로 문법 검사를 수행한다.
+- `pre_commit_check.py`: starter에서는 루트 안내·하네스 스크립트의 path contract drift를 staged 시점에 차단한다. 다운스트림은 warn-only다.
+- `eval_harness.py`: `ruff`, `pyright`, `mypy`, `shellcheck` 가용성을 보고하고, 라이브 하네스 경로 문자열 drift를 별도 섹션으로 보고한다.
+- `downstream-readiness.sh`: 검증 도구 설치 여부를 `[관측]`으로 출력한다. 누락은 silent skip이 아니라 환경 신호로 남긴다.
+
+### 수동 적용
+- 없음.
+
+### 검증
+- `python -m py_compile .claude/scripts/pre_commit_check.py .claude/scripts/eval_harness.py`
+- `bash -n .claude/scripts/downstream-readiness.sh`
+- `python -m pytest .claude/scripts/tests/test_eval_harness.py .claude/scripts/tests/test_pre_commit.py -q`
+- `python .claude/scripts/eval_harness.py`
+
+### 회귀 위험
+- path contract lint가 의도적 예시 경로를 drift로 오탐할 수 있다. 예시·샘플·다운스트림·archive/history/legacy/fallback 문맥은 면제한다.
+
+
+
 ## v0.52.4 — 루트 지침·mirror 경로 정합 복구 (2026-05-21)
 
 v0.52.3 이후 루트 지침과 skill mirror 일부에 예전 hook·memory 경로가 남아 있던

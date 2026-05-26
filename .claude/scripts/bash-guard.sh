@@ -87,7 +87,7 @@ fi
 # ─────────────────────────────────────────────
 if [[ $COMMAND =~ \.claude/tmp/ ]]; then
   echo "❌ .claude/tmp/ 는 폐기됨. 세션 snapshot은 .claude/memory/session-* 사용." >&2
-  echo "   근거: docs/decisions/hn_memory.md" >&2
+  echo "   근거: docs/WIP/decisions--hn_memory.md" >&2
   exit 2
 fi
 

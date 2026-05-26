@@ -3,14 +3,16 @@ title: Hermes × harness-starter 통합 설계 메모
 domain: harness
 problem: [P3, P5, P7]
 s: [S3, S5, S7]
-tags: [hermes, integration, gateway, cron, delegation, skills]
+tags: [hermes, integration, gateway, cron, delegation, skills, runtime-adapter]
 status: in-progress
 created: 2026-05-25
 relates-to:
   - type: extends
     path: ../decisions/hn_gemini_delegation_pipeline.md
   - type: references
-    path: ../decisions/hn_reminder_memory_contract.md
+    path: ../WIP/decisions--hn_reminder_memory_contract.md
+  - type: references
+    path: WIP/decisions--hn_runtime_adapter_unification.md
 ---
 
 # Hermes × harness-starter 통합 설계 메모
@@ -22,7 +24,7 @@ Hermes와 harness-starter는 역할이 겹치기보다 보완된다.
 - **harness-starter**: 프로젝트 로컬 규율, 스킬, hook, pre-check, CPS/docs workflow, migration 계약.
 - **Hermes**: 메시징 gateway, 세션 검색, 지속 memory, cron, tool orchestration, subagent delegation, profile/runtime 관리.
 
-따라서 결합 방향은 “harness를 Hermes 안에 흡수”가 아니라, Hermes가 harness-managed repo를 감지하고 그 프로젝트의 규칙·검증·스킬을 실행하는 **runtime adapter**가 적합하다.
+따라서 결합 방향은 “harness를 Hermes 안에 흡수”가 아니라, Hermes가 harness-managed repo를 감지하고 그 프로젝트의 규칙·검증·스킬을 실행하는 **orchestration adapter**가 적합하다. runtime adapter 전체 정책은 `decisions--hn_runtime_adapter_unification.md`가 SSOT 후보이며, 현재 기본 pilot stack은 Hermes + Codex + Agy다.
 
 ## 통합 목표
 
@@ -54,6 +56,8 @@ docs/guides/project_kickoff.md
   "version": "0.52.8",
   "profile": "full",
   "is_starter": true,
+  "runtime_stack": "hermes-codex-agy",
+  "runtime_adapters": {"hermes": "orchestrator", "codex": "executor", "agy": "advisor", "claude": "optional-adapter"},
   "skills": ["implementation", "commit", "eval", "harness-upgrade"],
   "commands": {
     "precheck": "python .claude/scripts/pre_commit_check.py",
@@ -75,7 +79,7 @@ Hermes 사용자 skill로 다음 4개를 두면 초기 효과가 크다.
 | `harness-commit-assist` | staged diff, WIP, AC, pre-check 근거 정리 | `/commit` skill 계약 |
 | `harness-upgrade-assist` | upstream/fallback upgrade 분석과 MIGRATIONS 안내 | `/harness-upgrade` skill |
 
-주의: Hermes skill은 project-local harness skill을 그대로 복사하기보다, **loader/wrapper** 역할을 한다. SSOT는 repo 내부 `.claude/skills/*`와 `.agents/skills/*`에 남긴다.
+주의: Hermes skill은 project-local harness skill을 그대로 복사하기보다, **loader/wrapper** 역할을 한다. SSOT는 특정 runtime 디렉터리 하나가 아니라 harness core contract와 runtime adapter 정책에 둔다. 과도기에는 `.claude/skills/*`가 legacy source 역할을 하지만, `.agents/skills/*`는 generated/validated Codex adapter 후보로 분류한다.
 
 ## Gateway UX
 
@@ -136,15 +140,21 @@ harness의 specialist 정의를 Hermes `delegate_task` preset으로 매핑한다
 
 ## Memory 경계
 
-- harness memory: project-local 사실, reminder, WIP, migration, docs graph.
-- Hermes memory: 사용자 선호, repo 위치, Hermes 운영 방식, cross-session recall.
+상세 정책은 `decisions--hn_hermes_managed_downstream_memory.md` WIP가 SSOT 후보다.
+본 통합 메모는 Hermes adapter 관점의 요약만 유지한다.
+
+- harness memory: repo-local compatibility signal, reminder pointer, 단독 실행 fallback.
+- Hermes memory: 사용자 선호, 안정적인 프로젝트 관계, cross-downstream 운영 방식의 짧은 포인터.
 - Hermes session_search: 과거 Discord/CLI 판단을 찾아 현재 repo 작업에 연결.
+- Hermes skills: 반복 절차와 downstream 운영 playbook.
+- Hermes manifest/cron: downstream 목록, 점검 정책, delta report.
 
 금지:
 
 - 프로젝트 정책을 Hermes user memory에 영구 저장해서 다른 repo에 오염시키기.
 - Hermes episodic memory를 harness docs SSOT처럼 취급하기.
 - `.claude/memory` 내용을 항상 통째로 system prompt에 주입하기.
+- repo-local reminder를 사실 증거로 단정하기.
 
 ## 구현 단계
 
@@ -181,9 +191,9 @@ harness의 specialist 정의를 Hermes `delegate_task` preset으로 매핑한다
 
 ## 열린 결정
 
-- adapter를 Hermes core에 둘지, Hermes skill로 둘지.
+- Hermes orchestration adapter를 Hermes core에 둘지, Hermes skill로 둘지.
 - harness repo가 Hermes skill registry에 직접 publish될지.
-- project-local `.claude/skills`를 Hermes skill schema로 변환할 때 frontmatter 필드 매핑.
+- project-local legacy `.claude/skills`와 generated `.agents/skills`를 Hermes skill schema로 변환할 때 frontmatter 필드 매핑.
 - gateway에서 workdir 선택을 어떻게 할지: channel default, explicit repo alias, 또는 command arg.
 - cron report가 WIP를 자동 생성/갱신할지, 단순 알림에 머물지.
 

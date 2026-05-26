@@ -122,6 +122,13 @@ if [ -n "$UPGRADE_MODE" ]; then
   "profile": "$DETECTED_PROFILE",
   "skills": "$DETECTED_SKILLS",
   "version": "unknown",
+  "runtime_stack": "hermes-codex-agy",
+  "runtime_adapters": {
+    "hermes": "orchestrator",
+    "codex": "executor",
+    "agy": "advisor",
+    "claude": "optional-adapter"
+  },
   "installed_from_ref": "unknown",
   "installed_at": "unknown",
   "upgraded_at": null
@@ -172,6 +179,34 @@ EOF
     echo ""
   fi
 
+  # runtime adapter metadata 기본값 보강 (기존 downstream 호환)
+  python3 - "$META" <<'PY' 2>/dev/null || true
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+try:
+    data = json.loads(path.read_text(encoding="utf-8"))
+except Exception:
+    raise SystemExit(0)
+
+changed = False
+if "runtime_stack" not in data:
+    data["runtime_stack"] = "hermes-codex-agy"
+    changed = True
+if "runtime_adapters" not in data or not isinstance(data.get("runtime_adapters"), dict):
+    data["runtime_adapters"] = {
+        "hermes": "orchestrator",
+        "codex": "executor",
+        "agy": "advisor",
+        "claude": "optional-adapter",
+    }
+    changed = True
+if changed:
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+
   # 프로파일에서 스킬 목록 읽기
   CUR_PROFILE=$(grep -o '"profile"[[:space:]]*:[[:space:]]*"[^"]*"' "$META" 2>/dev/null | sed 's/.*"profile"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
   CUR_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "$META" 2>/dev/null | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
@@ -190,7 +225,7 @@ EOF
     echo "═══ 하네스 업그레이드 ═══"
     echo ""
     echo "harness-upstream remote 감지."
-    echo "Claude Code 또는 Codex에서 /harness-upgrade를 실행하세요."
+    echo "사용 가능한 runtime(Hermes/Codex/Claude 등)에서 /harness-upgrade를 실행하세요."
     echo "스킬이 fetch → 변경 분석 → 3-way merge를 한 번에 처리합니다."
     exit 0
   fi
@@ -436,7 +471,7 @@ EOF
 
 ## 다음 단계
 
-Claude Code 또는 Codex에서 아래를 실행하세요:
+사용 가능한 runtime(Hermes/Codex/Claude 등)에서 아래를 실행하세요:
 
 > harness-upgrade 스킬을 실행해줘
 EOF
@@ -463,7 +498,7 @@ EOF
   echo ""
 
   if [ "$STAGED_COUNT" -gt 0 ]; then
-    echo "다음: Claude Code 또는 Codex에서 'harness-upgrade 스킬을 실행해줘'"
+    echo "다음: 사용 가능한 runtime에서 'harness-upgrade 스킬을 실행해줘'"
   else
     if command -v jq > /dev/null 2>&1; then
       jq --arg v "$SRC_VERSION" --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -633,6 +668,13 @@ if [ ! -f "$META" ]; then
   "profile": "$PROFILE",
   "skills": "$SKILLS",
   "version": "${SRC_VER:-unknown}",
+  "runtime_stack": "hermes-codex-agy",
+  "runtime_adapters": {
+    "hermes": "orchestrator",
+    "codex": "executor",
+    "agy": "advisor",
+    "claude": "optional-adapter"
+  },
   "installed_from_ref": "${INSTALLED_REF}",
   "installed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "upgraded_at": null
@@ -654,7 +696,7 @@ if [ ! -f "$KICKOFF" ] && [ ! -f "$TARGET/docs/guides/project_kickoff.md" ]; the
 
 ## 다음 할 일
 
-Claude Code 또는 Codex에서 아래를 실행하세요:
+사용 가능한 runtime(Hermes/Codex/Claude 등)에서 아래를 실행하세요:
 
 > harness-init 스킬을 실행해줘
 
@@ -702,6 +744,6 @@ echo "═══ 완료 ═══"
 echo -e "  ${GREEN}생성: ${CREATED}개${NC}"
 echo -e "  ${YELLOW}스킵: ${SKIPPED}개${NC}"
 echo ""
-echo "다음: Claude Code 또는 Codex에서 프로젝트 열고 'harness-init 스킬을 실행해줘'"
+echo "다음: 사용 가능한 runtime에서 프로젝트 열고 'harness-init 스킬을 실행해줘'"
 
 

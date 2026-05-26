@@ -45,7 +45,7 @@ updated: 2026-05-21
 - [implementation init check 게이트 정밀화 — 환경 양식 drift 비용 제거](../decisions/hn_init_gate_redesign.md)
 - [Karpathy 원칙 적용 — 코딩 컨벤션·행동 원칙·self-verify·staging·commit SSOT](../decisions/hn_karpathy_principles.md)
 - [느슨한 결합 관측 지표 전수 감사 계획](../decisions/hn_loose_coupling_observability.md)
-- [memory 재설계 — tmp 폐기 + 동적 snapshot 도입 + 트리거 재정의](../decisions/hn_memory.md)
+- [memory 재설계 — tmp 폐기 + 동적 snapshot 도입 + 트리거 재정의](../WIP/decisions--hn_memory.md)
 - [오케스트레이터 메커니즘 설계 — PreToolUse hook + orchestrator.py MVI](../decisions/hn_orchestrator_mechanism.md)
 - [P11 결정적 게이트 승격 + FR 양식 동형 후보 위치 + eval_cps_integrity P11 카운트 버그](../decisions/hn_p11_gate_promotion.md)
 - [P8 starter 자기 적용 + commit 흐름 강제 트리거 보강](../decisions/hn_p8_starter_self_application.md)
@@ -53,7 +53,7 @@ updated: 2026-05-21
 - [약속 박제 보호 — completed 봉인 + 미루기 차단 룰](../decisions/hn_promise_protection.md)
 - [push 타임아웃 재발 방지](../decisions/hn_push_timeout_guard.md)
 - [pytest 효율과 회귀 라우팅 재정렬](../decisions/hn_pytest_regression_routing.md)
-- [reminder memory 계약 명확화](../decisions/hn_reminder_memory_contract.md)
+- [reminder memory 계약 명확화](../WIP/decisions--hn_reminder_memory_contract.md)
 - [Remote 기반 하네스 업그레이드 전략](../decisions/hn_remote_upgrade_strategy.md)
 - [review staging 재조정 — scripts/agents 이진 판정](../decisions/hn_review_staging_rebalance.md)
 - [review 에이전트 tool call 예산 재설계 — 조기 중단 + 유동 배분](../decisions/hn_review_tool_budget.md)
@@ -253,7 +253,7 @@ review (18건) | downstream (17건) | commit (15건) | cps (13건) | eval (12건
 - [code-ssot 규칙 신설 — 동형 SSOT 패턴 starter 흡수](../decisions/hn_code_ssot_rule.md)
 - [HARNESS_UPGRADE 환경변수 의미 일관화](../decisions/hn_harness_upgrade_env_semantics.md)
 - [Karpathy 원칙 적용 — 코딩 컨벤션·행동 원칙·self-verify·staging·commit SSOT](../decisions/hn_karpathy_principles.md)
-- [memory 재설계 — tmp 폐기 + 동적 snapshot 도입 + 트리거 재정의](../decisions/hn_memory.md)
+- [memory 재설계 — tmp 폐기 + 동적 snapshot 도입 + 트리거 재정의](../WIP/decisions--hn_memory.md)
 - [룰-스킬 중복 제거 — 룰 SSOT 강제 (Phase 5)](../decisions/hn_rule_skill_ssot.md)
 - [룰-스킬 SSOT 적용 — Phase 1 commit/SKILL.md](../decisions/hn_rule_skill_ssot_apply.md)
 - [Neutral SSOT Runtime Output Generation](../decisions/hn_runtime_ssot_generation.md)
@@ -476,8 +476,8 @@ review (18건) | downstream (17건) | commit (15건) | cps (13건) | eval (12건
 
 ### memory
 
-- [memory 재설계 — tmp 폐기 + 동적 snapshot 도입 + 트리거 재정의](../decisions/hn_memory.md)
-- [reminder memory 계약 명확화](../decisions/hn_reminder_memory_contract.md)
+- [memory 재설계 — tmp 폐기 + 동적 snapshot 도입 + 트리거 재정의](../WIP/decisions--hn_memory.md)
+- [reminder memory 계약 명확화](../WIP/decisions--hn_reminder_memory_contract.md)
 - [Harness-Starter 업그레이드 계획](../decisions/hn_upgrade.md)
 - [eval 기본 모드 보고 구조 개선](../harness/hn_eval_basic_mode_report.md)
 
@@ -605,14 +605,14 @@ review (18건) | downstream (17건) | commit (15건) | cps (13건) | eval (12건
 
 ### simplification
 
-- [memory 재설계 — tmp 폐기 + 동적 snapshot 도입 + 트리거 재정의](../decisions/hn_memory.md)
+- [memory 재설계 — tmp 폐기 + 동적 snapshot 도입 + 트리거 재정의](../WIP/decisions--hn_memory.md)
 - [docs/INDEX.md 폐기 — 관리 드리프트 SSOT 제거](../harness/hn_index_md_removal.md)
 - [하네스 단순화 — 추가 누적으로 인한 마찰 회수](../harness/hn_simplification.md)
 
 ### trigger
 
 - [CPS 진입 신호 계층화 — 3층 책임 분리 + 도구 frontmatter trigger + HARNESS_MAP 역생성](../decisions/hn_cps_entry_signal_layering.md)
-- [memory 재설계 — tmp 폐기 + 동적 snapshot 도입 + 트리거 재정의](../decisions/hn_memory.md)
+- [memory 재설계 — tmp 폐기 + 동적 snapshot 도입 + 트리거 재정의](../WIP/decisions--hn_memory.md)
 - [테스트 다이어트 + 트리거 좁힘 — AC 기반 시스템과 중복 제거](../decisions/hn_test_diet.md)
 
 ### upstream-rule
@@ -750,7 +750,7 @@ review (18건) | downstream (17건) | commit (15건) | cps (13건) | eval (12건
 ### reminder
 
 - [pytest 효율과 회귀 라우팅 재정렬](../decisions/hn_pytest_regression_routing.md)
-- [reminder memory 계약 명확화](../decisions/hn_reminder_memory_contract.md)
+- [reminder memory 계약 명확화](../WIP/decisions--hn_reminder_memory_contract.md)
 
 ### routing
 
@@ -774,7 +774,7 @@ review (18건) | downstream (17건) | commit (15건) | cps (13건) | eval (12건
 
 ### signal
 
-- [reminder memory 계약 명확화](../decisions/hn_reminder_memory_contract.md)
+- [reminder memory 계약 명확화](../WIP/decisions--hn_reminder_memory_contract.md)
 - [침묵하는 방어 가시화 + harness-upgrade 지식 내면화 단계](../harness/hn_defense_visibility.md)
 
 ### test

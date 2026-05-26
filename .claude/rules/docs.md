@@ -276,7 +276,7 @@ cluster-update` 자동 생성:
 ```markdown
 ## 문서 (domain 멤버)
 
-- decisions/hn_memory.md
+- WIP/decisions--hn_memory.md
 - ...
 
 ## tag 분포 (간선)

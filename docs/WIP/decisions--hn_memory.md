@@ -4,7 +4,10 @@ domain: harness
 tags: [memory, snapshot, ssot, simplification, trigger]
 problem: P7
 s: [S7, S9]
-status: completed
+relates-to:
+  - path: WIP/decisions--hn_hermes_managed_downstream_memory.md
+    rel: references
+status: in-progress
 created: 2026-04-20
 updated: 2026-04-21
 ---
@@ -62,6 +65,17 @@ researcher 조사(`.claude/rules/external-experts.md`에 Charles Packer 등록):
 - commit 스킬 수정 최소 (12줄 이하)
 
 ## 결정
+
+### 2026-05-26 보강 — Hermes-managed downstream 경계
+
+이 문서의 기존 결정은 Claude Code/Codex가 repo 안에서 직접 작업하는 단독 실행 모델을 기준으로 한다.
+Hermes가 downstream 관찰·cron·memory·session_search·skills를 맡는 운영에서는
+`decisions--hn_hermes_managed_downstream_memory.md`가 상위 정책이다.
+
+따라서 Hermes-managed downstream에서는 `.claude/memory/`를 장기 운영 판단의 SSOT로 보지 않는다.
+역할은 repo-local compatibility signal, 단독 실행 fallback, SSOT 재확인 pointer로 제한한다.
+사용자 선호·cross-downstream 운영 방식·반복 절차는 Hermes built-in memory, session_search,
+skills, project registry/manifest 중 맞는 계층이 owner가 된다.
 
 ### 실제 Claude memory vs 프로젝트 memory 경계
 
@@ -151,6 +165,16 @@ fi
 - tree-hash 불일치 = 즉시 폐기 후 재생성. stale 원천 차단
 - `.claude/memory/session-*` 전부 `.gitignore` (개인 세션 작업 상태)
 - `.claude/tmp/` 폐기 + `bash-guard.sh`에 `.claude/tmp/` 생성 차단 hook — 잔재 재발 영구 방지
+
+**Acceptance Criteria**:
+
+- [x] Goal: S7/S9 기준으로 프로젝트 memory와 실제 Claude memory의 경계를 분리하고 `.claude/tmp/`를 폐기한다.
+  검증:
+    review: self
+    tests: `python -m pytest .claude/scripts/tests/ -q`
+    실측: `.claude/memory/session-*` snapshot 계약, `.claude/tmp/` 차단, project memory 저장 조건이 문서화되어 있다.
+- [x] S7: memory owner와 SSOT 경계가 문서화되어 있다.
+- [x] S9: stale snapshot 방어(tree-hash 불일치 시 폐기)가 명시되어 있다.
 
 ## 구체 작업 목록
 

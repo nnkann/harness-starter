@@ -46,6 +46,12 @@ else
   else
     add_ok "is_starter: $IS_STARTER"
   fi
+
+  RUNTIME_STACK=$(python3 -c "import json; data=json.load(open('.claude/HARNESS.json', encoding='utf-8')); print(data.get('runtime_stack', 'legacy-claude-codex'))" 2>/dev/null || echo "legacy-claude-codex")
+  add_observation "runtime_stack: $RUNTIME_STACK"
+
+  RUNTIME_ADAPTERS=$(python3 -c "import json; data=json.load(open('.claude/HARNESS.json', encoding='utf-8')); adapters=data.get('runtime_adapters') or {'claude':'primary-adapter','codex':'bridge'}; print(','.join(adapters.keys()) if isinstance(adapters, dict) else 'claude,codex')" 2>/dev/null || echo "claude,codex")
+  add_observation "runtime_adapters: $RUNTIME_ADAPTERS"
 fi
 
 # ─────────────────────────────────────────────

@@ -5,7 +5,10 @@ c: "review 기본 skip 재검토 항목을 signal로 등록하려다 reminder가
 problem: P8
 s: [S8, S9]
 tags: [memory, reminder, signal, kv-group]
-status: completed
+relates-to:
+  - path: WIP/decisions--hn_hermes_managed_downstream_memory.md
+    rel: references
+status: in-progress
 created: 2026-05-20
 updated: 2026-05-21
 ---
@@ -19,6 +22,11 @@ updated: 2026-05-21
 - S -> AC: reminder를 project memory의 1급 하위 타입으로 정의하고 lifecycle·노출·CPS·kv_group 관계를 memory SSOT와 session-start 실행부에 모은다.
 
 ## 문제 재정의
+
+2026-05-26 보강: Hermes-managed downstream에서는 reminder의 owner가 repo-local memory 자체가 아니다.
+상위 정책은 `decisions--hn_hermes_managed_downstream_memory.md`이며, reminder는 Hermes가 읽을 수 있는
+signal source이자 SSOT 확인 후보로 제한된다. reminder 본문을 Hermes built-in memory에 통째로 복사하지 않고,
+반복 절차는 Hermes skill로, downstream 상태는 Hermes manifest/cron delta report로 이동한다.
 
 처음에는 review 기본 skip 재검토 항목을 `.claude/memory/signal_*.md`로 남기려 했다.
 하지만 사용자가 지적한 핵심은 파일명 문제가 아니었다. `reminder`는 다음 세션에
@@ -314,7 +322,7 @@ keywords: [review, commit]
 strength: weak | medium | strong
 candidate_p: P#
 kv_group: <domain>/<candidate_p>/<workflow-or-risk-family>
-status: completed
+status: in-progress
 source: docs/decisions/... | docs/incidents/... | user | audit
 owner: human | codex | harness
 last_validated: YYYY-MM-DD

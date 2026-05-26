@@ -160,7 +160,7 @@ SSOT가 분열.
 
 ```
 ❌ decisions/hn_memory_260420.md + decisions/hn_memory_260521.md
-✅ decisions/hn_memory.md          (누적 갱신, ## 변경 이력 섹션)
+✅ WIP/decisions--hn_memory.md          (누적 갱신, ## 변경 이력 섹션)
 
 ❌ incidents/hn_bash_overblock_260419.md
 ✅ incidents/hn_bash_overblock.md  (발생 시점은 프론트매터 created)
@@ -189,7 +189,7 @@ SSOT가 분열.
 
 이동 결과:
 ```
-WIP/decisions--hn_memory.md          → decisions/hn_memory.md
+WIP/decisions--hn_memory.md          → WIP/decisions--hn_memory.md
 WIP/incidents--hn_leak.md            → incidents/hn_leak.md
 ```
 
@@ -209,7 +209,7 @@ WIP/incidents--hn_leak.md            → incidents/hn_leak.md
 ### 동작 예
 
 ```
-decisions/hn_memory.md              → abbr=hn → clusters/harness.md
+WIP/decisions--hn_memory.md              → abbr=hn → clusters/harness.md
 incidents/hn_leak_260421.md         → abbr=hn → clusters/harness.md
 WIP/m3-hn_t04_redesign.md           → abbr=hn (불투명 prefix 통과)
 WIP/decisions--hn_memory.md         → abbr=hn (라우팅 태그 통과)
