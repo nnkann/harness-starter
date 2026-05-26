@@ -6,11 +6,11 @@ problem: P8
 s: [S8, S9]
 tags: [memory, reminder, signal, kv-group]
 relates-to:
-  - path: WIP/decisions--hn_hermes_managed_downstream_memory.md
+  - path: decisions/hn_hermes_managed_downstream_memory.md
     rel: references
-status: in-progress
+status: completed
 created: 2026-05-20
-updated: 2026-05-21
+updated: 2026-05-27
 ---
 
 # reminder memory 계약 명확화
@@ -322,7 +322,7 @@ keywords: [review, commit]
 strength: weak | medium | strong
 candidate_p: P#
 kv_group: <domain>/<candidate_p>/<workflow-or-risk-family>
-status: in-progress
+status: completed
 source: docs/decisions/... | docs/incidents/... | user | audit
 owner: human | codex | harness
 last_validated: YYYY-MM-DD

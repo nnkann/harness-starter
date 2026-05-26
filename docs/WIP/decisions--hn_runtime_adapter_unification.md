@@ -10,7 +10,7 @@ created: 2026-05-26
 relates-to:
   - path: WIP/guides--hn_hermes_integration.md
     rel: extends
-  - path: WIP/decisions--hn_hermes_managed_downstream_memory.md
+  - path: decisions/hn_hermes_managed_downstream_memory.md
     rel: references
   - path: WIP/decisions--hn_git_subtree_policy.md
     rel: references

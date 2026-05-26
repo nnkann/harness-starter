@@ -5,11 +5,11 @@ tags: [memory, snapshot, ssot, simplification, trigger]
 problem: P7
 s: [S7, S9]
 relates-to:
-  - path: WIP/decisions--hn_hermes_managed_downstream_memory.md
+  - path: decisions/hn_hermes_managed_downstream_memory.md
     rel: references
-status: in-progress
+status: completed
 created: 2026-04-20
-updated: 2026-04-21
+updated: 2026-05-27
 ---
 
 # memory 재설계

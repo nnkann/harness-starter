@@ -6,14 +6,15 @@ problem: [P7, P8]
 s: [S7, S8, S9]
 tags: [hermes, memory, downstream, reminder, cron]
 relates-to:
-  - path: WIP/decisions--hn_memory.md
+  - path: decisions/hn_memory.md
     rel: extends
-  - path: WIP/decisions--hn_reminder_memory_contract.md
+  - path: decisions/hn_reminder_memory_contract.md
     rel: extends
   - path: WIP/guides--hn_hermes_integration.md
     rel: references
-status: in-progress
+status: completed
 created: 2026-05-26
+updated: 2026-05-27
 ---
 
 # Hermes-managed downstream memory/reminder 운영 경계
