@@ -1,0 +1,17 @@
+version: 1
+schema: harness-upstream-lock
+upstream:
+  repo: https://github.com/nnkann/harness-starter.git
+  ref: local-working-tree
+  tracking_mode: vendored-snapshot
+layout:
+  core_path: .claude
+  overlay_path: .harness/project
+  hermes_binding_path: .harness/hermes
+policy:
+  core_direct_edit: report-upstream-candidate
+  apply_mode: owner-approved
+  subtree_candidate_path: .harness/core
+notes:
+  - "Initial architecture lock for Harness-first Hermes integration."
+  - "Replace ref with a commit/tag during downstream adoption or release."

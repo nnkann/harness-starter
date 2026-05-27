@@ -1,0 +1,35 @@
+version: 1
+schema: harness-workers-schema
+required_files:
+  - .harness/upstream.lock
+  - .harness/hermes/workers.yaml
+  - .harness/project/overlay.yaml
+roles:
+  required_fields:
+    - name
+    - responsibility
+    - write_permission
+    - preferred_engine_class
+    - timeout
+    - concurrency
+    - accepts
+    - refuses
+  allowed_write_permissions:
+    - read-only
+    - docs-only
+    - limited
+    - scoped-write
+  forbidden_engine_terms:
+    - claude
+    - codex
+    - gpt
+    - gemini
+    - gemma
+    - copilot
+    - agy
+    - openai
+    - anthropic
+    - google
+    - grok
+    - llama
+  note: "Role contracts are provider-independent. Concrete model/provider bindings live in local Hermes config or explicitly local project bindings, not core contracts."

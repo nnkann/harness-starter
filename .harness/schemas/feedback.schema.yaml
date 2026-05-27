@@ -1,0 +1,41 @@
+version: 1
+schema: harness-feedback-schema
+required_fields:
+  - version
+  - schema
+  - source
+  - classification
+  - summary
+  - evidence
+  - proposed_next_step
+classification:
+  allowed_types:
+    - local-only
+    - upstream-candidate
+    - hermes-routing-candidate
+    - worker-role-candidate
+    - docs-schema-candidate
+    - safety-policy-candidate
+    - validation-gap
+    - agent-failure-pattern
+    - upgrade-friction
+  allowed_layers:
+    - core
+    - overlay
+    - local-binding
+    - unknown
+source:
+  required_fields:
+    - project
+    - repo
+    - harness_ref
+    - collected_by
+    - collected_at
+evidence:
+  allowed_kinds:
+    - command
+    - wip
+    - incident
+    - user-report
+    - diff
+    - log

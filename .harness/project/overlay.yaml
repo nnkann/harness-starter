@@ -1,0 +1,32 @@
+version: 1
+schema: harness-project-overlay
+project:
+  slug: harness-starter
+  owns_harness_core: true
+  language: ko
+constraints:
+  commit_policy: user_command_only
+  secrets_policy: never_commit
+  core_edit_policy: allowed-in-starter-only
+  downstream_core_edit_policy: report-upstream-candidate
+ownership:
+  harness_core:
+    owner: harness-starter
+    examples:
+      - .claude/scripts
+      - .claude/skills
+      - .claude/rules
+      - docs/harness
+  downstream_overlay:
+    owner: downstream-project
+    examples:
+      - docs/WIP
+      - docs/decisions
+      - .harness/project
+      - .harness/hermes
+  local_binding:
+    owner: local-hermes-profile
+    examples:
+      - ~/.hermes/profiles
+      - ~/.hermes/config.yaml
+      - provider credentials

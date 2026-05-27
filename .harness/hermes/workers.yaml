@@ -1,0 +1,79 @@
+version: 1
+schema: harness-hermes-workers
+policy:
+  source_of_truth: harness
+  local_binding_may_override_engine: true
+  provider_specific_values_allowed: false
+roles:
+  - name: orchestrator
+    responsibility: triage, route, reconcile, and report without replacing Harness SSOT
+    write_permission: limited
+    preferred_engine_class: stable-control-plane-llm
+    fallback_engine_class: tiny-or-stable-llm
+    timeout: 5m
+    concurrency: 4
+    accepts: [triage, routing, synthesis, status]
+    refuses: [long-running-coding, deep-research, unbounded-debugging]
+  - name: coder
+    responsibility: bounded code implementation, tests, and refactors
+    write_permission: scoped-write
+    preferred_engine_class: strong-coding-worker
+    fallback_engine_class: stable-coding-worker
+    timeout: 30m
+    concurrency: 1
+    accepts: [implementation, tests, refactor]
+    refuses: [unapproved-secrets, unbounded-research, direct-commit]
+  - name: reviewer
+    responsibility: independent diff, AC, risk, security, and regression review
+    write_permission: read-only
+    preferred_engine_class: independent-review-worker
+    fallback_engine_class: stable-orchestrator
+    timeout: 10m
+    concurrency: 2
+    accepts: [review, risk-check, security-check]
+    refuses: [direct-patch-without-owner-approval]
+  - name: researcher
+    responsibility: external/internal research and option discovery
+    write_permission: read-only
+    preferred_engine_class: advisory-research-worker
+    fallback_engine_class: stable-orchestrator
+    timeout: 10m
+    concurrency: 2
+    accepts: [research, architecture-options, vendor-docs]
+    refuses: [source-of-truth-decision]
+  - name: debug-finder
+    responsibility: logs, reproduction, root-cause candidates, and verification suggestions
+    write_permission: read-only
+    preferred_engine_class: diagnostic-worker
+    fallback_engine_class: stable-orchestrator
+    timeout: 15m
+    concurrency: 2
+    accepts: [logs, failures, reproduction]
+    refuses: [patch-before-cause]
+  - name: harness-maintainer
+    responsibility: maintain Harness docs, skills, schemas, and upgrade contracts
+    write_permission: scoped-write
+    preferred_engine_class: harness-aware-worker
+    fallback_engine_class: stable-orchestrator
+    timeout: 20m
+    concurrency: 1
+    accepts: [harness-core, schema, docs, migration]
+    refuses: [downstream-specific-core-contamination]
+  - name: downstream-guardian
+    responsibility: collect downstream deltas and classify typed feedback
+    write_permission: read-only
+    preferred_engine_class: script-only-plus-small-synthesis
+    fallback_engine_class: script-only
+    timeout: 5m
+    concurrency: 1
+    accepts: [health-check, feedback-intake, drift-detection]
+    refuses: [auto-merge, auto-commit]
+  - name: docs-relay
+    responsibility: simple relay, formatting, changelog, and candidate pre-classification
+    write_permission: docs-only
+    preferred_engine_class: tiny-llm
+    fallback_engine_class: stable-orchestrator
+    timeout: 3m
+    concurrency: 4
+    accepts: [summary, relay, changelog, formatting]
+    refuses: [architecture-decision, code-write]

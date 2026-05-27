@@ -20,6 +20,12 @@ import subprocess
 import sys
 from datetime import date
 from pathlib import Path
+from typing import Any
+
+try:
+    import yaml
+except Exception:  # pragma: no cover - fallback for minimal Python envs
+    yaml = None
 
 # Windows cp949 콘솔에서 한글/emoji 출력 시 UnicodeEncodeError·mojibake 차단.
 if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
@@ -1270,11 +1276,193 @@ def cmd_cps(rest: list[str]) -> int:
 
 
 # ─────────────────────────────────────────────────────────
+# Harness architecture contracts
+# ─────────────────────────────────────────────────────────
+
+FORBIDDEN_ENGINE_TERMS = {
+    "claude", "codex", "gpt", "gemini", "gemma", "copilot", "agy",
+    "openai", "anthropic", "google", "grok", "llama",
+}
+ALLOWED_WRITE_PERMISSIONS = {"read-only", "docs-only", "limited", "scoped-write"}
+REQUIRED_ARCH_FILES = [
+    Path(".harness/upstream.lock"),
+    Path(".harness/schemas/workers.schema.yaml"),
+    Path(".harness/schemas/feedback.schema.yaml"),
+    Path(".harness/hermes/workers.yaml"),
+    Path(".harness/project/overlay.yaml"),
+]
+REQUIRED_ROLE_FIELDS = {
+    "name", "responsibility", "write_permission", "preferred_engine_class",
+    "timeout", "concurrency", "accepts", "refuses",
+}
+
+
+def _simple_yaml_scalar(value: str) -> Any:
+    value = value.strip()
+    if not value:
+        return ""
+    if value.startswith("[") and value.endswith("]"):
+        inner = value[1:-1].strip()
+        if not inner:
+            return []
+        return [item.strip().strip("'\"") for item in inner.split(",")]
+    if value.isdigit():
+        return int(value)
+    lowered = value.lower()
+    if lowered == "true":
+        return True
+    if lowered == "false":
+        return False
+    return value.strip("'\"")
+
+
+def _fallback_parse_workers_yaml(path: Path) -> dict[str, Any]:
+    """Tiny parser for the checked-in workers.yaml shape when PyYAML is unavailable."""
+    data: dict[str, Any] = {"roles": []}
+    current: dict[str, Any] | None = None
+    in_roles = False
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        if not raw.strip() or raw.lstrip().startswith("#"):
+            continue
+        if raw.startswith("roles:"):
+            in_roles = True
+            continue
+        if in_roles and raw.startswith("  - "):
+            current = {}
+            data["roles"].append(current)
+            rest = raw[4:]
+            if ":" in rest:
+                k, _, v = rest.partition(":")
+                current[k.strip()] = _simple_yaml_scalar(v)
+            continue
+        if in_roles and current is not None and raw.startswith("    ") and ":" in raw:
+            k, _, v = raw.strip().partition(":")
+            current[k.strip()] = _simple_yaml_scalar(v)
+            continue
+        if not in_roles and ":" in raw:
+            k, _, v = raw.partition(":")
+            data[k.strip()] = _simple_yaml_scalar(v)
+    return data
+
+
+def _load_yaml(path: Path) -> Any:
+    if yaml is not None:
+        return yaml.safe_load(path.read_text(encoding="utf-8"))
+    if path.as_posix().endswith("workers.yaml"):
+        return _fallback_parse_workers_yaml(path)
+    # Minimal fallback: top-level key/value presence is enough for non-worker files.
+    data: dict[str, Any] = {}
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        if raw and not raw.startswith(" ") and ":" in raw:
+            k, _, v = raw.partition(":")
+            data[k.strip()] = _simple_yaml_scalar(v)
+    return data
+
+
+def _contains_provider_specific_term(value: Any) -> str | None:
+    if isinstance(value, str):
+        lowered = value.lower()
+        for term in FORBIDDEN_ENGINE_TERMS:
+            if term in lowered:
+                return term
+    elif isinstance(value, dict):
+        for v in value.values():
+            found = _contains_provider_specific_term(v)
+            if found:
+                return found
+    elif isinstance(value, list):
+        for v in value:
+            found = _contains_provider_specific_term(v)
+            if found:
+                return found
+    return None
+
+
+def cmd_validate_harness_architecture() -> int:
+    """Validate Harness-first core/overlay/local binding contracts."""
+    errors = warnings = 0
+    print("## Harness architecture contract validation\n")
+
+    for path in REQUIRED_ARCH_FILES:
+        if not path.exists():
+            print(f"❌ {path}: required architecture file missing")
+            errors += 1
+
+    workers_path = Path(".harness/hermes/workers.yaml")
+    if workers_path.exists():
+        try:
+            workers = _load_yaml(workers_path) or {}
+            roles = workers.get("roles", []) if isinstance(workers, dict) else []
+            if not roles:
+                print(f"❌ {workers_path}: roles list missing or empty")
+                errors += 1
+            seen_names: set[str] = set()
+            for idx, role in enumerate(roles):
+                if not isinstance(role, dict):
+                    print(f"❌ {workers_path}: roles[{idx}] is not a mapping")
+                    errors += 1
+                    continue
+                missing = sorted(REQUIRED_ROLE_FIELDS - set(role))
+                if missing:
+                    print(f"❌ {workers_path}: role {role.get('name', idx)} missing fields {missing}")
+                    errors += 1
+                name = str(role.get("name", ""))
+                if name in seen_names:
+                    print(f"❌ {workers_path}: duplicate role name {name}")
+                    errors += 1
+                seen_names.add(name)
+                permission = role.get("write_permission")
+                if permission and permission not in ALLOWED_WRITE_PERMISSIONS:
+                    print(f"❌ {workers_path}: role {name} invalid write_permission {permission}")
+                    errors += 1
+                engine_class = role.get("preferred_engine_class", "")
+                found = _contains_provider_specific_term(engine_class)
+                if found:
+                    print(
+                        f"❌ {workers_path}: role {name} preferred_engine_class contains "
+                        f"provider/model-specific term '{found}'"
+                    )
+                    errors += 1
+        except Exception as exc:
+            print(f"❌ {workers_path}: parse/validation failed: {exc}")
+            errors += 1
+
+    upstream_path = Path(".harness/upstream.lock")
+    if upstream_path.exists():
+        try:
+            upstream = _load_yaml(upstream_path) or {}
+            for key in ("version", "schema", "upstream", "layout", "policy"):
+                if key not in upstream:
+                    print(f"❌ {upstream_path}: {key} missing")
+                    errors += 1
+        except Exception as exc:
+            print(f"❌ {upstream_path}: parse/validation failed: {exc}")
+            errors += 1
+
+    overlay_path = Path(".harness/project/overlay.yaml")
+    if overlay_path.exists():
+        try:
+            overlay = _load_yaml(overlay_path) or {}
+            if not isinstance(overlay, dict) or overlay.get("schema") != "harness-project-overlay":
+                print(f"❌ {overlay_path}: schema must be harness-project-overlay")
+                errors += 1
+        except Exception as exc:
+            print(f"❌ {overlay_path}: parse/validation failed: {exc}")
+            errors += 1
+
+    if warnings:
+        print(f"\n결과: 오류 {errors}, 경고 {warnings}")
+    else:
+        print(f"\n결과: 오류 {errors}")
+    return 1 if errors else 0
+
+
+# ─────────────────────────────────────────────────────────
 # 라우팅
 # ─────────────────────────────────────────────────────────
 
 USAGE = """\
-사용법: docs-ops.py {validate|move|reopen|cluster-update|verify-relates|wip-sync|cps|tag-normalize} [args]
+사용법: docs-ops.py {validate|move|reopen|cluster-update|verify-relates|wip-sync|cps|tag-normalize|validate-harness-architecture} [args]
 
 서브커맨드:
   validate                     프론트매터·약어 검증
@@ -1285,6 +1473,7 @@ USAGE = """\
   wip-sync <file> [...]        commit Step 7.5 — staged 파일 체크리스트 ✅ 갱신
   cps {list|add|cases|show|stats} ...  CPS 시스템 조회·박제
   tag-normalize [<path>] [--apply] [--yes]  tag 정규식 위반 검출·변환 (dry-run 기본)
+  validate-harness-architecture  Harness core/overlay/local binding 계약 검증
 """
 
 if __name__ == "__main__":
@@ -1305,6 +1494,7 @@ if __name__ == "__main__":
         "wip-sync":       lambda: cmd_wip_sync(rest),
         "cps":            lambda: cmd_cps(rest),
         "tag-normalize":  lambda: cmd_tag_normalize(rest),
+        "validate-harness-architecture": lambda: cmd_validate_harness_architecture(),
     }
 
     if cmd not in dispatch:
