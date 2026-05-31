@@ -226,6 +226,99 @@ def count_wip_problem_signals(docs_root: Path, problem_to_solutions: dict[str, l
     return counts
 
 
+def _frontmatter_ids(value, prefix: str) -> list[str]:
+    """frontmatter 값에서 P#/S# ID를 순서 유지 중복 제거로 추출한다."""
+    ids: list[str] = []
+    for item in _frontmatter_list(value):
+        ids.extend(re.findall(rf"\b{re.escape(prefix)}\d+\b", item))
+    return _dedupe_ordered(ids)
+
+
+def analyze_cps_case_catalog(
+    docs_root: Path,
+    problem_ids: list[str],
+    solution_ids: list[str],
+) -> dict[str, object]:
+    """docs/cps case 박제의 분류·학습 신호를 정량화한다.
+
+    case는 재발 억제뿐 아니라 신규 Problem 후보와 기존 분류의 적응도를
+    보여주는 학습 데이터다. 정의 밖 P/S가 남으면 retired 번호나 신규 P#가
+    current CPS와 분리되어 있다는 신호로 보고한다.
+    """
+    cases_dir = docs_root / "cps"
+    problem_set = set(problem_ids)
+    solution_set = set(solution_ids)
+    problem_counts: dict[str, int] = {}
+    solution_counts: dict[str, int] = {}
+    undefined_problem_refs: list[str] = []
+    undefined_solution_refs: list[str] = []
+    multi_problem_cases: list[str] = []
+    p10_cases: list[str] = []
+    case_count = 0
+
+    if not cases_dir.is_dir():
+        return {
+            "case_count": 0,
+            "problem_counts": problem_counts,
+            "solution_counts": solution_counts,
+            "undefined_problem_refs": undefined_problem_refs,
+            "undefined_solution_refs": undefined_solution_refs,
+            "multi_problem_cases": multi_problem_cases,
+            "p10_cases": p10_cases,
+            "case_covered_problems": [],
+            "no_case_problems": problem_ids,
+            "recurring_problem_cases": {},
+        }
+
+    for path in sorted(cases_dir.glob("cp_*.md")):
+        case_count += 1
+        try:
+            text = path.read_text(encoding="utf-8")
+        except Exception:
+            continue
+        fm, _ = parse_frontmatter(text)
+        try:
+            rel = path.relative_to(docs_root.parent).as_posix()
+        except ValueError:
+            rel = path.as_posix()
+        p_refs = _frontmatter_ids(fm.get("p") or fm.get("problem"), "P")
+        s_refs = _frontmatter_ids(fm.get("s") or fm.get("solution-ref"), "S")
+
+        if len(p_refs) > 1:
+            multi_problem_cases.append(rel)
+        if "P10" in p_refs:
+            p10_cases.append(rel)
+
+        for pid in p_refs:
+            if pid not in problem_set:
+                undefined_problem_refs.append(f"{rel}:{pid}")
+                continue
+            problem_counts[pid] = problem_counts.get(pid, 0) + 1
+        for sid in s_refs:
+            if sid not in solution_set:
+                undefined_solution_refs.append(f"{rel}:{sid}")
+                continue
+            solution_counts[sid] = solution_counts.get(sid, 0) + 1
+
+    case_covered_problems = [pid for pid in problem_ids if problem_counts.get(pid, 0) > 0]
+    no_case_problems = [pid for pid in problem_ids if problem_counts.get(pid, 0) == 0]
+    recurring_problem_cases = {
+        pid: count for pid, count in problem_counts.items() if count >= 2
+    }
+    return {
+        "case_count": case_count,
+        "problem_counts": problem_counts,
+        "solution_counts": solution_counts,
+        "undefined_problem_refs": undefined_problem_refs,
+        "undefined_solution_refs": undefined_solution_refs,
+        "multi_problem_cases": multi_problem_cases,
+        "p10_cases": p10_cases,
+        "case_covered_problems": case_covered_problems,
+        "no_case_problems": no_case_problems,
+        "recurring_problem_cases": recurring_problem_cases,
+    }
+
+
 def count_cps_problems(cps_text_normalized: str) -> int:
     """CPS 본문에서 P# 패턴 고유 개수 카운트.
     normalize_quote 후라 줄바꿈은 공백. P1·P2... 패턴 grep.
@@ -349,6 +442,10 @@ def main() -> int:
         md_posix = str(md).replace("\\", "/")
         if md_posix == CPS_DOC:
             continue
+        # archived는 역사 박제 영역이다. current CPS 진전·분류 proxy에 섞으면
+        # retired/absorbed P#가 살아 있는 Problem처럼 오염된다.
+        if md_posix.startswith("docs/archived/") or "/docs/archived/" in md_posix:
+            continue
         # docs/harness/ 는 upstream CPS를 참조하는 하네스 자체 문서 — 다운스트림 CPS와 대조 시 항상 오탐
         if md_posix.startswith("docs/harness/") or "/docs/harness/" in md_posix:
             continue
@@ -356,6 +453,7 @@ def main() -> int:
         all_warnings.extend(scan_doc(md, cps_text, problem_refs, solution_counts))
 
     wip_problem_signals = count_wip_problem_signals(docs_root, problem_to_solutions)
+    case_catalog = analyze_cps_case_catalog(docs_root, problem_ids, solution_ids)
 
     # BIT NEW 플래그 폐기 (§S-3 73% 삭감). BIT 자가 발화 의존 메커니즘
     # 전체 폐기 — 본 집계도 함께 폐기.
@@ -375,16 +473,22 @@ def main() -> int:
         for w in all_warnings:
             print(f"- {w}")
 
+    known_problem_refs = {
+        pid: count for pid, count in problem_refs.items() if pid in set(problem_ids)
+    }
+    unknown_problem_refs = {
+        pid: count for pid, count in problem_refs.items() if pid not in set(problem_ids)
+    }
+
     # Problem 진전 신호 — 인용 문서 수 (eval --deep 활용)
-    if problem_refs:
+    if known_problem_refs:
         print(f"")
         print(f"### Problem 인용 빈도 (진전 신호 proxy)")
-        for pid in sorted(problem_refs, key=lambda x: int(x[1:])):
-            print(f"- {pid}: {problem_refs[pid]}건")
+        for pid in sorted(known_problem_refs, key=lambda x: int(x[1:])):
+            print(f"- {pid}: {known_problem_refs[pid]}건")
         unreferenced = []
-        for i in range(1, problem_count + 1):
-            pid = f"P{i}"
-            if pid not in problem_refs:
+        for pid in problem_ids:
+            if pid not in known_problem_refs:
                 unreferenced.append(pid)
         if unreferenced:
             print(f"")
@@ -410,6 +514,14 @@ def main() -> int:
             if supported:
                 print(f"ℹ primary 인용 0건이나 보조 신호가 있는 Problem: {', '.join(supported)}")
                 print("  폐기·병합 전 Solution 인용, 진행 중 WIP, kickoff 보존 사유를 함께 확인")
+    if unknown_problem_refs:
+        print(f"")
+        unknown_label = ", ".join(
+            f"{pid}:{unknown_problem_refs[pid]}건"
+            for pid in sorted(unknown_problem_refs, key=lambda x: int(x[1:]))
+        )
+        print(f"⚠ 현행 CPS에 없는 본문 P# 인용: {unknown_label}")
+        print("  대응: retired/absorbed 번호면 현행 P#로 재분류하고, 신규 현상이면 CPS add 검토")
 
     # 관계 그래프 점검 — HARNESS_MAP.md 폐기 (§S-1 CPS 재설계).
     # wiki 그래프 모델로 대체 (cluster + tag 백링크). 본 점검 폐기.
@@ -449,6 +561,42 @@ def main() -> int:
         or coupling["unknown_map_entries"]
     ):
         print("- Solution→Problem mapping: 100% ✅")
+
+    print(f"")
+    print(f"### CPS case catalog (학습·적응 신호)")
+    case_count = int(case_catalog["case_count"])
+    covered = case_catalog["case_covered_problems"]
+    no_case = case_catalog["no_case_problems"]
+    recurring = case_catalog["recurring_problem_cases"]
+    undefined_p = case_catalog["undefined_problem_refs"]
+    undefined_s = case_catalog["undefined_solution_refs"]
+    multi_cases = case_catalog["multi_problem_cases"]
+    p10_cases = case_catalog["p10_cases"]
+    print(f"- case 박제: {case_count}건")
+    print(f"- case coverage: {len(covered)}/{len(problem_ids)} Problems")
+    if recurring:
+        recurring_label = ", ".join(
+            f"{pid}:{recurring[pid]}건"
+            for pid in sorted(recurring, key=lambda x: int(x[1:]))
+        )
+        print(f"- 반복 Problem(case 2건 이상): {recurring_label}")
+    else:
+        print("- 반복 Problem(case 2건 이상): 0건")
+    print(f"- 다중 P case: {len(multi_cases)}건")
+    print(f"- P10 case: {len(p10_cases)}건")
+    if no_case:
+        print(f"- case 없는 Problem: {', '.join(no_case)}")
+    if undefined_p or undefined_s:
+        print(
+            f"- ⚠ 정의 밖 case ref: P={len(undefined_p)}건, S={len(undefined_s)}건"
+        )
+        for item in [*undefined_p, *undefined_s][:10]:
+            print(f"  - {item}")
+        if len(undefined_p) + len(undefined_s) > 10:
+            print(f"  ... 외 {len(undefined_p) + len(undefined_s) - 10}건")
+        print("  대응: retired/absorbed 번호면 현행 P/S로 재분류하고, 신규 현상이면 CPS add 검토")
+    else:
+        print("- 정의 밖 case ref: 0건 ✅")
 
     # 피드백 리포트 포맷 검증
     fb_warnings = check_feedback_reports(docs_root)

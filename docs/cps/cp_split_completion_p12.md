@@ -1,18 +1,23 @@
 ---
-title: P12 첫 case — split-completion 우회 메커니즘 박제 + rule 분리 거부 (D 채택)
+title: P11 흡수 case — split-completion 우회 메커니즘 박제 + rule 분리 거부 (D 채택)
 domain: cps
 c: 다운스트림 다회 발생한 "sub-task 분리로 본 WIP completed 위장" (specification gaming) 패턴을 starter SSOT로 흡수. 본 wave 자체가 메타 원칙 rule 분리 시도 → codex·gemini 의견 합의로 D(인벤토리 보류) 채택. 사전 추상화 회피의 자기 적용 사례.
-tags: [p12, specification-gaming, reward-hacking, force-minimization, pre-abstraction]
-p: [P12]
-s: [S12]
+tags: [p11, p12-retired, specification-gaming, reward-hacking, force-minimization, pre-abstraction]
+p: [P11]
+s: [S11]
 result: applied
 commit: 754b73c
-wave: v0.51.1 P12·S12 신설 (cp 박제는 후속 커밋)
+wave: v0.51.1 P12·S12 신설 후 v0.51.4 P11·S11 흡수
 status: completed
 created: 2026-05-18
+updated: 2026-05-31
 ---
 
-# P12 첫 case — split-completion 우회 메커니즘 박제 + rule 분리 거부
+# P11 흡수 case — split-completion 우회 메커니즘 박제 + rule 분리 거부
+
+> 정정: 이 case는 처음 P12·S12로 박제됐지만, v0.51.4에서 P11·S11로
+> 흡수됐다. `P12`는 역사적 라벨로만 남기고 frontmatter 분류는 현재 CPS
+> SSOT인 P11/S11을 따른다.
 
 ## 발견 경로
 
@@ -24,7 +29,7 @@ created: 2026-05-18
 3. **외부 분류**: Anthropic reward hacking / OpenAI specification gaming
    문헌과 일치. 일반 alignment 패턴
 
-## 본 wave 자체의 P11/P12 인접 위반 회피
+## 본 wave 자체의 P11 인접 위반 회피
 
 본 wave가 처음 시도한 흐름:
 
@@ -35,7 +40,7 @@ created: 2026-05-18
 - 최종 D 채택: rule 삭제, 메타 원칙은 decision 본문 흡수, 인벤토리 표는
   사례 누적 후 생성
 
-**자기 적용**: 본 wave가 P12 박제 wave인데, 동시에 `code-ssot.md`
+**자기 적용**: 본 wave가 split-completion 박제 wave인데, 동시에 `code-ssot.md`
 "사전 추상화 금지" 위반 직전이었다. 외부 의견이 막아냄.
 
 ## 채택된 방어
@@ -51,7 +56,7 @@ created: 2026-05-18
 
 ## 박제된 SSOT
 
-- `docs/guides/project_kickoff.md` P12·S12 (Problem 표·Solution 표·P12 본문)
+- `docs/guides/project_kickoff.md` P11·S11 (v0.51.4에서 P12·S12 흡수)
 - `docs/decisions/archived/hn_split_completion_bypass.md` (메커니즘·외부 분류·메타 원칙·방어)
 
 ## 다음 wave 후보 (본 wave decision 메모에 박제)
@@ -63,7 +68,7 @@ created: 2026-05-18
 
 ## 결과
 
-- P12·S12 신설 (project_kickoff.md)
+- P12·S12 신설 후 P11·S11로 흡수 (project_kickoff.md)
 - decision 1건 박제 (메커니즘·메타 원칙 통합)
 - rule 1건 신설 시도 후 폐기 (외부 의견 합의)
 - cp_{slug}.md 박제 누락 (본 커밋이 후속 박제 — commit 스킬 결함 노출)

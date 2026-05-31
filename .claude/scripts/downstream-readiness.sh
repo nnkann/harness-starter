@@ -11,6 +11,8 @@ set -u
 ISSUES=0
 WARNINGS=0
 REPORT=""
+HARNESS_SKILLS=""
+RUNTIME_ADAPTERS=""
 
 add_issue() {
   ISSUES=$((ISSUES + 1))
@@ -52,6 +54,60 @@ else
 
   RUNTIME_ADAPTERS=$(python3 -c "import json; data=json.load(open('.claude/HARNESS.json', encoding='utf-8')); adapters=data.get('runtime_adapters') or {'claude':'primary-adapter','codex':'bridge'}; print(','.join(adapters.keys()) if isinstance(adapters, dict) else 'claude,codex')" 2>/dev/null || echo "claude,codex")
   add_observation "runtime_adapters: $RUNTIME_ADAPTERS"
+
+  HARNESS_SKILLS=$(python3 -c "import json; data=json.load(open('.claude/HARNESS.json', encoding='utf-8')); print(data.get('skills', ''))" 2>/dev/null || echo "")
+
+  if echo ",$RUNTIME_ADAPTERS," | grep -q ",agy,"; then
+    if [ -f ".claude/scripts/agy-review.sh" ]; then
+      add_ok "agy runner: .claude/scripts/agy-review.sh"
+      add_observation "agy handoff: ${AGY_HANDOFF_FILE:-.claude/memory/session-agy-review.md}" # fallback runtime handoff path
+      add_observation "agy permission_mode: ${AGY_PERMISSION_MODE:-full}"
+      if ! grep -q -- '--dangerously-skip-permissions' .claude/scripts/agy-review.sh; then
+        add_warning "agy runner가 full permission advisory 계약을 드러내지 않음 — 최신 agy-review.sh 필요"
+      fi
+    else
+      add_warning "agy runner 없음 — 공통 Agy advisory 호출은 .claude/scripts/agy-review.sh 필요"
+    fi
+
+    if [ -n "${AGY_BIN:-}" ] && [ -x "$AGY_BIN" ]; then
+      add_observation "agy callable: $AGY_BIN"
+    elif command -v agy >/dev/null 2>&1; then
+      add_observation "agy callable: $(command -v agy)"
+    elif [ -x "/Users/kann/.local/bin/agy" ]; then
+      add_observation "agy callable: /Users/kann/.local/bin/agy"
+    else
+      add_warning "agy executable 미발견 — AGY_BIN 또는 PATH 설정 필요"
+    fi
+  fi
+fi
+
+# ─────────────────────────────────────────────
+# 1.5. 핵심 skill surface 정합성
+# ─────────────────────────────────────────────
+for skill in commit implementation harness-upgrade; do
+  if [ -n "$HARNESS_SKILLS" ] && ! echo ",$HARNESS_SKILLS," | grep -q ",$skill,"; then
+    add_issue "HARNESS.json skills에 핵심 스킬 '$skill' 누락 — 스킬 discovery silent fail 위험"
+  fi
+  if [ ! -f ".claude/skills/$skill/SKILL.md" ]; then
+    add_issue ".claude/skills/$skill/SKILL.md 없음 — Claude/legacy skill surface 누락"
+  else
+    add_ok ".claude skill: $skill"
+  fi
+done
+
+if echo ",$RUNTIME_ADAPTERS," | grep -q ",codex,"; then
+  if [ ! -f "AGENTS.md" ]; then
+    add_issue "Codex adapter 감지됐지만 AGENTS.md 없음 — Codex가 하네스 스킬 진입점을 못 읽을 수 있음"
+  else
+    add_ok "Codex entrypoint: AGENTS.md"
+  fi
+  for skill in commit implementation harness-upgrade; do
+    if [ ! -f ".agents/skills/$skill/SKILL.md" ]; then
+      add_issue ".agents/skills/$skill/SKILL.md 없음 — Codex adapter skill surface 누락"
+    else
+      add_ok ".agents skill: $skill"
+    fi
+  done
 fi
 
 # ─────────────────────────────────────────────

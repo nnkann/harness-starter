@@ -103,6 +103,8 @@ symptom-keywords:
 - 사용자가 내용 제공하면 정리
 - "알아서 정리" 요청 시 세션 맥락에서 수집
 - relates-to 명확해지면 frontmatter 추가
+- 완료 전 `.claude/rules/docs.md` "문서 헬스체크 레이어" 체크 항목을 자기
+  검증한다.
 - 충분하면 `status: completed`
 
 이후 `/commit`이 자동:

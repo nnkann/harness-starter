@@ -172,6 +172,36 @@ drift를 만들고, 폐기·갱신 시 cascade 추적이 불가능해진다 (P11
 - `eval_harness section_dead_reference`: 파일명 단위 dead reference (보조 안전망)
 - 본문 표현 단위 dead reference는 본 SSOT 원칙으로 차단 (hardcoded 패턴 답습 회피)
 
+## 문서 헬스체크 레이어
+
+`doc-health`는 독립 레거시 정비 도구 이름이 아니라, 문서 생성·수정 때마다
+통과해야 하는 품질 게이트 레이어다. 레거시 정비 안내는 이 레이어의 하위
+용도일 뿐이다.
+
+### 체크 항목
+
+- SSOT 선행 탐색을 했고, 기존 문서 갱신이 기본값인지 확인했다.
+- 새 문서 분리 근거가 있거나, 기존 completed 문서는 `docs_ops.py reopen`으로
+  WIP 전환 후 수정했다.
+- frontmatter 필수 필드(`title`, `domain`, `problem`, `s`, `tags`,
+  `status`, `created`)와 tag 정규식이 맞다.
+- AC가 체크박스 형식이고 `Goal`·`검증.review`·`검증.tests`·`검증.실측`을
+  포함한다.
+- frontmatter `s:`의 각 S#가 AC 안에 등장한다.
+- `relates-to`가 필요한 SSOT 참조·분리 관계를 기록하고, 깨진 링크가 없다.
+- 같은 행동 계약·판정 기준·절차가 2곳 이상이면 owner SSOT와 mirror 역할을
+  분리했다.
+
+### 역할 분리
+
+- `write-doc`: 문서 단독 생성/수정 완료 직전 위 체크 항목을 자기 검증한다.
+- `implementation`: 코드·룰·스킬 변경과 함께 생성/수정되는 문서에 같은 체크를
+  적용한다.
+- `pre-check`: staged WIP/frontmatter/AC/relates-to/completed 봉인 위반을
+  결정적으로 차단한다.
+- `eval --harness`: repository 전체의 누적 문서 헬스와 CPS 무결성을 보고하고,
+  레거시 정비 필요성은 안내로만 제시한다.
+
 ## AC (Acceptance Criteria) 포맷
 
 WIP task 블록의 AC:

@@ -229,6 +229,67 @@ def test_feedback_reports_no_log_file_returns_none(tmp_path):
 
 
 @pytest.mark.eval
+def test_cps_case_catalog_reports_undefined_retired_refs(tmp_path):
+    """case frontmatter가 현행 CPS에 없는 P/S를 가리키면 학습 drift로 보고한다."""
+    mod = _load_eval_cps_integrity()
+    docs_root = tmp_path / "docs"
+    cases = docs_root / "cps"
+    cases.mkdir(parents=True)
+    (cases / "cp_retired_p12.md").write_text(
+        "---\n"
+        "title: retired case\n"
+        "domain: cps\n"
+        "p: [P12]\n"
+        "s: [S12]\n"
+        "status: completed\n"
+        "created: 2026-05-18\n"
+        "---\n",
+        encoding="utf-8",
+    )
+
+    report = mod.analyze_cps_case_catalog(docs_root, ["P11"], ["S11"])
+
+    assert report["case_count"] == 1
+    assert report["undefined_problem_refs"] == ["docs/cps/cp_retired_p12.md:P12"]
+    assert report["undefined_solution_refs"] == ["docs/cps/cp_retired_p12.md:S12"]
+    assert report["no_case_problems"] == ["P11"]
+
+
+@pytest.mark.eval
+def test_cps_case_catalog_quantifies_learning_signals(tmp_path):
+    """case coverage·반복 Problem·P10·다중 P case를 정량화한다."""
+    mod = _load_eval_cps_integrity()
+    docs_root = tmp_path / "docs"
+    cases = docs_root / "cps"
+    cases.mkdir(parents=True)
+    (cases / "cp_a.md").write_text(
+        "---\np: [P1, P2]\ns: [S1]\n---\n",
+        encoding="utf-8",
+    )
+    (cases / "cp_b.md").write_text(
+        "---\np: [P2]\ns: [S2]\n---\n",
+        encoding="utf-8",
+    )
+    (cases / "cp_catch_all.md").write_text(
+        "---\np: [P10]\ns: [S10]\n---\n",
+        encoding="utf-8",
+    )
+
+    report = mod.analyze_cps_case_catalog(
+        docs_root,
+        ["P1", "P2", "P10", "P11"],
+        ["S1", "S2", "S10", "S11"],
+    )
+
+    assert report["case_count"] == 3
+    assert report["case_covered_problems"] == ["P1", "P2", "P10"]
+    assert report["no_case_problems"] == ["P11"]
+    assert report["recurring_problem_cases"] == {"P2": 2}
+    assert report["multi_problem_cases"] == ["docs/cps/cp_a.md"]
+    assert report["p10_cases"] == ["docs/cps/cp_catch_all.md"]
+
+
+@pytest.mark.eval
 def test_feedback_reports_inline_header_severity(tmp_path):
     """v0.42.4 — 헤더 인라인 `(심각도: medium ...)` 양식 검출 (FR-007 응답).
 
