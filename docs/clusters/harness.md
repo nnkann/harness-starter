@@ -39,6 +39,7 @@ updated: 2026-06-01
 - [프론트매터 그래프 스펙 설계](../decisions/hn_frontmatter_graph_spec.md)
 - [하네스 엔지니어링 적합성 분석](../decisions/hn_gap_analysis.md)
 - [Gemini CLI subagent 위임 파이프라인 설계](../decisions/hn_gemini_delegation_pipeline.md)
+- [git subtree/worktree 정책 재검토](../decisions/hn_git_subtree_policy.md)
 - [Glob 라우팅 태그 통과 — 사용자·에이전트 검색 비대칭 해소](../decisions/hn_glob_routing_tag.md)
 - [하네스 73% 삭감 설계 — 통제에서 가속으로](../decisions/hn_harness_73pct_cut.md)
 - [HARNESS_UPGRADE 환경변수 의미 일관화](../decisions/hn_harness_upgrade_env_semantics.md)
@@ -64,6 +65,7 @@ updated: 2026-06-01
 - [룰-스킬 중복 제거 — 룰 SSOT 강제 (Phase 5)](../decisions/hn_rule_skill_ssot.md)
 - [룰-스킬 SSOT 적용 — Phase 1 commit/SKILL.md](../decisions/hn_rule_skill_ssot_apply.md)
 - [Rules 파일 다이어트 — 분리한 메타·배경·자동 감지 상세](../decisions/hn_rules_metadata.md)
+- [다중 runtime adapter 통합 관리](../decisions/hn_runtime_adapter_unification.md)
 - [Neutral SSOT Runtime Output Generation](../decisions/hn_runtime_ssot_generation.md)
 - [completed 봉인 — 본문 마크다운 링크 경로 교체 면제](../decisions/hn_sealed_link_exempt.md)
 - [자가 발화 의존 규칙의 일반 실패 — P8 등록 + debug-guard.sh 확장](../decisions/hn_self_invocation_failure.md)
@@ -105,12 +107,14 @@ updated: 2026-06-01
 - [CPS 분류 판정기와 학습 지표 보강](../harness/hn_cps_classifier_learning_metrics.md)
 - [debug-specialist 에이전트 신설 — 막힐 때 자동 위임처 확보](../harness/hn_debug_specialist.md)
 - [침묵하는 방어 가시화 + harness-upgrade 지식 내면화 단계](../harness/hn_defense_visibility.md)
+- [Discord project gateway isolation SSOT](../harness/hn_discord_project_gateway_isolation_ssot.md)
 - [docs_ops.py move 시 relates-to 역참조 자동 갱신](../harness/hn_docs_ops_relates_to_rewrite.md)
 - [eval 4관점 advisor 이관 + specialist 품질 보강 (threat-analyst 신설·산출물 점수·업계 탑 인물)](../harness/hn_eval_advisor_migration.md)
 - [eval 기본 모드 보고 구조 개선](../harness/hn_eval_basic_mode_report.md)
 - [다운스트림 피드백 채널 포맷 규격화 + eval --harness 테스트](../harness/hn_feedback_channel_format.md)
 - [하네스 범용성 오염 방지 — 다운스트림 고유명사 유입 차단](../harness/hn_generic_contamination_protection.md)
 - [LLM 실수 방지 가드레일 후속 — review needs_advisor·허위 후속 감지·commit advisor 통합](../harness/hn_guardrails_followup.md)
+- [harness-starter core/overlay/local(Hermes) 경계 및 구조 개선안](../harness/hn_harness_core_overlay_binding.md)
 - [하네스 효율성 전면 점검 — 3계층 통합 (split·다운스트림 증폭·흐름 유기성)](../harness/hn_harness_efficiency_overhaul.md)
 - [HARNESS.json skills 목록 정리 — 1회성 스킬 삭제 + 활성 목록 정비](../harness/hn_harness_json_cleanup.md)
 - [implementation 스킬 재정의 — 라우터·추적자로 역할 좁히기](../harness/hn_implementation_router.md)
@@ -156,17 +160,9 @@ updated: 2026-06-01
 - [린터 도구 실종 — T13이 우연히 가시화한 환경 이슈](../incidents/hn_test_isolation_git_log_leak.md)
 - [wip-sync incidents WIP 자동 완료 미동작 — 체크리스트 없는 문서 abbr 매칭 누락](../incidents/hn_wip_sync_incidents_gap.md)
 
-## 진행 중 (WIP)
-
-- [git subtree/worktree 정책 재검토](../WIP/decisions--hn_git_subtree_policy.md)
-- [다중 runtime adapter 통합 관리](../WIP/decisions--hn_runtime_adapter_unification.md)
-- [Hermes × harness-starter 통합 설계 메모](../WIP/guides--hn_hermes_integration.md)
-- [Discord project gateway isolation SSOT](../WIP/harness--hn_discord_project_gateway_isolation_ssot.md)
-- [harness-starter core/overlay/local(Hermes) 경계 및 구조 개선안 설계 WIP](../WIP/hn_harness_core_overlay_binding.md)
-
 ## tag 분포 (간선)
 
-downstream (19건) | review (18건) | commit (15건) | cps (14건) | eval (14건) | ssot (12건) | skill (11건) | hook (9건) | pre-check (9건) | staging (9건) | upgrade (9건) | audit (8건) | rules (8건) | ac (7건) | false-positive (7건) | migration (7건) | harness-upgrade (6건) | implementation (6건) | wip-sync (6건) | dead-link (5건) | docs-ops (5건) | drift (5건) | harness-dev (5건) | memory (5건) | split (5건) | agent (4건) | cascade (4건) | contamination (4건) | docs (4건) | frontmatter (4건) | incident (4건) | refactor (4건) | starter (4건) | advisor (3건) | codex (3건) | governance (3건) | harness-adopt (3건) | harness-init (3건) | harness-map (3건) | lint (3건) | measurement (3건) | orchestration (3건) | p11 (3건) | performance (3건) | pipeline (3건) | python (3건) | regression (3건) | relates-to (3건) | reminder (3건) | sealed (3건) | secret-scan (3건) | self-verify (3건) | simplification (3건) | trigger (3건) | upstream-rule (3건) | verify-relates (3건) | wip (3건) | archive (2건) | automation (2건) | bit (2건) | clusters (2건) | commit-skill (2건) | doc-finder (2건) | doc-health (2건) | duplication (2건) | efficiency (2건) | escalation (2건) | false-block (2건) | fast-path (2건) | feedback-report (2건) | guardrails (2건) | harness-starter (2건) | information-flow (2건) | isolation (2건) | lsp (2건) | move (2건) | naming (2건) | port (2건) | pre-tool-use (2건) | propagation (2건) | push (2건) | regex-gap (2건) | routing (2건) | search (2건) | self-dependency (2건) | self-violation (2건) | signal (2건) | test (2건) | testing (2건) | tokens (2건) | verdict (2건) | versioning (2건) | whitelist (2건) | write-doc (2건) | abbr (1건) | adr (1건) | advisor-flow (1건) | agent-context (1건) | agent-orchestration (1건) | agent-spec (1건) | aggregation (1건) | ambiguity (1건) | amplification (1건) | anomaly (1건) | anti-defer (1건) | apply (1건) | approval (1건) | architecture (1건) | atomic (1건) | baseline (1건) | bash (1건) | benchmark (1건) | bidirectional (1건) | brainstorm (1건) | bridge (1건) | bug (1건) | bug-triage (1건) | classification (1건) | claude-dir-audit (1건) | cleanup (1건) | cli (1건) | cluster (1건) | cluster-update (1건) | code (1건) | code-ssot (1건) | coding-convention (1건) | commit-flow (1건) | completed (1건) | completion (1건) | completion-gate (1건) | compliance (1건) | context (1건) | context7 (1건) | cost (1건) | cps-cascade (1건) | cps-integrity (1건) | cron (1건) | dead-code (1건) | dead-reference (1건) | dead-rule (1건) | debug (1건) | debug-guard (1건) | decision-framework (1건) | decisions (1건) | defense (1건) | delegation (1건) | diagnosis-discipline (1건) | diet (1건) | diff (1건) | docs-structure (1건) | docs_ops (1건) | downstream-cascade (1건) | downstream-name (1건) | dynamic-resolution (1건) | enoent (1건) | env (1건) | env-var (1건) | eval-cps (1건) | eval-harness (1건) | eval-integrity (1건) | execution (1건) | exempt (1건) | external-docs (1건) | false-completion (1건) | false-warning (1건) | fast-help (1건) | feedback (1건) | feedback-reports (1건) | fixture (1건) | force-trigger (1건) | format (1건) | friction (1건) | gap-analysis (1건) | gate-promotion (1건) | gate-redesign (1건) | gating (1건) | gemini (1건) | generation (1건) | generic (1건) | git-remote (1건) | glob (1건) | graph (1건) | guard (1건) | handoff (1건) | harness-json (1건) | hermes (1건) | historical (1건) | hook-strength (1건) | improvement (1건) | incremental-update (1건) | index-removal (1건) | inflation (1건) | init-check (1건) | integrity (1건) | internalization (1건) | interrupt (1건) | json-schema (1건) | judgment (1건) | karpathy (1건) | kickoff (1건) | kv-group (1건) | layering (1건) | learning (1건) | legacy (1건) | living-harness (1건) | matcher (1건) | matching (1건) | maxturns (1건) | mcp (1건) | memory-index (1건) | memory-system (1건) | merge (1건) | meta-decision (1건) | metadata (1건) | migration-log (1건) | migrations (1건) | milestones (1건) | mvi (1건) | mvr (1건) | no-speculation (1건) | objectification (1건) | observability (1건) | orchestrator (1건) | organism (1건) | overhaul (1건) | parallel-meta-update (1건) | path-contract (1건) | perf (1건) | permissions (1건) | phase (1건) | phase3 (1건) | philosophy-shift (1건) | prd (1건) | pre-abstraction (1건) | pre-commit-check (1건) | problem (1건) | profile (1건) | promise (1건) | protection (1건) | pytest (1건) | quality (1건) | read-enforce (1건) | readme (1건) | redesign (1건) | regex (1건) | rel-references (1건) | release (1건) | reliability (1건) | reopen (1건) | reporting (1건) | research (1건) | review-agent (1건) | review-pattern (1건) | rollback (1건) | routing-tag (1건) | rule (1건) | rule-origin (1건) | runtime (1건) | sandbox (1건) | scoring (1건) | security (1건) | self-correction (1건) | self-invocation (1건) | self-multiplication (1건) | session-handoff (1건) | session-start (1건) | session-summary (1건) | sh (1건) | silent-fail (1건) | simplify (1건) | skill-md (1건) | snapshot (1건) | solution-ref (1건) | specialist (1건) | ssot-citation (1건) | starter_skills (1건) | step7.5 (1건) | stop-guard (1건) | structure (1건) | subagent (1건) | sync (1건) | task_groups (1건) | test-diet (1건) | test-results (1건) | threat-analyst (1건) | three-way-merge (1건) | tool-budget (1건) | tool-usage (1건) | typecheck (1건) | upstream (1건) | upstream-feedback (1건) | upstream-only (1건) | v0.42.4-regression (1건) | verification (1건) | version-bump (1건) | wiki-graph (1건) | wip-parsing (1건) | wip-template (1건) | workflow (1건)
+downstream (21건) | review (18건) | commit (15건) | cps (14건) | eval (14건) | ssot (12건) | skill (11건) | hook (9건) | pre-check (9건) | staging (9건) | upgrade (9건) | audit (8건) | rules (8건) | ac (7건) | false-positive (7건) | migration (7건) | harness-upgrade (6건) | implementation (6건) | wip-sync (6건) | dead-link (5건) | docs-ops (5건) | drift (5건) | harness-dev (5건) | memory (5건) | split (5건) | agent (4건) | cascade (4건) | codex (4건) | contamination (4건) | docs (4건) | frontmatter (4건) | hermes (4건) | incident (4건) | refactor (4건) | starter (4건) | advisor (3건) | governance (3건) | harness-adopt (3건) | harness-init (3건) | harness-map (3건) | isolation (3건) | lint (3건) | measurement (3건) | orchestration (3건) | p11 (3건) | performance (3건) | pipeline (3건) | python (3건) | regression (3건) | relates-to (3건) | reminder (3건) | routing (3건) | sealed (3건) | secret-scan (3건) | self-verify (3건) | simplification (3건) | trigger (3건) | upstream-rule (3건) | verify-relates (3건) | wip (3건) | archive (2건) | automation (2건) | bit (2건) | clusters (2건) | commit-skill (2건) | doc-finder (2건) | doc-health (2건) | duplication (2건) | efficiency (2건) | escalation (2건) | false-block (2건) | fast-path (2건) | feedback (2건) | feedback-report (2건) | guardrails (2건) | harness-starter (2건) | information-flow (2건) | lsp (2건) | move (2건) | naming (2건) | permissions (2건) | port (2건) | pre-tool-use (2건) | propagation (2건) | push (2건) | regex-gap (2건) | runtime (2건) | search (2건) | self-dependency (2건) | self-violation (2건) | signal (2건) | test (2건) | testing (2건) | tokens (2건) | verdict (2건) | versioning (2건) | whitelist (2건) | write-doc (2건) | abbr (1건) | adapter (1건) | adr (1건) | advisor-flow (1건) | agent-context (1건) | agent-orchestration (1건) | agent-spec (1건) | aggregation (1건) | ambiguity (1건) | amplification (1건) | anomaly (1건) | anti-defer (1건) | apply (1건) | approval (1건) | architecture (1건) | atomic (1건) | baseline (1건) | bash (1건) | benchmark (1건) | bidirectional (1건) | brainstorm (1건) | bridge (1건) | bug (1건) | bug-triage (1건) | classification (1건) | claude-dir-audit (1건) | cleanup (1건) | cli (1건) | cluster (1건) | cluster-update (1건) | code (1건) | code-ssot (1건) | coding-convention (1건) | commit-flow (1건) | completed (1건) | completion (1건) | completion-gate (1건) | compliance (1건) | context (1건) | context7 (1건) | cost (1건) | cps-cascade (1건) | cps-integrity (1건) | cron (1건) | dead-code (1건) | dead-reference (1건) | dead-rule (1건) | debug (1건) | debug-guard (1건) | decision-framework (1건) | decisions (1건) | defense (1건) | delegation (1건) | diagnosis-discipline (1건) | diet (1건) | diff (1건) | discord (1건) | docs-structure (1건) | docs_ops (1건) | downstream-cascade (1건) | downstream-name (1건) | dynamic-resolution (1건) | enoent (1건) | env (1건) | env-var (1건) | eval-cps (1건) | eval-harness (1건) | eval-integrity (1건) | execution (1건) | exempt (1건) | external-docs (1건) | false-completion (1건) | false-warning (1건) | fast-help (1건) | feedback-reports (1건) | fixture (1건) | force-trigger (1건) | format (1건) | friction (1건) | gap-analysis (1건) | gate-promotion (1건) | gate-redesign (1건) | gateway (1건) | gating (1건) | gemini (1건) | generation (1건) | generic (1건) | git (1건) | git-remote (1건) | glob (1건) | graph (1건) | guard (1건) | handoff (1건) | harness (1건) | harness-json (1건) | historical (1건) | hook-strength (1건) | improvement (1건) | incremental-update (1건) | index-removal (1건) | inflation (1건) | init-check (1건) | integrity (1건) | internalization (1건) | interrupt (1건) | json-schema (1건) | judgment (1건) | karpathy (1건) | kickoff (1건) | kv-group (1건) | layering (1건) | learning (1건) | legacy (1건) | living-harness (1건) | matcher (1건) | matching (1건) | maxturns (1건) | mcp (1건) | memory-index (1건) | memory-system (1건) | merge (1건) | meta-decision (1건) | metadata (1건) | migration-log (1건) | migrations (1건) | milestones (1건) | mvi (1건) | mvr (1건) | no-speculation (1건) | objectification (1건) | observability (1건) | orchestrator (1건) | organism (1건) | overhaul (1건) | overlay (1건) | parallel-meta-update (1건) | path-contract (1건) | perf (1건) | phase (1건) | phase3 (1건) | philosophy-shift (1건) | prd (1건) | pre-abstraction (1건) | pre-commit-check (1건) | problem (1건) | profile (1건) | promise (1건) | protection (1건) | pytest (1건) | quality (1건) | read-enforce (1건) | readme (1건) | redesign (1건) | regex (1건) | rel-references (1건) | release (1건) | reliability (1건) | reopen (1건) | reporting (1건) | research (1건) | review-agent (1건) | review-pattern (1건) | rollback (1건) | routing-tag (1건) | rule (1건) | rule-origin (1건) | sandbox (1건) | scoring (1건) | security (1건) | self-correction (1건) | self-invocation (1건) | self-multiplication (1건) | session-handoff (1건) | session-start (1건) | session-summary (1건) | sh (1건) | silent-fail (1건) | simplify (1건) | skill-md (1건) | snapshot (1건) | solution-ref (1건) | specialist (1건) | ssot-citation (1건) | starter_skills (1건) | step7.5 (1건) | stop-guard (1건) | structure (1건) | subagent (1건) | subtree (1건) | sync (1건) | task_groups (1건) | test-diet (1건) | test-results (1건) | threat-analyst (1건) | three-way-merge (1건) | tool-budget (1건) | tool-usage (1건) | typecheck (1건) | upstream (1건) | upstream-feedback (1건) | upstream-only (1건) | v0.42.4-regression (1건) | verification (1건) | version-bump (1건) | wiki-graph (1건) | wip-parsing (1건) | wip-template (1건) | workflow (1건) | worktree (1건)
 
 ## tag별 문서 (백링크, 2건+)
 
@@ -176,8 +172,10 @@ downstream (19건) | review (18건) | commit (15건) | cps (14건) | eval (14건
 - [다운스트림 증폭 측정 — Phase 4-A baseline 수집·가설 검증](../decisions/hn_downstream_amplification.md)
 - [eval CPS 무결성 감시 — 박제 감지·Problem 인플레이션](../decisions/hn_eval_cps_integrity.md)
 - [eval --harness CLI 백엔드 + LSP/검증 도구 정렬 진단](../decisions/hn_eval_harness_cli_lsp_drift.md)
+- [git subtree/worktree 정책 재검토](../decisions/hn_git_subtree_policy.md)
 - [Hermes-managed downstream memory/reminder 운영 경계](../decisions/hn_hermes_managed_downstream_memory.md)
 - [느슨한 결합 관측 지표 전수 감사 계획](../decisions/hn_loose_coupling_observability.md)
+- [다중 runtime adapter 통합 관리](../decisions/hn_runtime_adapter_unification.md)
 - [자가 발화 의존 규칙의 일반 실패 — P8 등록 + debug-guard.sh 확장](../decisions/hn_self_invocation_failure.md)
 - [테스트 다이어트 + 트리거 좁힘 — AC 기반 시스템과 중복 제거](../decisions/hn_test_diet.md)
 - [harness-upgrade silent fail 차단 보강 (FR-001/002/003 + FR-006)](../decisions/hn_upgrade_silent_fail_guards.md)
@@ -483,6 +481,13 @@ downstream (19건) | review (18건) | commit (15건) | cps (14건) | eval (14건
 - [starter decisions 부분 cascade로 인한 dead link 그래프 끊김](../decisions/hn_decisions_cascade_partial_graph.md)
 - [오케스트레이터 메커니즘 설계 — PreToolUse hook + orchestrator.py MVI](../decisions/hn_orchestrator_mechanism.md)
 
+### codex
+
+- [Codex 하네스 approval/hook 정책 검토](../decisions/hn_codex_approval_policy.md)
+- [다중 runtime adapter 통합 관리](../decisions/hn_runtime_adapter_unification.md)
+- [Neutral SSOT Runtime Output Generation](../decisions/hn_runtime_ssot_generation.md)
+- [Codex 포팅 재동기화](../harness/hn_codex_port.md)
+
 ### contamination
 
 - [범용성 오염 방지 후속 — review 검증 항목 + 스킬 질의](../harness/hn_contamination_followup.md)
@@ -503,6 +508,13 @@ downstream (19건) | review (18건) | commit (15건) | cps (14건) | eval (14건
 - [CPS 진입 신호 계층화 — 3층 책임 분리 + 도구 frontmatter trigger + HARNESS_MAP 역생성](../decisions/hn_cps_entry_signal_layering.md)
 - [프론트매터 그래프 스펙 설계](../decisions/hn_frontmatter_graph_spec.md)
 - [Wiki 그래프 자산 생성 wave — frontmatter·tag·relates-to 일제 정비](../decisions/hn_wiki_graph_assets.md)
+
+### hermes
+
+- [Hermes-managed downstream memory/reminder 운영 경계](../decisions/hn_hermes_managed_downstream_memory.md)
+- [다중 runtime adapter 통합 관리](../decisions/hn_runtime_adapter_unification.md)
+- [Discord project gateway isolation SSOT](../harness/hn_discord_project_gateway_isolation_ssot.md)
+- [harness-starter core/overlay/local(Hermes) 경계 및 구조 개선안](../harness/hn_harness_core_overlay_binding.md)
 
 ### incident
 
@@ -531,12 +543,6 @@ downstream (19건) | review (18건) | commit (15건) | cps (14건) | eval (14건
 - [eval 4관점 advisor 이관 + specialist 품질 보강 (threat-analyst 신설·산출물 점수·업계 탑 인물)](../harness/hn_eval_advisor_migration.md)
 - [LLM 실수 방지 가드레일 후속 — review needs_advisor·허위 후속 감지·commit advisor 통합](../harness/hn_guardrails_followup.md)
 
-### codex
-
-- [Codex 하네스 approval/hook 정책 검토](../decisions/hn_codex_approval_policy.md)
-- [Neutral SSOT Runtime Output Generation](../decisions/hn_runtime_ssot_generation.md)
-- [Codex 포팅 재동기화](../harness/hn_codex_port.md)
-
 ### governance
 
 - [HARNESS_UPGRADE 환경변수 의미 일관화](../decisions/hn_harness_upgrade_env_semantics.md)
@@ -560,6 +566,12 @@ downstream (19건) | review (18건) | commit (15건) | cps (14건) | eval (14건
 - [CPS 진입 신호 계층화 — 3층 책임 분리 + 도구 frontmatter trigger + HARNESS_MAP 역생성](../decisions/hn_cps_entry_signal_layering.md)
 - [하네스 유기체화 설계 — HARNESS_MAP.md 신경망 허브 구현 방안](../guides/hn_harness_organism_design.md)
 - [MVR 매핑 + HARNESS_MAP 에이전트 관점 개선](../harness/hn_mvr_map_agent_view.md)
+
+### isolation
+
+- [starter 전용 스킬 격리 — harness-dev 스킬 신설](../decisions/hn_starter_skill_isolation.md)
+- [starter_skills 필터링 미구현 — harness-upgrade 폴더 복사 제외 + harness-dev 등록](../decisions/hn_starter_skills_filter.md)
+- [Discord project gateway isolation SSOT](../harness/hn_discord_project_gateway_isolation_ssot.md)
 
 ### lint
 
@@ -620,6 +632,12 @@ downstream (19건) | review (18건) | commit (15건) | cps (14건) | eval (14건
 - [Hermes-managed downstream memory/reminder 운영 경계](../decisions/hn_hermes_managed_downstream_memory.md)
 - [pytest 효율과 회귀 라우팅 재정렬](../decisions/hn_pytest_regression_routing.md)
 - [reminder memory 계약 명확화](../decisions/hn_reminder_memory_contract.md)
+
+### routing
+
+- [스킬·에이전트 역할 분담 감사 — 라우터 패턴 전방위 적용](../decisions/hn_skill_agent_role_audit.md)
+- [harness-starter core/overlay/local(Hermes) 경계 및 구조 개선안](../harness/hn_harness_core_overlay_binding.md)
+- [implementation 스킬 재정의 — 라우터·추적자로 역할 좁히기](../harness/hn_implementation_router.md)
 
 ### sealed
 
@@ -729,6 +747,11 @@ downstream (19건) | review (18건) | commit (15건) | cps (14건) | eval (14건
 - [WIP cluster scan 가시성 — in-progress 도달 경로 추가](../decisions/hn_wip_cluster_visibility.md)
 - [하네스 효율성 전면 점검 — 3계층 통합 (split·다운스트림 증폭·흐름 유기성)](../harness/hn_harness_efficiency_overhaul.md)
 
+### feedback
+
+- [다운스트림 피드백 채널 포맷 규격화 + eval --harness 테스트](../harness/hn_feedback_channel_format.md)
+- [harness-starter core/overlay/local(Hermes) 경계 및 구조 개선안](../harness/hn_harness_core_overlay_binding.md)
+
 ### feedback-report
 
 - [P11 결정적 게이트 승격 + FR 양식 동형 후보 위치 + eval_cps_integrity P11 카운트 버그](../decisions/hn_p11_gate_promotion.md)
@@ -749,11 +772,6 @@ downstream (19건) | review (18건) | commit (15건) | cps (14건) | eval (14건
 - [하네스 단계간 정보 흐름 누수 전수 조사](../harness/hn_info_flow_leak_audit.md)
 - [정보 흐름 누수 해소 Phase 3 — 정성 평가 종결](../harness/hn_info_flow_leak_phase3.md)
 
-### isolation
-
-- [starter 전용 스킬 격리 — harness-dev 스킬 신설](../decisions/hn_starter_skill_isolation.md)
-- [starter_skills 필터링 미구현 — harness-upgrade 폴더 복사 제외 + harness-dev 등록](../decisions/hn_starter_skills_filter.md)
-
 ### lsp
 
 - [eval --harness CLI 백엔드 + LSP/검증 도구 정렬 진단](../decisions/hn_eval_harness_cli_lsp_drift.md)
@@ -768,6 +786,11 @@ downstream (19건) | review (18건) | commit (15건) | cps (14건) | eval (14건
 
 - [문서 네이밍 전면 개편 — 도메인 약어 + 통합 원칙](../decisions/hn_doc_naming.md)
 - [Glob 라우팅 태그 통과 — 사용자·에이전트 검색 비대칭 해소](../decisions/hn_glob_routing_tag.md)
+
+### permissions
+
+- [Discord project gateway isolation SSOT](../harness/hn_discord_project_gateway_isolation_ssot.md)
+- [harness-starter 이상 징후 묶음 (다운스트림 발견)](../harness/hn_upstream_anomalies.md)
 
 ### port
 
@@ -794,10 +817,10 @@ downstream (19건) | review (18건) | commit (15건) | cps (14건) | eval (14건
 - [pre-check SEALED 면제 갭 — MIGRATIONS류 자기 운영 파일 잘못 차단](../incidents/hn_sealed_migrations_exempt_gap.md)
 - [pre-check 시크릿 line 면제 갭 — agents/threat-analyst.md 잘못 차단](../incidents/hn_secret_line_exempt_gap.md)
 
-### routing
+### runtime
 
-- [스킬·에이전트 역할 분담 감사 — 라우터 패턴 전방위 적용](../decisions/hn_skill_agent_role_audit.md)
-- [implementation 스킬 재정의 — 라우터·추적자로 역할 좁히기](../harness/hn_implementation_router.md)
+- [다중 runtime adapter 통합 관리](../decisions/hn_runtime_adapter_unification.md)
+- [Neutral SSOT Runtime Output Generation](../decisions/hn_runtime_ssot_generation.md)
 
 ### search
 

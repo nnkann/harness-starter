@@ -31,7 +31,7 @@ def test_harness_architecture_files_exist():
         ".harness/schemas/feedback.schema.yaml",
         ".harness/hermes/workers.yaml",
         ".harness/project/overlay.yaml",
-        "docs/WIP/hn_harness_core_overlay_binding.md",
+        "docs/harness/hn_harness_core_overlay_binding.md",
     ]
     missing = [path for path in required if not (REPO_ROOT / path).exists()]
     assert missing == []

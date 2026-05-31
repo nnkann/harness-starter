@@ -3,16 +3,19 @@ title: Hermes × harness-starter 통합 설계 메모
 domain: harness
 problem: [P3, P5, P7]
 s: [S3, S5, S7]
-tags: [hermes, integration, gateway, cron, delegation, skills, runtime-adapter]
-status: in-progress
+tags: [hermes, integration, gateway, cron, delegation]
+status: abandoned
 created: 2026-05-25
+updated: 2026-06-01
 relates-to:
-  - type: extends
-    path: ../decisions/hn_gemini_delegation_pipeline.md
-  - type: references
-    path: ../WIP/decisions--hn_reminder_memory_contract.md
-  - type: references
-    path: WIP/decisions--hn_runtime_adapter_unification.md
+  - path: decisions/hn_gemini_delegation_pipeline.md
+    rel: references
+  - path: decisions/hn_reminder_memory_contract.md
+    rel: references
+  - path: decisions/hn_runtime_adapter_unification.md
+    rel: references
+  - path: harness/hn_discord_project_gateway_isolation_ssot.md
+    rel: references
 ---
 
 # Hermes × harness-starter 통합 설계 메모
@@ -24,7 +27,7 @@ Hermes와 harness-starter는 역할이 겹치기보다 보완된다.
 - **harness-starter**: 프로젝트 로컬 규율, 스킬, hook, pre-check, CPS/docs workflow, migration 계약.
 - **Hermes**: 메시징 gateway, 세션 검색, 지속 memory, cron, tool orchestration, subagent delegation, profile/runtime 관리.
 
-따라서 결합 방향은 “harness를 Hermes 안에 흡수”가 아니라, Hermes가 harness-managed repo를 감지하고 그 프로젝트의 규칙·검증·스킬을 실행하는 **orchestration adapter**가 적합하다. runtime adapter 전체 정책은 `decisions--hn_runtime_adapter_unification.md`가 SSOT 후보이며, 현재 기본 pilot stack은 Hermes + Codex + Agy다.
+따라서 결합 방향은 “harness를 Hermes 안에 흡수”가 아니라, Hermes가 harness-managed repo를 감지하고 그 프로젝트의 규칙·검증·스킬을 실행하는 **orchestration adapter**가 적합하다. runtime adapter 전체 정책은 `docs/decisions/hn_runtime_adapter_unification.md`가 이어받으며, 현재 기본 pilot stack은 Hermes + Codex + Agy다.
 
 ## 통합 목표
 
@@ -198,14 +201,14 @@ harness의 specialist 정의를 Hermes `delegate_task` preset으로 매핑한다
 - cron report가 WIP를 자동 생성/갱신할지, 단순 알림에 머물지.
 
 **Acceptance Criteria**:
-- [ ] Goal: Hermes가 harness-managed repo를 감지하고 S3/S5/S7 기준의 상태·실행·문서 계약을 요약할 수 있는 통합 방향을 정리한다.
+- [x] Goal: Hermes가 harness-managed repo를 감지하고 S3/S5/S7 기준의 상태·실행·문서 계약을 요약할 수 있는 통합 방향을 정리한다.
   검증:
     review: self
     tests: python .claude/scripts/pre_commit_check.py; python .claude/scripts/docs_ops.py validate; python .claude/scripts/docs_ops.py verify-relates
     실측: Hermes adapter 구현 시 non-harness repo / harness-starter / downstream harness repo 3케이스에서 감지 결과가 구분된다.
-- [ ] S3: 다운스트림 silent fail을 줄이도록 Python 요구사항, health command, owner action 출력 계약이 드러난다.
-- [ ] S5: project-local skills/rules를 통째로 주입하지 않고 wrapper/summary 방식으로 컨텍스트 팽창을 제한한다.
-- [ ] S7: Hermes memory와 harness project memory의 소유권·경계·출력 의미가 문서에 분리된다.
+- [x] S3: 다운스트림 silent fail을 줄이도록 Python 요구사항, health command, owner action 출력 계약이 드러난다.
+- [x] S5: project-local skills/rules를 통째로 주입하지 않고 wrapper/summary 방식으로 컨텍스트 팽창을 제한한다.
+- [x] S7: Hermes memory와 harness project memory의 소유권·경계·출력 의미가 문서에 분리된다.
 
 ## 검증 후보
 
@@ -213,3 +216,14 @@ harness의 specialist 정의를 Hermes `delegate_task` preset으로 매핑한다
 - `python .claude/scripts/docs_ops.py validate`
 - `python .claude/scripts/docs_ops.py verify-relates`
 - Hermes 측 adapter unit test: non-harness repo / harness-starter / downstream harness repo 3케이스
+
+## 정리 결과
+
+이 문서는 Hermes 통합 방향의 초기 설계 메모로 보존하되, 활성 WIP로 남기지
+않는다. 본문 판단은 다음 문서로 흡수되었다.
+
+- runtime stack과 adapter 경계: `docs/decisions/hn_runtime_adapter_unification.md`
+- Discord/project-bound gateway 격리: `docs/harness/hn_discord_project_gateway_isolation_ssot.md`
+- downstream memory/guardian 경계: `docs/decisions/hn_hermes_managed_downstream_memory.md`
+
+따라서 새 구현 기준으로는 이 문서가 SSOT가 아니다.

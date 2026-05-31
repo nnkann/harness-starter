@@ -1,22 +1,23 @@
 ---
-title: harness-starter core/overlay/local(Hermes) 경계 및 구조 개선안 설계 WIP
+title: harness-starter core/overlay/local(Hermes) 경계 및 구조 개선안
 domain: harness
 c: "Hermes가 하네스를 대체하지 않고 하네스 실행 계층으로 작동하도록, core/overlay/local binding과 worker routing을 시스템화해야 한다."
 problem: [P2, P3, P5, P7, P8, P11]
 s: [S2, S3, S5, S7, S8, S11]
 tags: [harness, overlay, hermes, routing, feedback]
 relates-to:
-  - path: docs/WIP/guides--hn_hermes_integration.md
+  - path: archived/hn_hermes_integration.md
+    rel: references
+  - path: harness/hn_feedback_channel_format.md
     rel: extends
-  - path: docs/harness/hn_feedback_channel_format.md
+  - path: guides/hn_upgrade_propagation.md
     rel: extends
-  - path: docs/guides/hn_upgrade_propagation.md
-    rel: extends
-status: in-progress
+status: completed
 created: 2026-05-27
+updated: 2026-06-01
 ---
 
-# 하네스 스타터 core/overlay/local binding 구조 개선안 WIP
+# 하네스 스타터 core/overlay/local binding 구조 개선안
 
 **Acceptance Criteria**:
 
@@ -264,3 +265,6 @@ Blocker:
 - 2026-05-27: WIP 생성. implementation/harness-init/docs 규칙 확인.
 - 2026-05-27: core/overlay/local ownership, role taxonomy, cost tier, feedback intake, subtree vs snapshot, memory boundary, legacy 정리 방향을 1차 WIP로 작성.
 - 2026-05-27: `.harness/upstream.lock`, `.harness/hermes/workers.yaml`, `.harness/project/overlay.yaml`, `.harness/schemas/{workers,feedback}.schema.yaml`와 `docs_ops.py validate-harness-architecture` 검증 명령을 추가해 설계를 실행 가능한 contract로 승격.
+- 2026-06-01: 본 문서는 core/overlay/local binding의 완료된 구조 결정으로 정리한다.
+  Discord gateway 격리 세부 구현은 `docs/harness/hn_discord_project_gateway_isolation_ssot.md`,
+  runtime adapter 표면 관리는 `docs/decisions/hn_runtime_adapter_unification.md`가 이어받는다.

@@ -10,7 +10,7 @@ relates-to:
     rel: extends
   - path: decisions/hn_reminder_memory_contract.md
     rel: extends
-  - path: WIP/guides--hn_hermes_integration.md
+  - path: archived/hn_hermes_integration.md
     rel: references
 status: completed
 created: 2026-05-26
