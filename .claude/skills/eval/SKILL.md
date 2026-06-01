@@ -103,6 +103,13 @@ Solution 충족 인용 분포.
 **7. 피드백 리포트** — 다운스트림 `migration-log.md` `## Feedback Reports`
 4필드(관점·약점·실천·심각도) 검증.
 
+**8. downstream 학습 신호** — Hermes cron·downstream guardian report가 있으면
+`fact` / `memory-signal` / `delta` / `owner-action` /
+`candidate-upstream-change` 구분이 유지되는지 확인한다. cron이 요청됐는데
+report가 없으면 "cron 미진행 신호"로 표시하고, `.claude/rules/memory.md`
+"downstream cron 학습 신호" 계약에 따라 WIP 흡수 또는 Hermes SSOT 재확인
+후보로 안내한다.
+
 ### 보고
 
 ```
@@ -130,6 +137,9 @@ Solution 충족 인용 분포.
 
 ### 피드백 리포트
 - 없음 ✅
+
+### downstream 학습 신호
+- cron report 없음 / owner-action 없음 ✅
 ```
 
 ### 레거시 문서 정비 안내

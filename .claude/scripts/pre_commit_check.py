@@ -197,6 +197,42 @@ def parse_ac_block(body: str) -> dict:
     return result
 
 
+AC_TYPE_RE = re.compile(
+    r"^\s*[-*]\s*\[[ xX]\]\s*"
+    r"(Problem AC|Solution AC|Step AC|Behavior AC|Guardrail AC|Verification AC)"
+    r"(?:\s*\(([^)]*)\))?\s*:\s*(.+)$",
+    re.MULTILINE,
+)
+CPS_REF_RE = re.compile(r"(?<![A-Za-z0-9])(?:P|S)\d+(?![0-9])")
+P_REF_RE = re.compile(r"(?<![A-Za-z0-9])P\d+(?![0-9])")
+
+
+def validate_typed_ac_block(ac_block: str) -> list[str]:
+    """typed AC 항목의 P#/S# 추적성 오류 목록을 반환한다."""
+    errors: list[str] = []
+    typed_items = list(AC_TYPE_RE.finditer(ac_block))
+    if not typed_items:
+        errors.append(
+            "AC 유형 항목 없음. `Problem AC (P#): ...`, `Solution AC (S#): ...` 등 typed AC가 필요합니다."
+        )
+        return errors
+
+    has_problem_ac = False
+    for item in typed_items:
+        kind = item.group(1)
+        refs = f"{item.group(2) or ''} {item.group(3) or ''}"
+        if kind == "Problem AC":
+            has_problem_ac = True
+            if not P_REF_RE.search(refs):
+                errors.append("Problem AC는 제목 또는 본문에 P#를 직접 인용해야 합니다.")
+        if not CPS_REF_RE.search(refs):
+            errors.append(f"{kind} 항목은 제목 또는 본문에 P# 또는 S#를 직접 인용해야 합니다.")
+
+    if not has_problem_ac:
+        errors.append("Problem AC 항목 없음. frontmatter problem의 해결 기준을 AC로 분리해야 합니다.")
+    return errors
+
+
 # ─────────────────────────────────────────────────────────
 # 입력 수집
 # ─────────────────────────────────────────────────────────
@@ -1061,9 +1097,15 @@ def main() -> int:
                 err(f"❌ {wip}: AC 섹션에 체크박스 없음. `- [ ] Goal: ...` 형식 필수 (자유 텍스트 AC 금지).")
                 ERRORS += 1
                 continue
+            typed_ac_errors = validate_typed_ac_block(ac_block)
+            if typed_ac_errors:
+                for msg in typed_ac_errors:
+                    err(f"❌ {wip}: {msg}")
+                ERRORS += 1
+                continue
 
-        # AC S# 인용 게이트 (§S-9 추가)
-        # frontmatter `s:`의 각 S# 번호가 AC 섹션 안에 1개 이상 등장 필수.
+        # AC P#/S# 인용 게이트 (§S-9 확장)
+        # frontmatter `problem`·`s:`의 각 P#/S# 번호가 AC 섹션 안에 1개 이상 등장 필수.
         # substring 본문 인용 X — 번호 매칭만 (§S-1 함정 회피).
         # 자기 변경 면제: kickoff·cps_master·docs/cps/* staged면 게이트 skip.
         CPS_SELF_EDIT = re.compile(
@@ -1072,6 +1114,16 @@ def main() -> int:
         cps_self_edit = any(CPS_SELF_EDIT.match(f) for f in staged_files)
         if not cps_self_edit and ac_block:
             # 경계 문자 매칭 — `S2` ≠ `S20`. \b 또는 비-숫자 경계 필요.
+            missing_p = []
+            for pid in prob_ids:
+                pat = re.compile(rf"(?<![A-Za-z0-9]){re.escape(pid)}(?![0-9])")
+                if not pat.search(ac_block):
+                    missing_p.append(pid)
+            if missing_p:
+                err(f"❌ {wip}: AC가 P# 인용 안 함: {', '.join(missing_p)}. Problem AC에 frontmatter problem 번호를 연결하세요.")
+                ERRORS += 1
+                continue
+
             missing_s = []
             for sid in sol_ids:
                 pat = re.compile(rf"(?<![A-Za-z0-9]){re.escape(sid)}(?![0-9])")

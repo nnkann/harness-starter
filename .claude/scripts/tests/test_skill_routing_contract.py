@@ -49,6 +49,42 @@ def test_wip_filename_contract_matches_docs_ops_move_prefix_requirement():
 
 
 @pytest.mark.routing
+def test_cps_agent_learning_contract_is_documented():
+    """subagent 호출과 역방향 CPS 신호가 implementation 계약에서 누락되지 않는다."""
+    docs_rule = _read(".claude/rules/docs.md")
+    memory_rule = _read(".claude/rules/memory.md")
+    implementation = _read(".claude/skills/implementation/SKILL.md")
+    agents_implementation = _read(".agents/skills/implementation/SKILL.md")
+    harness_dev = _read(".claude/skills/harness-dev/SKILL.md")
+    agents_harness_dev = _read(".agents/skills/harness-dev/SKILL.md")
+    harness_upgrade = _read(".claude/skills/harness-upgrade/SKILL.md")
+    agents_harness_upgrade = _read(".agents/skills/harness-upgrade/SKILL.md")
+    codebase_agent = _read(".claude/agents/codebase-analyst.md")
+    debug_agent = _read(".claude/agents/debug-specialist.md")
+    review_agent = _read(".claude/agents/review.md")
+
+    assert "### `trigger:`" in docs_rule
+    assert "downstream cron 학습 신호" in memory_rule
+
+    for text in (implementation, agents_implementation):
+        assert "CPS flow type" in text
+        assert "`reverse-solution`" in text
+        assert "`reverse-evidence`" in text
+        assert "`resume`" in text
+        assert "CPS packet" in text
+        assert "downstream cron 학습 신호" in text
+
+    for text in (codebase_agent, debug_agent, review_agent):
+        assert "trigger:" in text
+        assert "CPS 영향" in text
+
+    for text in (harness_dev, agents_harness_dev, harness_upgrade, agents_harness_upgrade):
+        assert "downstream 학습 신호" in text or "downstream guardian" in text
+        assert "candidate-upstream-change" in text
+        assert "cron 미진행 신호" in text
+
+
+@pytest.mark.routing
 def test_commit_push_contract_uses_noninteractive_shell_specific_commands():
     """push 단계가 Windows Codex에서 bash 래핑 대기로 빠지지 않게 고정한다."""
     claude_commit = _read(".claude/skills/commit/SKILL.md")

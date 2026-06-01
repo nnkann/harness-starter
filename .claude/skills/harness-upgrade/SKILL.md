@@ -767,6 +767,11 @@ bash .claude/scripts/docs_ops.py cluster-update     # clusters/ 자동 재생성
 (audit #10, 2026-04-22: docs-manager 스킬 폐기 후 `docs_ops.py`로 이관)
 - 업그레이드가 docs/ 규칙 자체를 바꿔 전수 검증이 필요하다고 판단되면
   `scope: full` + `intent: full-refresh`로 명시 (드문 경우)
+- downstream guardian·cron·수동 보고를 받은 상태에서 업그레이드하는 경우,
+  `/eval --harness` 관점으로 report의 `fact` / `memory-signal` / `delta` /
+  `owner-action` / `candidate-upstream-change` 구분이 유지되는지 확인한다.
+  report가 없으면 자동 cron을 새로 만들지 말고 "cron 미진행 신호"로 WIP 또는
+  Hermes SSOT 재확인 후보에 흡수한다.
 
 문제가 발견되면 사용자에게 보고하고 수정을 제안한다.
 문제가 없으면 "docs/ 정합성 확인 완료"로 넘어간다.

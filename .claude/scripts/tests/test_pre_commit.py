@@ -270,6 +270,63 @@ class TestACSolutionRefGate:
 
 
 @pytest.mark.gate
+class TestACTypedTraceabilityGate:
+    """typed AC 항목과 P#/S# 추적성 게이트."""
+
+    import re as _re
+    AC_TYPE_RE = _re.compile(
+        r"^\s*[-*]\s*\[[ xX]\]\s*"
+        r"(Problem AC|Solution AC|Step AC|Behavior AC|Guardrail AC|Verification AC)"
+        r"(?:\s*\(([^)]*)\))?\s*:\s*(.+)$",
+        _re.MULTILINE,
+    )
+    CPS_REF_RE = _re.compile(r"(?<![A-Za-z0-9])(?:P|S)\d+(?![0-9])")
+    P_REF_RE = _re.compile(r"(?<![A-Za-z0-9])P\d+(?![0-9])")
+
+    def _errors(self, ac_block: str) -> list[str]:
+        errors = []
+        typed_items = list(self.AC_TYPE_RE.finditer(ac_block))
+        if not typed_items:
+            return ["no typed AC"]
+        has_problem_ac = False
+        for item in typed_items:
+            kind = item.group(1)
+            refs = f"{item.group(2) or ''} {item.group(3) or ''}"
+            if kind == "Problem AC":
+                has_problem_ac = True
+                if not self.P_REF_RE.search(refs):
+                    errors.append("Problem AC missing P#")
+            if not self.CPS_REF_RE.search(refs):
+                errors.append(f"{kind} missing CPS ref")
+        if not has_problem_ac:
+            errors.append("missing Problem AC")
+        return errors
+
+    def test_typed_ac_with_problem_and_solution_refs_passes(self):
+        ac = """**Acceptance Criteria**:
+- [ ] Goal: P6/S6 완료 기준 분리
+- [ ] Problem AC (P6): 검증 책임 우회가 줄어든다.
+- [ ] Solution AC (S6): 검증 증거가 현재 wave에서 닫힌다.
+- [ ] Guardrail AC (P9/S9): 번호 없는 substring 인용을 쓰지 않는다.
+"""
+        assert self._errors(ac) == []
+
+    def test_missing_typed_ac_blocked(self):
+        ac = """**Acceptance Criteria**:
+- [ ] Goal: S6만 인용
+- [ ] 그냥 충족 기준
+"""
+        assert self._errors(ac) == ["no typed AC"]
+
+    def test_typed_item_without_cps_ref_blocked(self):
+        ac = """**Acceptance Criteria**:
+- [ ] Problem AC (P6): 검증 책임 우회가 줄어든다.
+- [ ] Behavior AC: 출력이 바뀐다.
+"""
+        assert self._errors(ac) == ["Behavior AC missing CPS ref"]
+
+
+@pytest.mark.gate
 class TestACCheckboxGate:
     """AC 체크박스 형식 게이트 (v0.47.4 §S-8 추가).
 

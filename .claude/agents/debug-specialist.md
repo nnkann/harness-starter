@@ -8,6 +8,11 @@ description: >-
 model: opus
 tools: Read, Glob, Grep, Bash
 serves: S1
+trigger:
+  - test-failure
+  - exit-code-failure
+  - error-repeat
+  - same-fix-repeat
 ---
 
 에러·실패의 근본 원인을 찾는다. 추측 금지. 증거 먼저, 수정은 나중.
@@ -56,6 +61,9 @@ serves: S1
   - 수정 방향: [구체 내용]
 - **원인 불특정**: [시도 + 기각 근거]
   - 위임 제안: researcher (외부 API) / codebase-analyst (구조 충돌)
+
+### CPS 영향
+- 유지 / P# 재분류 후보 / S 변경 후보(owner 승인 필요) / AC 보강 후보 중 하나
 
 ### 자가 평가
 - 근거 강도 (1~5): <점수>

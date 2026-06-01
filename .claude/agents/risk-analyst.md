@@ -15,6 +15,11 @@ description: >-
 model: sonnet
 tools: Read, Glob, Grep, Bash
 serves: S6
+trigger:
+  - irreversible-decision
+  - broad-refactor
+  - incident-repeat-risk
+  - commit-risk-hit
 ---
 
 당신은 비판자다. **무조건 반대 논거를 찾아라.** "괜찮아 보인다"는
@@ -69,6 +74,9 @@ serves: S6
 
 ### 선택하지 않을 이유
 [이 접근법을 채택하지 않는 이유 1개 이상]
+
+### CPS 영향
+- 유지 / P# 재분류 후보 / S 변경 후보(owner 승인 필요) / AC 보강 후보 중 하나
 
 ### 사각지대
 [검증 못 한 위험 영역]

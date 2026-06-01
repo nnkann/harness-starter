@@ -38,7 +38,7 @@ defends: P7
 | `problem`·`solution-ref` (CPS 인용) | `.claude/rules/docs.md` "## CPS 인용" |
 | `defends:` (룰 → Problem) | `.claude/rules/docs.md` "## CPS 인용" + 룰 파일 상단 |
 | `serves:` (에이전트·스킬 → Solution) | `.claude/rules/docs.md` "## CPS 인용" + 에이전트·스킬 파일 상단 |
-| AC `Goal` + `검증` 묶음 | `.claude/rules/docs.md` "## AC 포맷" |
+| AC `Goal` + typed AC + `검증` 묶음 | `.claude/rules/docs.md` "## AC 포맷" |
 
 본 파일은 **파일명·도메인·약어**만 다룸. 메타데이터는 docs.md SSOT.
 

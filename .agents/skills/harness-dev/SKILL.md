@@ -145,6 +145,7 @@ python3 .claude/scripts/harness_version_bump.py
 - [ ] **테스트**: AC가 명시 요구하면 그 marker만 실행 (`pytest -m <marker>`). 무조건 전체 실행 금지. 회귀 가드 가치 있는 변경이면 작업 task의 AC `영향 범위:` 항목에 marker 명시
 - [ ] **CPS**: `docs/guides/project_kickoff.md` Solutions 항목 중 이번 변경과 관련된 것 갱신했는가 (새 방어 레이어 추가·기존 Solution 구조 변경 시)
 - [ ] **CPS 무결성**: `python3 .claude/scripts/eval_cps_integrity.py` 실행 — Problem 인용 빈도·Solution 충족 분포 확인
+- [ ] **downstream 학습 신호**: downstream 보고·cron delta·guardian report를 받았으면 `/eval --harness` 관점으로 `fact` / `memory-signal` / `owner-action` / `candidate-upstream-change`를 구분했는가. report가 없으면 "cron 미진행 신호"로 WIP 또는 Hermes SSOT 재확인 후보에 흡수했는가
 - [ ] **폐기 동반 본문 정비** (rules·skills·scripts 파일 삭제 시): 아래 폐기 절차 실행
 
 ---
@@ -207,4 +208,3 @@ python3 .claude/scripts/eval_harness.py 2>&1 | grep -A 5 "dead reference"
 - **하나씩**: 여러 스크립트를 한 번에 추가하면 각각 Step 2~5를 반복.
   한 스크립트 = 한 사이클.
 - **설명 한 줄**: README 파일 목록 설명은 한 줄 이내. 상세는 SKILL.md/스크립트 주석에.
-

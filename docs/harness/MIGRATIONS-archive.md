@@ -43,6 +43,76 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.52.7 — commit review 기본값 정렬과 agy 수동 handoff reminder (2026-05-21)
+
+commit review 호출 정책이 실제 commit 스킬 기본값과 어긋나 있던 문구를 정리했다.
+기본 `/commit`은 review를 호출하지 않고 pre-check + 시크릿 게이트만 실행하며,
+review가 필요하면 `/commit --review`로 명시한다. 또한 agy CLI 응답 자동 회수
+실패 실측을 reminder로 남겨, Codex가 명령어를 작성하고 사용자가 VS Code
+터미널에서 직접 실행한 뒤 답변을 전달하는 수동 handoff 운영을 기억한다.
+
+### 자동 적용
+- `.claude/rules/docs.md`: commit review 호출 정책을 실제 commit 스킬 기본값과 정렬한다.
+- `.claude/memory/reminders/reminder_agy_cli_manual_handoff.md`: agy CLI 수동 handoff 운영 원칙을 reminder로 추가한다.
+
+### 수동 확인
+- review가 필요한 커밋에서는 `/commit --review`를 명시한다.
+- agy 검증이 필요하면 Codex가 제시한 `agy --print ...` 명령을 VS Code 터미널에서 직접 실행하고, 응답을 Codex 대화에 붙여준다.
+
+### 검증
+- `python .claude/scripts/harness_version_bump.py`
+- `python .claude/scripts/pre_commit_check.py`
+
+### 회귀 위험
+- 낮음. 런타임 로직 변경은 없다. 다만 다운스트림이 기본 `/commit`에서 review 호출을 기대했다면 `/commit --review`로 명시해야 한다.
+
+## v0.52.6 — CPS 헤더형 추출 보강 + canonical shape 문서화 (2026-05-21)
+
+StageLink 다운스트림 `/eval --harness` 보고에서 `project_kickoff.md` 안의
+제품 CPS와 하네스 운영 CPS가 섞이면 같은 P#/S#가 다른 의미로 재사용될 수
+있다는 실제 사례가 확인됐다. 동시에 evaluator가 `**P1 — ...**`,
+`### P5. ...`, `### S7. ... (P8)` 같은 헤더형 CPS를 표 형식만큼 안정적으로
+읽지 못해 false warning을 만들 수 있었다.
+
+### 자동 적용
+- `.claude/scripts/eval_cps_integrity.py`: 표 형식 외에 헤더형/굵은 글씨형 P#/S# 추출을 지원한다.
+- `.claude/scripts/eval_cps_integrity.py`: `### S7. ... (P8)`처럼 점/괄호를 쓰는 헤더형 Solution→Problem 매핑을 지원한다.
+- `.claude/scripts/tests/test_eval_harness.py`: 다운스트림 보고 포맷 회귀 테스트를 추가한다.
+- `README.md`: CPS canonical shape와 제품 CPS/하네스 CPS 혼합 금지 원칙을 문서화한다.
+
+### 수동 확인
+- 다운스트림에서 `/eval --harness`를 다시 실행해 정상 매핑인 `S# -> P#`가 “존재하지 않는 P#”로 보고되지 않는지 확인한다.
+- `docs/guides/project_kickoff.md`는 가능하면 아래 표 형식을 유지한다:
+
+```markdown
+## Problems
+
+| ID | 1줄 요약 |
+|----|---------|
+| P1 | ... |
+
+## Solutions
+
+| ID | 대상 P# | 1줄 메커니즘 | 해결 기준 |
+|----|---------|------------|----------|
+| S1 | P1 | ... | ... |
+```
+
+- 제품 CPS에는 제품 문제와 제품 해결책만 남긴다. `MCP`, `review maxTurns`,
+  `bash-guard`, `harness-upgrade`, `pre-check`, `commit skill` 같은 하네스 운영
+  항목이 제품 Solution으로 섞이면 CPS drift 후보로 정리한다.
+
+### 검증
+- `python -m py_compile .claude/scripts/eval_cps_integrity.py`
+- `python -m pytest .claude/scripts/tests/test_eval_harness.py -q`
+- `python .claude/scripts/eval_harness.py`
+
+### 회귀 위험
+- 낮음. eval 출력의 false warning을 줄이는 파서 보강이다. 다만 헤더형 CPS는
+  프로젝트별 표현 차이가 커서, 다운스트림 CPS는 표 형식을 canonical으로 유지하는
+  편이 가장 안정적이다.
+
+
 ## v0.52.5 — path contract lint + 검증 도구 가용성 관측 (2026-05-21)
 
 ### 자동 적용

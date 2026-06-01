@@ -96,6 +96,25 @@ serves: S#
 
 이 스킬·에이전트가 충족하는 CPS Solution ID. 여러 Solution이면 쉼표 구분.
 
+### `trigger:` — skills·agents 파일 권장
+
+```
+trigger: error-repeat
+```
+
+이 도구가 어떤 객관 신호에서 진입하는지 나타내는 routing hint다.
+`serves:`가 "어떤 S를 돕는가"라면 `trigger:`는 "언제 부를 자격이 있는가"다.
+여러 신호를 맡으면 YAML list를 쓴다. 값은 영문 소문자와 `-`만 사용한다.
+
+금지:
+- "Claude가 중요하다고 판단"처럼 자가 발화에만 의존하는 신호
+- 사람 이름·프로젝트 고유명사 같은 일회성 신호
+- trigger를 hard gate처럼 해석해 다른 명확한 증거를 무시하는 것
+
+`trigger:`는 강제 실행 명령이 아니라 specialist routing과 HARNESS_MAP 역색인용
+메타데이터다. 실제 호출은 implementation/commit/eval 흐름의 현재 C·P·S·AC
+판단을 우선한다.
+
 ## CPS 인용 (frontmatter `c`·`problem`·`s`)
 
 CPS = `docs/guides/project_kickoff.md`(C 판단 프롬프트) + `docs/cps/cp_{slug}.md`
@@ -185,9 +204,9 @@ drift를 만들고, 폐기·갱신 시 cascade 추적이 불가능해진다 (P11
   WIP 전환 후 수정했다.
 - frontmatter 필수 필드(`title`, `domain`, `problem`, `s`, `tags`,
   `status`, `created`)와 tag 정규식이 맞다.
-- AC가 체크박스 형식이고 `Goal`·`검증.review`·`검증.tests`·`검증.실측`을
-  포함한다.
-- frontmatter `s:`의 각 S#가 AC 안에 등장한다.
+- AC가 체크박스 형식이고 `Goal`·typed AC·`검증.review`·`검증.tests`·
+  `검증.실측`을 포함한다.
+- frontmatter `problem`과 `s:`의 각 P#/S#가 AC 안에 등장한다.
 - `relates-to`가 필요한 SSOT 참조·분리 관계를 기록하고, 깨진 링크가 없다.
 - 같은 행동 계약·판정 기준·절차가 2곳 이상이면 owner SSOT와 mirror 역할을
   분리했다.
@@ -204,7 +223,9 @@ drift를 만들고, 폐기·갱신 시 cascade 추적이 불가능해진다 (P11
 
 ## AC (Acceptance Criteria) 포맷
 
-WIP task 블록의 AC:
+WIP task 블록의 AC는 대표 Goal 1개와 유형화된 개별 AC로 나눈다. Goal은
+작업 전체의 완료 의도이고, 개별 AC는 무엇을 어떤 CPS 축에서 증명하는지
+드러낸다.
 
 ```markdown
 **Acceptance Criteria**:
@@ -213,11 +234,34 @@ WIP task 블록의 AC:
     review: skip|self|review|review-deep
     tests: <pytest 명령 또는 "없음">
     실측: <구체 명령·조건 또는 "운용 검증">
-- [ ] (충족 기준 1)
-- [ ] (충족 기준 2)
+- [ ] Problem AC (P#): <P#가 실제로 줄었는지 보는 기준>
+- [ ] Solution AC (S#): <선택한 S#가 작동했는지 보는 기준>
+- [ ] Step AC (S#): <단계별 산출물·다음 단계 진입 조건>
+- [ ] Behavior AC (P#/S#): <사용자·운영 관점에서 관찰 가능한 동작>
+- [ ] Guardrail AC (P#/S#): <하지 말아야 할 것·회귀 방지 기준>
+- [ ] Verification AC (S#): <테스트·명령·실측으로 닫히는 기준>
 ```
 
 **필수 필드**: `Goal`·`검증.review`·`검증.tests`·`검증.실측` 4개. 누락 시 commit 차단.
+
+**AC 유형**:
+
+| 유형 | 역할 |
+|------|------|
+| `Problem AC` | frontmatter `problem`의 P#가 실제로 해소·완화됐는지 확인 |
+| `Solution AC` | frontmatter `s`의 S#가 의도한 해결 기준을 만족하는지 확인 |
+| `Step AC` | 단계별 산출물, 다음 단계 진입 조건, phase 완료 조건 |
+| `Behavior AC` | 사용자가 관찰할 수 있는 동작·출력·운영 결과 |
+| `Guardrail AC` | 금지 행위, 회귀 방지, scope·SSOT drift 차단 |
+| `Verification AC` | 자동 테스트, 스크립트 실행, 수동 실측 절차 |
+
+**개별 AC 추적성**:
+- 각 typed AC 항목은 제목 또는 본문에 `P#` 또는 `S#`를 최소 1개 직접 인용한다.
+- `Problem AC`는 가능한 한 P#를, `Solution AC`와 `Verification AC`는 가능한 한
+  S#를 인용한다.
+- `Step AC`·`Behavior AC`·`Guardrail AC`도 어떤 P/S를 닫는지 명시한다.
+- frontmatter `problem`과 `s`에 있는 번호가 AC 섹션 안에 각각 1회 이상 등장해야 한다.
+- 번호만 인용한다. Solution 본문 substring 박제 금지.
 
 **implementation WIP 실행성**: implementation WIP의 AC는 다음 단계 진입 조건을
 드러내야 한다. 실행 단계 섹션과 단계별 산출물 점검은
