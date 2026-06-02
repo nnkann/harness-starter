@@ -57,11 +57,11 @@ TARGET="${TARGET:-.}"
 # 프로파일별 스킬 목록
 case "$PROFILE" in
   minimal)
-    SKILLS="harness-init harness-adopt harness-sync harness-upgrade commit implementation write-doc" ;;
+    SKILLS="harness-init harness-adopt harness-sync harness-upgrade commit implementation cps-learn write-doc" ;;
   standard)
-    SKILLS="harness-init harness-adopt harness-sync harness-upgrade commit implementation write-doc check-existing naming-convention" ;;
+    SKILLS="harness-init harness-adopt harness-sync harness-upgrade commit implementation cps-learn write-doc check-existing naming-convention" ;;
   full)
-    SKILLS="harness-init harness-adopt harness-sync harness-upgrade commit implementation write-doc check-existing naming-convention coding-convention eval advisor" ;;
+    SKILLS="harness-init harness-adopt harness-sync harness-upgrade commit implementation cps-learn write-doc check-existing naming-convention coding-convention eval advisor" ;;
   *)
     echo -e "${RED}❌ 알 수 없는 프로파일: $PROFILE${NC}"
     echo "사용 가능: minimal | standard | full"
@@ -213,10 +213,10 @@ PY
   BASE_REF=$(grep -o '"installed_from_ref"[[:space:]]*:[[:space:]]*"[^"]*"' "$META" 2>/dev/null | sed 's/.*"installed_from_ref"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
 
   case "${CUR_PROFILE:-minimal}" in
-    minimal)  SKILLS="harness-init harness-adopt harness-sync harness-upgrade commit implementation write-doc" ;;
-    standard) SKILLS="harness-init harness-adopt harness-sync harness-upgrade commit implementation write-doc check-existing naming-convention" ;;
-    full)     SKILLS="harness-init harness-adopt harness-sync harness-upgrade commit implementation write-doc check-existing naming-convention coding-convention eval advisor" ;;
-    *)        SKILLS="harness-init harness-adopt harness-sync harness-upgrade commit implementation write-doc" ;;
+    minimal)  SKILLS="harness-init harness-adopt harness-sync harness-upgrade commit implementation cps-learn write-doc" ;;
+    standard) SKILLS="harness-init harness-adopt harness-sync harness-upgrade commit implementation cps-learn write-doc check-existing naming-convention" ;;
+    full)     SKILLS="harness-init harness-adopt harness-sync harness-upgrade commit implementation cps-learn write-doc check-existing naming-convention coding-convention eval advisor" ;;
+    *)        SKILLS="harness-init harness-adopt harness-sync harness-upgrade commit implementation cps-learn write-doc" ;;
   esac
 
   # ─── remote 방식 vs 파일 복사 방식 분기 ───
@@ -668,6 +668,7 @@ if [ ! -f "$META" ]; then
   "profile": "$PROFILE",
   "skills": "$SKILLS",
   "version": "${SRC_VER:-unknown}",
+  "is_starter": false,
   "runtime_stack": "hermes-codex-agy",
   "runtime_adapters": {
     "hermes": "orchestrator",
@@ -692,7 +693,7 @@ if [ ! -f "$KICKOFF" ] && [ ! -f "$TARGET/docs/guides/project_kickoff.md" ]; the
 
 # 하네스 초기화 대기 중
 
-이 프로젝트는 `h-setup.sh`로 하네스 파일이 복사되었지만, **프로젝트 결정(CPS/스택/강도)** 이 아직 이뤄지지 않았습니다.
+이 프로젝트는 `h-setup.sh`로 하네스 파일과 `.claude/HARNESS.json` 정의가 생성되었지만, **프로젝트 결정(CPS/스택/강도/도메인 분류)** 이 아직 이뤄지지 않았습니다.
 
 ## 다음 할 일
 
@@ -700,11 +701,11 @@ if [ ! -f "$KICKOFF" ] && [ ! -f "$TARGET/docs/guides/project_kickoff.md" ]; the
 
 > harness-init 스킬을 실행해줘
 
-harness-init이 끝나면 이 파일은 삭제되고, 대신 실제 결정이 담긴 `docs/WIP/project_kickoff_YYMMDD.md`가 생성됩니다.
+harness-init이 끝나면 이 파일은 삭제되고, 대신 실제 결정이 담긴 `docs/guides/project_kickoff.md`와 첫 작업 문서가 생성됩니다.
 
 ## 왜 이 문서가 있나요?
 
-하네스 철학: `docs/WIP/`에 파일이 있으면 할 일이 있다는 뜻입니다. 이 placeholder는 "하네스는 깔렸지만 프로젝트 결정은 안 됐다"는 상태를 명시적으로 드러냅니다.
+하네스 철학: `docs/WIP/`에 파일이 있으면 할 일이 있다는 뜻입니다. 이 placeholder는 "하네스 정의 파일은 있지만 도메인 분류와 프로젝트 결정은 안 됐다"는 상태를 명시적으로 드러냅니다.
 EOF
   echo -e "  ${GREEN}✓ 생성${NC}: docs/WIP/harness_init_pending.md"
   CREATED=$((CREATED + 1))
@@ -745,5 +746,3 @@ echo -e "  ${GREEN}생성: ${CREATED}개${NC}"
 echo -e "  ${YELLOW}스킵: ${SKIPPED}개${NC}"
 echo ""
 echo "다음: 사용 가능한 runtime에서 프로젝트 열고 'harness-init 스킬을 실행해줘'"
-
-

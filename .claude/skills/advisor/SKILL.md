@@ -10,7 +10,9 @@ description: >-
   리팩토링 방향 등 판단이 필요한 순간에 "검증할까요? [Y/n]"으로 개입
   여부를 확인.
   SKIP: 답이 명확한 단순 질문, 이미 결정된 사항, 컨벤션 문제
-  (naming.md/coding.md 참조).
+  (naming.md/coding.md 참조), 단일 specialist로 끝나는 작업
+  (직접 호출: codebase-analyst/researcher/risk-analyst/debug-specialist/
+  threat-analyst/performance-analyst).
 serves: S1, S8
 ---
 
@@ -38,6 +40,6 @@ serves: S1, S8
 
 | 호출자 | 지점 | 동작 |
 |--------|------|------|
-| implementation | Step 0.5 | "접근법 검증할까요? [Y/n]" → Y 시 호출 |
+| implementation | Step 4 | direct specialist first 판정 후, 종합·충돌·one-way일 때만 advisor 후보 |
 | harness-init | Step 6 | 스택 결정 전 — 단일 researcher로 족한 경우 직접 호출 권장 |
 | commit | Step 7 | 큰 결정 hit 시 review와 병렬 |

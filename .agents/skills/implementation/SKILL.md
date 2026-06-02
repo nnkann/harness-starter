@@ -157,6 +157,39 @@ typed AC는 `.claude/rules/docs.md` "## AC 포맷"이 SSOT다. 각 typed AC
 2. **specialist 트리거** — agent description SSOT (라우팅 매트릭스 폐기):
    - 에이전트 description에 trigger 명시됨. 해당 description이 시스템 프롬프트에 깔림
    - 막혔을 때 description의 TRIGGER 조건과 일치하면 호출
+   - 호출 전 **CPS response policy**로 질문을 좁힌다. 새 라우팅 표가 아니라
+     현재 `flow`·복수 `problem`·복수 `s`·`AC`가 specialist·runtime에게 요구할
+     출력 필터다.
+   - 복수 `problem`은 중복이 아니라 **문제 차원 증가**다. 각 P#가 요구하는
+     관찰·증거 축을 분해해 무엇을 더 봐야 하는지 정한다. 예: downstream,
+     컨텍스트 비용, 소유권, 자가 발화, 정보 오염, 동형 패턴.
+   - 복수 `s`는 중복이 아니라 **실행 구조 증가**다. 각 S#가 요구하는 해결 기준을
+     분해해 AC를 단계화·반복·분리 검증한다. 한 Goal 안에서도 Step AC,
+     Guardrail AC, Verification AC가 여러 단계로 나뉠 수 있다.
+   - 호출 폭은 고정하지 않는다. P#가 만든 독립 문제 차원 수가 specialist 폭을
+     정하고, S#가 만든 해결 기준 수가 실행 단계·반복·검증 폭을 정한다. 결과가
+     충돌하거나 결정 프레임이 필요하면 advisor로 종합한다. 전체 문서 덤프는
+     금지하고 각 specialist에는 자기 축의 `expected-output`만 넘긴다.
+   - CPS 변경·재분류·새 case가 생기면 다음 호출 정책도 바뀔 수 있다. 이전
+     `post-result`의 `overcalled`·`undercalled`·`misfit`은 다음 CPS response
+     policy의 입력으로 삼는다.
+   - Hermes/Codex/Agy runtime 선택은 `runtime 선택 trace`를 남긴다:
+     `selected`(codex|agy|both|none), `fit`(왜 맞는 선택인가), `prediction`
+     (예상 효과·실패 모드), `post-result`(fit|misfit|overcalled|undercalled).
+     Codex는 실행·diff·repo evidence, Agy는 advisory/adversarial 판단을
+     기본 역할로 둔다. 둘의 이견은 owner-action 또는 advisor escalate 후보다.
+   - Agy/Codex 응답은 사실 증거가 아니라 `advisory-signal`이다. 현재 repo
+     문서·코드·실행 결과로 재확인하기 전까지 fact로 기록하지 않는다.
+   - **direct specialist first**: 단일 증거 축이면 advisor를 관문으로 쓰지
+     않고 해당 축의 specialist를 직접 호출한다. 구체 trigger의 SSOT는 각
+     `.claude/agents/*.md` description이며 Step 4가 specialist별 trigger 표를
+     복제하지 않는다.
+   - advisor는 종합이 필요할 때만 쓴다: 관점 2개 이상 충돌, one-way 결정,
+     기술 선택·아키텍처 결정, agent 결과의 사각지대가 실행 결정을 막을 때.
+     advisor-only 반복은 `overcalled`로 기록하고 다음 호출에서 직접 specialist를
+     먼저 선택한다.
+   - 위험 hit·one-way 결정·agent 간 결론 충돌이면 advisor/risk/threat 후보로
+     escalate한다. 그 외 기본값은 직접 처리 또는 단일 specialist다.
    - 호출 prompt에는 전체 문서 덤프 대신 CPS packet을 포함한다:
      `C`, `problem`, `s`, `flow`, `AC`, `already-read`, `question`, `expected-output`
    - specialist 응답에는 `CPS 영향`을 요구한다: 유지 / P# 재분류 후보 /

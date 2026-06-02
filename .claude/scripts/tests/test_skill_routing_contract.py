@@ -55,6 +55,10 @@ def test_cps_agent_learning_contract_is_documented():
     memory_rule = _read(".claude/rules/memory.md")
     implementation = _read(".claude/skills/implementation/SKILL.md")
     agents_implementation = _read(".agents/skills/implementation/SKILL.md")
+    advisor_skill = _read(".claude/skills/advisor/SKILL.md")
+    agents_advisor_skill = _read(".agents/skills/advisor/SKILL.md")
+    cps_learn = _read(".claude/skills/cps-learn/SKILL.md")
+    agents_cps_learn = _read(".agents/skills/cps-learn/SKILL.md")
     harness_dev = _read(".claude/skills/harness-dev/SKILL.md")
     agents_harness_dev = _read(".agents/skills/harness-dev/SKILL.md")
     harness_upgrade = _read(".claude/skills/harness-upgrade/SKILL.md")
@@ -71,8 +75,45 @@ def test_cps_agent_learning_contract_is_documented():
         assert "`reverse-solution`" in text
         assert "`reverse-evidence`" in text
         assert "`resume`" in text
+        assert "CPS response policy" in text
+        assert "새 라우팅 표가 아니라" in text
+        assert "복수 `problem`은 중복이 아니라" in text
+        assert "문제 차원 증가" in text
+        assert "복수 `s`는 중복이 아니라" in text
+        assert "실행 구조 증가" in text
+        assert "단계화·반복·분리 검증" in text
+        assert "호출 폭은 고정하지 않는다" in text
+        assert "specialist 폭" in text
+        assert "실행 단계·반복·검증 폭" in text
+        assert "specialist별 trigger 표를" in text
+        assert "runtime 선택 trace" in text
+        assert "selected`(codex|agy|both|none)" in text
+        assert "post-result`(fit|misfit|overcalled|undercalled)" in text
+        assert "advisory-signal" in text
+        assert "direct specialist first" in text
+        assert "advisor를 관문으로 쓰지" in text
+        assert "advisor-only 반복은 `overcalled`" in text
         assert "CPS packet" in text
         assert "downstream cron 학습 신호" in text
+
+    assert "복수 `problem`·복수 `s`" in docs_rule
+    assert "복수 `problem`은 문제 차원 증가" in docs_rule
+    assert "복수 `s`는" in docs_rule
+    assert "단계화·반복·분리 검증" in docs_rule
+    assert "P#/S#별 새 라우팅 매트릭스" in docs_rule
+    assert "새 metadata" in docs_rule
+
+    for text in (advisor_skill, agents_advisor_skill):
+        assert "단일 specialist로 끝나는 작업" in text
+        assert "direct specialist first 판정 후" in text
+        assert "Step 0.5" not in text
+
+    for text in (cps_learn, agents_cps_learn):
+        assert "복수 P# = 문제 차원 증가" in text
+        assert "복수 S# = 실행 구조 증가" in text
+        assert "P#가 만든 독립 문제 차원 수가 specialist 폭" in text
+        assert "S#가 만든 해결 기준 수가 실행 단계·반복·검증 폭" in text
+        assert "고정 라우팅 매트릭스 금지" in text
 
     for text in (codebase_agent, debug_agent, review_agent):
         assert "trigger:" in text

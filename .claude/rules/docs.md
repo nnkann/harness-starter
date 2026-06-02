@@ -115,6 +115,12 @@ trigger: error-repeat
 메타데이터다. 실제 호출은 implementation/commit/eval 흐름의 현재 C·P·S·AC
 판단을 우선한다.
 
+specialist 호출 직전에는 implementation의 CPS response policy가 현재
+`flow`·복수 `problem`·복수 `s`·`AC`로 expected-output과 runtime 선택 trace를
+좁힌다. 복수 `problem`은 문제 차원 증가라 무엇을 더 볼지 정하고, 복수 `s`는
+실행 구조 증가라 단계화·반복·분리 검증을 정한다. `trigger:`는 후보 신호일
+뿐이며 P#/S#별 새 라우팅 매트릭스나 새 metadata field로 확장하지 않는다.
+
 ## CPS 인용 (frontmatter `c`·`problem`·`s`)
 
 CPS = `docs/guides/project_kickoff.md`(C 판단 프롬프트) + `docs/cps/cp_{slug}.md`

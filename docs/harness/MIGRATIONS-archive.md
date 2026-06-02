@@ -43,6 +43,66 @@ HARNESS_SPLIT_OPT_IN=1 /commit  # 명시 분할 옵트인
 
 ---
 
+## v0.52.9 — init gate UTF-8 출력 복구 + Python 요구사항 명시 (2026-05-25)
+
+`check_init_done.sh`가 `docs/guides/project_kickoff.md` sample 상태를 보고할 때
+`$KICKOFF가`를 하나의 변수명처럼 해석해 stderr 한글 출력이 깨질 수 있었다.
+Python 테스트의 `text=True` 디코딩에서는 이 출력이 `UnicodeDecodeError`로
+번져 init gate 회귀 테스트 2건이 실패했다. 변수 경계를 `${KICKOFF}`로 고정해
+출력 인코딩을 복구했다.
+
+또한 하네스 스크립트가 `str | None` 타입 힌트 등 Python 3.10+ 문법을 사용한다는
+요구사항을 README·루트 지침에 명시하고, GitHub license metadata 인식을 위해
+`LICENSE` 파일을 추가했다. Hermes 통합 아이디어는 WIP 문서로 남겼다.
+
+### 자동 적용
+- `.claude/scripts/check_init_done.sh`: sample 상태 메시지의 shell 변수 경계를
+  `${KICKOFF}`로 명시한다.
+- `README.md`, `AGENTS.md`, `CLAUDE.md`: Python 3.10+ 요구사항을 명시한다.
+- `LICENSE`: MIT License 파일을 추가한다.
+- `.claude/HARNESS.json`: 버전을 `0.52.9`로 갱신한다.
+
+### 수동 확인
+- 다운스트림 실행 환경의 `python3 --version`이 3.10 이상인지 확인한다.
+- macOS 기본 `/usr/bin/python3`처럼 3.9인 환경은 pyenv/uv/venv 등으로 Python 3.10+
+  실행 경로를 사용한다.
+
+### 검증
+- `python -m pytest .claude/scripts/tests/ -q`
+- `python .claude/scripts/pre_commit_check.py`
+- `python .claude/scripts/docs_ops.py validate`
+- `python .claude/scripts/docs_ops.py verify-relates`
+
+### 회귀 위험
+- 낮음. init gate 출력 문자열의 변수 경계와 문서/라이선스 보강이다. 단,
+  Python 3.10+ 요구사항을 명시했으므로 3.9 환경에서 조용히 실패하던 문제가
+  명시적 환경 조건으로 드러난다.
+
+## v0.52.8 — implementation WIP 실행 계획 soft warning (2026-05-22)
+
+implementation WIP가 AC 형식만 갖추고 실제 작업 단계와 단계별 산출물을 빠뜨리는
+문제를 줄이기 위해, implementation 스킬 Step 3·5에 실행 계획 soft warning을
+추가했다. 처음부터 hard fail로 막지 않고, 완료 선언 전 보완하도록 유도한다.
+
+### 자동 적용
+- `.claude/skills/implementation/SKILL.md`, `.agents/skills/implementation/SKILL.md`:
+  implementation WIP에 `## 구현 계획` 또는 동등한 실행 단계 섹션, 단계별 산출물,
+  다음 단계 진입 기준이 없으면 soft warning을 남긴다.
+- `.claude/rules/docs.md`: AC 포맷에 implementation WIP 실행성 원칙과
+  implementation 스킬의 soft warning 책임을 연결한다.
+
+### 수동 적용
+- 없음.
+
+### 검증
+- `rg -n "implementation WIP 실행 계획 경고|실행 계획 점검|implementation WIP 실행성" .claude/skills/implementation/SKILL.md .agents/skills/implementation/SKILL.md .claude/rules/docs.md`
+- `python .claude/scripts/pre_commit_check.py`
+
+### 회귀 위험
+- 낮음. 차단 규칙이 아니라 soft warning이므로 기존 WIP 작성 흐름을 즉시 막지 않는다.
+  다만 implementation WIP 작성 시 짧은 실행 계획 섹션이 권장된다.
+
+
 ## v0.52.7 — commit review 기본값 정렬과 agy 수동 handoff reminder (2026-05-21)
 
 commit review 호출 정책이 실제 commit 스킬 기본값과 어긋나 있던 문구를 정리했다.

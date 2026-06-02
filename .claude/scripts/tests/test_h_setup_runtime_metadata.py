@@ -59,3 +59,27 @@ def test_upgrade_backfills_runtime_metadata_for_existing_harness_json(tmp_path: 
         "agy": "advisor",
         "claude": "optional-adapter",
     }
+
+
+def test_new_install_creates_downstream_harness_definition_first(tmp_path: Path):
+    """신규 프로젝트는 도메인 분류 전 HARNESS.json 정의 파일부터 가진다."""
+    target = tmp_path / "new-project"
+    target.mkdir()
+    run(["git", "init", "-q"], target)
+
+    run(["bash", str(SCRIPT), "--profile", "minimal", str(target)], REPO)
+
+    harness = target / ".claude" / "HARNESS.json"
+    pending = target / "docs" / "WIP" / "harness_init_pending.md"
+    data = json.loads(harness.read_text(encoding="utf-8"))
+    pending_text = pending.read_text(encoding="utf-8")
+
+    assert data["is_starter"] is False
+    assert data["runtime_stack"] == "hermes-codex-agy"
+    assert data["runtime_adapters"]["hermes"] == "orchestrator"
+    assert "cps-learn" in data["skills"]
+    assert (target / ".claude" / "skills" / "cps-learn" / "SKILL.md").exists()
+    assert (target / ".agents" / "skills" / "cps-learn" / "SKILL.md").exists()
+    assert pending.exists()
+    assert ".claude/HARNESS.json" in pending_text
+    assert "도메인 분류" in pending_text
