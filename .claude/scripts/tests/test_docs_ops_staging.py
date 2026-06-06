@@ -12,6 +12,7 @@
 import importlib.util
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -131,6 +132,68 @@ def _unstaged_files(tmp_path: Path) -> set[str]:
         if line[1] != " ":  # worktree 변경 있음
             out.add(line[3:].strip())
     return out
+
+
+@pytest.mark.eval
+def test_validate_blocks_unquoted_colon_frontmatter_title(tmp_path, monkeypatch, capsys):
+    """docs validate가 실제 YAML parser 실패를 통과시키지 않는다."""
+    _init_repo(tmp_path)
+    bad = tmp_path / "docs" / "WIP" / "harness--hn_bad_frontmatter.md"
+    bad.write_text(
+        "---\n"
+        "title: Repo 구조 정리: 제품 구조와 하네스 adapter 경계\n"
+        "domain: harness\n"
+        "status: in-progress\n"
+        "created: 2026-06-04\n"
+        "---\n\n"
+        "# bad\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    mod = _load_docs_ops()
+
+    rc = mod.cmd_validate()
+    out = capsys.readouterr().out
+
+    assert rc == 1
+    assert "frontmatter YAML parse 실패" in out
+    assert str(bad.relative_to(tmp_path)) in out
+
+
+@pytest.mark.eval
+def test_wip_sync_skips_invalid_yaml_frontmatter(tmp_path):
+    """wip-sync가 YAML parse 실패를 silent fallback으로 묻지 않는다."""
+    _init_repo(tmp_path)
+    script_src = SCRIPTS_DIR / "docs_ops.py"
+    script_dst = tmp_path / ".claude" / "scripts" / "docs_ops.py"
+    script_dst.parent.mkdir(parents=True, exist_ok=True)
+    script_dst.write_text(script_src.read_text(encoding="utf-8"), encoding="utf-8")
+    wip = tmp_path / "docs" / "WIP" / "harness--hn_bad_sync.md"
+    wip.write_text(
+        "---\n"
+        "title: Repo 구조 정리: 제품 구조와 하네스 adapter 경계\n"
+        "domain: harness\n"
+        "problem: P7\n"
+        "status: in-progress\n"
+        "created: 2026-06-04\n"
+        "---\n\n"
+        "# bad\n\n"
+        "**Acceptance Criteria**:\n"
+        "- [x] Goal: docs_ops.py 재현\n",
+        encoding="utf-8",
+    )
+
+    r = subprocess.run(
+        [sys.executable, ".claude/scripts/docs_ops.py", "wip-sync", ".claude/scripts/docs_ops.py"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+
+    assert r.returncode == 0
+    assert "frontmatter parse 실패" in r.stderr
+    assert "자동 sync skip" in r.stderr
+    assert wip.exists()
 
 
 @pytest.mark.eval

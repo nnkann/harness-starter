@@ -117,23 +117,154 @@ def detect_abbr(filepath: Path, abbrs: list[str]) -> str | None:
     return m.group(1) if m else None
 
 
-def extract_frontmatter(path: Path) -> dict[str, str]:
-    """YAML frontmatter를 간단 파싱 → {field: value} 딕셔너리."""
-    fm: dict[str, str] = {}
+def _stringify_yaml_scalar(value: Any) -> Any:
+    """YAML scalar를 기존 호출자 친화 값으로 정규화한다."""
+    if isinstance(value, (str, list, dict)) or value is None:
+        return value
+    return str(value)
+
+
+def _frontmatter_block(path: Path) -> str | None:
+    """파일 첫 YAML frontmatter 본문을 반환. 없으면 None."""
     if not path.exists():
-        return fm
+        return None
     lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
-    dash_count = 0
-    for line in lines:
+    if not lines or lines[0].strip() != "---":
+        return None
+    for idx, line in enumerate(lines[1:], start=1):
         if line.strip() == "---":
-            dash_count += 1
-            if dash_count == 2:
-                break
+            return "\n".join(lines[1:idx])
+    raise ValueError("frontmatter 닫는 --- 누락")
+
+
+def _split_inline_list(value: str) -> list[str]:
+    """간단한 `[a, b]` frontmatter 리스트를 파싱한다."""
+    body = value.strip()[1:-1].strip()
+    if not body:
+        return []
+    return [item.strip().strip("'\"") for item in body.split(",") if item.strip()]
+
+
+def _parse_frontmatter_fallback(raw: str) -> dict[str, Any]:
+    """PyYAML 없는 최소 환경용 frontmatter parser.
+
+    Harness 문서는 대부분 scalar, inline list, 간단한 block list만 쓴다.
+    fallback은 그 범위만 지원하고, 따옴표 없는 `title: A: B`처럼 실제 YAML
+    parser가 실패할 대표 drift는 오류로 유지한다.
+    """
+    data: dict[str, Any] = {}
+    current_key: str | None = None
+    current_list: list[Any] | None = None
+
+    def commit_list() -> None:
+        nonlocal current_key, current_list
+        if current_key is not None and current_list is not None:
+            data[current_key] = current_list
+        current_key = None
+        current_list = None
+
+    for lineno, line in enumerate(raw.splitlines(), start=1):
+        if not line.strip() or line.lstrip().startswith("#"):
             continue
-        if dash_count == 1 and ":" in line:
-            k, _, v = line.partition(":")
-            fm[k.strip()] = v.strip().strip("'\"")
-    return fm
+        if line.startswith((" ", "\t")):
+            stripped = line.strip()
+            if current_key is None:
+                raise ValueError(f"frontmatter {lineno}행: 상위 key 없는 들여쓰기")
+            if stripped.startswith("- "):
+                if current_list is None:
+                    current_list = []
+                item = stripped[2:].strip()
+                if ": " in item and not item.startswith(("'", '"')):
+                    key, value = item.split(": ", 1)
+                    current_list.append({key.strip(): value.strip().strip("'\"")})
+                else:
+                    current_list.append(item.strip("'\""))
+                continue
+            if current_list and isinstance(current_list[-1], dict) and ": " in stripped:
+                key, value = stripped.split(": ", 1)
+                current_list[-1][key.strip()] = value.strip().strip("'\"")
+                continue
+            raise ValueError(f"frontmatter {lineno}행: 지원하지 않는 들여쓰기 형식")
+
+        commit_list()
+        if ":" not in line:
+            raise ValueError(f"frontmatter {lineno}행: key:value 형식 아님")
+        key, value = line.split(":", 1)
+        key = key.strip()
+        value = value.strip()
+        if not key:
+            raise ValueError(f"frontmatter {lineno}행: 빈 key")
+        if value == "":
+            current_key = key
+            current_list = []
+            continue
+        if value.startswith("[") and value.endswith("]"):
+            data[key] = _split_inline_list(value)
+            continue
+        if value.startswith(("'", '"')):
+            quote = value[0]
+            if not value.endswith(quote):
+                raise ValueError(f"frontmatter {lineno}행: 따옴표 닫힘 누락")
+            data[key] = value[1:-1]
+            continue
+        if re.search(r":\s+", value):
+            raise ValueError(f"frontmatter {lineno}행: 따옴표 없는 콜론 포함 값")
+        data[key] = value
+
+    commit_list()
+    return data
+
+
+def _parse_frontmatter(path: Path) -> dict[str, Any]:
+    """YAML frontmatter를 실제 YAML parser로 파싱한다."""
+    raw = _frontmatter_block(path)
+    if raw is None:
+        return {}
+    if yaml is None:
+        data = _parse_frontmatter_fallback(raw)
+    else:
+        data = yaml.safe_load(raw) or {}
+    if not isinstance(data, dict):
+        raise ValueError("frontmatter 최상위 값이 mapping이 아님")
+    return {str(k): _stringify_yaml_scalar(v) for k, v in data.items()}
+
+
+def extract_frontmatter(path: Path, errors: list[str] | None = None) -> dict[str, Any]:
+    """YAML frontmatter 파싱 → dict. 오류는 errors에 누적하고 빈 dict 반환."""
+    try:
+        return _parse_frontmatter(path)
+    except Exception as exc:
+        if errors is not None:
+            errors.append(f"{path}: frontmatter YAML parse 실패: {exc}")
+        return {}
+
+
+def frontmatter_error(path: Path) -> str | None:
+    """frontmatter parse 오류 메시지. 정상이면 None."""
+    errors: list[str] = []
+    extract_frontmatter(path, errors)
+    return errors[0] if errors else None
+
+
+def frontmatter_text(value: Any) -> str:
+    """frontmatter 값을 문자열로 정규화한다."""
+    if value is None:
+        return ""
+    if isinstance(value, list):
+        return ", ".join(str(v).strip() for v in value if str(v).strip())
+    return str(value).strip()
+
+
+def frontmatter_items(value: Any) -> list[str]:
+    """frontmatter scalar/list 값을 list[str]로 정규화한다."""
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(v).strip() for v in value if str(v).strip()]
+    text = str(value).strip()
+    if text.startswith("[") and text.endswith("]"):
+        return [item.strip().strip("'\"") for item in text[1:-1].split(",") if item.strip()]
+    return [text] if text else []
 
 
 def write_frontmatter_field(path: Path, field: str, value: str) -> None:
@@ -195,23 +326,29 @@ def cmd_validate() -> int:
     valid_statuses = {"pending", "in-progress", "completed", "abandoned", "sample"}
 
     for md in sorted(DOCS_DIR.rglob("*.md")):
-        fm = extract_frontmatter(md)
+        fm_errors: list[str] = []
+        fm = extract_frontmatter(md, fm_errors)
         f = str(md)
+        if fm_errors:
+            for msg in fm_errors:
+                print(f"❌ {msg}")
+            errors += len(fm_errors)
+            continue
 
-        if not fm.get("title"):
+        if not frontmatter_text(fm.get("title")):
             print(f"❌ {f}: title 누락"); errors += 1
-        domain = fm.get("domain", "")
+        domain = frontmatter_text(fm.get("domain"))
         if not domain:
             print(f"❌ {f}: domain 누락"); errors += 1
         elif domains and domain not in domains:
             print(f"⚠️  {f}: domain '{domain}' 이(가) naming.md 확정 목록에 없음")
             warnings += 1
-        status = fm.get("status", "")
+        status = frontmatter_text(fm.get("status"))
         if not status:
             print(f"❌ {f}: status 누락"); errors += 1
         elif status not in valid_statuses:
             print(f"⚠️  {f}: status '{status}' 비정상"); warnings += 1
-        created = fm.get("created", "")
+        created = frontmatter_text(fm.get("created"))
         if not created:
             print(f"❌ {f}: created 누락"); errors += 1
         elif not re.match(r"^\d{4}-\d{2}-\d{2}$", created):
@@ -752,10 +889,12 @@ def cmd_wip_sync(staged_files: list[str]) -> int:
             continue
         sf_path = Path(sf)
         if sf_path.exists() and sf.endswith(".md") and "WIP" in sf.replace("\\", "/"):
-            fm = extract_frontmatter(sf_path)
-            p = fm.get("problem", "").strip()
-            if p:
-                staged_problems.add(p)
+            fm_errors: list[str] = []
+            fm = extract_frontmatter(sf_path, fm_errors)
+            if fm_errors:
+                print(f"🛑 staged WIP frontmatter parse 실패: {fm_errors[0]}", file=sys.stderr)
+                continue
+            staged_problems.update(frontmatter_items(fm.get("problem")))
 
     # Phase 4 (hn_harness_recovery_v0_41_baseline, 2026-05-13):
     # abbr 매칭 우선 단축. staged 파일에서 추출한 abbr이 매칭하는 WIP만 1차 iter.
@@ -825,8 +964,13 @@ def cmd_wip_sync(staged_files: list[str]) -> int:
         # 의미 게이트 — staged WIP의 problem과 일치할 때만 매칭 인정
         # 어휘 일치 ≠ 의미 일치 false positive 차단 (v0.30.6 자기증명 사례:
         # `hn_rule_skill_ssot.md` AC 본문 "commit/SKILL.md" 어휘 hit).
-        wip_fm = extract_frontmatter(wip)
-        wip_problem = wip_fm.get("problem", "").strip()
+        wip_fm_errors: list[str] = []
+        wip_fm = extract_frontmatter(wip, wip_fm_errors)
+        if wip_fm_errors:
+            print(f"🛑 WIP frontmatter parse 실패 — 자동 sync skip: {wip_fm_errors[0]}", file=sys.stderr)
+            continue
+        wip_problems = set(frontmatter_items(wip_fm.get("problem")))
+        wip_problem = ", ".join(sorted(wip_problems))
 
         def _passes_problem_gate() -> bool:
             # staged WIP에 problem이 하나도 없으면 게이트 skip (비-WIP 커밋)
@@ -838,8 +982,8 @@ def cmd_wip_sync(staged_files: list[str]) -> int:
                     return True
             except (OSError, ValueError):
                 pass
-            # 본 WIP의 problem이 staged 집합에 있으면 인정
-            return wip_problem in staged_problems
+            # 본 WIP의 problem이 staged 집합과 겹치면 인정
+            return bool(wip_problems & staged_problems)
 
         # 1차 직접 매칭 결과(file_matched)도 게이트 통과 의무
         if file_matched and not _passes_problem_gate():

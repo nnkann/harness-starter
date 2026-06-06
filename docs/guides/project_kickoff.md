@@ -61,18 +61,22 @@ AI 코딩 에이전트(Claude Code) 행동을 **빠르게 도와주는** 도구 
 
 ## CPS 사용 흐름
 
-1. 새 작업 발화 → C(맥락) 1줄 추출
-2. 위 표에서 P# 매칭 (단일/중복/신규)
-3. S 결정
-4. WIP에 C → P → S → AC 연결 근거 3줄 박제
-5. implementation Step 2 정합 substep (자동) — C·P·S 어긋남 감지
-6. 확정 후 cascade — implementation → test → /commit
-7. /commit 시 `docs/cps/cp_{slug}.md` 박제 (frontmatter c·tags·p·s·result)
+1. 새 작업 발화 → task와 일대일로 대응하는 C(맥락) 1줄 추출
+2. 완료 기준·산출물이 갈라지는지 확인. 갈라지면 task/C를 분리하고, 하나의 완료 판단이면 C는 하나로 유지
+3. 위 표에서 P# 매칭 (단일/중복/신규)
+4. S 결정
+5. WIP에 C → P → S → AC 연결 근거 3줄 박제
+6. implementation Step 2 정합 substep (자동) — C·P·S 어긋남 감지
+7. 확정 후 cascade — planning → document → implementation → test → /commit
+8. /commit 시 `docs/cps/cp_{slug}.md` 박제 (frontmatter c·tags·p·s·result)
 
 ### C-P-S-AC 연결 계약
 
-- **C**: 작업이 시작된 날것의 관찰·사용자 발화·실측. 나중에 P#가 바뀌어도
-  재분류할 수 있게 보존한다.
+- **C**: task와 일대일로 대응하는 단일 컨텍스트 기준점. 작업이 시작된
+  날것의 관찰·사용자 발화·실측을 보존하고, 왜 지금 이 문제가 발생했는지
+  설명한다. 하나의 C는 복수 P/S를 가질 수 있지만, 서로 다른 완료 기준과
+  산출물이 생기면 task와 C를 나눈다. C 간 관계는 `relates-to`와
+  `docs/cps/cp_*.md` case로 남긴다.
 - **P**: C에서 드러난 반복 실패 메커니즘. 표면 증상이나 해결책 이름이 아니다.
 - **S**: 해당 P를 줄이는 운영·기술 메커니즘. S 정의 변경은 owner 승인 필요.
 - **AC**: S가 실제로 작동했다는 증거. 각 S#가 AC 안에 등장해야 하며,

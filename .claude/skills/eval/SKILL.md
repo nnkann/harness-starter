@@ -110,6 +110,10 @@ report가 없으면 "cron 미진행 신호"로 표시하고, `.claude/rules/memo
 "downstream cron 학습 신호" 계약에 따라 WIP 흡수 또는 Hermes SSOT 재확인
 후보로 안내한다.
 
+**9. policy/dispatcher drift** — 현재 active 정책과 도구 안내가 어긋나는지
+확인한다. worktree blanket ban 같은 obsolete rule, permission-ready 없는 sandbox
+완료 증거화 문구, `safe_command.py` 허용 명령과 AGENTS 안내 예시 drift를 보고한다.
+
 ### 보고
 
 ```
@@ -140,6 +144,10 @@ report가 없으면 "cron 미진행 신호"로 표시하고, `.claude/rules/memo
 
 ### downstream 학습 신호
 - cron report 없음 / owner-action 없음 ✅
+
+### policy/dispatcher drift
+- policy drift 0건 ✅
+- dispatcher drift 0건 ✅
 ```
 
 ### 레거시 문서 정비 안내

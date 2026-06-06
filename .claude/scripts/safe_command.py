@@ -30,6 +30,7 @@ ALLOWED_COMMANDS = {
     "cps-stats",
     "verify-relates",
     "docs-validate",
+    "eval-harness",
     "precheck",
 }
 
@@ -132,6 +133,11 @@ def main(argv: list[str]) -> int:
 
     if command == "docs-validate":
         return docs_ops("validate", *rest)
+
+    if command == "eval-harness":
+        if rest:
+            raise SystemExit("eval-harness does not accept extra arguments.")
+        return run([sys.executable, ".claude/scripts/eval_harness.py"])
 
     if command == "precheck":
         if rest:

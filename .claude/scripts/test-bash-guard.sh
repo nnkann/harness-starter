@@ -51,6 +51,7 @@ run_case "A4 git push --dry-run" "git push --dry-run" 0
 run_case "A5 git push origin main" "git push origin main" 0
 run_case "A6 ls -1" "ls -1" 0
 run_case "A7 awk script (no -n)" "awk 1 file" 0
+run_case "A8 git worktree add 허용 (정책은 계약 문서화)" "git worktree add ../tmp-branch feature/x" 0
 
 echo ""
 echo "[메시지 안 -n — 공식 권장은 통과시키는 것이 안전]"

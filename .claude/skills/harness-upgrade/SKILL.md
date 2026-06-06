@@ -31,15 +31,16 @@ serves: S3, S9
 
 1. `.claude/HARNESS.json` 존재 확인. 없으면 중단.
 
-#### 0.1. worktree 잔여 자동 정리 (CLAUDE.md 절대 규칙 강제)
+#### 0.1. worktree 잔여 확인 (소유권·정리 계약 점검)
 
-CLAUDE.md `## 절대 규칙`은 worktree 생성을 금지하지만, 과거 세션이나 다른
-도구가 만든 잔여가 있을 수 있다. upgrade 시작 시 자동 정리:
+worktree는 blanket ban이 아니다. 다만 upgrade 시작 시 기존 worktree의
+소유권·변경 보존·정리 책임이 불명확하면 병합 대상 판단이 흐려진다.
+upgrade 시작 시 잔여를 확인하고 clean한 임시 worktree만 정리한다:
 
 ```bash
 STRAY=$(git worktree list --porcelain | awk '/^worktree / && NR>1 {print $2}')
 if [ -n "$STRAY" ]; then
-  echo "⚠ worktree 잔여 발견 — CLAUDE.md 절대 규칙 위반 상태:"
+  echo "⚠ worktree 잔여 발견 — 소유권·정리 책임 확인 필요:"
   echo "$STRAY"
   for wt in $STRAY; do
     DIRTY=$(git -C "$wt" status --porcelain 2>/dev/null)
@@ -58,8 +59,9 @@ if [ -n "$STRAY" ]; then
 fi
 ```
 
-**원칙**: clean은 자동 제거, dirty는 안내만 (작업 손실 방지). `git worktree
-prune`으로 stale 메타데이터까지 청소.
+**원칙**: clean한 임시 worktree는 자동 제거, dirty는 안내만 (작업 손실 방지).
+계속 사용할 worktree는 owner·목적·정리 조건을 작업 문서나 사용자 지시에 남긴다.
+`git worktree prune`으로 stale 메타데이터까지 청소.
 
 #### 0.2. 스타터 자체 여부 판별
 
@@ -1025,6 +1027,9 @@ Step 10으로 돌아가 처리하거나, 나중에 처리하려면 docs/WIP/harn
 
    ### 수동 적용 결과
    <!-- MIGRATIONS.md 수동 적용 항목 완료 여부 -->
+
+   ### commit 직후 상태
+   <!-- /commit --no-review 또는 /commit --quick 완료 직후 `git status --short` 출력 -->
    ```
    - **`docs/harness/migration-log.md`는 upstream이 절대 덮어쓰지 않는다.** 다운스트림 소유.
    - 문제 발생 시 이 파일을 upstream에 전달하면 맥락 파악 가능.
@@ -1038,6 +1043,9 @@ Step 10으로 돌아가 처리하거나, 나중에 처리하려면 docs/WIP/harn
    /commit --no-review
    ```
    > `--no-review`는 commit 스킬 Stage 결정 우선순위 1번 — review 호출 자체를 skip.
+   commit 스킬 완료 직후 `git status --short`를 실행하고, 출력 전체를
+   `docs/harness/migration-log.md` 이번 버전 섹션의 `### commit 직후 상태`에
+   추가한다. 출력이 없으면 `clean`으로 기록한다.
 
    **충돌 해소 파일이 있는 경우** (`CONFLICT_RESOLVED` 비어있지 않음):
    충돌 해소 결과만 검증이 필요. `--quick`으로 해당 파일만 review:
@@ -1049,6 +1057,9 @@ Step 10으로 돌아가 처리하거나, 나중에 처리하려면 docs/WIP/harn
    commit 스킬 호출 시 전제 컨텍스트에 다음을 명시:
    - "하네스 업그레이드 커밋. 충돌 해소 파일: `<CONFLICT_RESOLVED 목록>`"
    - "나머지 파일은 upstream 그대로 — 충돌 해소 파일만 검증 대상"
+   commit 스킬 완료 직후 `git status --short`를 실행하고, 출력 전체를
+   `docs/harness/migration-log.md` 이번 버전 섹션의 `### commit 직후 상태`에
+   추가한다. 출력이 없으면 `clean`으로 기록한다.
 
 5. 완료 보고 (FR-003 대응 — "처리한 횟수"가 아닌 **"upstream 정합성 도달 여부"** 보고):
    ```
@@ -1072,7 +1083,7 @@ Step 10으로 돌아가 처리하거나, 나중에 처리하려면 docs/WIP/harn
      - naming.md 도메인/파일명 규칙
 
    📝 docs/harness/migration-log.md에 이번 업그레이드 섹션을 추가했습니다.
-      충돌·이상 소견·수동 적용 결과 + 정합성 미도달 항목을 기록해두세요.
+      충돌·이상 소견·수동 적용 결과 + commit 직후 git status + 정합성 미도달 항목을 기록해두세요.
    ```
 
    **카운트 데이터 흐름**: Step 11에서 채운 `USER_OWNED_FILES`·

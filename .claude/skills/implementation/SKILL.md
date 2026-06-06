@@ -45,6 +45,12 @@ SSOT: `.claude/scripts/check_init_done.sh`.
 | miss + 추가 | 신규 P# 등록 (`docs_ops.py cps add "1줄"`) |
 | Solution 변경 | owner 승인 필수 |
 
+`miss`를 기존 P/S 번호에 끼워 맞추지 않는다. C가 후보 P/S 해결 기준과
+의미상 직접 대응하지 않으면 새 P/S를 추가하거나, 아직 번호를 만들 수 없는
+상태라면 owner-action 또는 근거 있는 P10으로 불일치를 드러낸다. 이 판단은
+WIP `## CPS Rationale`에 남기며, `docs_ops.py validate` 통과만으로 C-P-S-AC
+의미 정합을 증명했다고 보지 않는다.
+
 **Solution 인용** (번호만):
 ```yaml
 problem: P3
@@ -58,6 +64,11 @@ s: [S2, S6]
 작업 발화가 어디서 시작했는지 먼저 라벨링하고, WIP `## CPS Rationale`에
 역추적 근거를 남긴다.
 
+**C/task 계약**: 사실상의 C는 task와 일대일로 매칭한다. 하나의 완료 판단으로
+닫히는 작업은 하나의 C 안에 복수 P/S/AC를 담는다. 같은 사용자 요청 안에서도
+완료 기준과 산출물이 갈라지면 task와 C를 분리한다. C 간 반복·부작용·
+supersede 관계는 `relates-to`와 `docs/cps/cp_*.md` case로 남긴다.
+
 | flow | 신호 | 처리 |
 |------|------|------|
 | `forward` | 사용자 관찰·버그·개선 요청(C)에서 시작 | C → P → S → AC 순서로 진행 |
@@ -68,6 +79,8 @@ s: [S2, S6]
 
 `reverse-*`와 `resume`에서 P#가 애매하면 P10으로 숨기지 말고 가까운 P# 후보
 1개와 의심 근거 1줄을 같이 남긴다. S 정의 변경은 여전히 owner 승인 필요.
+기본 흐름은 planning → document → implementation → test → commit이며,
+CPS가 어느 단계에 specialist·반복·추가 검증을 끼울지 결정한다.
 
 ## Step 2. 기존 자산 확인 + SSOT 분리 판단
 

@@ -30,15 +30,16 @@ description: 하네스 업그레이드. harness-upstream remote에서 fetch → 
 
 1. `.claude/HARNESS.json` 존재 확인. 없으면 중단.
 
-#### 0.1. worktree 잔여 자동 정리 (AGENTS.md 절대 규칙 강제)
+#### 0.1. worktree 잔여 확인 (소유권·정리 계약 점검)
 
-AGENTS.md `## 절대 규칙`은 worktree 생성을 금지하지만, 과거 세션이나 다른
-도구가 만든 잔여가 있을 수 있다. upgrade 시작 시 자동 정리:
+worktree는 blanket ban이 아니다. 다만 upgrade 시작 시 기존 worktree의
+소유권·변경 보존·정리 책임이 불명확하면 병합 대상 판단이 흐려진다.
+upgrade 시작 시 잔여를 확인하고 clean한 임시 worktree만 정리한다:
 
 ```bash
 STRAY=$(git worktree list --porcelain | awk '/^worktree / && NR>1 {print $2}')
 if [ -n "$STRAY" ]; then
-  echo "⚠ worktree 잔여 발견 — AGENTS.md 절대 규칙 위반 상태:"
+  echo "⚠ worktree 잔여 발견 — 소유권·정리 책임 확인 필요:"
   echo "$STRAY"
   for wt in $STRAY; do
     DIRTY=$(git -C "$wt" status --porcelain 2>/dev/null)
@@ -57,8 +58,9 @@ if [ -n "$STRAY" ]; then
 fi
 ```
 
-**원칙**: clean은 자동 제거, dirty는 안내만 (작업 손실 방지). `git worktree
-prune`으로 stale 메타데이터까지 청소.
+**원칙**: clean한 임시 worktree는 자동 제거, dirty는 안내만 (작업 손실 방지).
+계속 사용할 worktree는 owner·목적·정리 조건을 작업 문서나 사용자 지시에 남긴다.
+`git worktree prune`으로 stale 메타데이터까지 청소.
 
 #### 0.2. 스타터 자체 여부 판별
 

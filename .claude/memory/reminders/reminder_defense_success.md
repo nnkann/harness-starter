@@ -19,3 +19,45 @@ last_validated: 2026-05-21
 - 2026-05-06 | --no-verify 차단
 - 2026-05-06 | git commit 직접 호출 차단
 - 2026-05-06 | git commit 직접 호출 차단
+- 2026-06-04 | git commit -n 차단
+- 2026-06-04 | git commit -n 차단
+- 2026-06-04 | --no-verify 차단
+- 2026-06-04 | --no-verify 차단
+- 2026-06-04 | --no-verify 차단
+- 2026-06-04 | git commit 직접 호출 차단
+- 2026-06-04 | git commit 직접 호출 차단
+- 2026-06-04 | git commit -n 차단
+- 2026-06-04 | git commit -n 차단
+- 2026-06-04 | --no-verify 차단
+- 2026-06-04 | --no-verify 차단
+- 2026-06-04 | --no-verify 차단
+- 2026-06-04 | git commit 직접 호출 차단
+- 2026-06-04 | git commit 직접 호출 차단
+- 2026-06-04 | git commit -n 차단
+- 2026-06-04 | git commit -n 차단
+- 2026-06-04 | --no-verify 차단
+- 2026-06-04 | --no-verify 차단
+- 2026-06-04 | --no-verify 차단
+- 2026-06-04 | git commit 직접 호출 차단
+- 2026-06-04 | git commit 직접 호출 차단
+- 2026-06-04 | git commit -n 차단
+- 2026-06-04 | git commit -n 차단
+- 2026-06-04 | --no-verify 차단
+- 2026-06-04 | --no-verify 차단
+- 2026-06-04 | --no-verify 차단
+- 2026-06-04 | git commit 직접 호출 차단
+- 2026-06-04 | git commit 직접 호출 차단
+- 2026-06-04 | git commit -n 차단
+- 2026-06-04 | git commit -n 차단
+- 2026-06-04 | --no-verify 차단
+- 2026-06-04 | --no-verify 차단
+- 2026-06-04 | --no-verify 차단
+- 2026-06-04 | git commit 직접 호출 차단
+- 2026-06-04 | git commit 직접 호출 차단
+- 2026-06-06 | git commit -n 차단
+- 2026-06-06 | git commit -n 차단
+- 2026-06-06 | --no-verify 차단
+- 2026-06-06 | --no-verify 차단
+- 2026-06-06 | --no-verify 차단
+- 2026-06-06 | git commit 직접 호출 차단
+- 2026-06-06 | git commit 직접 호출 차단

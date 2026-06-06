@@ -67,18 +67,9 @@ if [[ $COMMAND =~ ^[[:space:]]*git[[:space:]]+commit([[:space:]]|$) ]]; then
   fi
 fi
 
-# ─────────────────────────────────────────────
-# 검증 2.5: git worktree add 차단 — CLAUDE.md 절대 규칙
-# "worktree 생성 금지" 정책을 코드로 강제 (incident: hn_upstream_anomalies.md E).
-# git worktree list/remove/prune 등 정리 명령은 통과.
-# ─────────────────────────────────────────────
-if [[ $COMMAND =~ (^|[[:space:]])git[[:space:]]+worktree[[:space:]]+add([[:space:]]|$) ]]; then
-  echo "❌ git worktree add 금지 (CLAUDE.md 절대 규칙)." >&2
-  echo "   근거: docs/harness/hn_upstream_anomalies.md E 항목" >&2
-  echo "   list/remove/prune은 허용." >&2
-  _record_defense "git worktree add 차단"
-  exit 2
-fi
+# git worktree add는 blanket ban이 아니다. AGENTS.md/CLAUDE.md의 현재 정책은
+# 소유권·정리 책임·변경 보존 계약과 경로 binding을 요구한다. 이 hook은
+# --no-verify, 직접 commit, 간접 실행 같은 검증 우회만 차단한다.
 
 # ─────────────────────────────────────────────
 # 검증 3: .claude/tmp/ 잔재 재발 방지
@@ -87,7 +78,7 @@ fi
 # ─────────────────────────────────────────────
 if [[ $COMMAND =~ \.claude/tmp/ ]]; then
   echo "❌ .claude/tmp/ 는 폐기됨. 세션 snapshot은 .claude/memory/session-* 사용." >&2
-  echo "   근거: docs/WIP/decisions--hn_memory.md" >&2
+  echo "   근거: .claude/rules/memory.md" >&2
   exit 2
 fi
 

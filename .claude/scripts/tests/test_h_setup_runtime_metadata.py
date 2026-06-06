@@ -71,8 +71,10 @@ def test_new_install_creates_downstream_harness_definition_first(tmp_path: Path)
 
     harness = target / ".claude" / "HARNESS.json"
     pending = target / "docs" / "WIP" / "harness_init_pending.md"
+    agents = target / "AGENTS.md"
     data = json.loads(harness.read_text(encoding="utf-8"))
     pending_text = pending.read_text(encoding="utf-8")
+    agents_text = agents.read_text(encoding="utf-8")
 
     assert data["is_starter"] is False
     assert data["runtime_stack"] == "hermes-codex-agy"
@@ -81,5 +83,17 @@ def test_new_install_creates_downstream_harness_definition_first(tmp_path: Path)
     assert (target / ".claude" / "skills" / "cps-learn" / "SKILL.md").exists()
     assert (target / ".agents" / "skills" / "cps-learn" / "SKILL.md").exists()
     assert pending.exists()
+    assert pending_text.startswith("---\n")
+    assert "title: 하네스 초기화 대기 중" in pending_text
+    assert "domain: harness" in pending_text
+    assert 'c: "h-setup.sh가 하네스 파일을 설치했지만 harness-init이 아직 프로젝트 CPS와 환경 결정을 만들지 않았다"' in pending_text
+    assert "problem: [P7, P9]" in pending_text
+    assert "s: [S7, S9]" in pending_text
+    assert "tags: [init, setup, downstream]" in pending_text
+    assert "status: pending" in pending_text
+    assert "> status: pending" not in pending_text
     assert ".claude/HARNESS.json" in pending_text
     assert "도메인 분류" in pending_text
+    assert "Runtime Adapter 표면" in agents_text
+    assert "제품 아키텍처가 아니라 agent runtime adapter" in agents_text
+    assert "minimal` 프로파일은 기능 minimal" in agents_text

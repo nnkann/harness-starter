@@ -949,6 +949,120 @@ def section_c_reinforcement_observability() -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────
+# 항목 13. policy drift + dispatcher drift 관측
+# ──────────────────────────────────────────────────────────────────────
+
+_POLICY_DRIFT_PATTERNS = [
+    (
+        "worktree blanket ban",
+        re.compile(r"(worktree 생성 금지|git worktree add 금지|isolation:\s*[\"']worktree[\"'] 사용 금지)"),
+    ),
+    (
+        "sandbox without permission-ready",
+        re.compile(r"sandbox", re.IGNORECASE),
+    ),
+]
+
+_POLICY_DRIFT_EXEMPT = re.compile(
+    r"(archive|archived|MIGRATIONS-archive|history|과거|이전|incident|박제|supersede|supersedes|폐기|blanket ban을 유지하는 근거로 쓰지 않는다|rg -n)",
+    re.IGNORECASE,
+)
+
+_POLICY_SCAN_GLOBS = [
+    "AGENTS.md",
+    "CLAUDE.md",
+    ".claude/skills/**/*.md",
+    ".agents/skills/**/*.md",
+    ".claude/rules/**/*.md",
+    "docs/WIP/**/*.md",
+]
+
+
+def scan_policy_drift(paths: list[Path]) -> list[tuple[str, int, str, str]]:
+    """현재 active 정책과 충돌하는 라이브 문구를 관측한다."""
+    hits: list[tuple[str, int, str, str]] = []
+    if paths:
+        targets = [p for p in paths if p.is_file()]
+    else:
+        targets = [
+            p
+            for glob in _POLICY_SCAN_GLOBS
+            for p in REPO_ROOT.glob(glob)
+            if p.is_file()
+        ]
+
+    for path in targets:
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            continue
+        try:
+            rel = path.relative_to(REPO_ROOT).as_posix()
+        except ValueError:
+            rel = path.as_posix()
+        for lineno, line in enumerate(text.splitlines(), start=1):
+            if _POLICY_DRIFT_EXEMPT.search(line):
+                continue
+            for label, pattern in _POLICY_DRIFT_PATTERNS:
+                if not pattern.search(line):
+                    continue
+                if label == "sandbox without permission-ready":
+                    if "완료 증거" not in line:
+                        continue
+                    if re.search(r"(permission-ready|권한|조건|않|아니다|아니|대체)", line):
+                        continue
+                hits.append((rel, lineno, label, line.strip()[:100]))
+    return hits
+
+
+def scan_dispatcher_drift() -> list[str]:
+    """safe_command.py의 허용 명령과 AGENTS.md 안내 예시 drift를 관측한다."""
+    script = REPO_ROOT / ".claude/scripts/safe_command.py"
+    agents = REPO_ROOT / "AGENTS.md"
+    if not script.exists() or not agents.exists():
+        return ["safe_command.py 또는 AGENTS.md 없음"]
+
+    text = script.read_text(encoding="utf-8", errors="replace")
+    agents_text = agents.read_text(encoding="utf-8", errors="replace")
+    allowed = set(re.findall(r'"([a-z][a-z0-9-]*)"', text.split("ALLOWED_COMMANDS", 1)[1].split("}", 1)[0]))
+    documented = set(re.findall(r"safe_command\.py\s+([a-z][a-z0-9-]*)", agents_text))
+    required_documented = {"status", "cps-list", "verify-relates", "eval-harness", "precheck"}
+
+    drift: list[str] = []
+    missing_doc = sorted(required_documented - documented)
+    if missing_doc:
+        drift.append(f"AGENTS.md 예시 누락: {', '.join(missing_doc)}")
+    undocumented = sorted((documented & required_documented) - allowed)
+    if undocumented:
+        drift.append(f"AGENTS.md 예시가 dispatcher에 없음: {', '.join(undocumented)}")
+    if "eval-harness" not in allowed:
+        drift.append("dispatcher eval-harness 명령 누락")
+    return drift
+
+
+def section_policy_dispatcher_drift() -> None:
+    """현재 정책과 dispatcher 안내 drift를 eval --harness에서 보고한다."""
+    print("")
+    print("## policy/dispatcher drift")
+    policy_hits = scan_policy_drift([])
+    dispatcher_hits = scan_dispatcher_drift()
+    if not policy_hits:
+        print("- policy drift 0건 ✅")
+    else:
+        print(f"- ⚠ policy drift {len(policy_hits)}건")
+        for rel, lineno, label, snippet in policy_hits[:10]:
+            print(f"  - {rel}:{lineno} | {label} | {snippet}")
+        if len(policy_hits) > 10:
+            print(f"  ... 외 {len(policy_hits) - 10}건")
+    if not dispatcher_hits:
+        print("- dispatcher drift 0건 ✅")
+    else:
+        print(f"- ⚠ dispatcher drift {len(dispatcher_hits)}건")
+        for item in dispatcher_hits:
+            print(f"  - {item}")
+
+
+# ──────────────────────────────────────────────────────────────────────
 # main
 # ──────────────────────────────────────────────────────────────────────
 
@@ -984,6 +1098,9 @@ def main() -> int:
 
     # 항목 12: C 보강·회귀 루프 관측
     section_c_reinforcement_observability()
+
+    # 항목 13: policy/dispatcher drift
+    section_policy_dispatcher_drift()
 
     # cps_integrity가 차단 exit하면 본 백엔드도 차단
     return 2 if cps_exit == 2 else 0

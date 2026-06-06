@@ -70,6 +70,12 @@ updated: 2026-04-16             # 선택
 - **rel**: 4종만 — `extends`·`caused-by`·`references`·`supersedes`. 새 타입은 스펙 문서 추가 후 사용. (v0.47.5 §C: `implements`·`precedes`·`conflicts-with` 폐기 — 의미 겹침 또는 사용 0)
 - **폴더 = 성격, domain = 의미** (이중 분류)
 
+`docs_ops.py validate`는 frontmatter와 형식 게이트다. C가 인용한 P/S와
+의미상 맞는지, AC가 해당 S# 해결 기준을 실제로 증명하는지는 WIP 본문
+`## CPS Rationale`과 AC 검토로 별도 확인한다. 기존 P/S와 맞지 않는 새
+downstream 현상은 기존 번호에 강제로 붙이지 말고 새 P/S, owner-action,
+또는 근거 있는 P10으로 불일치를 드러낸다.
+
 ### CPS 면제
 
 `docs/guides/project_kickoff.md`(CPS 자체)는 `problem`·`s` 면제.
@@ -277,6 +283,11 @@ WIP task 블록의 AC는 대표 Goal 1개와 유형화된 개별 AC로 나눈다
 **C-P-S-AC 연결**: WIP는 가능한 한 `c:` frontmatter 또는 본문
 `## CPS Rationale`에 아래 3줄을 남긴다. pre-check 보강 전까지 차단은
 아니지만, review·self-verify의 첫 판단 기준이다.
+
+**C와 task**: 사실상의 C는 task와 일대일로 매칭한다. 하나의 완료 판단으로
+닫히는 작업은 하나의 C 안에 복수 P/S/AC를 담는다. 같은 사용자 요청 안에서도
+완료 기준과 산출물이 갈라지면 task를 나누고 C도 나눈다. C 간 반복·부작용·
+supersede 관계는 `relates-to`와 `docs/cps/cp_*.md` case로 추적한다.
 
 ```markdown
 ## CPS Rationale

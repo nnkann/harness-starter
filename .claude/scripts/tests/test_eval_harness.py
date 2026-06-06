@@ -751,6 +751,54 @@ def test_c_reinforcement_observability_accepts_ascii_cps_arrows(
     assert report["c_missing"] == []
 
 
+@pytest.mark.eval
+def test_policy_drift_detects_worktree_blanket_ban(tmp_path, monkeypatch):
+    """active 문구의 worktree blanket ban은 policy drift로 보고한다."""
+    mod = _load_eval_harness()
+    monkeypatch.setattr(mod, "REPO_ROOT", tmp_path)
+    f = tmp_path / "AGENTS.md"
+    f.write_text('Agent 호출 시 isolation: "worktree" 사용 금지.\n', encoding="utf-8")
+
+    hits = mod.scan_policy_drift([f])
+
+    assert hits == [
+        ("AGENTS.md", 1, "worktree blanket ban", 'Agent 호출 시 isolation: "worktree" 사용 금지.')
+    ]
+
+
+@pytest.mark.eval
+def test_policy_drift_allows_permission_ready_sandbox(tmp_path, monkeypatch):
+    """permission-ready 조건이 붙은 sandbox 문구는 drift가 아니다."""
+    mod = _load_eval_harness()
+    monkeypatch.setattr(mod, "REPO_ROOT", tmp_path)
+    f = tmp_path / "CLAUDE.md"
+    f.write_text("sandbox는 permission-ready 조건에서만 완료 증거로 쓴다.\n", encoding="utf-8")
+
+    assert mod.scan_policy_drift([f]) == []
+
+
+@pytest.mark.eval
+def test_policy_drift_detects_unqualified_sandbox(tmp_path, monkeypatch):
+    """조건 없는 sandbox 완료 증거화 문구는 policy drift로 보고한다."""
+    mod = _load_eval_harness()
+    monkeypatch.setattr(mod, "REPO_ROOT", tmp_path)
+    f = tmp_path / "CLAUDE.md"
+    f.write_text("sandbox 실행 결과를 완료 증거로 삼는다.\n", encoding="utf-8")
+
+    hits = mod.scan_policy_drift([f])
+
+    assert hits == [
+        ("CLAUDE.md", 1, "sandbox without permission-ready", "sandbox 실행 결과를 완료 증거로 삼는다.")
+    ]
+
+
+@pytest.mark.eval
+def test_dispatcher_drift_clean_current_repo():
+    """safe dispatcher의 필수 예시와 허용 명령이 정렬되어 있어야 한다."""
+    mod = _load_eval_harness()
+    assert mod.scan_dispatcher_drift() == []
+
+
 # ────────────────────────────────────────────────────────────────────────
 # eval_cps_integrity P10/P11 카운트 회귀 (v0.47.10 §C)
 # ────────────────────────────────────────────────────────────────────────
