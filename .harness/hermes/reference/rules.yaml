@@ -1,0 +1,37 @@
+version: 1
+schema: harness-hermes-rules-contract
+purpose: Distilled harness rules for Hermes-native profiles, wrappers, and executor packets.
+agent_policy:
+  do_not_import: harness agents or harness skills
+  use_native_hermes_agents: true
+  apply_rules_as_constraints: true
+  rationale: Hermes profiles and agents already own persona and worker shape; this pack only carries harness invariants.
+ownership_boundary:
+  harness_owns: [domain and abbr criteria, document writing criteria, CPS and AC criteria, verification criteria, commit handoff criteria, completion criteria]
+  hermes_owns: [Kanban flow, agent role, worker lane, status transition, task comments, lifecycle completion]
+  gateway_owns: [channel access, allowed users, allowed roles, mention and free-response policy, secrets]
+rules:
+  - name: docs
+    contract: Domain choice, abbr choice, frontmatter, WIP lifecycle criteria, completed-doc protection, AC format, relates-to hygiene, and SSOT-first updates.
+  - name: naming
+    contract: Domain abbreviations, WIP filename shape, tag shape, and adapter naming boundaries.
+  - name: hooks
+    contract: Hooks are guards and evidence producers, not hidden business logic.
+  - name: self-verify
+    contract: Completion requires explicit checks or a stated reason why automation cannot verify the AC.
+  - name: security
+    contract: Secrets are never committed; line-confirmed secret findings block commit flow.
+  - name: internal-first
+    contract: Prefer repo-local evidence before external claims.
+  - name: no-speculation
+    contract: Do not record guesses as facts; mark advisory or memory signals until verified.
+  - name: memory
+    contract: Store pointers and thin reminders, not full CPS or AC bodies in runtime memory.
+  - name: coding
+    contract: Follow existing project style and keep changes scoped to the task.
+  - name: code-ssot
+    contract: Search existing symbols and contracts before adding a duplicate implementation.
+non_overlap_rules:
+  - Harness rules may block, require evidence, or emit owner-action; they must not move a Kanban card by themselves.
+  - Harness rules may describe gateway requirements; they must not grant channel, role, user, token, or free-response permission.
+  - Harness rules may require review evidence; they must not replace Hermes-native review agents or profiles.

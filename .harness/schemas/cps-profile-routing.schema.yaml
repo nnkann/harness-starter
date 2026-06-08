@@ -1,0 +1,30 @@
+version: 1
+schema: harness-cps-profile-routing-schema
+required_files:
+  - .harness/hermes/cps-profile-routing.yaml
+  - .harness/hermes/doc-generation.yaml
+  - .harness/hermes/gateway.yaml
+  - .harness/hermes/sandbox.yaml
+required_sections:
+  - persona_axes
+  - problem_dimensions
+  - call_justification_packet
+  - result_evidence_packet
+  - moderator_gate
+required_doc_generation_sections:
+  - cps_decision
+  - document_classification
+  - profile_routing
+  - docs_ops_binding
+  - moderator_gate
+required_persona_axes:
+  - external-truth
+  - internal-truth
+  - adversarial
+  - execution
+  - standard-gate
+required_boundaries:
+  - gateway_context_is_evidence_not_permission
+  - sandbox_scope_comes_from_task_packet
+  - no_profile_mixing_without_cps_reason
+  - semantic_evidence_prefers_cps_reason

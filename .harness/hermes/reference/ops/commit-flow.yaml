@@ -1,0 +1,31 @@
+version: 1
+schema: harness-hermes-commit-flow-contract
+purpose: Distilled commit and push handoff contract for Hermes.
+binding_policy:
+  do_not_import: true
+  run_only_when_target_project_has_harness_core: true
+ownership_boundary:
+  harness_owns: [precheck criteria, review evidence criteria, commit and push handoff criteria, done gate criteria]
+  hermes_owns: [Kanban done or blocked transition, task audit comment, worker lifecycle]
+  gateway_owns: [who is allowed to request commit or push through a channel]
+pipeline:
+  - step: cleanup
+    behavior: detect leftover WIP state, generated files, and unverified changes.
+  - step: stage
+    behavior: stage only intended task files.
+  - step: precheck
+    behavior: run harness pre-commit check, py_compile for staged Python, shell syntax for staged shell, docs checks, and secret scan.
+  - step: review
+    behavior: run only when requested or security gate requires it.
+  - step: handoff
+    behavior: report commit and push commands as owner-actions unless explicitly approved.
+default_commands:
+  - harness precheck
+approval_commands:
+  - git commit
+  - git push
+  - docs_ops.py move
+  - docs_ops.py wip-sync
+done_gate:
+  requires: [precheck pass, no line-confirmed secret, WIP lifecycle resolved, requested tests recorded]
+  refuses: [direct commit from Hermes wrapper, direct push from Hermes wrapper, unapproved state-changing docs op]

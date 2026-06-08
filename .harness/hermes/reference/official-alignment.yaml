@@ -1,0 +1,15 @@
+version: 1
+schema: harness-hermes-official-alignment
+purpose: Official Hermes constraints this adapter must not violate.
+sources:
+  kanban_worker_lanes: https://hermes-agent.nousresearch.com/docs/user-guide/features/kanban-worker-lanes
+  profiles: https://hermes-agent.nousresearch.com/docs/user-guide/profiles
+  discord: https://hermes-agent.nousresearch.com/docs/user-guide/messaging/discord
+  slack: https://hermes-agent.nousresearch.com/docs/user-guide/messaging/slack
+assertions:
+  - Hermes Kanban owns lifecycle truth and audit trail; workers report back through Kanban complete, block, comments, or API equivalents.
+  - The default worker lane shape is a Hermes profile assignee.
+  - External CLI worker lanes are not paved; this adapter must not declare an external CLI as an automatic Kanban worker lane.
+  - Hermes profiles are separate state directories, not filesystem sandboxes.
+  - Discord and Slack gateway tokens are local secrets and must not be stored in this repo.
+  - Shared operations channels should require mentions unless an operator explicitly configures free-response behavior locally.

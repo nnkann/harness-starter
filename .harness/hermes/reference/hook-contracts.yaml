@@ -1,0 +1,28 @@
+version: 1
+schema: harness-hermes-hook-contracts
+purpose: Hook behavior summary for Hermes rule application. This is not an import map.
+binding_policy:
+  do_not_import: true
+  use_in_current_project_only: Hooks apply only when the canonical harness implementation is present in the target project worktree.
+contracts:
+  - name: session-start
+    trigger: session start
+    behavior: load bounded project context and current work signals
+  - name: stop
+    trigger: agent stop
+    behavior: block false completion when required WIP or verification evidence is missing
+  - name: post-compact
+    trigger: context compaction
+    behavior: preserve task continuity signals
+  - name: post-tool-use-format
+    trigger: write or edit
+    behavior: run formatter contract for touched files
+  - name: pre-tool-use-bash
+    trigger: shell command
+    behavior: block direct commit and unsafe command shapes
+  - name: pre-tool-use-write
+    trigger: file write
+    behavior: protect docs/WIP and completed docs lifecycle boundaries
+  - name: pre-commit-secret-scan
+    trigger: git pre-commit
+    behavior: block line-confirmed secrets

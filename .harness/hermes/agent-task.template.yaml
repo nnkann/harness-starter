@@ -1,0 +1,66 @@
+version: 1
+schema: harness-agent-task-packet
+task_id: example-hermes-wrapper-loader-contract
+kanban_board: harness-starter-project-hermes
+task_source: ${TASK_SOURCE}
+project_slug: harness-starter
+project_root: ${PROJECT_ROOT_ABSOLUTE_PATH}
+worktree_path: ${WORKTREE_ABSOLUTE_PATH}
+workspace_env:
+  HERMES_KANBAN_TASK: ${HERMES_KANBAN_TASK}
+  HERMES_KANBAN_DB: ${HERMES_KANBAN_DB}
+  HERMES_KANBAN_BOARD: ${HERMES_KANBAN_BOARD}
+  HERMES_KANBAN_WORKSPACES_ROOT: ${HERMES_KANBAN_WORKSPACES_ROOT}
+  HERMES_KANBAN_WORKSPACE: ${WORKTREE_ABSOLUTE_PATH}
+  HERMES_KANBAN_RUN_ID: ${HERMES_KANBAN_RUN_ID}
+  HERMES_KANBAN_CLAIM_LOCK: ${HERMES_KANBAN_CLAIM_LOCK}
+  HERMES_PROFILE: ${HERMES_PROFILE}
+  HERMES_TENANT: ${HERMES_TENANT_OR_NONE}
+workspace_env_classification:
+  filesystem_anchor: HERMES_KANBAN_WORKSPACE
+  lifecycle_audit_context: [HERMES_KANBAN_TASK, HERMES_KANBAN_DB, HERMES_KANBAN_BOARD, HERMES_KANBAN_WORKSPACES_ROOT, HERMES_KANBAN_RUN_ID, HERMES_KANBAN_CLAIM_LOCK, HERMES_PROFILE, HERMES_TENANT]
+  conditional_env: [HERMES_TENANT]
+  permission_rule: Env values are runtime context, not permission grants; writes require verified workspace_binding plus allowed_scope.
+workspace_binding:
+  expected_cwd: ${WORKTREE_ABSOLUTE_PATH}
+  mismatch_policy: block-before-write
+  fallback: Use HERMES_KANBAN_WORKSPACE as cwd only when it matches worktree_path.
+  board_match_policy: HERMES_KANBAN_BOARD must match kanban_board, route kanban_board, and gateway route_to_kanban.kanban_board.
+runtime_stack: hermes-codex-agy
+harness_version: 0.55.2
+c: Hermes reference export를 기준으로 executor 실행 경계를 고정한다.
+problem: [P3, P5, P7, P8, P11]
+s: [S3, S5, S7, S8, S11]
+domain: harness
+abbr: hn
+wip_doc: ${TASK_SOURCE}
+allowed_scope: [.harness/hermes/**, .harness/project/**, .harness/schemas/**]
+forbidden_scope: [sibling projects, parent directories outside current worktree, Hermes memory full-text CPS/AC storage, direct git commit, direct git push]
+checks: [python .harness/hermes/loader.py validate-reference]
+memory_pointers: [.harness/hermes/reference/catalog.yaml, .harness/hermes/reference/pipeline.yaml, .harness/hermes/reference/rules.yaml, .harness/hermes/workers.yaml, .harness/hermes/sandbox.yaml]
+evidence_sources: [reference-catalog, rule-pack, command-output]
+owner_approval_required: [changes outside allowed_scope, git commit, git push]
+cps_profile_routing:
+  routing_contract: .harness/hermes/cps-profile-routing.yaml
+  doc_generation_contract: .harness/hermes/doc-generation.yaml
+  selected_profiles: []
+  call_justification_required: true
+  result_evidence_required: true
+  gateway_context: ${GATEWAY_CONTEXT_OR_NONE}
+  sandbox_scope_source: allowed_scope and forbidden_scope
+semantic_tooling:
+  contract: .harness/hermes/reference/ops/semantic-tooling-criteria.yaml
+  stack_binding_state: unknown
+  decision: pending
+  fallback_reason: ""
+document_generation:
+  enabled_when: task creates, updates, validates, moves, reopens, or classifies a document
+  required_outputs: [document-plan, docs-op-plan, profile-call-justification, profile-result-evidence, moderator-pass-rework-block]
+  docs_ops_mode: read-only first; state-changing operations require owner approval or explicit executor scope
+moderator_gate:
+  final_profile: moderator
+  checks: [goal, AC, CPS, selected profile evidence, gateway boundary, sandbox boundary, owner-action]
+lifecycle_return:
+  success: kanban_complete only for read-only or owner-approved terminal tasks
+  review_required: kanban_block reason prefix review-required
+  blocked: kanban_block with owner-action reason

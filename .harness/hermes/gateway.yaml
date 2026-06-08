@@ -1,0 +1,25 @@
+version: 1
+schema: harness-hermes-gateway-contract
+purpose: Non-secret Discord and Slack gateway policy for routing messages into the harness Kanban pipeline.
+secrets_policy:
+  - Bot tokens stay in the Hermes profile environment or local config.
+  - Channel IDs may be placeholders in this repo; real IDs are local deployment data.
+  - No token, app secret, signing secret, OAuth token, or webhook secret belongs in this repo.
+message_intake:
+  discord:
+    default: server channels require mention; DMs respond directly; threads may continue after participation unless strict mention is configured.
+    recommended_for_harness: require_mention true, free_response false, auto_thread true, allowed_channels configured locally.
+  slack:
+    default: channels require mention to start; DMs respond directly; threads may continue after active participation.
+    recommended_for_harness: require_mention true, strict_mention true for shared operations channels, free_response false.
+route_to_kanban:
+  project_slug: harness-starter
+  kanban_board: harness-starter-project-hermes
+  default_wrapper: harness-implementation
+  route_manifest: .harness/hermes/routes.yaml
+  sandbox_manifest: .harness/hermes/sandbox.yaml
+operator_checks:
+  - Hermes profile exists for the assignee named by the Kanban card.
+  - Profile terminal cwd or task workspace binding points at the pinned worktree.
+  - Gateway process is running from the intended profile.
+  - Bot has access only to approved channels for this project.

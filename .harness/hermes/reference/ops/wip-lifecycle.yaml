@@ -1,0 +1,34 @@
+version: 1
+schema: harness-hermes-wip-lifecycle-contract
+purpose: Distilled WIP and docs lifecycle contract for Hermes task planning.
+ownership_boundary:
+  harness_owns: [document state criteria, frontmatter requirements, body requirements, movement prerequisites]
+  hermes_owns: [Kanban task state, lane state, worker lifecycle]
+  gateway_owns: [message source authorization]
+states: [pending, in-progress, completed, abandoned]
+active_signal:
+  meaning: A document under docs/WIP means there is active harness work.
+  export_branch: This branch exposes the contract only; it does not carry docs/WIP.
+required_frontmatter:
+  - title
+  - domain
+  - problem
+  - s
+  - tags
+  - status
+  - created
+required_body:
+  - Goal line
+  - AC section with review, tests, and measured evidence fields
+  - typed AC items that cite P# or S#
+  - implementation plan when code, script, rule, or test changes are expected
+movement:
+  complete: docs_ops.py move handles destination and metadata updates.
+  reopen: docs_ops.py reopen is required before completed body edits.
+  abandon: abandoned work is archived by the commit flow.
+hermes_task_packet_mapping:
+  task_source: gateway message, Kanban card, or WIP pointer
+  kanban_board: Hermes board slug, not a docs path
+  wip_doc: docs/WIP pointer when one exists
+  allowed_scope: explicit worktree paths only
+  forbidden_scope: sibling projects, parent workspace, Hermes full memory overwrite, direct git commit, direct git push

@@ -1,0 +1,34 @@
+version: 1
+schema: harness-hermes-semantic-tooling-criteria
+purpose: Provide non-blocking post-init guidance so Hermes can suggest semantic tooling once the stack is fixed enough to choose concrete setup files.
+policy:
+  activation_rule: Recommend concrete semantic tooling only when the stack, language family, or source file pattern is known well enough to choose setup files.
+  non_blocking: true
+  fallback_rule: Docs-only work, string-or-path evidence, or undecided stacks may skip semantic tooling with a recorded fallback reason.
+  owner_action_required_for_writes: true
+post_init_recommendations:
+  javascript-typescript:
+    when: package.json or js/ts source exists and the project has chosen a JavaScript or TypeScript path.
+    prefer: [lsp, typecheck, lint]
+    lsp: tsserver or the workspace TypeScript language service
+    typecheck: tsc --noEmit
+    lint: eslint
+    setup_files: [tsconfig.json, eslint.config.js]
+  python:
+    when: pyproject.toml or python source exists and the project has chosen Python as a primary runtime.
+    prefer: [lsp, typecheck, lint]
+    lsp: pylance, pyright, or another Python language server bound to the workspace
+    typecheck: pyright
+    lint: ruff check
+    setup_files: [pyproject.toml]
+  shell:
+    when: shell scripts are part of the owned scope.
+    prefer: [lint]
+    lsp: optional
+    typecheck: none
+    lint: shellcheck
+    setup_files: []
+owner_action_hint:
+  ask_when: stack is mostly fixed but semantic tooling setup files are still absent.
+  prompt_template: The structure is settled enough to recommend semantic tooling. Confirm whether Hermes should prepare bounded setup for the chosen stack.
+  output: owner-action or bounded executor follow-up

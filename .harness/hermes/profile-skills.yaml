@@ -1,0 +1,97 @@
+version: 1
+schema: harness-hermes-profile-skills
+purpose: Representative Hermes skill ownership for role-based profiles.
+policy:
+  definition_type: harness-facing-hermes-skill-candidates
+  do_not_import: Harness skill bodies
+  gateway_boundary: skills may read route policy but must not grant channel, role, user, token, or free-response permission.
+  kanban_boundary: skills may comment, block, or complete only through the owning Hermes profile and configured Kanban policy.
+skills:
+  - name: cps-profile-route
+    owner_profiles: [orchestrator, planner]
+    purpose: Select profiles from CPS problem dimensions and emit call justification packets.
+    writes: profile-call-justification
+  - name: advisor-decision-frame
+    owner_profiles: [advisor, orchestrator, moderator]
+    purpose: Frame one-way decisions, conflicting profile evidence, CPS ambiguity, and gateway or sandbox trade-offs without granting permission.
+    writes: advisory-signal
+  - name: harness-rule-pack-read
+    owner_profiles: [moderator, orchestrator, planner, reviewer]
+    purpose: Load .harness runtime, wrappers, workers, profile contracts, and rule/gate manifests.
+    writes: none
+  - name: gateway-intake-filter
+    owner_profiles: [moderator]
+    purpose: Check whether a message should become a Kanban task under local gateway policy.
+    writes: kanban-comment-or-block
+  - name: kanban-triage
+    owner_profiles: [orchestrator]
+    purpose: Classify task kind, choose candidate profiles, and create a bounded routing note.
+    writes: kanban-comment
+  - name: cps-ac-classify
+    owner_profiles: [planner, orchestrator]
+    purpose: Map task context to C/P/S and derive AC evidence requirements.
+    writes: task-packet-fields
+  - name: document-standards-check
+    owner_profiles: [planner, docs-steward, reviewer]
+    purpose: Check domain, abbr, WIP shape, frontmatter, and docs lifecycle criteria.
+    writes: owner-action-or-docs-plan
+  - name: document-generation-route
+    owner_profiles: [planner, docs-steward, reviewer, moderator]
+    purpose: Route document creation through CPS, domain and abbr criteria, docs operation criteria, profile evidence, and moderator gate.
+    writes: document-plan
+  - name: worktree-scope-check
+    owner_profiles: [coder, reviewer, moderator]
+    purpose: Verify project root, worktree path, allowed scope, forbidden scope, and sandbox boundaries.
+    writes: block-or-continue-signal
+  - name: executor-task-packet-emit
+    owner_profiles: [orchestrator, planner]
+    purpose: Emit a bounded executor packet with task source, CPS, AC, checks, scope, and evidence requirements.
+    writes: executor-task-packet
+  - name: repo-evidence-scan
+    owner_profiles: [codebase-analyst, coder, reviewer]
+    purpose: Find existing implementations, docs, symbols, and contracts before changes.
+    writes: evidence-summary
+  - name: semantic-tooling-route
+    owner_profiles: [planner, codebase-analyst, reviewer]
+    purpose: Prefer semantic evidence such as LSP, typecheck, and lint for code-facing tasks; allow grep fallback with a recorded reason.
+    writes: semantic-tooling-decision
+  - name: debug-reproduction
+    owner_profiles: [debugger]
+    purpose: Capture observed failure, reproduction command, hypothesis, and next diagnostic step.
+    writes: diagnostic-summary
+  - name: external-research
+    owner_profiles: [researcher]
+    purpose: Gather current official source evidence and state freshness limits.
+    writes: cited-research-summary
+  - name: risk-review
+    owner_profiles: [risk-analyst, reviewer]
+    purpose: Check reversibility, blast radius, migration risk, and owner-action needs.
+    writes: risk-summary
+  - name: security-review
+    owner_profiles: [threat-guard, reviewer]
+    purpose: Check secrets, auth, gateway injection, authority confusion, sandbox escape, public exposure, and unsafe command risk.
+    writes: security-findings
+  - name: design-review
+    owner_profiles: [designer]
+    purpose: Review UI, visual coherence, accessibility, responsive fit, and interaction quality without claiming project write authority.
+    writes: design-proposal
+  - name: marketing-message
+    owner_profiles: [marketer]
+    purpose: Draft copy, positioning, launch notes, and channel-ready messages as proposal-only output.
+    writes: messaging-proposal
+  - name: performance-review
+    owner_profiles: [performance-analyst, reviewer]
+    purpose: Check N+1, loops, memory, concurrency, caching, and measurement needs.
+    writes: performance-findings
+  - name: evidence-review
+    owner_profiles: [reviewer]
+    purpose: Compare diff, tests, docs, and command output against AC and residual risk.
+    writes: review-findings
+  - name: one-round-consensus
+    owner_profiles: [orchestrator]
+    purpose: Ask CPS-justified profiles for one concise view when coordination is needed.
+    writes: consensus-note
+  - name: moderator-final-gate
+    owner_profiles: [moderator]
+    purpose: Decide pass, rework, or block against task goal, AC, CPS, profile evidence, scope, gateway boundary, sandbox boundary, and owner-action.
+    writes: kanban-complete-or-block-recommendation

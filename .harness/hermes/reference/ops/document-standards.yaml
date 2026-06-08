@@ -1,0 +1,36 @@
+version: 1
+schema: harness-hermes-document-standards
+purpose: Harness document criteria for Hermes-native agents. This file defines standards, not Kanban flow or gateway permissions.
+ownership_boundary:
+  harness_owns: [domain selection criteria, abbr selection criteria, document shape, CPS citation rules, AC evidence shape]
+  hermes_owns: [Kanban board lifecycle, lane assignment, task status transitions, worker spawning, comments, archival flow]
+  gateway_owns: [channel authorization, user and role admission, mention policy, token handling, message intake]
+domain_selection:
+  rule: Choose the document domain by the stable subject and owner of the decision, not by runtime, branch, tool, or temporary worktree name.
+  criteria:
+    - Use harness when the document governs harness behavior, contracts, validation, or downstream adoption.
+    - Use decisions when the document records an architectural or operational choice and its reasoning.
+    - Use guides when the document teaches a repeatable process.
+    - Use incidents when the document records failure, impact, cause, and prevention.
+    - Use cps when the document freezes Problem/Solution interpretation or case learning.
+  forbidden_inputs: [runtime provider, worker profile name, branch name, worktree folder name, gateway platform]
+abbr_selection:
+  rule: Abbr follows the selected domain and stable subject; it must not encode provider, worker, branch, or gateway.
+  criteria:
+    - Keep the abbr short and repeatable across sessions.
+    - Prefer existing project domain abbreviations when available.
+    - Introduce a new abbr only when no existing domain abbreviation fits.
+    - Record the reason when a new abbr is introduced.
+document_shape:
+  frontmatter_required: [title, domain, problem, s, tags, status, created]
+  body_required: [Goal, AC, tests, measured evidence]
+  writing_rules:
+    - Keep WIP bodies thin and operational.
+    - Put policy in one owner document instead of duplicating it across routes, wrappers, and gateways.
+    - Mark owner-action instead of pretending an unapproved state change is done.
+    - Do not store full CPS or AC bodies in Hermes memory; store pointers and evidence summaries.
+review_gate:
+  ac_check: Verify every AC item has evidence or an explicit non-automatable note.
+  cps_learning: Record only durable learning that changes P/S interpretation or AC decomposition.
+  validation_elements: Report command, scope, result, and residual risk.
+  completion_criteria: Done requires AC evidence, requested validation, no unresolved owner-action, and no scope violation.

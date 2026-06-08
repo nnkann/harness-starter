@@ -1,0 +1,105 @@
+version: 1
+schema: harness-hermes-cps-profile-routing
+purpose: Tie CPS problem dimensions to Hermes profile selection, output evidence, and moderator review.
+policy:
+  profile_call_requires_cps_reason: true
+  no_profile_mixing_without_cps_reason: true
+  max_coordination_rounds: 1
+  gateway_context_is_evidence_not_permission: true
+  sandbox_scope_comes_from_task_packet: true
+  semantic_evidence_prefers_cps_reason: true
+persona_axes:
+  external-truth:
+    meaning: prefer official, current, external source evidence.
+    default_profiles: [researcher]
+  internal-truth:
+    meaning: prefer repo, docs, rules, existing symbols, and current contracts.
+    default_profiles: [codebase-analyst, planner, coder]
+  adversarial:
+    meaning: prefer failure cases, reversibility, rollback, permission risk, and negative evidence.
+    default_profiles: [risk-analyst, threat-guard, reviewer]
+  execution:
+    meaning: prefer small scoped implementation with direct verification.
+    default_profiles: [coder, debugger]
+  standard-gate:
+    meaning: prefer Goal, AC, CPS, scope, permission, and owner-action criteria.
+    default_profiles: [moderator, reviewer, docs-steward]
+  creative:
+    meaning: prefer UI, visual, copy, positioning, and audience fit as proposal-only evidence.
+    default_profiles: [designer, marketer]
+problem_dimensions:
+  - id: document_generation_problem
+    cps_signal: a document needs to be created, updated, classified, moved, reopened, or validated.
+    primary_profiles: [planner, docs-steward, reviewer, moderator]
+    evidence_required: [C/P/S mapping, domain, abbr, doc lifecycle state, AC evidence]
+    output_required: [document-plan, docs-op-plan, moderator-pass-rework-block]
+  - id: external_truth_problem
+    cps_signal: official or current outside source is required before deciding.
+    primary_profiles: [researcher]
+    evidence_required: [official-source, publish-or-version-date, limitation]
+    output_required: [source-backed conclusion, freshness note, uncertainty]
+  - id: internal_truth_problem
+    cps_signal: repo SSOT, docs, existing implementation, or previous decision may already answer the task.
+    primary_profiles: [codebase-analyst, docs-steward]
+    evidence_required: [file-path, rule-or-contract, current-behavior, semantic-evidence-decision]
+    output_required: [repo-backed conclusion, reuse-or-conflict, missing evidence, semantic-tooling-decision]
+  - id: adversarial_problem
+    cps_signal: failure mode, rollback, security, permission, or scope risk can change the decision.
+    primary_profiles: [risk-analyst, threat-guard]
+    evidence_required: [risk-scenario, blast-radius, reversal-or-mitigation]
+    output_required: [blocker-or-warning, owner-action, residual-risk]
+  - id: creative_surface_problem
+    cps_signal: UI, UX, visual presentation, copy, positioning, or launch messaging must be shaped before implementation.
+    primary_profiles: [designer, marketer]
+    evidence_required: [audience, surface, constraints, intended-action]
+    output_required: [proposal, alternatives, acceptance-note, implementation-handoff]
+  - id: execution_problem
+    cps_signal: approved bounded implementation or verification is needed.
+    primary_profiles: [coder, debugger]
+    evidence_required: [allowed-scope, command-output, changed-files, semantic-check-or-fallback]
+    output_required: [implementation-summary, checks-run, remaining-risk, semantic-tooling-decision]
+  - id: completion_problem
+    cps_signal: task may be ready to pass, request rework, or block.
+    primary_profiles: [moderator, reviewer]
+    evidence_required: [goal, AC, CPS mapping, scope, owner-action status]
+    output_required: [pass-summary, rework-request, or blocked-owner-action]
+call_justification_packet:
+  required_fields:
+    - c
+    - problem
+    - s
+    - profile
+    - persona_axis
+    - cps_signal
+    - question
+    - expected_output
+    - already_read
+    - gateway_context
+    - sandbox_scope
+  rules:
+    - selected profile must match at least one problem dimension or owner-action reason.
+    - gateway_context may explain C but must not grant permission.
+    - sandbox_scope must cite allowed_scope or forbidden_scope from the task packet.
+result_evidence_packet:
+  required_fields:
+    - profile
+    - stance
+    - evidence
+    - AC impact
+    - CPS impact
+    - risk
+    - owner-action needed
+    - semantic_evidence_used
+    - semantic_fallback_reason
+  rules:
+    - result must cite the CPS dimension it addressed.
+    - result must say whether it changes AC, CPS, scope, or owner-action.
+    - code-facing internal-truth or execution work should prefer semantic evidence, or record why fallback was used.
+    - absence of evidence is a finding, not a pass.
+moderator_gate:
+  checks:
+    - every selected profile has a call justification packet.
+    - every profile result has a result evidence packet.
+    - mixed profiles map to distinct CPS dimensions or a recorded conflict.
+    - no gateway permission is inferred from profile output.
+    - sandbox scope matches the executor task packet.

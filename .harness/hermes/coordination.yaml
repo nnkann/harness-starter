@@ -1,0 +1,74 @@
+version: 1
+schema: harness-hermes-coordination
+purpose: One-round profile coordination and final moderator gate for Harness-managed Hermes work.
+policy:
+  max_coordination_rounds: 1
+  default: direct profile execution without coordination when one role clearly owns the task.
+  cps_routing_contract: .harness/hermes/cps-profile-routing.yaml
+  doc_generation_contract: .harness/hermes/doc-generation.yaml
+  trigger_coordination_when:
+    - document generation needs more than one CPS dimension such as external evidence plus internal SSOT, or docs lifecycle plus security risk.
+    - task touches more than one material domain such as code plus docs, security plus commit, or research plus architecture.
+    - reviewer, risk, security, performance, or researcher findings conflict.
+    - owner-action would change CPS, scope, gateway permission, commit, push, dependency, or state-changing docs operation.
+  avoid_coordination_when:
+    - typo, formatting, simple docs wording, read-only status, or single-file low-risk change.
+round_contract:
+  orchestrator_collects:
+    - CPS dimension that justifies each selected profile
+    - selected profiles
+    - one question per profile
+    - expected output field
+    - already-read evidence
+    - gateway context as C evidence
+    - sandbox scope from task packet
+  profile_response_fields:
+    - CPS dimension addressed
+    - stance
+    - evidence
+    - AC impact
+    - CPS impact
+    - risk
+    - owner-action needed
+    - semantic_evidence_used
+    - semantic_fallback_reason
+  moderator_receives:
+    - task goal
+    - AC list
+    - executor evidence
+    - selected profile responses
+    - unresolved owner-actions
+    - profile call justification packets
+    - profile result evidence packets
+    - docs-op plan when document lifecycle changes are requested
+final_moderator_gate:
+  pass_when:
+    - Every selected profile has a CPS-backed call justification.
+    - Every selected profile returned result evidence.
+    - Goal is satisfied.
+    - Every AC item has evidence or a stated non-automatable limit.
+    - CPS mapping and learning notes are consistent.
+    - Validation commands match the task risk.
+    - Work stayed inside allowed scope.
+    - Gateway permissions were not expanded by harness rules.
+    - Commit and push are approved or handed off.
+  request_rework_when:
+    - AC evidence is missing.
+    - CPS or domain/abbr choice is inconsistent.
+    - Reviewer finding is unresolved.
+    - Scope or sandbox boundary is unclear.
+    - Documentation criteria are incomplete.
+    - Document generation lacks doc-ops plan or CPS-backed profile routing.
+    - Profile was mixed without a CPS dimension or conflict reason.
+    - Code-facing internal-truth or execution work lacks a semantic-tooling decision or fallback reason.
+  block_when:
+    - Gateway permission is missing.
+    - Owner approval is required and absent.
+    - Secret or security gate is unresolved.
+    - Task requests direct commit or push without approval.
+    - Gateway context was treated as permission grant.
+outputs:
+  - pass-summary
+  - rework-request
+  - blocked-owner-action
+  - kanban-comment-payload

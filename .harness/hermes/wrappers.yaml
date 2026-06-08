@@ -1,0 +1,64 @@
+version: 1
+schema: harness-hermes-wrappers
+note: Hermes wrappers load repo-local rule and gate contracts and emit bounded executor packets. They do not import harness agents or skills, mirror full bodies, or store CPS or AC full text in Hermes memory.
+official_model:
+  orchestrator: Hermes profile or gateway route
+  worker_lane: Hermes profile lane by default
+  executor: bounded external task packet after wrapper approval
+  external_cli_lane: not paved; do not model this as an automatic kanban worker lane
+  native_agent_policy: use Hermes-native profiles and agents; apply harness rules and gates as constraints
+wrappers:
+  - name: harness-project
+    role: orchestrator
+    purpose: Read the Hermes reference catalog, Kanban pipeline, role profile contracts, route contract, gateway policy, and sandbox boundary into one project summary.
+    reads: [.harness/hermes/reference/catalog.yaml, .harness/hermes/reference/pipeline.yaml, .harness/hermes/reference/rules.yaml, .harness/hermes/workers.yaml, .harness/hermes/profiles.yaml, .harness/hermes/profile-skills.yaml, .harness/hermes/coordination.yaml, .harness/hermes/cps-profile-routing.yaml, .harness/hermes/doc-generation.yaml, .harness/hermes/routes.yaml, .harness/hermes/gateway.yaml, .harness/hermes/sandbox.yaml]
+    commands: [python .harness/hermes/loader.py summary]
+    approval_commands: []
+    outputs: [reference-summary, owner-action]
+    requires_worktree: false
+    memory_policy: pointer-only
+  - name: harness-project-bootstrap
+    role: orchestrator
+    purpose: Read starter-owned bootstrap structure contracts for a new project before repo-local Harness init and emit an advisory or bounded setup packet.
+    reads: [.harness/hermes/project-bootstrap.yaml, .harness/hermes/reference/ops/project-setup-criteria.yaml, .harness/hermes/reference/ops/semantic-tooling-criteria.yaml]
+    commands: []
+    approval_commands: [writes under target_root without owner approval, changes outside setup_packet.allowed_scope]
+    outputs: [bootstrap-summary, setup-packet, owner-action]
+    requires_worktree: false
+    memory_policy: pointer-only
+  - name: harness-cps
+    role: orchestrator
+    purpose: Classify Kanban task requests against the CPS and AC contract before any executor packet is emitted.
+    reads: [.harness/hermes/reference/ops/cps-ac.yaml, .harness/hermes/reference/ops/document-standards.yaml, .harness/hermes/cps-profile-routing.yaml, .harness/hermes/doc-generation.yaml, .harness/hermes/reference/rules.yaml]
+    commands: []
+    approval_commands: []
+    outputs: [cps-classification, ac-summary, owner-action, advisory-signal]
+    requires_worktree: false
+    memory_policy: pointer-only
+  - name: harness-docs-ops
+    role: harness-maintainer
+    purpose: Route document generation and docs operations through CPS-backed doc-ops criteria, read-only first, with approval for state-changing docs operations.
+    reads: [.harness/hermes/reference/ops/docs-ops.yaml, .harness/hermes/reference/ops/wip-lifecycle.yaml, .harness/hermes/reference/ops/document-standards.yaml, .harness/hermes/doc-generation.yaml, .harness/hermes/cps-profile-routing.yaml, .harness/hermes/reference/hook-contracts.yaml]
+    commands: []
+    approval_commands: []
+    outputs: [document-plan, docs-op-plan, read-only-checks, approval-required-ops, owner-action]
+    requires_worktree: false
+    memory_policy: none
+  - name: harness-implementation
+    role: orchestrator
+    purpose: Generate a bounded executor task packet with C, P, S, AC, WIP source, checks, workspace env, and sandbox scope.
+    reads: [.harness/hermes/agent-task.template.yaml, .harness/hermes/reference/pipeline.yaml, .harness/hermes/reference/ops/cps-ac.yaml, .harness/hermes/reference/ops/document-standards.yaml, .harness/hermes/cps-profile-routing.yaml, .harness/hermes/doc-generation.yaml, .harness/hermes/sandbox.yaml]
+    commands: []
+    approval_commands: [changes outside allowed_scope, state-changing docs op, dependency install, network write]
+    outputs: [executor-task-packet, worktree-boundary, lifecycle-return, owner-action]
+    requires_worktree: true
+    memory_policy: pointer-only
+  - name: harness-commit-assist
+    role: reviewer
+    purpose: Run or request the harness precheck contract and convert commit or push into owner approval or handoff.
+    reads: [.harness/hermes/reference/ops/commit-flow.yaml, .harness/hermes/reference/ops/document-standards.yaml, .harness/hermes/cps-profile-routing.yaml, .harness/hermes/doc-generation.yaml, .harness/hermes/reference/hook-contracts.yaml, .harness/hermes/gateway.yaml, .harness/hermes/sandbox.yaml]
+    commands: []
+    approval_commands: [harness precheck, git commit, git push]
+    outputs: [precheck-plan, review-recommendation, owner-action]
+    requires_worktree: true
+    memory_policy: none

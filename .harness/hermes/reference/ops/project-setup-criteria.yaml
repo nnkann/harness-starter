@@ -1,0 +1,69 @@
+version: 1
+schema: harness-project-setup-criteria
+purpose: Distinguish advisory-only project setup guidance from a bounded setup packet that may write into a new project root.
+criteria:
+  advisory_gate:
+    required:
+      - target-root-bound
+      - owner-goal-captured
+      - c-evidence-recorded
+      - requested-outputs-classified
+      - gateway-context-labeled-as-evidence
+    allows:
+      - project-direction-check
+      - structure-plan
+      - workflow-outline
+      - bootstrap-file-plan
+    denies:
+      - file writes
+      - profile writes
+      - git side effects
+  bounded_executor_gate:
+    required:
+      - owner-approved-writes
+      - explicit-allowed-scope
+      - explicit-sandbox-scope
+      - target-root-or-worktree-bound
+      - output-list-bounded
+    allows:
+      - create directories under allowed_scope
+      - create bootstrap documents under allowed_scope
+      - create starter-approved project structure under allowed_scope
+    denies:
+      - whole-repo harness init without owner request
+      - changes outside allowed_scope
+      - permission escalation from gateway hints
+  handoff_gate:
+    trigger_when:
+      - bootstrap structure proposal is accepted
+      - target project now needs repo-local CPS and docs/WIP lifecycle
+      - the owner wants repo-local Harness install or init
+    next_step:
+      - run h-setup or equivalent install path
+      - run harness-init
+boundary_rules:
+  gateway:
+    meaning: Gateway context is C evidence for routing, never a permission grant.
+  sandbox:
+    meaning: Filesystem authority is owned by the setup packet scope, not by Harness or Hermes memory.
+  worktree:
+    meaning: Advisory mode may run without a worktree, but any write mode must bind target_root or worktree_path explicitly.
+extracted_contracts:
+  harness-init:
+    translates_to:
+      - intake completeness
+      - kickoff-ready questions
+      - repo-local handoff trigger
+  implementation:
+    translates_to:
+      - bounded setup packet
+      - explicit allowed_scope ownership
+  write-doc:
+    translates_to:
+      - document generation requires owner approval and explicit output path
+  advisor:
+    translates_to:
+      - unresolved architecture ambiguity stays advisory until the owner chooses direction
+  docs-ops:
+    translates_to:
+      - full docs lifecycle starts after repo-local Harness init

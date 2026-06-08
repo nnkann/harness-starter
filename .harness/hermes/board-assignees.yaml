@@ -1,0 +1,84 @@
+version: 1
+schema: harness-hermes-board-assignees
+purpose: Board-local selectable Hermes profile assignees for Kanban task assignment.
+policy:
+  assignee_identity: concrete-hermes-profile-name
+  role_archetype_is_not_assignee: true
+  assignee_source_of_truth: local Hermes profile list
+  adapter_contract: This file declares expected board-selectable profile names and role bindings; local Hermes config creates the profiles and gateways.
+  no_arbitrary_fallback: true
+  project_binding_source: route, board, workspace, task packet, and CPS profile routing.
+naming_guidance:
+  project_profile_pattern: <project>-<egyptian-name>
+  shared_profile_pattern: shared-<egyptian-name>
+  role_archetype_required: true
+  project_prefix_required_when: profile can touch project workspace, gateway, board memory, or final gate.
+  shared_prefix_allowed_when: profile is read-only, proposal-only, or does not own project filesystem authority.
+  do_not_reuse_deity_for_different_roles: true
+  reserved_profiles_require_local_creation: true
+boards:
+  - board: harness-starter-project-hermes
+    project_slug: harness-starter
+    routes: [discord-harness-starter-project, slack-harness-starter-project]
+    selectable_assignees:
+      - profile: harness-starter-project-maat
+        role_archetype: moderator
+        deity: maat
+        lane_shape: hermes-profile
+        gateway: local-config
+        default_for: [gateway-intake, final-gate, owner-action]
+      - profile: harness-starter-project-thoth
+        role_archetype: orchestrator
+        deity: thoth
+        lane_shape: hermes-profile
+        gateway: optional-local-config
+        default_for: [triage, routing, task-packet]
+      - profile: harness-starter-project-ptah
+        role_archetype: coder
+        deity: ptah
+        lane_shape: hermes-profile
+        gateway: false
+        default_for: [bounded-implementation, tests, refactor]
+      - profile: harness-starter-project-anubis
+        role_archetype: reviewer
+        deity: anubis
+        lane_shape: hermes-profile
+        gateway: false
+        default_for: [review-required, ac-verification, commit-handoff]
+      - profile: harness-starter-project-sekhmet
+        role_archetype: threat-guard
+        deity: sekhmet
+        lane_shape: hermes-profile
+        gateway: false
+        default_for: [gateway-permission, sandbox-policy, env-authority, channel-injection, secrets, auth, exposure]
+      - profile: shared-seshat
+        role_archetype: researcher
+        deity: seshat
+        lane_shape: hermes-profile
+        gateway: false
+        default_for: [external-truth, official-docs]
+      - profile: shared-nefertum
+        role_archetype: advisor
+        deity: nefertum
+        lane_shape: hermes-profile
+        gateway: false
+        default_for: [decision-frame, conflicting-evidence, cps-ambiguity]
+      - profile: shared-hathor
+        role_archetype: designer
+        deity: hathor
+        lane_shape: hermes-profile
+        gateway: false
+        default_for: [ui-ux, visual-coherence, interaction-design]
+      - profile: shared-hu
+        role_archetype: marketer
+        deity: hu
+        lane_shape: hermes-profile
+        gateway: false
+        default_for: [copy, positioning, launch-messaging]
+    assignment_rules:
+      - task.assignee must match a concrete Hermes profile name from selectable_assignees or a locally registered lane id.
+      - role_archetype is classification and routing evidence, not assignee identity.
+      - local Hermes profile config owns profile creation, model choice, SOUL.md, USER.md, MEMORY.md, SKILL.md, and gateway state.
+      - gateway-enabled assignees may receive channel events only when local gateway permission allows the route.
+      - project binding comes from route, board, workspace, task packet, and CPS profile routing, not from profile name alone.
+      - no arbitrary fallback profile may execute a task whose assignee does not resolve.

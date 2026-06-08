@@ -1,0 +1,35 @@
+version: 1
+schema: harness-routes-schema
+required_files:
+  - .harness/hermes/routes.yaml
+  - .harness/hermes/gateway.yaml
+routes:
+  required_fields:
+    - name
+    - platform
+    - channel_alias
+    - channel_id
+    - project_slug
+    - kanban_board
+    - default_wrapper
+    - allowed_roles
+    - allowed_users
+    - free_response
+    - require_mention
+    - strict_mention
+    - worktree_policy
+    - sandbox_contract
+  allowed_platforms:
+    - discord
+    - slack
+  allowed_worktree_policies:
+    - pinned-worktree-required
+secret_policy:
+  tokens: never commit
+  placeholders_only: true
+gateway_contract:
+  required_fields:
+    - secrets_policy
+    - message_intake
+    - route_to_kanban
+    - operator_checks

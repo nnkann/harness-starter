@@ -1,0 +1,26 @@
+version: 1
+schema: harness-hermes-cps-ac-contract
+purpose: Distilled CPS and AC contract for Hermes classification and task packets.
+ownership_boundary:
+  harness_owns: [C/P/S mapping criteria, AC shape, AC evidence, CPS learning criteria]
+  hermes_owns: [Kanban flow state, task assignment, worker status]
+  gateway_owns: [who may submit or approve a task from a channel]
+cps:
+  c: User task context; one task maps to one C unless completion criteria split.
+  p: Problem number from canonical project kickoff or CPS case documents.
+  s: Solution number list tied to the selected Problem.
+flow_types: [forward, reverse-solution, reverse-evidence, resume, interrupt]
+matching_policy:
+  - Use the target project's harness CPS list operation before inventing a new P#.
+  - Do not force a task into a nearby P# when the acceptance criteria do not match.
+  - New CPS entries or Solution changes require owner approval.
+acceptance_criteria:
+  required_fields: [Goal, review, tests, measured_evidence]
+  typed_items: [Problem AC, Solution AC, Step AC, Behavior AC, Guardrail AC, Verification AC]
+  citation_rule: Each typed AC cites P# or S# that appears in frontmatter or task packet.
+cps_learning:
+  learn_when: New evidence changes Problem interpretation, Solution fit, AC decomposition, or validation scope.
+  do_not_learn_when: The signal is only a Kanban status change, gateway permission event, or transient runtime note.
+hermes_outputs:
+  classify: [c, problem, s, flow, ac_summary, owner_action]
+  executor_packet: [task_source, kanban_board, allowed_scope, forbidden_scope, checks, evidence_sources]

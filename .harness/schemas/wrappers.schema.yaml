@@ -1,0 +1,67 @@
+version: 1
+schema: harness-wrappers-schema
+required_files:
+  - .harness/hermes/wrappers.yaml
+  - .harness/hermes/agent-task.template.yaml
+  - .harness/hermes/routes.yaml
+  - .harness/hermes/sandbox.yaml
+  - .harness/hermes/gateway.yaml
+  - .harness/hermes/profiles.yaml
+  - .harness/hermes/profile-skills.yaml
+  - .harness/hermes/coordination.yaml
+  - .harness/hermes/cps-profile-routing.yaml
+  - .harness/hermes/doc-generation.yaml
+required_wrapper_fields:
+  - name
+  - role
+  - purpose
+  - reads
+  - commands
+  - approval_commands
+  - outputs
+  - requires_worktree
+  - memory_policy
+required_wrapper_names:
+  - harness-project
+  - harness-project-bootstrap
+  - harness-cps
+  - harness-docs-ops
+  - harness-implementation
+  - harness-commit-assist
+allowed_roles:
+  - orchestrator
+  - reviewer
+  - harness-maintainer
+allowed_memory_policies:
+  - none
+  - pointer-only
+semantic_provider_check_fields:
+  - role
+  - purpose
+  - commands
+  - approval_commands
+  - outputs
+  - memory_policy
+path_fields_excluded_from_provider_check:
+  - reads
+denied_behaviors:
+  - imported harness agent
+  - imported harness skill
+  - full-text skill mirror
+  - cps-ac full-text memory write
+  - direct commit
+  - parent-directory execution
+  - project-specific default profile
+  - gateway permission override
+  - profile mixing without CPS reason
+required_pipeline_reads:
+  - .harness/hermes/reference/pipeline.yaml
+  - .harness/hermes/reference/ops/docs-ops.yaml
+  - .harness/hermes/reference/ops/cps-ac.yaml
+  - .harness/hermes/reference/ops/document-standards.yaml
+  - .harness/hermes/cps-profile-routing.yaml
+  - .harness/hermes/doc-generation.yaml
+  - .harness/hermes/sandbox.yaml
+ownership_boundary:
+  harness_may_define: [criteria, gates, evidence, owner-action handoff]
+  harness_must_not_define: [Kanban flow ownership, gateway permission ownership, native agent persona]
