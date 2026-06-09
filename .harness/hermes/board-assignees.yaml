@@ -9,8 +9,8 @@ policy:
   no_arbitrary_fallback: true
   project_binding_source: route, board, workspace, task packet, and CPS profile routing.
 naming_guidance:
-  project_profile_pattern: <project>-<egyptian-name>
-  shared_profile_pattern: shared-<egyptian-name>
+  project_profile_pattern: <abbr>_<egyptian-name>
+  shared_profile_pattern: <egyptian-name>
   role_archetype_required: true
   project_prefix_required_when: profile can touch project workspace, gateway, board memory, or final gate.
   shared_prefix_allowed_when: profile is read-only, proposal-only, or does not own project filesystem authority.
@@ -21,60 +21,60 @@ boards:
     project_slug: harness-starter
     routes: [discord-harness-starter-project, slack-harness-starter-project]
     selectable_assignees:
-      - profile: harness-starter-project-maat
+      - profile: ha_maat
         role_archetype: moderator
         deity: maat
         lane_shape: hermes-profile
         gateway: local-config
         default_for: [gateway-intake, final-gate, owner-action]
-      - profile: harness-starter-project-thoth
+      - profile: ha_thoth
         role_archetype: orchestrator
         deity: thoth
         lane_shape: hermes-profile
         gateway: optional-local-config
         default_for: [triage, routing, task-packet]
-      - profile: harness-starter-project-ptah
+      - profile: ha_ptah
         role_archetype: coder
         deity: ptah
         lane_shape: hermes-profile
         gateway: false
         default_for: [bounded-implementation, tests, refactor]
-      - profile: harness-starter-project-anubis
+      - profile: ha_anubis
         role_archetype: reviewer
         deity: anubis
         lane_shape: hermes-profile
         gateway: false
         default_for: [review-required, ac-verification, commit-handoff]
-      - profile: harness-starter-project-sekhmet
+      - profile: ha_sekhmet
         role_archetype: threat-guard
         deity: sekhmet
         lane_shape: hermes-profile
         gateway: false
         default_for: [gateway-permission, sandbox-policy, env-authority, channel-injection, secrets, auth, exposure]
-      - profile: shared-seshat
+      - profile: seshat
         role_archetype: researcher
         deity: seshat
         lane_shape: hermes-profile
         gateway: false
         default_for: [external-truth, official-docs]
-      - profile: shared-nefertum
+      - profile: nefertum
         role_archetype: advisor
         deity: nefertum
         lane_shape: hermes-profile
         gateway: false
         default_for: [decision-frame, conflicting-evidence, cps-ambiguity]
-      - profile: shared-hathor
+      - profile: hathor
         role_archetype: designer
         deity: hathor
         lane_shape: hermes-profile
         gateway: false
         default_for: [ui-ux, visual-coherence, interaction-design]
-      - profile: shared-hu
+      - profile: hu
         role_archetype: marketer
         deity: hu
         lane_shape: hermes-profile
         gateway: false
-        default_for: [copy, positioning, launch-messaging]
+        default_for: [copy, positioning, launch-messaging, efficiency-speed-probe, lap-time-review, quota-review, model-tier-review]
     assignment_rules:
       - task.assignee must match a concrete Hermes profile name from selectable_assignees or a locally registered lane id.
       - role_archetype is classification and routing evidence, not assignee identity.

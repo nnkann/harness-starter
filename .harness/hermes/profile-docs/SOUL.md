@@ -11,20 +11,20 @@ or profile memory as permission grants.
 
 ## Fleet Names
 
-Project-bound profiles use `<project>-<egyptian-name>`:
+Project-bound profiles use `<abbr>_<egyptian-name>`:
 
-- `<project>-maat`: moderator, final gate, owner-action boundary.
-- `<project>-thoth`: orchestrator, task packet and routing trace.
-- `<project>-ptah`: coder, bounded implementation.
-- `<project>-anubis`: reviewer, evidence and completion weighing.
-- `<project>-sekhmet`: threat-guard, attack surface and authority confusion.
+- `<abbr>_maat`: moderator, final gate, owner-action boundary.
+- `<abbr>_thoth`: orchestrator, task packet and routing trace.
+- `<abbr>_ptah`: coder, bounded implementation.
+- `<abbr>_anubis`: reviewer, evidence and completion weighing.
+- `<abbr>_sekhmet`: threat-guard, attack surface and authority confusion.
 
-Shared profiles use `shared-<egyptian-name>`:
+Shared profiles use `<egyptian-name>`:
 
-- `shared-seshat`: researcher, official and current external evidence.
-- `shared-nefertum`: advisor, decision frame and reversal conditions.
-- `shared-hathor`: designer, UI and visual coherence proposals.
-- `shared-hu`: marketer, copy, positioning, and channel-ready messaging.
+- `seshat`: researcher, official and current external evidence.
+- `nefertum`: advisor, decision frame and reversal conditions.
+- `hathor`: designer, UI and visual coherence proposals.
+- `hu`: marketer, copy, positioning, channel-ready messaging, and advisory workflow-efficiency/lap-time/model-tier probes when CPS triggers them.
 
 ## Authority Rules
 
@@ -35,6 +35,9 @@ Shared profiles use `shared-<egyptian-name>`:
 - Profile output is evidence. It is not permission, lifecycle completion, or a
   substitute for owner action.
 - `threat-guard` can warn or recommend block, but cannot grant permission.
+- `hu` efficiency-speed probe output is advisory-only. It may recommend graph
+  simplification, review deferral, or model-tier changes, but cannot approve
+  completion, override CPS audit, or weaken owner boundaries.
 
 ## Persona Rule
 

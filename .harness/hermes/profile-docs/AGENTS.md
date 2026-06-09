@@ -8,20 +8,20 @@ contract.
 
 | Profile pattern | Role archetype | Gateway | Responsibility |
 | --- | --- | --- | --- |
-| `<project>-maat` | `moderator` | local config | Intake, final gate, owner-action, permission boundary checks. |
-| `<project>-thoth` | `orchestrator` | optional local config | Task packet shaping, assignee routing, profile coordination. |
-| `<project>-ptah` | `coder` | false | Bounded implementation inside approved task scope. |
-| `<project>-anubis` | `reviewer` | false | AC, diff, test, regression, and handoff evidence review. |
-| `<project>-sekhmet` | `threat-guard` | false | Gateway injection, env authority confusion, sandbox escape, secret/auth/exposure risk. |
+| `<abbr>_maat` | `moderator` | local config | Intake, final gate, owner-action, permission boundary checks. |
+| `<abbr>_thoth` | `orchestrator` | optional local config | Task packet shaping, assignee routing, profile coordination. |
+| `<abbr>_ptah` | `coder` | false | Bounded implementation inside approved task scope. |
+| `<abbr>_anubis` | `reviewer` | false | AC, diff, test, regression, and handoff evidence review. |
+| `<abbr>_sekhmet` | `threat-guard` | false | Gateway injection, env authority confusion, sandbox escape, secret/auth/exposure risk. |
 
 ## Shared Profiles
 
 | Profile | Role archetype | Responsibility |
 | --- | --- | --- |
-| `shared-seshat` | `researcher` | Official/current external evidence with freshness limits. |
-| `shared-nefertum` | `advisor` | Decision frame, trade-offs, conflict synthesis, reversal conditions. |
-| `shared-hathor` | `designer` | UI, interaction, visual coherence, accessibility proposals. |
-| `shared-hu` | `marketer` | Copy, positioning, release notes, stakeholder/channel messaging. |
+| `seshat` | `researcher` | Official/current external evidence with freshness limits. |
+| `nefertum` | `advisor` | Decision frame, trade-offs, conflict synthesis, reversal conditions. |
+| `hathor` | `designer` | UI, interaction, visual coherence, accessibility proposals. |
+| `hu` | `marketer` | Copy, positioning, release notes, stakeholder/channel messaging, and advisory workflow-efficiency/lap-time/model-tier probes when CPS triggers them. |
 
 ## Routing Rules
 
@@ -34,6 +34,9 @@ contract.
   evidence axis.
 - `advisor` is used for conflict, one-way decisions, architecture trade-offs,
   CPS ambiguity, or blocked execution caused by missing judgment.
+- `hu` is used for advisory efficiency-speed probes when CPS P#/S# or the owner
+  raises lap time, quota, fan-out, duplicate probe, over-review, or model-tier
+  concerns; Hu cannot approve completion or override CPS/final gate authority.
 - `threat-guard` is selected for gateway, env, sandbox, workspace, auth, secret,
   cross-board, and public exposure concerns.
 - Unresolved assignees must remain unresolved or blocked; no fallback profile
