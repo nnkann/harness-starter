@@ -125,13 +125,64 @@ def _load_yaml(path: Path) -> dict[str, Any]:
     if yaml is not None:
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
         return data if isinstance(data, dict) else {}
-    data: dict[str, Any] = {}
+
+    # Tiny YAML subset parser for the reference contract files. It supports the
+    # mapping/list/scalar shapes used here so validation does not depend on
+    # PyYAML being installed in the executor runtime.
+    rows: list[tuple[int, str]] = []
     for raw in path.read_text(encoding="utf-8").splitlines():
-        if not raw.strip() or raw.lstrip().startswith("#") or raw.startswith(" ") or ":" not in raw:
+        if not raw.strip() or raw.lstrip().startswith("#"):
             continue
-        key, _, value = raw.partition(":")
-        data[key.strip()] = _scalar(value)
-    return data
+        rows.append((len(raw) - len(raw.lstrip(" ")), raw.strip()))
+
+    def parse_block(index: int, indent: int) -> tuple[Any, int]:
+        if index >= len(rows):
+            return {}, index
+        if rows[index][1].startswith("- "):
+            items: list[Any] = []
+            while index < len(rows):
+                row_indent, text = rows[index]
+                if row_indent != indent or not text.startswith("- "):
+                    break
+                item_text = text[2:].strip()
+                index += 1
+                if not item_text:
+                    child, index = parse_block(index, indent + 2)
+                    items.append(child)
+                elif ":" in item_text:
+                    key, _, value = item_text.partition(":")
+                    item: dict[str, Any] = {key.strip(): _scalar(value) if value.strip() else {}}
+                    if index < len(rows) and rows[index][0] > indent:
+                        child, index = parse_block(index, rows[index][0])
+                        if isinstance(child, dict):
+                            if value.strip():
+                                item.update(child)
+                            else:
+                                item[key.strip()] = child
+                    items.append(item)
+                else:
+                    items.append(_scalar(item_text))
+            return items, index
+
+        data: dict[str, Any] = {}
+        while index < len(rows):
+            row_indent, text = rows[index]
+            if row_indent != indent or text.startswith("- "):
+                break
+            key, _, value = text.partition(":")
+            key = key.strip()
+            value = value.strip()
+            index += 1
+            if value:
+                data[key] = _scalar(value)
+            elif index < len(rows) and rows[index][0] > indent:
+                data[key], index = parse_block(index, rows[index][0])
+            else:
+                data[key] = {}
+        return data, index
+
+    parsed, _ = parse_block(0, rows[0][0] if rows else 0)
+    return parsed if isinstance(parsed, dict) else {}
 
 
 def _list(value: Any) -> list[Any]:

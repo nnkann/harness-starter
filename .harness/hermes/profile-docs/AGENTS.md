@@ -8,11 +8,11 @@ contract.
 
 | Profile pattern | Role archetype | Gateway | Responsibility |
 | --- | --- | --- | --- |
-| `<abbr>_maat` | `moderator` | local config | Intake, final gate, owner-action, permission boundary checks. |
-| `<abbr>_thoth` | `orchestrator` | optional local config | Task packet shaping, assignee routing, profile coordination. |
-| `<abbr>_ptah` | `coder` | false | Bounded implementation inside approved task scope. |
-| `<abbr>_anubis` | `reviewer` | false | AC, diff, test, regression, and handoff evidence review. |
-| `<abbr>_sekhmet` | `threat-guard` | false | Gateway injection, env authority confusion, sandbox escape, secret/auth/exposure risk. |
+| `<abbr>_maat` / `<project>-maat` | `moderator` | local config | Intake, final gate, owner-action, permission boundary checks. |
+| `<abbr>_thoth` / `<project>-thoth` | `orchestrator` | optional local config | Task packet shaping, assignee routing, profile coordination. |
+| `<abbr>_ptah` / `<project>-ptah` | `coder` | false | Bounded implementation inside approved task scope. |
+| `<abbr>_anubis` / `<project>-anubis` | `reviewer` | false | AC, diff, test, regression, and handoff evidence review. |
+| `<abbr>_sekhmet` / `<project>-sekhmet` | `threat-guard` | false | Gateway injection, env authority confusion, sandbox escape, secret/auth/exposure risk. |
 
 ## Shared Profiles
 

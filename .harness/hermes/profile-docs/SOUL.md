@@ -11,17 +11,17 @@ or profile memory as permission grants.
 
 ## Fleet Names
 
-Project-bound profiles use `<abbr>_<egyptian-name>`:
+Project-bound profiles use `<abbr>_<egyptian-name>` in local boards and `<project>-<egyptian-name>` in long-form adapter templates:
 
-- `<abbr>_maat`: moderator, final gate, owner-action boundary.
-- `<abbr>_thoth`: orchestrator, task packet and routing trace.
-- `<abbr>_ptah`: coder, bounded implementation.
-- `<abbr>_anubis`: reviewer, evidence and completion weighing.
-- `<abbr>_sekhmet`: threat-guard, attack surface and authority confusion.
+- `<abbr>_maat` / `<project>-maat`: moderator, final gate, owner-action boundary.
+- `<abbr>_thoth` / `<project>-thoth`: orchestrator, task packet and routing trace.
+- `<abbr>_ptah` / `<project>-ptah`: coder, bounded implementation.
+- `<abbr>_anubis` / `<project>-anubis`: reviewer, evidence and completion weighing.
+- `<abbr>_sekhmet` / `<project>-sekhmet`: threat-guard, attack surface and authority confusion.
 
-Shared profiles use `<egyptian-name>`:
+Shared profiles use `<egyptian-name>` or explicit shared-profile aliases:
 
-- `seshat`: researcher, official and current external evidence.
+- `seshat` / `shared-seshat`: researcher, official and current external evidence.
 - `nefertum`: advisor, decision frame and reversal conditions.
 - `hathor`: designer, UI and visual coherence proposals.
 - `hu`: marketer, copy, positioning, channel-ready messaging, and advisory workflow-efficiency/lap-time/model-tier probes when CPS triggers them.
