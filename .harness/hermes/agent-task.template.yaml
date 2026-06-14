@@ -57,9 +57,33 @@ document_generation:
   enabled_when: task creates, updates, validates, moves, reopens, or classifies a document
   required_outputs: [document-plan, docs-op-plan, profile-call-justification, profile-result-evidence, moderator-pass-rework-block]
   docs_ops_mode: read-only first; state-changing operations require owner approval or explicit executor scope
+cps_flow:
+  contract: .harness/hermes/reference/ops/cps-ac.yaml#cps_flow_graph
+  root_goal_id: ${ROOT_GOAL_ID}
+  flow_graph_id: ${FLOW_GRAPH_ID}
+  node_id: ${FLOW_NODE_ID}
+  root_goal_ref: ${ROOT_GOAL_REF}
+  cps_expression_ref: ${CPS_EXPRESSION_REF}
+  local_goal: ${NODE_LOCAL_GOAL}
+  task_AC: ${NODE_TASK_AC}
+  inherited_refs: [root_goal_ref, owner_boundary_ref, global_constraints_ref, cps_expression_ref]
+  edge_refs: ${FLOW_EDGE_REFS}
+  input_refs: ${NODE_INPUT_REFS}
+  expected_evidence: ${NODE_EXPECTED_EVIDENCE}
+  completion_delta_required: [node_status, output_ref, observed_signal, transition_reason, next_payload_ref]
+  handoff_payload_policy: pass minimal refs/reason codes needed by the next actor, not full transcripts or unrelated logs.
+goal_ac_semantics:
+  root_goal: triage/root request end-to-end outcome, inherited by reference by every child node.
+  task_AC: node-local requirements and evidence that a decomposed todo/review/final-gate task must satisfy.
+  c_split_rule: if C separates into independent end-to-end outcomes, create separate triage roots with separate root_goal_id values.
+  closure_rule: A child can complete only its task_AC; the root Goal closes only when graph evidence satisfies the root closure condition.
+langsmith_eval_basis:
+  trace_keys: [root_goal_id, flow_graph_id, node_id, task_id, actor_binding, cps_ref, task_AC, evidence_ref, transition_reason, outcome]
+  review_labels: [root_goal_passed, task_AC_passed, evidence_sufficient, actor_binding_correct, transition_correct, needs_rework, blocked_owner_action]
+  evaluation_unit: root Goal closes at graph level; task AC closes at node level.
 moderator_gate:
   final_profile: moderator
-  checks: [goal, AC, CPS, selected profile evidence, gateway boundary, sandbox boundary, owner-action]
+  checks: [root Goal, C split decision, task AC, CPS flow graph, node/edge inheritance, LangSmith trace keys, completion delta, selected profile evidence, gateway boundary, sandbox boundary, owner-action]
 lifecycle_return:
   success: kanban_complete only for read-only or owner-approved terminal tasks
   review_required: kanban_block reason prefix review-required

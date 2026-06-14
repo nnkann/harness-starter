@@ -27,6 +27,9 @@ required_pointer_fields:
   - lifecycle_return
   - cps_profile_routing
   - document_generation
+  - cps_flow
+  - goal_ac_semantics
+  - langsmith_eval_basis
   - moderator_gate
 required_runtime_stack: hermes-codex-agy
 template_path_policy:
@@ -75,3 +78,22 @@ required_semantic_tooling_fields:
   - stack_binding_state
   - decision
   - fallback_reason
+required_cps_flow_fields:
+  - contract
+  - root_goal_id
+  - flow_graph_id
+  - node_id
+  - root_goal_ref
+  - local_goal
+  - task_AC
+  - inherited_refs
+  - completion_delta_required
+required_goal_ac_semantics_fields:
+  - root_goal
+  - task_AC
+  - c_split_rule
+  - closure_rule
+required_langsmith_eval_basis_fields:
+  - trace_keys
+  - review_labels
+  - evaluation_unit

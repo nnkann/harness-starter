@@ -15,12 +15,59 @@ matching_policy:
   - Do not force a task into a nearby P# when the acceptance criteria do not match.
   - New CPS entries or Solution changes require owner approval.
 acceptance_criteria:
-  required_fields: [Goal, review, tests, measured_evidence]
+  required_fields: [root_goal, task_AC, cps_flow_graph, flow_inheritance_contract, review, tests, measured_evidence]
   typed_items: [Problem AC, Solution AC, Step AC, Behavior AC, Guardrail AC, Verification AC]
   citation_rule: Each typed AC cites P# or S# that appears in frontmatter or task packet.
+goal_ac_semantics:
+  root_goal: The triage/root request's end-to-end outcome; children inherit it by reference, never by copying it as their local objective.
+  task_AC: "The decomposed task/node's local completion contract: required inputs, output shape, evidence, guardrails, and closure condition for that node."
+  invariant: Root Goal is stable across the flow; task AC is node-local and may differ per materialized todo while still proving part of the root Goal.
+  c_split_rule: If C separates into independent concerns with different end-to-end outcomes, create separate triage roots with separate root_goal_id values instead of hiding multiple Goals under one root.
+  anti_pattern: Do not put only Goal inside every child AC; that loses node responsibility and makes search/closure ambiguous.
+cps_flow_graph:
+  purpose: Compile root Goal plus CPS expression into a graph whose nodes become todo/review/final-gate tasks only when materialized.
+  root_fields: [root_goal_id, flow_graph_id, original_user_intent_ref, cps_expression_ref, owner_boundary_ref, global_constraints_ref]
+  node_fields: [node_id, cps_ref, operator, actor_binding, local_goal, task_AC, expected_evidence, input_refs, output_refs]
+  edge_fields: [from_node, to_node, relation_type, condition, handoff_payload_ref, unlock_policy]
+  relation_types: [derived_from, implements_node, depends_on, unlocks, provides_evidence_to, reviews, supersedes, replaces, blocks, negative_evidence_for]
+  disposition_as_compile_output: inline, merge, prerequisite, split, escalate, and block are not mandatory prose sections; they are selected edge/node materialization outcomes with reason codes.
+flow_inheritance_contract:
+  root_identity: [root_goal_id, flow_graph_id]
+  inherited_refs: [root_goal_ref, owner_boundary_ref, global_constraints_ref, cps_expression_ref]
+  child_identity: [task_id, node_id, actor_binding]
+  local_required: [local_goal, task_AC, cps_node_ref, input_refs, expected_evidence, output_refs]
+  completion_delta: [node_status, output_ref, observed_signal, transition_reason, next_payload_ref]
+  search_policy: Root indexes Goal/CPS expression; child indexes root_goal_id, flow_graph_id, node_id, local_goal, task_AC, actor, and evidence type.
+triage_split_policy:
+  split_on_C: C is the first fan-out boundary; if concerns require different root outcomes, owner boundaries, evidence closure, or lifecycle timing, split into separate triage roots.
+  keep_one_root_when: Concerns share one end-to-end Goal and differ only as ordered nodes required to satisfy that Goal.
+  split_root_fields: [new_root_goal_id, parent_request_ref, C_ref, root_goal, cps_expression_ref, cross_root_relation]
+  cross_root_relations: [sibling_goal, prerequisite_goal, follow_up_goal, evidence_dependency, supersedes_goal]
+  anti_pattern: Do not represent multiple independent C outcomes as sibling todo tasks under one root Goal; that makes LangSmith-style evaluation unable to tell which Goal passed or failed.
+runtime_flow_trace:
+  model: append-only node/edge/evidence deltas, not fixed after-action reports.
+  handoff_payload: [goal_ref, current_cps_node, prior_attempt_refs, observed_signal, open_question, evidence_refs, constraints, expected_output]
+  minimality_rule: Pass references and reason codes needed by the next actor; do not pass full transcripts or unrelated logs.
+  readability_rule: The graph should explain how the work flowed by following nodes and edges; avoid duplicating the same story as free-text commentary.
+langsmith_eval_basis:
+  purpose: Make Goal/AC/CPS graph data usable as trace and review substrate, not just task prose.
+  trace_keys: [root_goal_id, flow_graph_id, node_id, task_id, actor_binding, cps_ref, task_AC, evidence_ref, transition_reason, outcome]
+  review_labels: [root_goal_passed, task_AC_passed, evidence_sufficient, actor_binding_correct, transition_correct, needs_rework, blocked_owner_action]
+  evaluation_unit: Root Goal is evaluated from graph closure; task AC is evaluated per node; CPS usefulness is evaluated by whether graph transitions and actor bindings improved evidence closure.
+  dataset_promotion_rule: Promote labeled traces only when root Goal, node task_AC, evidence refs, and reviewer outcome are all present.
+node_ownership:
+  model: Ownership attaches to graph nodes and actor bindings, not to blame narratives.
+  fields: [decision_node_owner, execution_actor, review_actor, runtime_or_rulepack_owner]
+  failure_at: "Classify failures by graph location: expression_compile, node_materialization, actor_binding, task_AC, handoff_payload, worker_execution, review_gate, runtime_or_rulepack_enforcement."
+legacy_task_policy:
+  default: Do not rewrite or delete previously created tasks only to retrofit this contract.
+  supplement_existing: Add a linked canonical flow supplement carrying root_goal_id, flow_graph_id, node mapping, task_AC deltas, and evidence refs.
+  replace_when: Existing task is runnable but malformed, search-negative, or produced by non-contract decomposition.
+  replacement_rule: Create a clean contract task/root, link old tasks as evidence or negative evidence, and archive only after dependency/MAAT review.
+  search_policy: Keep searchable canonical graph keys in supplements and replacements so old Goal-only AC remains discoverable but no longer acts as the authoritative contract.
 cps_learning:
   learn_when: New evidence changes Problem interpretation, Solution fit, AC decomposition, or validation scope.
   do_not_learn_when: The signal is only a Kanban status change, gateway permission event, or transient runtime note.
 hermes_outputs:
-  classify: [c, problem, s, flow, ac_summary, owner_action]
-  executor_packet: [task_source, kanban_board, allowed_scope, forbidden_scope, checks, evidence_sources]
+  classify: [c, problem, s, triage_split_decision, flow_graph, root_goal, task_AC_summary, owner_action]
+  executor_packet: [task_source, kanban_board, root_goal_id, flow_graph_id, node_id, local_goal, task_AC, langsmith_trace_keys, allowed_scope, forbidden_scope, checks, evidence_sources]

@@ -89,6 +89,27 @@ REQUIRED_DOCS_OPS_TERMS = [
 ]
 REQUIRED_PIPELINE_GATES = ["intake-context", "classify-cps", "plan-docs", "executor-scope", "review-and-handoff"]
 REQUIRED_BOUNDARY_TERMS = ["harness_owns", "hermes_owns", "gateway_owns"]
+REQUIRED_CPS_AC_TERMS = [
+    "goal_ac_semantics",
+    "cps_flow_graph",
+    "flow_inheritance_contract",
+    "triage_split_policy",
+    "runtime_flow_trace",
+    "langsmith_eval_basis",
+    "node_ownership",
+    "legacy_task_policy",
+    "root_goal",
+    "task_AC",
+    "split_on_C",
+]
+REQUIRED_TASK_PACKET_TERMS = [
+    "cps_flow",
+    "goal_ac_semantics",
+    "langsmith_eval_basis",
+    "root_goal_id",
+    "task_AC",
+    "c_split_rule",
+]
 OFFICIAL_REQUIRED_WORKSPACE_ENV = [
     "HERMES_KANBAN_TASK",
     "HERMES_KANBAN_DB",
@@ -286,6 +307,11 @@ def _validate() -> dict[str, Any]:
         for term in REQUIRED_BOUNDARY_TERMS:
             if term not in text:
                 errors.append(f"rules contract missing ownership boundary term: {term}")
+    if CPS_AC.exists():
+        text = CPS_AC.read_text(encoding="utf-8")
+        for term in REQUIRED_CPS_AC_TERMS:
+            if term not in text:
+                errors.append(f"cps-ac contract missing Goal/AC flow term: {term}")
     if DOCUMENT_STANDARDS.exists():
         text = DOCUMENT_STANDARDS.read_text(encoding="utf-8")
         for term in ["domain_selection", "abbr_selection", "document_shape", "review_gate"]:
@@ -357,6 +383,10 @@ def _validate() -> dict[str, Any]:
         if "contract: .harness/hermes/cps-profile-routing.yaml" not in text:
             errors.append("doc generation must point to cps-profile-routing contract")
     if TASK_TEMPLATE.exists() and AGENT_TASK_SCHEMA.exists() and SANDBOX.exists():
+        task_text = TASK_TEMPLATE.read_text(encoding="utf-8")
+        for term in REQUIRED_TASK_PACKET_TERMS:
+            if term not in task_text:
+                errors.append(f"task packet missing Goal/AC flow term: {term}")
         task_packet = _load_yaml(TASK_TEMPLATE)
         task_schema = _load_yaml(AGENT_TASK_SCHEMA)
         sandbox = _load_yaml(SANDBOX)

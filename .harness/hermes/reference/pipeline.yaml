@@ -24,7 +24,7 @@ harness_gates:
   - gate: classify-cps
     wrapper: harness-cps
     applies_when: A task needs Problem/Solution/AC mapping.
-    output: C/P/S candidate, flow type, and owner-action when CPS is missing
+    output: C/P/S candidate, C split decision, flow graph, root Goal reference, node-local task AC, typed graph edges, LangSmith trace keys, and owner-action when CPS is missing
     reads: [.harness/hermes/reference/ops/cps-ac.yaml, .harness/hermes/reference/ops/document-standards.yaml, .harness/hermes/reference/rules.yaml]
     does_not_own: [Kanban lane assignment, worker selection, gateway permission]
   - gate: plan-docs
@@ -46,8 +46,8 @@ harness_gates:
     reads: [.harness/hermes/reference/ops/commit-flow.yaml, .harness/hermes/reference/ops/document-standards.yaml, .harness/hermes/reference/hook-contracts.yaml]
     does_not_own: [Kanban complete command, gateway authorization]
 done_policy:
-  done_requires: [AC evidence, scoped diff, requested checks, no unresolved owner-action]
-  blocked_when: [CPS owner decision missing, forbidden scope requested, secret detected, state-changing docs op not approved]
+  done_requires: [root Goal reference, C split decision, node-local task AC evidence, CPS flow graph linkage, LangSmith trace keys, completion delta, scoped diff, requested checks, no unresolved owner-action]
+  blocked_when: [CPS owner decision missing, C split decision missing, root Goal missing, task AC missing, flow graph linkage missing, forbidden scope requested, secret detected, state-changing docs op not approved]
   commit_push: owner approval or handoff only
 kanban_lifecycle_return:
   complete: kanban_complete with summary and metadata for read-only or owner-approved terminal tasks.
