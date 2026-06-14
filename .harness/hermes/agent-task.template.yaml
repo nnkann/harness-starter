@@ -36,7 +36,7 @@ abbr: hn
 wip_doc: ${TASK_SOURCE}
 allowed_scope: [.harness/hermes/**, .harness/project/**, .harness/schemas/**]
 forbidden_scope: [sibling projects, parent directories outside current worktree, Hermes memory full-text CPS/AC storage, direct git commit, direct git push]
-checks: [python .harness/hermes/loader.py validate-reference]
+checks: [python .harness/hermes/loader.py validate-reference, python .harness/hermes/loader.py guard-runtime-context --operation write --cwd "$PWD"]
 memory_pointers: [.harness/hermes/reference/catalog.yaml, .harness/hermes/reference/pipeline.yaml, .harness/hermes/reference/rules.yaml, .harness/hermes/workers.yaml, .harness/hermes/sandbox.yaml]
 evidence_sources: [reference-catalog, rule-pack, command-output]
 owner_approval_required: [changes outside allowed_scope, git commit, git push]

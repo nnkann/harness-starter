@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -121,6 +123,10 @@ OFFICIAL_REQUIRED_WORKSPACE_ENV = [
     "HERMES_PROFILE",
 ]
 OFFICIAL_CONDITIONAL_WORKSPACE_ENV = ["HERMES_TENANT"]
+CONTEXT_SENSITIVE_OPERATIONS = {"branch", "commit", "push", "auth", "write"}
+OWNER_APPROVAL_OPERATIONS = {"commit", "push", "auth"}
+CONTROL_PLANE_ROOTS = [Path("/Users/kann/.hermes/hermes-agent")]
+OWNER_APPROVAL_ENV = "HARNESS_OWNER_APPROVED_OPERATION"
 
 try:
     import yaml
@@ -210,6 +216,95 @@ def _list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else []
 
 
+def _as_path(value: str | Path) -> Path:
+    return Path(value).expanduser().resolve()
+
+
+def _glob_to_regex_path(pattern: str) -> str:
+    return pattern[:-3] if pattern.endswith("/**") else pattern
+
+
+def _target_allowed(target: Path, allowed_scope: list[Any]) -> bool:
+    try:
+        rel = target.resolve().relative_to(ROOT).as_posix()
+    except ValueError:
+        return False
+    for raw_pattern in allowed_scope:
+        pattern = str(raw_pattern)
+        prefix = _glob_to_regex_path(pattern)
+        if pattern.endswith("/**") and (rel == prefix or rel.startswith(prefix + "/")):
+            return True
+        if fnmatch.fnmatch(rel, pattern):
+            return True
+    return False
+
+
+def guard_runtime_context(
+    *,
+    cwd: str | Path,
+    env: dict[str, str] | None = None,
+    operation: str = "write",
+    target_paths: list[str | Path] | None = None,
+    project_root: str | Path | None = None,
+) -> dict[str, Any]:
+    env = dict(os.environ if env is None else env)
+    cwd_path = _as_path(cwd)
+    operation = operation.strip()
+    task_packet = _load_yaml(TASK_TEMPLATE) if TASK_TEMPLATE.exists() else {}
+    expected_workspace = env.get("HERMES_KANBAN_WORKSPACE") or str(task_packet.get("worktree_path") or "")
+    expected_board = task_packet.get("kanban_board")
+    allowed_scope = _list(task_packet.get("allowed_scope"))
+    errors: list[str] = []
+
+    if operation in CONTEXT_SENSITIVE_OPERATIONS:
+        missing = [name for name in OFFICIAL_REQUIRED_WORKSPACE_ENV if not env.get(name)]
+        if missing:
+            errors.append(f"missing required env for {operation}: {', '.join(missing)}")
+
+    if expected_workspace:
+        workspace_path = _as_path(expected_workspace)
+        if cwd_path != workspace_path:
+            errors.append(f"cwd mismatch: expected HERMES_KANBAN_WORKSPACE {workspace_path}, got {cwd_path}")
+    else:
+        workspace_path = None
+        errors.append("missing HERMES_KANBAN_WORKSPACE/worktree_path for runtime context guard")
+
+    if expected_board and env.get("HERMES_KANBAN_BOARD") and env.get("HERMES_KANBAN_BOARD") != expected_board:
+        errors.append(f"board mismatch: expected {expected_board}, got {env.get('HERMES_KANBAN_BOARD')}")
+
+    effective_project_root = _as_path(project_root) if project_root else ROOT
+    if any(effective_project_root == root or root in effective_project_root.parents for root in CONTROL_PLANE_ROOTS):
+        errors.append("control-plane project_root cannot perform project branch/commit/push/auth without internal authorization")
+
+    if operation in OWNER_APPROVAL_OPERATIONS and env.get(OWNER_APPROVAL_ENV) != "true":
+        errors.append(f"owner approval env {OWNER_APPROVAL_ENV}=true required for {operation}")
+
+    checked_targets: list[str] = []
+    for target in target_paths or []:
+        target_path = _as_path(target)
+        checked_targets.append(target_path.as_posix())
+        if allowed_scope and not _target_allowed(target_path, allowed_scope):
+            errors.append(f"target outside allowed_scope: {target_path}")
+
+    return {
+        "schema": "harness-hermes-runtime-context-guard",
+        "ok": not errors,
+        "errors": errors,
+        "expected": {
+            "workspace": workspace_path.as_posix() if workspace_path else None,
+            "board": expected_board,
+            "allowed_scope": allowed_scope,
+        },
+        "actual": {
+            "cwd": cwd_path.as_posix(),
+            "operation": operation,
+            "board": env.get("HERMES_KANBAN_BOARD"),
+            "project_root": effective_project_root.as_posix(),
+            "target_paths": checked_targets,
+        },
+    }
+
+
 def _summary() -> dict[str, Any]:
     catalog = _load_yaml(CATALOG)
     exports = catalog.get("exports", {})
@@ -291,6 +386,9 @@ def _validate() -> dict[str, Any]:
             "HERMES_KANBAN_WORKSPACES_ROOT does not authorize sibling workspace access.",
             "HERMES_KANBAN_DB must not be directly written",
             "ambient_current_board_policy",
+            "block_on_cwd_project_mismatch: true",
+            "blocked_operations",
+            "pinned_worktree_context_accepted: true",
         ]:
             if term not in text:
                 errors.append(f"sandbox contract missing env/board guardrail: {term}")
@@ -525,9 +623,24 @@ def main(argv: list[str]) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("summary")
     sub.add_parser("validate-reference")
+    guard_parser = sub.add_parser("guard-runtime-context")
+    guard_parser.add_argument("--operation", default="write")
+    guard_parser.add_argument("--cwd", default=str(Path.cwd()))
+    guard_parser.add_argument("--project-root", default=None)
+    guard_parser.add_argument("--target-path", action="append", default=[])
     args = parser.parse_args(argv)
 
-    data = _summary() if args.command == "summary" else _validate()
+    if args.command == "summary":
+        data = _summary()
+    elif args.command == "validate-reference":
+        data = _validate()
+    else:
+        data = guard_runtime_context(
+            cwd=args.cwd,
+            operation=args.operation,
+            project_root=args.project_root,
+            target_paths=args.target_path,
+        )
     json.dump(data, sys.stdout, ensure_ascii=False, indent=2)
     sys.stdout.write("\n")
     return 1 if data.get("ok") is False else 0
