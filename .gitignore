@@ -1,4 +1,7 @@
-# Local settings (머신별, 커밋하지 않음)
+# Local settings / secrets (머신별, 커밋하지 않음)
+.env
+.env.*
+!.env.example
 .claude/settings.local.json
 
 # 세션별 동적 snapshot (commit 스킬의 tree-hash 캐시)
