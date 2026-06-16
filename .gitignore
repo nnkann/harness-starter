@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+.config/gh/
 .claude/settings.local.json
 
 # 세션별 동적 snapshot (commit 스킬의 tree-hash 캐시)

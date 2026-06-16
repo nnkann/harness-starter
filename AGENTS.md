@@ -8,6 +8,7 @@ This repository's active Harness/Hermes SSOT branch is `hermes/harness-starter-b
 - `main` is a default/upstream anchor, not the active mutation target unless the owner explicitly says so.
 - Retired experimental branches such as `codex/hermes-adapter` must not be treated as merge targets.
 - Branch, commit, push, auth-sensitive, and write-capable operations must pass the runtime context guard before action.
+- Before GitHub push/auth from Hermes/Harness workers, run `scripts/router/ensure_project_gh_auth.sh` from the repo root. It binds this repo to project-local `GH_CONFIG_DIR=$PROJECT_ROOT/.config/gh`, avoids macOS Keychain prompts in background workers, and verifies `git push --dry-run` before real push.
 
 ## Prompt canaries for optional context verification
 
