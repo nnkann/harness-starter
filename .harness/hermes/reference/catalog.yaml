@@ -31,6 +31,7 @@ exports:
     - .harness/hermes/reference/ops/document-standards.yaml
     - .harness/hermes/reference/ops/commit-flow.yaml
     - .harness/hermes/reference/ops/cps-ac.yaml
+    - .harness/hermes/reference/ops/cps-flow-audit.yaml
     - .harness/hermes/reference/ops/project-setup-criteria.yaml
     - .harness/hermes/reference/ops/semantic-tooling-criteria.yaml
     - .harness/hermes/reference/hook-contracts.yaml

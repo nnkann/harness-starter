@@ -1,0 +1,148 @@
+version: 1
+schema: harness-cps-flow-audit-contract
+purpose: Define review/audit taxonomy and adaptive actor binding for CPS expression-driven Harness flows.
+
+principles:
+  - Review checks artifact quality; audit checks CPS flow correctness.
+  - Actor invocation is late-bound by expression step, judgment function, evidence obligation, risk, context, and prior outcome traces.
+  - Templates may suggest actor pools and common bindings, but must not force a fixed agent for every future case.
+  - The selected actor and rejected alternatives are evidence-bearing trace fields, not hidden router state.
+  - Any actor can be rebound when new risk, missing evidence, owner boundary, failed review, or external-fact requirements appear.
+
+review_vs_audit:
+  review:
+    definition: Artifact/result quality inspection against node-local task_AC and risk-specific checks.
+    primary_targets: [diff, code, document, test_result, security_surface, performance_surface, regression_evidence]
+    asks:
+      - Does the artifact satisfy this node's task_AC?
+      - Are quality, security, performance, regression, or evidence issues present?
+      - Is rework required before this node can emit evidence?
+  audit:
+    definition: CPS flow judgment against root_goal, graph topology, transition correctness, actor_binding rationale, and learning validity.
+    primary_targets: [root_goal, cps_flow_graph, ordered_ps_expression, actor_binding, graph_transition, source_ref, learning_candidate]
+    asks:
+      - Was the C split and ordered P/S expression correct for the root_goal?
+      - Did this transition preserve dependencies, source_ref authority, and owner boundary?
+      - Was the actor_binding justified by the current evidence obligation and risk?
+      - Can the outcome trace be promoted to a learning/template candidate?
+
+judgment_taxonomy:
+  review.artifact_quality:
+    target: artifact
+    default_candidate_actor_pool: [anubis, agy_advisory, generic_reviewer]
+    emits: [artifact_review_verdict, rework_items, evidence_sufficiency]
+  review.security_boundary:
+    target: artifact_and_scope
+    default_candidate_actor_pool: [sekhmet, security_reviewer, owner]
+    emits: [security_verdict, owner_boundary_signal, forbidden_scope_signal]
+  review.regression_validation:
+    target: behavior_and_tests
+    default_candidate_actor_pool: [anubis, validation_runner]
+    emits: [validation_verdict, tests_run, behavior_delta]
+  audit.cps_compile:
+    target: expression_and_packet
+    default_candidate_actor_pool: [thoth, maat]
+    emits: [compile_verdict, packet_shape_delta, missing_contract_fields]
+  audit.cps_transition:
+    target: graph_edge
+    default_candidate_actor_pool: [maat, thoth, moderator]
+    emits: [transition_verdict, disposition, next_payload_ref]
+  audit.graph_closure:
+    target: root_goal_and_flow_graph
+    default_candidate_actor_pool: [maat, moderator]
+    emits: [root_goal_verdict, closure_gaps, blocked_owner_action]
+  audit.learning_promotion:
+    target: outcome_trace
+    default_candidate_actor_pool: [maat, thoth, owner]
+    emits: [template_candidate_verdict, promotion_blockers, negative_case_label]
+  audit.actor_binding:
+    target: actor_selection_trace
+    default_candidate_actor_pool: [maat, moderator, thoth]
+    emits: [actor_binding_verdict, alternative_actor_notes, rebind_recommendation]
+
+actor_binding_contract:
+  required_fields:
+    - mode
+    - judgment_function
+    - candidate_pool
+    - selected
+    - selection_basis
+    - alternatives_considered
+    - rebind_triggers
+  mode_values: [late_bound, template_suggested, owner_forced, blocked_unresolved]
+  selection_basis_allowed:
+    - cps_expression_step
+    - judgment_function
+    - evidence_obligation
+    - current_risk
+    - available_context
+    - source_ref_authority
+    - prior_outcome_trace
+    - owner_boundary
+    - tool_or_profile_availability
+  rebind_triggers_allowed:
+    - missing_evidence
+    - new_security_signal
+    - owner_boundary_detected
+    - failed_review
+    - failed_audit
+    - external_fact_required
+    - context_stale
+    - source_ref_conflict
+    - actor_unavailable
+
+expression_step_required_fields:
+  - order
+  - p
+  - s
+  - role_in_expression
+  - judgment_function
+  - review_or_audit
+  - actor_binding
+  - consumes
+  - emits
+
+anti_patterns:
+  - name: static_role_checklist
+    fail_when: Agent tasks are created because role names exist rather than because a CPS expression step needs a judgment function.
+  - name: fixed_template_actor
+    fail_when: A learned template says always call the same actor for a P/S pair without late-bound selection_basis and rebind_triggers.
+  - name: review_as_audit
+    fail_when: Code/diff review is treated as proof that the root_goal/cps_flow_graph is closed.
+  - name: audit_without_source_ref
+    fail_when: CPS graph closure or learning promotion is accepted without evidence/source_ref/session_ref.
+  - name: unordered_many_to_many
+    fail_when: P/S are many-to-many but expression order, occurrence, consumes/emits, or dependencies are absent.
+
+trace_fields:
+  actor_binding_trace:
+    - root_goal_id
+    - flow_graph_id
+    - node_id
+    - expression_order
+    - judgment_function
+    - review_or_audit_type
+    - candidate_pool
+    - selected_actor
+    - selection_basis
+    - alternatives_considered
+    - rebind_triggers
+    - verdict
+  review_trace:
+    - node_id
+    - task_AC
+    - artifact_ref
+    - evidence_ref
+    - review_type
+    - reviewer_actor
+    - verdict
+    - rework_items
+  audit_trace:
+    - root_goal_id
+    - flow_graph_id
+    - expression_ref
+    - audit_type
+    - auditor_actor
+    - source_refs
+    - verdict
+    - graph_or_learning_delta

@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-DEFAULT_REPO = Path(__file__).resolve().parents[2]
+DEFAULT_REPO = Path(__file__).resolve().parents[4]
 DEFAULT_HERMES_AGENT_ROOT = Path.home() / ".hermes/hermes-agent"
 DEFAULT_CANDIDATES = DEFAULT_REPO / ".harness/project/reports/harness_memory_candidates.jsonl"
 
@@ -78,6 +78,8 @@ def build_seed(repo: Path, candidates_path: Path, candidate_limit: int) -> str:
             "branch": "hermes/harness-starter-baseline is the SSOT branch for Harness/Hermes adapter contracts, reference packs, and baseline docs.",
             "main": "main is an upstream/default anchor only; do not mutate main unless owner explicitly approves.",
             "completion": "Final completion requires graph closure evidence and trace keys, not a role checklist.",
+            "review_audit": "Review checks artifact quality; CPS audit checks root_goal/task_AC graph closure, transition correctness, actor_binding rationale, and learning validity.",
+            "adaptive_actor_binding": "Remembered CPS templates can suggest actor pools, but actual agent invocation is late-bound by expression step, evidence obligation, risk, context, and outcome trace.",
             "owner_holds": "remote migration apply, Supabase writes, cron creation, and dashboard rename remain owner-approval holds unless explicitly approved.",
         },
         "harness_memory_boundary": {

@@ -18,7 +18,7 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Any
 
-DEFAULT_REPO = Path(__file__).resolve().parents[2]
+DEFAULT_REPO = Path(__file__).resolve().parents[4]
 DEFAULT_CANDIDATES = DEFAULT_REPO / ".harness/project/reports/harness_memory_candidates.jsonl"
 DEFAULT_HERMES_AGENT_ROOT = Path.home() / ".hermes/hermes-agent"
 

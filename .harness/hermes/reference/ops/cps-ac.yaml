@@ -28,6 +28,9 @@ cps_flow_graph:
   purpose: Compile root Goal plus CPS expression into a graph whose nodes become todo/review/final-gate tasks only when materialized.
   root_fields: [root_goal_id, flow_graph_id, original_user_intent_ref, cps_expression_ref, owner_boundary_ref, global_constraints_ref]
   node_fields: [node_id, cps_ref, operator, actor_binding, local_goal, task_AC, expected_evidence, input_refs, output_refs]
+  expression_step_fields: [order, p, s, occurrence, role_in_expression, judgment_function, review_or_audit, actor_binding, consumes, emits]
+  actor_binding_fields: [mode, candidate_pool, selected, selection_basis, alternatives_considered, rebind_triggers]
+  actor_binding_policy: Actor binding is late-bound by CPS expression step, judgment function, evidence obligation, risk, available context, source_ref authority, and prior outcome traces; templates may suggest actor pools but must not force static role checklist routing.
   edge_fields: [from_node, to_node, relation_type, condition, handoff_payload_ref, unlock_policy]
   relation_types: [derived_from, implements_node, depends_on, unlocks, provides_evidence_to, reviews, supersedes, replaces, blocks, negative_evidence_for]
   disposition_as_compile_output: inline, merge, prerequisite, split, escalate, and block are not mandatory prose sections; they are selected edge/node materialization outcomes with reason codes.
@@ -52,7 +55,11 @@ runtime_flow_trace:
 langsmith_eval_basis:
   purpose: Make Goal/AC/CPS graph data usable as trace and review substrate, not just task prose.
   trace_keys: [root_goal_id, flow_graph_id, node_id, task_id, actor_binding, cps_ref, task_AC, evidence_ref, transition_reason, outcome]
+  actor_binding_trace_keys: [expression_order, judgment_function, review_or_audit_type, candidate_pool, selected_actor, selection_basis, alternatives_considered, rebind_triggers, actor_binding_verdict]
   review_labels: [root_goal_passed, task_AC_passed, evidence_sufficient, actor_binding_correct, transition_correct, needs_rework, blocked_owner_action]
+  review_audit_semantics:
+    review: Artifact quality, security, performance, regression, and node-local task_AC inspection.
+    audit: CPS flow judgment over root_goal, C split, ordered P/S expression, graph transition, actor_binding rationale, source_ref integrity, and learning promotion.
   evaluation_unit: Root Goal is evaluated from graph closure; task AC is evaluated per node; CPS usefulness is evaluated by whether graph transitions and actor bindings improved evidence closure.
   dataset_promotion_rule: Promote labeled traces only when root Goal, node task_AC, evidence refs, and reviewer outcome are all present.
 node_ownership:

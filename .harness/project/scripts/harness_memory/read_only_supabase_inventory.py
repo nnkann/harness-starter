@@ -15,7 +15,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-DEFAULT_ENV = Path(__file__).resolve().parents[2] / ".env"
+DEFAULT_ENV = Path(__file__).resolve().parents[4] / ".env"
 
 
 def load_env(path: Path) -> dict[str, str]:
