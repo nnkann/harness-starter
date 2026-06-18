@@ -45,4 +45,5 @@ required_docs:
   - docs/harness/contracts/cp_honcho_doc_wiki_boundary.md
 doc_ops_needed: true
 source_refs: []
+artifact_refs: []
 doc_refs: []

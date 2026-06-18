@@ -28,6 +28,19 @@ workspace_binding:
   board_match_policy: HERMES_KANBAN_BOARD must match kanban_board, route kanban_board, and gateway route_to_kanban.kanban_board.
 runtime_stack: hermes-codex-agy
 harness_version: 0.55.2
+packet_ref: ${PACKET_REF_OR_SELF}
+CPS:
+  C: Hermes reference export를 기준으로 executor 실행 경계를 고정한다.
+  P: [P3, P5, P7, P8, P11]
+  S: [S3, S5, S7, S8, S11]
+frontmatter:
+  status: ${FRONTMATTER_STATUS}
+  owner: ${FRONTMATTER_OWNER}
+  owner_boundary: ${OWNER_BOUNDARY_REF}
+  risk: ${FRONTMATTER_RISK}
+task_AC: ${NODE_TASK_AC}
+source_refs: ${SOURCE_REFS}
+artifact_refs: ${ARTIFACT_REFS}
 c: Hermes reference export를 기준으로 executor 실행 경계를 고정한다.
 problem: [P3, P5, P7, P8, P11]
 s: [S3, S5, S7, S8, S11]
@@ -36,7 +49,7 @@ abbr: hn
 wip_doc: ${TASK_SOURCE}
 allowed_scope: [.harness/hermes/**, .harness/project/**, .harness/schemas/**, docs/harness/**]
 forbidden_scope: [sibling projects, parent directories outside current worktree, Hermes memory full-text CPS/AC storage, direct git commit, direct git push]
-checks: [python .harness/hermes/loader.py validate-reference, python .harness/hermes/loader.py guard-runtime-context --operation write --cwd "$PWD", python .harness/hermes/tools/validate_kanban_task_packet.py packet .harness/project/runs/_template/cps_packet.yaml]
+checks: [python .harness/hermes/loader.py validate-reference, python .harness/hermes/loader.py guard-runtime-context --operation write --cwd "$PWD", python .harness/hermes/tools/validate_kanban_task_packet.py packet .harness/project/runs/_template/cps_packet.yaml, python .harness/hermes/tools/audit_handoff_compliance.py]
 owner_approval_boundary:
   implementation_scope: executor packet scope only
   commit: explicit owner approval required

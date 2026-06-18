@@ -9,9 +9,9 @@ try:
 except Exception:
     yaml = None
 
-REQUIRED_PACKET = ["root_goal_id","flow_graph_id","CPS","task_AC","owner_approval_boundary","prohibited_actions","evidence_acquisition","required_docs","doc_ops_needed","source_refs","doc_refs"]
+REQUIRED_PACKET = ["root_goal_id","flow_graph_id","CPS","task_AC","owner_approval_boundary","prohibited_actions","evidence_acquisition","required_docs","doc_ops_needed","source_refs","artifact_refs","doc_refs"]
 REQUIRED_EVIDENCE = ["C","P","S"]
-REQUIRED_NODE_MARKERS = ["packet_ref","root_goal_id","flow_graph_id","node_id","actor_binding","task_AC","expected_evidence","doc_refs"]
+REQUIRED_NODE_MARKERS = ["packet_ref","root_goal_id","flow_graph_id","node_id","actor_binding","task_AC","expected_evidence","source_refs","artifact_refs","owner_approval_boundary","prohibited_actions","evidence_acquisition","doc_refs"]
 PROHIBITED_RAW = ["full git diff", "full sqlite", "full test output", "raw stdout", "full raw transcript"]
 
 def load_yaml(path: Path) -> dict[str, Any]:

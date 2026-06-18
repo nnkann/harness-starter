@@ -14,6 +14,7 @@ required_fields:
   - required_docs
   - doc_ops_needed
   - source_refs
+  - artifact_refs
   - doc_refs
 evidence_acquisition_required_sections: [C, P, S]
 stdout_policy: digest-first

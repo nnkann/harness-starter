@@ -28,6 +28,7 @@ exports:
   operations:
     - .harness/hermes/reference/ops/docs-ops.yaml
     - .harness/hermes/tools/validate_kanban_task_packet.py
+    - .harness/hermes/tools/audit_handoff_compliance.py
     - .harness/hermes/reference/ops/wip-lifecycle.yaml
     - .harness/hermes/reference/ops/document-standards.yaml
     - .harness/hermes/reference/ops/commit-flow.yaml

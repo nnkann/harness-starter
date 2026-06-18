@@ -8,6 +8,11 @@ required_markers:
   - actor_binding
   - task_AC
   - expected_evidence
+  - source_refs
+  - artifact_refs
+  - owner_approval_boundary
+  - prohibited_actions
+  - evidence_acquisition
   - doc_refs
   - Do not close the root goal
-compact_body_policy: packet_ref plus node-local task_AC; no full template dump
+compact_body_policy: compact packet_ref plus node-local task_AC plus explicit inherited source/artifact/boundary/evidence refs; no full template dump

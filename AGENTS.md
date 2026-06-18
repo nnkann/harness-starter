@@ -28,6 +28,26 @@ This repository's active Harness/Hermes SSOT branch is `hermes/harness-starter-b
 - Actor binding is adaptive: templates suggest candidate pools, but actual agent invocation is late-bound by expression step, evidence obligation, risk, context, and outcome trace.
 - Final completion requires graph closure evidence and LangSmith-style trace keys, not a role checklist.
 
+
+## hermes-kann default runtime obligations
+
+`hermes-kann` replaces the generic default for user-facing Harness work. It is not an optional wrapper.
+
+```yaml
+hermes-kann:
+  role: default_user_facing_harness_runtime
+  replaces: generic_default
+  obligations:
+    - digest_first_tool_use
+    - cps_before_execution
+    - owner_approval_boundary
+    - project_context_routing
+    - honcho_context_merge
+    - raw_output_hygiene
+```
+
+Maat-style handoff compliance must run before completion claims for Harness CPS doc_ops / Honcho wiki / Kanban promotion work.
+
 ## Evidence acquisition contract
 
 Harness task packets should make evidence needs explicit before tool use. THOTH must compile this for fan-out when a task involves inspection, debugging, validation, review, or triage. This section is CPS-shaped: `C` defines the context/decision needing evidence, `P` defines the uncertainty or risk being resolved, and `S` defines the minimal evidence strategy and output shape. This is not another guardrail; it is an acquisition contract that prevents unnecessary stdout requests from being made.

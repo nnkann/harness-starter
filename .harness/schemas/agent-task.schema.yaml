@@ -18,6 +18,12 @@ required_fields:
   - allowed_scope
   - forbidden_scope
   - checks
+  - packet_ref
+  - CPS
+  - frontmatter
+  - task_AC
+  - source_refs
+  - artifact_refs
   - owner_approval_boundary
   - prohibited_actions
   - evidence_acquisition

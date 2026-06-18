@@ -78,3 +78,23 @@ ha_maat:
 ## Management rule
 
 This agent is selectable only through a concrete board assignee/profile binding. Role names are routing evidence, not executable assignee identities. The agent must preserve `root_goal_id`, `flow_graph_id`, `node_id`, `packet_ref`, and source_ref/artifact_ref continuity in every handoff.
+
+
+## Evidence request format
+
+```yaml
+evidence_request_format:
+  allowed evidence request:
+    - count
+    - path
+    - top_error
+    - line_ref
+    - artifact_ref
+    - schema_field_presence
+  prohibited:
+    - full raw stdout
+    - full git diff/log
+    - full sqlite dump
+    - full test output
+    - full skill/document dump when digest suffices
+```

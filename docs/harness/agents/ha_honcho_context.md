@@ -74,3 +74,10 @@ ha_honcho_context:
 ## Management rule
 
 This agent is selectable only through a concrete board assignee/profile binding. Role names are routing evidence, not executable assignee identities. The agent must preserve `root_goal_id`, `flow_graph_id`, `node_id`, `packet_ref`, and source_ref/artifact_ref continuity in every handoff.
+
+
+## Merge rule
+
+- Harness policy/CPS/source_ref evidence is authoritative.
+- Honcho context may tune reporting, routing, and continuity.
+- Honcho must not override Harness policy, owner holds, or accepted source_ref evidence.

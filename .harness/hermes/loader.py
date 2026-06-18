@@ -47,6 +47,7 @@ DOC_OPS_MANIFEST_SCHEMA = ROOT / ".harness" / "schemas" / "doc-ops-manifest.sche
 HONCHO_INGEST_MANIFEST_SCHEMA = ROOT / ".harness" / "schemas" / "honcho-ingest-manifest.schema.yaml"
 KANBAN_TASK_NODE_SCHEMA = ROOT / ".harness" / "schemas" / "kanban-task-node.schema.yaml"
 KANBAN_PACKET_VALIDATOR = ROOT / ".harness" / "hermes" / "tools" / "validate_kanban_task_packet.py"
+HANDOFF_COMPLIANCE_AUDIT = ROOT / ".harness" / "hermes" / "tools" / "audit_handoff_compliance.py"
 CANONICAL_HARNESS_DOCS = [
     ROOT / "docs" / "harness" / "contracts" / "cp_frontmatter_schema.md",
     ROOT / "docs" / "harness" / "contracts" / "cp_cps_evidence_acquisition.md",
@@ -110,6 +111,7 @@ REQUIRED_FILES = [
     HONCHO_INGEST_MANIFEST_SCHEMA,
     KANBAN_TASK_NODE_SCHEMA,
     KANBAN_PACKET_VALIDATOR,
+    HANDOFF_COMPLIANCE_AUDIT,
     *CANONICAL_HARNESS_DOCS,
     *RUN_TEMPLATE_FILES,
 ]
@@ -547,7 +549,7 @@ def _validate() -> dict[str, Any]:
                 errors.append(f"profiles contract missing Honcho/doc_ops role term: {term}")
     if CPS_PACKET_SCHEMA.exists():
         packet_schema_text = CPS_PACKET_SCHEMA.read_text(encoding="utf-8")
-        for term in ["evidence_acquisition", "required_docs", "doc_ops_needed", "doc_refs", "digest-first"]:
+        for term in ["evidence_acquisition", "required_docs", "doc_ops_needed", "source_refs", "artifact_refs", "doc_refs", "digest-first"]:
             if term not in packet_schema_text:
                 errors.append(f"cps packet schema missing term: {term}")
     if DOC_OPS_MANIFEST_SCHEMA.exists():
@@ -558,6 +560,11 @@ def _validate() -> dict[str, Any]:
         for term in ["honcho_ingest_manifest", "digest_required", "line_refs_required", "managed_agents", "ha_honcho_archivist", "ha_honcho_librarian", "ha_honcho_context", "required_digest_fields"]:
             if term not in honcho_schema_text:
                 errors.append(f"honcho ingest manifest schema missing term: {term}")
+    if HANDOFF_COMPLIANCE_AUDIT.exists():
+        handoff_text = HANDOFF_COMPLIANCE_AUDIT.read_text(encoding="utf-8")
+        for term in ["hermes-kann obligations", "ha_maat audit+skill digest gate", "ha_honcho_archivist", "ha_honcho_librarian", "ha_honcho_context", "Kanban promotion shape"]:
+            if term not in handoff_text:
+                errors.append(f"handoff compliance audit missing checklist term: {term}")
     if TASK_TEMPLATE.exists() and AGENT_TASK_SCHEMA.exists() and SANDBOX.exists():
         task_text = TASK_TEMPLATE.read_text(encoding="utf-8")
         for term in REQUIRED_TASK_PACKET_TERMS:
