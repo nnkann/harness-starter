@@ -43,10 +43,26 @@ hermes-kann:
     - owner_approval_boundary
     - project_context_routing
     - honcho_context_merge
+    - sibling_thread_recall
+    - post_completion_honcho_update
+    - gateway_route_lifecycle_check
     - raw_output_hygiene
 ```
 
 Maat-style handoff compliance must run before completion claims for Harness CPS doc_ops / Honcho wiki / Kanban promotion work.
+
+## Cross-session learning and lifecycle obligations
+
+Harness operates above Hermes as the routing/process plane, so every task preflight must reconcile the surrounding workspace before execution. A Harness worker must check sibling Discord threads/sessions for related work, merge relevant Honcho context, and treat thread lifecycle, Hermes gateway route lifecycle, DB session lifecycle, and compression lifecycle as one operational boundary. Archiving a Discord thread is not sufficient if `~/.hermes/sessions/sessions.json` still points at a completed DB session.
+
+Completion claims for Harness work require a learning write-back decision:
+
+- if the result changes project policy, contracts, routing, or operating procedure, update the repo source_ref and queue/perform a Honcho digest update;
+- if the result is a corrected agent procedure, patch the relevant skill or Agent/SOUL instruction immediately;
+- if the result closes a thread/task, verify route/session cleanup ownership or create an explicit follow-up task;
+- sibling threads must be able to discover the result through Honcho/session_search, not only through the original Discord thread.
+
+Failure to find already-completed related work is a process failure. Record the missing lookup or missing write-back as a CPS learning event before continuing.
 
 ## Evidence acquisition contract
 

@@ -8,11 +8,15 @@ problem:
   - Honcho agents can be described in docs but not registered as managed board/profile lanes
   - Honcho ingestion, drift QA, and context retrieval can be confused with policy authority
   - wiki digests can drift from repo md source without a management loop
+  - sibling Discord threads can complete related work without future Harness workers seeing it
+  - Hermes gateway routes can outlive archived/completed threads and misrepresent active work
 s:
   - register ha_honcho_archivist, ha_honcho_librarian, and ha_honcho_context as managed roles
   - keep repo markdown as SSOT and Honcho as digest-first context/wiki plane
   - require manifest-driven ingestion, drift QA, and advisory context retrieval
   - route Honcho work through CPS/task_AC/owner boundary/source_ref contracts
+  - require post-completion write-back and sibling-thread recall checks for project work
+  - bind thread archive, route prune, DB session close, and compression health into one lifecycle check
   - block raw transcript/log/stdout archival as policy
 tags:
   - honcho
@@ -69,6 +73,40 @@ honcho_agent_management:
 3. `ha_honcho_archivist` ingests digests and records status.
 4. `ha_honcho_librarian` verifies completeness/drift and emits a QA report.
 5. `ha_honcho_context` retrieves digest-first context for future CPS compile; it is advisory only.
+
+## Cross-thread learning and route lifecycle
+
+Harness uses Hermes as the execution substrate but acts as the project routing/process plane. Therefore every Harness preflight must include a bounded sibling-context lookup before work begins:
+
+```yaml
+cross_session_preflight:
+  required_checks:
+    - session_search for related sibling Discord thread work
+    - Honcho context lookup for project/task/routing facts
+    - repo source_ref/frontmatter check for canonical policy
+  failure_mode: already-solved work is repeated or a corrected procedure is forgotten
+  output_shape: bounded digest with session ids, source_refs, and decision impact
+```
+
+Every completion claim that changes project policy, routing, contracts, lifecycle, or agent procedure must create a write-back event:
+
+```yaml
+learning_writeback:
+  triggers:
+    - corrected agent procedure or missed preflight
+    - new lifecycle invariant
+    - completed handoff with future routing impact
+    - thread/task closure with gateway route implications
+  destinations:
+    - repo markdown/source_ref update
+    - honcho_ingest_manifest update or direct Honcho digest write
+    - skill/Agent/SOUL patch when the failure was procedural
+  prohibited:
+    - relying only on the original Discord thread as durable memory
+    - archiving a Discord thread without assigning Hermes route/session cleanup ownership
+```
+
+Thread lifecycle is not complete until all relevant layers are reconciled: Discord thread archive/checkpoint, Hermes `sessions.json` route status, SQLite DB session end state, and compression/quota health. A stale route pointing at an ended DB session is operational debt, not an active worker.
 
 ## Required digest shape
 
