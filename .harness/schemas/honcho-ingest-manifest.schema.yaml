@@ -5,3 +5,10 @@ required_fields: [run_id, project_id, source_commit, docs, prohibited]
 required_doc_fields: [source_path, doc_type, digest_required, frontmatter_summary_required, line_refs_required, artifact_refs_required, status]
 allowed_status: [pending, ingested, skipped, failed]
 prohibited: [full raw stdout/log/test output ingestion, full chat transcript as project policy]
+
+managed_agents:
+  archivist: ha_honcho_archivist
+  librarian: ha_honcho_librarian
+  context: ha_honcho_context
+authority_order: [owner_approval_boundary, repo_source_ref, cps_packet, Honcho_digest]
+required_digest_fields: [project_id, source_path, source_commit, doc_type, frontmatter_summary, digest, required_sections_present, line_refs, artifact_refs, status, updated_at]

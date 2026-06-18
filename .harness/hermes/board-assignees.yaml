@@ -57,6 +57,24 @@ boards:
         lane_shape: hermes-profile
         gateway: false
         default_for: [doc-ops, frontmatter, required-docs, honcho-digest]
+      - profile: ha_honcho_archivist
+        role_archetype: honcho-archivist
+        deity: honcho_archivist
+        lane_shape: hermes-profile
+        gateway: false
+        default_for: [honcho-ingest, source-ref-backed-wiki, digest-archive]
+      - profile: ha_honcho_librarian
+        role_archetype: honcho-librarian
+        deity: honcho_librarian
+        lane_shape: hermes-profile
+        gateway: false
+        default_for: [honcho-qa, drift-detection, wiki-completeness]
+      - profile: ha_honcho_context
+        role_archetype: honcho-context
+        deity: honcho_context
+        lane_shape: hermes-profile
+        gateway: false
+        default_for: [digest-first-context, source-ref-candidates, prior-cps-patterns]
       - profile: seshat
         role_archetype: researcher
         deity: seshat

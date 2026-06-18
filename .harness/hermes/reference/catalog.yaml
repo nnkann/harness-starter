@@ -43,6 +43,7 @@ exports:
     - docs/harness/contracts/cp_agent_role_contracts.md
     - docs/harness/contracts/cp_kanban_promotion_contract.md
     - docs/harness/contracts/cp_honcho_doc_wiki_boundary.md
+    - docs/harness/contracts/cp_honcho_agent_management.md
     - docs/harness/agents/ha_thoth.md
     - docs/harness/agents/ha_maat.md
     - docs/harness/agents/ha_seshat.md

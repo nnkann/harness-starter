@@ -54,6 +54,7 @@ CANONICAL_HARNESS_DOCS = [
     ROOT / "docs" / "harness" / "contracts" / "cp_agent_role_contracts.md",
     ROOT / "docs" / "harness" / "contracts" / "cp_kanban_promotion_contract.md",
     ROOT / "docs" / "harness" / "contracts" / "cp_honcho_doc_wiki_boundary.md",
+    ROOT / "docs" / "harness" / "contracts" / "cp_honcho_agent_management.md",
     ROOT / "docs" / "harness" / "agents" / "ha_thoth.md",
     ROOT / "docs" / "harness" / "agents" / "ha_maat.md",
     ROOT / "docs" / "harness" / "agents" / "ha_seshat.md",
@@ -463,7 +464,7 @@ def _validate() -> dict[str, Any]:
         for axis in ["external-truth", "internal-truth", "adversarial", "execution", "standard-gate"]:
             if axis not in text:
                 errors.append(f"profiles contract missing persona axis: {axis}")
-        for profile in ["moderator", "orchestrator", "coder", "reviewer", "threat-guard", "researcher", "advisor", "designer", "marketer"]:
+        for profile in ["moderator", "orchestrator", "coder", "reviewer", "threat-guard", "docs-operator", "honcho-archivist", "honcho-librarian", "honcho-context", "researcher", "advisor", "designer", "marketer"]:
             if f"name: {profile}" not in text:
                 errors.append(f"profiles contract missing required profile: {profile}")
     for path, terms in [
@@ -520,7 +521,7 @@ def _validate() -> dict[str, Any]:
                 errors.append(f"doc generation contract missing section: {section}")
         if "contract: .harness/hermes/cps-profile-routing.yaml" not in text:
             errors.append("doc generation must point to cps-profile-routing contract")
-        for term in ["ha_seshat", "doc_ops_manifest", "honcho_ingest_manifest", "native_auto_decompose_for_harness_boards: false", "harness_promotion_compiler_required: true"]:
+        for term in ["ha_seshat", "doc_ops_manifest", "honcho_ingest_manifest", "native_auto_decompose_for_harness_boards: false", "harness_promotion_compiler_required: true", "honcho_agent_management", "ha_honcho_archivist", "ha_honcho_librarian", "ha_honcho_context"]:
             if term not in text:
                 errors.append(f"doc generation missing Harness promotion/doc_ops term: {term}")
     for doc_path in CANONICAL_HARNESS_DOCS:
@@ -536,12 +537,14 @@ def _validate() -> dict[str, Any]:
                     errors.append(f"canonical doc {doc_path.relative_to(ROOT).as_posix()} missing frontmatter term: {term.rstrip(':')}")
     if BOARD_ASSIGNEES.exists():
         board_text = BOARD_ASSIGNEES.read_text(encoding="utf-8")
-        if "profile: ha_seshat" not in board_text or "role_archetype: docs-operator" not in board_text:
-            errors.append("board assignee contract must expose ha_seshat docs-operator")
+        for term in ["profile: ha_seshat", "role_archetype: docs-operator", "profile: ha_honcho_archivist", "role_archetype: honcho-archivist", "profile: ha_honcho_librarian", "role_archetype: honcho-librarian", "profile: ha_honcho_context", "role_archetype: honcho-context"]:
+            if term not in board_text:
+                errors.append(f"board assignee contract missing Honcho/doc_ops assignee term: {term}")
     if PROFILES.exists():
         profiles_text = PROFILES.read_text(encoding="utf-8")
-        if "name: docs-operator" not in profiles_text or "deity: seshat" not in profiles_text:
-            errors.append("profiles contract must define docs-operator / ha_seshat role")
+        for term in ["name: docs-operator", "deity: seshat", "name: honcho-archivist", "name: honcho-librarian", "name: honcho-context"]:
+            if term not in profiles_text:
+                errors.append(f"profiles contract missing Honcho/doc_ops role term: {term}")
     if CPS_PACKET_SCHEMA.exists():
         packet_schema_text = CPS_PACKET_SCHEMA.read_text(encoding="utf-8")
         for term in ["evidence_acquisition", "required_docs", "doc_ops_needed", "doc_refs", "digest-first"]:
@@ -552,7 +555,7 @@ def _validate() -> dict[str, Any]:
             errors.append("doc ops manifest schema missing doc_ops_manifest root")
     if HONCHO_INGEST_MANIFEST_SCHEMA.exists():
         honcho_schema_text = HONCHO_INGEST_MANIFEST_SCHEMA.read_text(encoding="utf-8")
-        for term in ["honcho_ingest_manifest", "digest_required", "line_refs_required"]:
+        for term in ["honcho_ingest_manifest", "digest_required", "line_refs_required", "managed_agents", "ha_honcho_archivist", "ha_honcho_librarian", "ha_honcho_context", "required_digest_fields"]:
             if term not in honcho_schema_text:
                 errors.append(f"honcho ingest manifest schema missing term: {term}")
     if TASK_TEMPLATE.exists() and AGENT_TASK_SCHEMA.exists() and SANDBOX.exists():
@@ -684,7 +687,7 @@ def _validate() -> dict[str, Any]:
                     errors.append(f"board {board_name} assignee {profile_name} missing deity")
                 if lane_shape != "hermes-profile":
                     errors.append(f"board {board_name} assignee {profile_name} must use hermes-profile lane_shape")
-            for required_role in ["moderator", "orchestrator", "coder", "reviewer", "threat-guard", "researcher", "advisor", "designer", "marketer"]:
+            for required_role in ["moderator", "orchestrator", "coder", "reviewer", "threat-guard", "docs-operator", "honcho-archivist", "honcho-librarian", "honcho-context", "researcher", "advisor", "designer", "marketer"]:
                 if required_role not in assignee_roles:
                     errors.append(f"board {board_name} missing selectable assignee for role_archetype: {required_role}")
         missing_board_contracts = sorted(route_boards - assignee_boards)

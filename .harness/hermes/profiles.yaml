@@ -85,6 +85,39 @@ profile_sets:
       coordinates_with: [orchestrator, moderator, reviewer]
       final_gate: false
       use_when: required canonical docs, frontmatter schema, doc_ops_manifest, honcho_ingest_manifest, source_ref-backed digest preparation.
+    - name: honcho-archivist
+      deity: honcho_archivist
+      source_affinity: source_ref-backed wiki ingestion
+      personality: ingestion clerk; stores only approved repo doc digests with source_path/source_commit/line_ref/artifact_ref and never creates policy from Honcho alone.
+      primary_axis: internal-truth
+      secondary_axis: standard-gate
+      owns_gateway: false
+      writes: honcho-digest-only
+      coordinates_with: [docs-operator, moderator, honcho-librarian]
+      final_gate: false
+      use_when: honcho_ingest_manifest contains pending digest ingestion.
+    - name: honcho-librarian
+      deity: honcho_librarian
+      source_affinity: wiki QA and drift detection
+      personality: drift auditor; compares repo source docs and Honcho digests, flags stale/missing CPS/frontmatter/evidence sections.
+      primary_axis: internal-truth
+      secondary_axis: adversarial
+      owns_gateway: false
+      writes: read-only
+      coordinates_with: [docs-operator, moderator, honcho-archivist]
+      final_gate: false
+      use_when: post-ingestion QA, scheduled drift detection, required-doc indexing checks.
+    - name: honcho-context
+      deity: honcho_context
+      source_affinity: digest-first project context retrieval
+      personality: advisory context builder; returns source_ref candidates and prior CPS patterns without overriding Harness policy or owner holds.
+      primary_axis: internal-truth
+      secondary_axis: standard-gate
+      owns_gateway: false
+      writes: read-only
+      coordinates_with: [orchestrator, moderator, docs-operator]
+      final_gate: false
+      use_when: pre-compile context retrieval, CPS routing support, source_ref candidate discovery.
     - name: threat-guard
       deity: sekhmet
       source_affinity: threat-analyst

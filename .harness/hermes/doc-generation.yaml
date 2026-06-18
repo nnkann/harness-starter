@@ -63,6 +63,12 @@ doc_ops_plane:
     path: .harness/project/runs/<run_id>/
     files: [cps_packet.yaml, doc_ops_manifest.yaml, honcho_ingest_manifest.yaml]
   honcho_policy: source_ref-backed digest only; repo markdown remains authoritative SSOT.
+  honcho_agent_management:
+    contract: docs/harness/contracts/cp_honcho_agent_management.md
+    managed_agents: [ha_honcho_archivist, ha_honcho_librarian, ha_honcho_context]
+    authority_order: [owner_approval_boundary, repo_harness_markdown_source_ref, cps_packet_task_AC_evidence_acquisition, Honcho_digest_context]
+    lifecycle: [manifest_created_by_ha_seshat, audit_by_ha_maat, ingest_by_archivist, drift_qa_by_librarian, advisory_context_by_context_agent]
+    prohibited: [Honcho-only policy creation, full raw transcript/log/stdout ingestion, overriding source_ref evidence or owner holds]
   child_task_body_policy: compact packet_ref plus node-local task_AC; no full template pasted into every child.
 docs_ops_binding:
   read_only_first: true
