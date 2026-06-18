@@ -59,7 +59,8 @@ Completion claims for Harness work require a learning write-back decision:
 
 - if the result changes project policy, contracts, routing, or operating procedure, update the repo source_ref and queue/perform a Honcho digest update;
 - if the result is a corrected agent procedure, patch the relevant skill or Agent/SOUL instruction immediately;
-- if the result closes a thread/task, verify route/session cleanup ownership or create an explicit follow-up task;
+- if the result closes a thread/task, verify route/session cleanup ownership and session-close snapshot creation or create an explicit follow-up task;
+- if a conversation/session is completed or intentionally archived, emit a bounded snapshot for background analysis/propagation instead of relying on the full transcript;
 - sibling threads must be able to discover the result through Honcho/session_search, not only through the original Discord thread.
 
 Failure to find already-completed related work is a process failure. Record the missing lookup or missing write-back as a CPS learning event before continuing.

@@ -88,7 +88,7 @@ cross_session_preflight:
   output_shape: bounded digest with session ids, source_refs, and decision impact
 ```
 
-Every completion claim that changes project policy, routing, contracts, lifecycle, or agent procedure must create a write-back event:
+Every completion claim that changes project policy, routing, contracts, lifecycle, or agent procedure must create a write-back event. A conversation/task end should also emit a snapshot for asynchronous background analysis, so learning can propagate without forcing the foreground worker to carry the whole transcript:
 
 ```yaml
 learning_writeback:
@@ -97,6 +97,25 @@ learning_writeback:
     - new lifecycle invariant
     - completed handoff with future routing impact
     - thread/task closure with gateway route implications
+    - conversation/session completed or intentionally archived
+  snapshot_on_close:
+    required: true
+    shape:
+      - session_id
+      - thread_id
+      - root_goal_id
+      - task_AC_result
+      - changed_policy_or_procedure
+      - source_refs
+      - artifact_refs
+      - unresolved_holds
+      - route_cleanup_state
+    background_jobs:
+      - summarize snapshot into digest-first project memory
+      - extract durable policy/procedure deltas
+      - update Honcho digest/wiki plane or manifest status
+      - queue skill/Agent/SOUL patch when procedure failed
+      - report drift or missing propagation as CPS learning events
   destinations:
     - repo markdown/source_ref update
     - honcho_ingest_manifest update or direct Honcho digest write
@@ -104,9 +123,10 @@ learning_writeback:
   prohibited:
     - relying only on the original Discord thread as durable memory
     - archiving a Discord thread without assigning Hermes route/session cleanup ownership
+    - foreground agents re-reading full closed transcripts when a bounded snapshot/digest exists
 ```
 
-Thread lifecycle is not complete until all relevant layers are reconciled: Discord thread archive/checkpoint, Hermes `sessions.json` route status, SQLite DB session end state, and compression/quota health. A stale route pointing at an ended DB session is operational debt, not an active worker.
+Thread lifecycle is not complete until all relevant layers are reconciled: Discord thread archive/checkpoint, session-close snapshot, Hermes `sessions.json` route status, SQLite DB session end state, compression/quota health, and Honcho/background propagation result. A stale route pointing at an ended DB session is operational debt, not an active worker.
 
 ## Required digest shape
 
