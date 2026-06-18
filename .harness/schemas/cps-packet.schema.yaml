@@ -1,0 +1,19 @@
+version: 1
+schema: harness-cps-packet-schema
+required_fields:
+  - run_id
+  - project_id
+  - root_goal_id
+  - flow_graph_id
+  - source_task_id
+  - CPS
+  - task_AC
+  - owner_approval_boundary
+  - prohibited_actions
+  - evidence_acquisition
+  - required_docs
+  - doc_ops_needed
+  - source_refs
+  - doc_refs
+evidence_acquisition_required_sections: [C, P, S]
+stdout_policy: digest-first

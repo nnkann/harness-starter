@@ -34,9 +34,42 @@ s: [S3, S5, S7, S8, S11]
 domain: harness
 abbr: hn
 wip_doc: ${TASK_SOURCE}
-allowed_scope: [.harness/hermes/**, .harness/project/**, .harness/schemas/**]
+allowed_scope: [.harness/hermes/**, .harness/project/**, .harness/schemas/**, docs/harness/**]
 forbidden_scope: [sibling projects, parent directories outside current worktree, Hermes memory full-text CPS/AC storage, direct git commit, direct git push]
-checks: [python .harness/hermes/loader.py validate-reference, python .harness/hermes/loader.py guard-runtime-context --operation write --cwd "$PWD"]
+checks: [python .harness/hermes/loader.py validate-reference, python .harness/hermes/loader.py guard-runtime-context --operation write --cwd "$PWD", python .harness/hermes/tools/validate_kanban_task_packet.py packet .harness/project/runs/_template/cps_packet.yaml]
+owner_approval_boundary:
+  implementation_scope: executor packet scope only
+  commit: explicit owner approval required
+  push: explicit owner approval required
+  destructive_actions: blocked
+prohibited_actions:
+  - native direct auto-decompose on Harness CPS boards
+  - raw terminal stdout collection as first evidence step
+  - full git diff/log/sqlite/test output dump before signal spec
+  - full skill/document dump passed to workers when digest suffices
+  - Honcho-only policy creation without repo md source
+evidence_acquisition:
+  mode: digest-first
+  C:
+    decision_context: ${EVIDENCE_DECISION_CONTEXT}
+    scope_refs: [root_goal, task_AC, cps_flow_graph_node]
+  P:
+    uncertainty: ${EVIDENCE_UNCERTAINTY}
+    failure_mode_if_wrong: ${EVIDENCE_FAILURE_MODE_IF_WRONG}
+  S:
+    evidence_strategy: ${EVIDENCE_STRATEGY}
+    expected_signal: ${EXPECTED_SIGNAL_LIST}
+    stdout_shape: bounded digest; no raw corpus by default
+    raw_artifact_policy: only when task_AC requires raw evidence; save artifact and report path + reason
+required_docs:
+  - docs/harness/contracts/cp_frontmatter_schema.md
+  - docs/harness/contracts/cp_cps_evidence_acquisition.md
+  - docs/harness/contracts/cp_owner_approval_boundary.md
+  - docs/harness/contracts/cp_agent_role_contracts.md
+  - docs/harness/contracts/cp_kanban_promotion_contract.md
+  - docs/harness/contracts/cp_honcho_doc_wiki_boundary.md
+doc_ops_needed: ${DOC_OPS_NEEDED}
+doc_refs: ${DOC_REFS}
 memory_pointers: [.harness/hermes/reference/catalog.yaml, .harness/hermes/reference/pipeline.yaml, .harness/hermes/reference/rules.yaml, .harness/hermes/workers.yaml, .harness/hermes/sandbox.yaml]
 evidence_sources: [reference-catalog, rule-pack, command-output]
 owner_approval_required: [changes outside allowed_scope, git commit, git push]
@@ -55,8 +88,8 @@ semantic_tooling:
   fallback_reason: ""
 document_generation:
   enabled_when: task creates, updates, validates, moves, reopens, or classifies a document
-  required_outputs: [document-plan, docs-op-plan, profile-call-justification, profile-result-evidence, moderator-pass-rework-block]
-  docs_ops_mode: read-only first; state-changing operations require owner approval or explicit executor scope
+  required_outputs: [document-plan, docs-op-plan, doc_ops_manifest, honcho_ingest_manifest, profile-call-justification, profile-result-evidence, moderator-pass-rework-block]
+  docs_ops_mode: read-only first; ha_seshat owns required docs and manifests; state-changing operations require owner approval or explicit executor scope
 cps_flow:
   contract: .harness/hermes/reference/ops/cps-ac.yaml#cps_flow_graph
   root_goal_id: ${ROOT_GOAL_ID}

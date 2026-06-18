@@ -1,0 +1,13 @@
+version: 1
+schema: harness-kanban-task-node-schema
+required_markers:
+  - packet_ref
+  - root_goal_id
+  - flow_graph_id
+  - node_id
+  - actor_binding
+  - task_AC
+  - expected_evidence
+  - doc_refs
+  - Do not close the root goal
+compact_body_policy: packet_ref plus node-local task_AC; no full template dump

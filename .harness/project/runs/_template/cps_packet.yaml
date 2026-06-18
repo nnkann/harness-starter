@@ -1,0 +1,48 @@
+run_id: ${HERMES_KANBAN_RUN_ID}
+project_id: harness-starter
+source_task_id: ${HERMES_KANBAN_TASK}
+root_goal_id: rg-${SLUG}
+flow_graph_id: fg-${RUN_ID}
+CPS:
+  C:
+    - doc_ops ownership gap
+    - Kanban triage-to-todo promotion boundary
+  P:
+    - native auto-decompose can bypass CPS/frontmatter
+    - task packets need doc_refs/frontmatter_refs
+  S:
+    - ha_seshat doc_ops owner
+    - Harness promotion compiler gate
+task_AC:
+  - CPS/task_AC/owner_approval_boundary/prohibited_actions/evidence_acquisition are present
+  - required_docs and doc_ops_needed are identified
+owner_approval_boundary:
+  implementation_scope: owner-approved packet scope only
+  commit: explicit owner approval required
+  push: explicit owner approval required
+prohibited_actions:
+  - native direct auto-decompose on Harness CPS boards
+  - raw terminal stdout collection as first evidence step
+  - implementation mutation before owner approval
+evidence_acquisition:
+  mode: digest-first
+  C:
+    decision_context: validate promotion packet and required docs
+    scope_refs: [root_goal, task_AC, cps_flow_graph_node]
+  P:
+    uncertainty: packet/doc/frontmatter completeness
+    failure_mode_if_wrong: todo nodes materialize without Harness policy context
+  S:
+    evidence_strategy: schema_field_presence plus source_ref line checks
+    expected_signal: [schema_field_presence, line_refs, artifact_refs]
+    stdout_shape: bounded digest; no raw corpus by default
+required_docs:
+  - docs/harness/contracts/cp_frontmatter_schema.md
+  - docs/harness/contracts/cp_cps_evidence_acquisition.md
+  - docs/harness/contracts/cp_owner_approval_boundary.md
+  - docs/harness/contracts/cp_agent_role_contracts.md
+  - docs/harness/contracts/cp_kanban_promotion_contract.md
+  - docs/harness/contracts/cp_honcho_doc_wiki_boundary.md
+doc_ops_needed: true
+source_refs: []
+doc_refs: []

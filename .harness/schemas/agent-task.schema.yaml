@@ -18,6 +18,12 @@ required_fields:
   - allowed_scope
   - forbidden_scope
   - checks
+  - owner_approval_boundary
+  - prohibited_actions
+  - evidence_acquisition
+  - required_docs
+  - doc_ops_needed
+  - doc_refs
 required_pointer_fields:
   - workspace_env
   - workspace_binding
@@ -93,6 +99,15 @@ required_goal_ac_semantics_fields:
   - task_AC
   - c_split_rule
   - closure_rule
+required_evidence_acquisition_fields:
+  - mode
+  - C
+  - P
+  - S
+required_doc_ops_fields:
+  - required_docs
+  - doc_ops_needed
+  - doc_refs
 required_langsmith_eval_basis_fields:
   - trace_keys
   - review_labels

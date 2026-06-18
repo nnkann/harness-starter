@@ -74,6 +74,17 @@ profile_sets:
       coordinates_with: [moderator, coder, risk-analyst, threat-guard]
       final_gate: false
       use_when: pre-completion review, AC verification, security or regression gate, commit handoff.
+    - name: docs-operator
+      deity: seshat
+      source_affinity: doc_ops plus source_ref-backed documentation lifecycle
+      personality: documentation maintainer; creates and updates required md files, frontmatter, doc_ops_manifest, and Honcho ingest manifests from repo source_refs.
+      primary_axis: internal-truth
+      secondary_axis: standard-gate
+      owns_gateway: false
+      writes: docs-only
+      coordinates_with: [orchestrator, moderator, reviewer]
+      final_gate: false
+      use_when: required canonical docs, frontmatter schema, doc_ops_manifest, honcho_ingest_manifest, source_ref-backed digest preparation.
     - name: threat-guard
       deity: sekhmet
       source_affinity: threat-analyst

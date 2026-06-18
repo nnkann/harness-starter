@@ -42,8 +42,35 @@ CPS_PROFILE_ROUTING = ROOT / ".harness" / "hermes" / "cps-profile-routing.yaml"
 DOC_GENERATION = ROOT / ".harness" / "hermes" / "doc-generation.yaml"
 AGENT_TASK_SCHEMA = ROOT / ".harness" / "schemas" / "agent-task.schema.yaml"
 BOARD_ASSIGNEES_SCHEMA = ROOT / ".harness" / "schemas" / "board-assignees.schema.yaml"
+CPS_PACKET_SCHEMA = ROOT / ".harness" / "schemas" / "cps-packet.schema.yaml"
+DOC_OPS_MANIFEST_SCHEMA = ROOT / ".harness" / "schemas" / "doc-ops-manifest.schema.yaml"
+HONCHO_INGEST_MANIFEST_SCHEMA = ROOT / ".harness" / "schemas" / "honcho-ingest-manifest.schema.yaml"
+KANBAN_TASK_NODE_SCHEMA = ROOT / ".harness" / "schemas" / "kanban-task-node.schema.yaml"
+KANBAN_PACKET_VALIDATOR = ROOT / ".harness" / "hermes" / "tools" / "validate_kanban_task_packet.py"
+CANONICAL_HARNESS_DOCS = [
+    ROOT / "docs" / "harness" / "contracts" / "cp_frontmatter_schema.md",
+    ROOT / "docs" / "harness" / "contracts" / "cp_cps_evidence_acquisition.md",
+    ROOT / "docs" / "harness" / "contracts" / "cp_owner_approval_boundary.md",
+    ROOT / "docs" / "harness" / "contracts" / "cp_agent_role_contracts.md",
+    ROOT / "docs" / "harness" / "contracts" / "cp_kanban_promotion_contract.md",
+    ROOT / "docs" / "harness" / "contracts" / "cp_honcho_doc_wiki_boundary.md",
+    ROOT / "docs" / "harness" / "agents" / "ha_thoth.md",
+    ROOT / "docs" / "harness" / "agents" / "ha_maat.md",
+    ROOT / "docs" / "harness" / "agents" / "ha_seshat.md",
+    ROOT / "docs" / "harness" / "agents" / "ha_ptah.md",
+    ROOT / "docs" / "harness" / "agents" / "ha_anubis.md",
+    ROOT / "docs" / "harness" / "agents" / "ha_sekhmet.md",
+    ROOT / "docs" / "harness" / "agents" / "ha_honcho_archivist.md",
+    ROOT / "docs" / "harness" / "agents" / "ha_honcho_librarian.md",
+    ROOT / "docs" / "harness" / "agents" / "ha_honcho_context.md",
+]
+RUN_TEMPLATE_FILES = [
+    ROOT / ".harness" / "project" / "runs" / "_template" / "cps_packet.yaml",
+    ROOT / ".harness" / "project" / "runs" / "_template" / "doc_ops_manifest.yaml",
+    ROOT / ".harness" / "project" / "runs" / "_template" / "honcho_ingest_manifest.yaml",
+]
 FORBIDDEN_TOP_LEVEL = [f".{name}" for name in ("cla" + "ude", "co" + "dex", "agents")]
-FORBIDDEN_TOP_LEVEL.extend(["docs", "scripts"])
+FORBIDDEN_TOP_LEVEL.extend(["scripts"])
 FORBIDDEN_REFERENCE_FILES = [
     ROOT / ".harness" / "hermes" / "reference" / f"{stem}.yaml"
     for stem in ("agents", "skills", "source" + "-map")
@@ -77,6 +104,13 @@ REQUIRED_FILES = [
     DOC_GENERATION,
     AGENT_TASK_SCHEMA,
     BOARD_ASSIGNEES_SCHEMA,
+    CPS_PACKET_SCHEMA,
+    DOC_OPS_MANIFEST_SCHEMA,
+    HONCHO_INGEST_MANIFEST_SCHEMA,
+    KANBAN_TASK_NODE_SCHEMA,
+    KANBAN_PACKET_VALIDATOR,
+    *CANONICAL_HARNESS_DOCS,
+    *RUN_TEMPLATE_FILES,
 ]
 REQUIRED_DOCS_OPS_TERMS = [
     "validate",
@@ -111,6 +145,12 @@ REQUIRED_TASK_PACKET_TERMS = [
     "root_goal_id",
     "task_AC",
     "c_split_rule",
+    "owner_approval_boundary",
+    "prohibited_actions",
+    "evidence_acquisition",
+    "required_docs",
+    "doc_ops_needed",
+    "doc_refs",
 ]
 OFFICIAL_REQUIRED_WORKSPACE_ENV = [
     "HERMES_KANBAN_TASK",
@@ -480,6 +520,41 @@ def _validate() -> dict[str, Any]:
                 errors.append(f"doc generation contract missing section: {section}")
         if "contract: .harness/hermes/cps-profile-routing.yaml" not in text:
             errors.append("doc generation must point to cps-profile-routing contract")
+        for term in ["ha_seshat", "doc_ops_manifest", "honcho_ingest_manifest", "native_auto_decompose_for_harness_boards: false", "harness_promotion_compiler_required: true"]:
+            if term not in text:
+                errors.append(f"doc generation missing Harness promotion/doc_ops term: {term}")
+    for doc_path in CANONICAL_HARNESS_DOCS:
+        if doc_path.exists():
+            doc_text = doc_path.read_text(encoding="utf-8")
+            if not doc_text.startswith("---\n"):
+                errors.append(f"canonical doc missing frontmatter: {doc_path.relative_to(ROOT).as_posix()}")
+                continue
+            parts = doc_text.split("---", 2)
+            frontmatter = parts[1] if len(parts) > 1 else ""
+            for term in ["title:", "description:", "domain:", "status:", "owner_approval_boundary:", "prohibited_actions:"]:
+                if term not in frontmatter:
+                    errors.append(f"canonical doc {doc_path.relative_to(ROOT).as_posix()} missing frontmatter term: {term.rstrip(':')}")
+    if BOARD_ASSIGNEES.exists():
+        board_text = BOARD_ASSIGNEES.read_text(encoding="utf-8")
+        if "profile: ha_seshat" not in board_text or "role_archetype: docs-operator" not in board_text:
+            errors.append("board assignee contract must expose ha_seshat docs-operator")
+    if PROFILES.exists():
+        profiles_text = PROFILES.read_text(encoding="utf-8")
+        if "name: docs-operator" not in profiles_text or "deity: seshat" not in profiles_text:
+            errors.append("profiles contract must define docs-operator / ha_seshat role")
+    if CPS_PACKET_SCHEMA.exists():
+        packet_schema_text = CPS_PACKET_SCHEMA.read_text(encoding="utf-8")
+        for term in ["evidence_acquisition", "required_docs", "doc_ops_needed", "doc_refs", "digest-first"]:
+            if term not in packet_schema_text:
+                errors.append(f"cps packet schema missing term: {term}")
+    if DOC_OPS_MANIFEST_SCHEMA.exists():
+        if "doc_ops_manifest" not in DOC_OPS_MANIFEST_SCHEMA.read_text(encoding="utf-8"):
+            errors.append("doc ops manifest schema missing doc_ops_manifest root")
+    if HONCHO_INGEST_MANIFEST_SCHEMA.exists():
+        honcho_schema_text = HONCHO_INGEST_MANIFEST_SCHEMA.read_text(encoding="utf-8")
+        for term in ["honcho_ingest_manifest", "digest_required", "line_refs_required"]:
+            if term not in honcho_schema_text:
+                errors.append(f"honcho ingest manifest schema missing term: {term}")
     if TASK_TEMPLATE.exists() and AGENT_TASK_SCHEMA.exists() and SANDBOX.exists():
         task_text = TASK_TEMPLATE.read_text(encoding="utf-8")
         for term in REQUIRED_TASK_PACKET_TERMS:

@@ -50,6 +50,20 @@ profile_routing:
     - codebase-analyst is called only when repo implementation or internal docs evidence is a CPS dimension.
     - risk-analyst or threat-guard is called only when permission, rollback, exposure, or scope risk is a CPS dimension.
     - reviewer checks document evidence against AC before moderator gate.
+doc_ops_plane:
+  owner: ha_seshat
+  required_canonical_docs:
+    - docs/harness/contracts/cp_frontmatter_schema.md
+    - docs/harness/contracts/cp_cps_evidence_acquisition.md
+    - docs/harness/contracts/cp_owner_approval_boundary.md
+    - docs/harness/contracts/cp_agent_role_contracts.md
+    - docs/harness/contracts/cp_kanban_promotion_contract.md
+    - docs/harness/contracts/cp_honcho_doc_wiki_boundary.md
+  run_artifacts:
+    path: .harness/project/runs/<run_id>/
+    files: [cps_packet.yaml, doc_ops_manifest.yaml, honcho_ingest_manifest.yaml]
+  honcho_policy: source_ref-backed digest only; repo markdown remains authoritative SSOT.
+  child_task_body_policy: compact packet_ref plus node-local task_AC; no full template pasted into every child.
 docs_ops_binding:
   read_only_first: true
   read_only_operations:
@@ -64,6 +78,21 @@ docs_ops_binding:
     - cluster-update
     - wip-sync
   state_changing_rule: state-changing docs operations require owner approval or an executor packet with explicit scope.
+kanban_promotion_compiler:
+  keep_kanban: true
+  keep_auto_decompose: true
+  native_auto_decompose_for_harness_boards: false
+  harness_promotion_compiler_required: true
+  sequence:
+    - triage root
+    - harness_compile_triage(task_id)
+    - write root cps_packet artifact
+    - write doc_ops_manifest
+    - write honcho_ingest_manifest
+    - create compile/audit gate node
+    - create compact implementation/review nodes
+    - link nodes behind compile/audit gate
+    - promote root as graph container, not completed work
 moderator_gate:
   pass_when:
     - document purpose is tied to C/P/S.

@@ -1,0 +1,7 @@
+version: 1
+schema: harness-honcho-ingest-manifest-schema
+required_root: honcho_ingest_manifest
+required_fields: [run_id, project_id, source_commit, docs, prohibited]
+required_doc_fields: [source_path, doc_type, digest_required, frontmatter_summary_required, line_refs_required, artifact_refs_required, status]
+allowed_status: [pending, ingested, skipped, failed]
+prohibited: [full raw stdout/log/test output ingestion, full chat transcript as project policy]

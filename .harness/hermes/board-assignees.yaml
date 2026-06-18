@@ -51,6 +51,12 @@ boards:
         lane_shape: hermes-profile
         gateway: false
         default_for: [gateway-permission, sandbox-policy, env-authority, channel-injection, secrets, auth, exposure]
+      - profile: ha_seshat
+        role_archetype: docs-operator
+        deity: seshat
+        lane_shape: hermes-profile
+        gateway: false
+        default_for: [doc-ops, frontmatter, required-docs, honcho-digest]
       - profile: seshat
         role_archetype: researcher
         deity: seshat

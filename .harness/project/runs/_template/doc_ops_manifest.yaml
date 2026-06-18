@@ -1,0 +1,17 @@
+doc_ops_manifest:
+  run_id: ${HERMES_KANBAN_RUN_ID}
+  project_id: harness-starter
+  source_task_id: ${HERMES_KANBAN_TASK}
+  required_docs:
+    - path: docs/harness/contracts/cp_frontmatter_schema.md
+      doc_type: contract
+      required_frontmatter: true
+      status: present
+      action: review
+  generated_docs: []
+  updated_docs: []
+  owner_approval_boundary:
+    - no commit/push before explicit approval
+  prohibited_actions:
+    - raw stdout/log archival
+    - Honcho-only policy creation

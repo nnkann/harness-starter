@@ -27,6 +27,7 @@ exports:
     - .harness/hermes/doc-generation.yaml
   operations:
     - .harness/hermes/reference/ops/docs-ops.yaml
+    - .harness/hermes/tools/validate_kanban_task_packet.py
     - .harness/hermes/reference/ops/wip-lifecycle.yaml
     - .harness/hermes/reference/ops/document-standards.yaml
     - .harness/hermes/reference/ops/commit-flow.yaml
@@ -36,6 +37,28 @@ exports:
     - .harness/hermes/reference/ops/semantic-tooling-criteria.yaml
     - .harness/hermes/reference/hook-contracts.yaml
   contracts:
+    - docs/harness/contracts/cp_frontmatter_schema.md
+    - docs/harness/contracts/cp_cps_evidence_acquisition.md
+    - docs/harness/contracts/cp_owner_approval_boundary.md
+    - docs/harness/contracts/cp_agent_role_contracts.md
+    - docs/harness/contracts/cp_kanban_promotion_contract.md
+    - docs/harness/contracts/cp_honcho_doc_wiki_boundary.md
+    - docs/harness/agents/ha_thoth.md
+    - docs/harness/agents/ha_maat.md
+    - docs/harness/agents/ha_seshat.md
+    - docs/harness/agents/ha_ptah.md
+    - docs/harness/agents/ha_anubis.md
+    - docs/harness/agents/ha_sekhmet.md
+    - docs/harness/agents/ha_honcho_archivist.md
+    - docs/harness/agents/ha_honcho_librarian.md
+    - docs/harness/agents/ha_honcho_context.md
+    - .harness/schemas/cps-packet.schema.yaml
+    - .harness/schemas/doc-ops-manifest.schema.yaml
+    - .harness/schemas/honcho-ingest-manifest.schema.yaml
+    - .harness/schemas/kanban-task-node.schema.yaml
+    - .harness/project/runs/_template/cps_packet.yaml
+    - .harness/project/runs/_template/doc_ops_manifest.yaml
+    - .harness/project/runs/_template/honcho_ingest_manifest.yaml
     - .harness/hermes/reference/rules.yaml
     - .harness/hermes/reference/official-alignment.yaml
     - .harness/hermes/profiles.yaml
