@@ -146,3 +146,11 @@ Raw terminal stdout is not a default evidence source. Commands should emit the a
 - **가중 라우팅 활성화**: 태스크 정의 또는 CPS 패킷 내에 `cognitive`, `perception`, `diagnose`, `diagnostics`, `reasoning`, `analysis` 등 인지 진단/추론 중심의 키워드가 포함될 경우, 라우팅 스코어에서 `sia`에게 +3 가중치가 부여되어 우선 배정됩니다.
 - **토큰 소모 통제**: 코드베이스 수정이 없는 순수 개념 분석, 설계 검토, 장애 진단 단계는 `sia`에게 역할을 위임하여 툴 실행 루프에 의한 불필요한 토큰 낭비를 철저히 억제합니다.
 
+## LazyCodex Integration & Self-Correction Rules (2-Cycle Max & CPS Trace)
+
+- **2회 자가교정 한도 및 HOLD_BLOCKED 분기**: 구현(T5) 단계에서 발생하는 오류에 대한 자가교정 시도는 동일 태스크/오류 지점 기준 **최대 2회**로 제한됩니다. 2회차 수정 실패 시 즉시 `HOLD_BLOCKED` 상태로 전이합니다.
+- **HOLD_BLOCKED Context Chaining (New C)**: `HOLD_BLOCKED` 상태에 진입하면 기존 루프를 정지하는 동시에, 이전 실패 이력과 `cps_trace`를 상속받은 `chained_context` (New C)를 자동으로 수립합니다. 이는 새로운 맥락의 문제 해결을 위한 신규 루프 분기(Transition) 시 핵심 근거로 작동하여 맥락을 지속시킵니다.
+- **CPS Trace 공식 필수화**: 자가교정 및 오류 분석 시, 이슈의 흐름을 `C > P[이슈번호] > S[해결책]` 형태의 단선 공식으로 구조화하여 상태 로그(`.harness/project/runs/boulder_state.json`)와 ledger에 기록해야 합니다. (예: `C > P1, P3 > S2, S4 > P2 > S3`)
+- **doc_ops LLM Wiki 연동**: 도메인 약어(abbr) 및 아키텍처 맥락 정보를 LLM Wiki 형태로 관리하고, 울트라워크 실행 시 최우선 순위로 고속 인덱싱하여 리서치 지연을 최소화합니다.
+- **Clean & Slim 감사 기준**: 물리적 100 LOC 제한의 단순 적용보다, 산출물의 청결성(예방용 try-catch 남발 배제, 디버깅용 임시 주석 배제, 동일 표현 중복 강조 제거)을 최우선으로 검증하며, 이는 T8(Maat) 감사 게이트의 절대 필수 통과 조건으로 작동합니다.
+
