@@ -143,6 +143,7 @@ def route_task_packet(packet_data: dict[str, Any]) -> dict[str, Any]:
         "researcher": 0,         # researcher
         "thoth": 0,              # orchestrator
         "maat": 0,               # moderator
+        "sia": 0,                # cognitive-analyzer
     }
     
     # seshat: docs, markdown, frontmatter, document, manifest, required_docs, doc_ops, wiki, digest
@@ -179,6 +180,11 @@ def route_task_packet(packet_data: dict[str, Any]) -> dict[str, Any]:
     for word in ["gate", "approve", "judge", "moderator", "final-gate", "criteria"]:
         if word in all_text:
             scores["maat"] += 3
+
+    # sia: cognitive, perception, diagnose, diagnostics, reasoning, analysis, low-token, memory-only
+    for word in ["cognitive", "perception", "diagnose", "diagnostics", "reasoning", "analysis", "low-token", "memory-only"]:
+        if word in all_text:
+            scores["sia"] += 3
  
     # Resolve highest scoring profile
     best_profile = max(scores, key=scores.get)
@@ -193,7 +199,8 @@ def route_task_packet(packet_data: dict[str, Any]) -> dict[str, Any]:
         "sekhmet": {"role": "threat-guard", "deity": "sekhmet", "desc": "Handles sandbox policy, secrets, permissions, and threat guarding."},
         "researcher": {"role": "researcher", "deity": "imhotep", "desc": "Handles external facts, searches, and documentation research."},
         "thoth": {"role": "orchestrator", "deity": "thoth", "desc": "Handles triage, task routing, and coordinating handoffs."},
-        "maat": {"role": "moderator", "deity": "maat", "desc": "Handles gating, final approvals, and compliance verification."}
+        "maat": {"role": "moderator", "deity": "maat", "desc": "Handles gating, final approvals, and compliance verification."},
+        "sia": {"role": "cognitive-analyzer", "deity": "sia", "desc": "Handles low-token cognitive analysis, diagnostics, perception, and reasoning-review."}
     }
     
     details = profile_details[best_profile]

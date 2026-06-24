@@ -1,0 +1,44 @@
+run_id: session_sia_collaboration_test
+project_id: harness-starter
+source_task_id: task-sia-test
+root_goal_id: rg-sia-test
+flow_graph_id: fg-sia-test
+CPS:
+  C:
+    - The team wants to test sia's cognitive analysis and reasoning capabilities.
+    - We need to perform a diagnostic review of the recent project integration state.
+  P:
+    - How do the new project rules interact with the existing codebase without running heavy tool loops?
+    - What are the primary cognitive gaps in our current multi-agent coordination setup?
+  S:
+    - Assign the task to sia to perform a low-token cognitive analysis and diagnostic review.
+    - Validate that the delegation decision correctly routes the task to sia.
+task_AC:
+  - Delegation decision correctly identifies sia as the target profile.
+  - The task description uses cognitive and diagnostic keywords to trigger the proper routing.
+  - The routing score for sia is higher than other profiles.
+owner_approval_boundary:
+  implementation_scope: cognitive-review only; no codebase mutation
+  commit: no commit required
+  push: no push required
+prohibited_actions:
+  - spawning heavy terminal command loops
+  - reading raw codebase directories
+evidence_acquisition:
+  mode: digest-first
+  C:
+    decision_context: Verify that the delegation engine routes cognitive tasks to sia.
+    scope_refs: [root_goal, task_AC]
+  P:
+    uncertainty: Keyword scoring matching accuracy.
+    failure_mode_if_wrong: Task routes to another profile like ptah or thoth instead of sia.
+  S:
+    evidence_strategy: Run delegation check and output score breakdown.
+    expected_signal: [selected_profile == sia]
+    stdout_shape: bounded digest
+required_docs:
+  - docs/harness/agents/sia.md
+doc_ops_needed: false
+source_refs: []
+artifact_refs: []
+doc_refs: []
