@@ -139,3 +139,10 @@ Raw terminal stdout is not a default evidence source. Commands should emit the a
 7. **최소한의 코드 작동 (LOC 최소화)**: 작성하는 코드는 작동하는 최소한의 크기여야 하며, 태스크당 추가 라인 수(LOC)는 기계적 감사(S: Solution 구현체 - `audit_ponytail_compliance.py`)에 의해 100 LOC로 제한됩니다.
 
 에이전트는 태스크 패킷 작성 시 `lazy_dev_justification` 필드에 이 사다리 검토 결과를 명시해야 하며, 사전 소유자 승인 없이 의존성 파일을 수정하거나 LOC 한도를 초과할 경우 검증 파이프라인에서 즉시 반려(FAIL)됩니다.
+
+## sia (Cognitive Analyzer) Routing & Minimal Toolset Rules
+
+- **공식 에이전트 통합**: 이 프로젝트는 `sia` (deity: `sia`, role: `cognitive-analyzer`)를 공식 협업자로 통합합니다. `sia`는 `cognitive-analysis`, `diagnostics`, `reasoning-review`를 전담하며, 터미널 및 파일 쓰기가 차단된 극최소 도구 제약(Minimal Toolset) 하에 실행됩니다.
+- **가중 라우팅 활성화**: 태스크 정의 또는 CPS 패킷 내에 `cognitive`, `perception`, `diagnose`, `diagnostics`, `reasoning`, `analysis` 등 인지 진단/추론 중심의 키워드가 포함될 경우, 라우팅 스코어에서 `sia`에게 +3 가중치가 부여되어 우선 배정됩니다.
+- **토큰 소모 통제**: 코드베이스 수정이 없는 순수 개념 분석, 설계 검토, 장애 진단 단계는 `sia`에게 역할을 위임하여 툴 실행 루프에 의한 불필요한 토큰 낭비를 철저히 억제합니다.
+
