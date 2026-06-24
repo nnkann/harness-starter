@@ -214,8 +214,8 @@ def route_task_packet(packet_data: dict[str, Any]) -> dict[str, Any]:
     }
 
 def do_init(session_id: str, manifest: str | None) -> int:
-    """AC-1: Seed Honcho context and ingest pending manifests."""
-    print("=== Phase: Init (Seeding & Ingestion) ===")
+    """AC-1: Seed Honcho context, ingest pending manifests, and trigger LazyCodex wiki/research."""
+    print("=== Phase: Init (Seeding & Ingestion with LazyCodex) ===")
     
     # Step 1: Seeding
     seed_script = ROUTER_DIR / "seed_honcho_project_context.py"
@@ -243,11 +243,44 @@ def do_init(session_id: str, manifest: str | None) -> int:
     if manifest:
         ingest_cmd.extend(["--manifest", manifest])
         
-    return run_command_with_audit("ingest-manifests", ingest_cmd, REPO_ROOT)
+    ret = run_command_with_audit("ingest-manifests", ingest_cmd, REPO_ROOT)
+    if ret != 0:
+        return ret
+
+    # Step 3: LazyCodex doc_ops Wiki Indexing
+    print("[Harness Lifecycle] Ingesting domain abbreviations into LLM Wiki...")
+    wiki_script = REPO_ROOT / ".harness" / "hermes" / "tools" / "lazycodex_doc_ops_wiki.py"
+    if wiki_script.exists():
+        wiki_cmd = [str(PYTHON_EXEC), str(wiki_script), "CPS"]
+        run_command_with_audit("wiki-index", wiki_cmd, REPO_ROOT)
+
+    # Step 4: Asynchronous Swarm Research (Triggered if GITHUB_TOKEN is present)
+    research_script = REPO_ROOT / ".harness" / "hermes" / "tools" / "lazycodex_swarm_research.py"
+    if research_script.exists() and os.environ.get("GITHUB_TOKEN"):
+        print("[Harness Lifecycle] Triggering background Swarm Research...")
+        research_cmd = [
+            str(PYTHON_EXEC),
+            str(research_script),
+            "--repo", "code-yeongyu/lazycodex",
+            "--query", "lifecycle init auto"
+        ]
+        # Run asynchronously to avoid blocking init phase
+        try:
+            subprocess.Popen(
+                research_cmd,
+                cwd=str(REPO_ROOT),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            print("[Harness Lifecycle] Swarm Research launched in background.")
+        except Exception as e:
+            print(f"[Harness Lifecycle] Failed to launch Swarm Research: {e}")
+
+    return 0
 
 def do_check(session_id: str, manifest: str | None) -> int:
-    """AC-2: Drift Detection & Reporting."""
-    print("=== Phase: Check (Drift Detection & Reporting) ===")
+    """AC-2: Drift Detection, Static Clean & Slim Compliance, and Reporting."""
+    print("=== Phase: Check (Drift Detection & Clean/Slim Compliance) ===")
     worker_script = ROUTER_DIR / "honcho_background_worker.py"
     check_cmd = [
         str(PYTHON_EXEC),
@@ -260,11 +293,7 @@ def do_check(session_id: str, manifest: str | None) -> int:
     if manifest:
         check_cmd.extend(["--manifest", manifest])
         
-    # Run the check-drift action and output to report file
-    reports_dir = REPO_ROOT / ".harness" / "project" / "reports"
-    reports_dir.mkdir(parents=True, exist_ok=True)
-    report_file = reports_dir / f"drift_report_{session_id}.txt"
-    
+    # Run the check-drift action
     print(f"[Harness Lifecycle] Running check-drift...")
     result = subprocess.run(
         check_cmd,
@@ -275,18 +304,76 @@ def do_check(session_id: str, manifest: str | None) -> int:
         check=False
     )
     
-    # Save the report
-    report_file.write_text(result.stdout, encoding="utf-8")
+    drift_output = result.stdout
+    drift_exit_code = result.returncode
+
+    # Run Clean & Slim Audit
+    print("[Harness Lifecycle] Running Clean & Slim compliance check...")
+    audit_script = REPO_ROOT / ".harness" / "hermes" / "tools" / "audit_clean_slim.py"
+    audit_output = ""
+    audit_exit_code = 0
+    if audit_script.exists():
+        audit_cmd = [
+            str(PYTHON_EXEC),
+            str(audit_script),
+            "--path", str(REPO_ROOT / ".harness" / "hermes" / "tools")
+        ]
+        audit_result = subprocess.run(
+            audit_cmd,
+            cwd=str(REPO_ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            check=False
+        )
+        audit_output = audit_result.stdout
+        audit_exit_code = audit_result.returncode
+
+    # Combine reports
+    reports_dir = REPO_ROOT / ".harness" / "project" / "reports"
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    report_file = reports_dir / f"drift_report_{session_id}.txt"
+
+    combined_report = []
+    combined_report.append("=========================================")
+    combined_report.append("HARNESS INTEGRATED LIFECYCLE CHECK REPORT")
+    combined_report.append(f"Session ID: {session_id}")
+    combined_report.append(f"Timestamp: {datetime.now().isoformat()}")
+    combined_report.append("=========================================\n")
     
-    if result.returncode == 0:
-        print(f"[Harness Lifecycle] Drift check completed. Report written to {report_file.relative_to(REPO_ROOT)}")
-        print(result.stdout)
-        log_audit("check-drift", 0, "Drift report successfully generated")
+    combined_report.append("### 1. HONCHO DRIFT DETECTION")
+    combined_report.append(f"Exit Code: {drift_exit_code}")
+    combined_report.append(drift_output)
+    combined_report.append("\n-----------------------------------------\n")
+    
+    combined_report.append("### 2. CLEAN & SLIM STATIC AUDIT")
+    combined_report.append(f"Exit Code: {audit_exit_code}")
+    combined_report.append(audit_output if audit_output else "Audit script not executed or no output.")
+    
+    report_content = "\n".join(combined_report)
+    report_file.write_text(report_content, encoding="utf-8")
+    
+    # Save last check log
+    log_dir = REPO_ROOT / ".harness" / "project" / "runs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    last_log = log_dir / "last_check-drift.log"
+    last_log.write_text(report_content, encoding="utf-8")
+
+    if drift_exit_code == 0 and audit_exit_code == 0:
+        print(f"[Harness Lifecycle] Integrated check completed. Report written to {report_file.relative_to(REPO_ROOT)}")
+        print(report_content)
+        log_audit("check-drift", 0, "Integrated drift and clean/slim report successfully generated")
         return 0
     else:
-        print(f"[Harness Lifecycle] ERROR: Drift check failed with exit code {result.returncode}.")
-        log_audit("check-drift", result.returncode, "Failed to run drift check")
-        return result.returncode
+        print(f"[Harness Lifecycle] ERROR: Integrated check failed (Drift: {drift_exit_code}, Audit: {audit_exit_code}).")
+        # Print snippet of failures
+        failures = []
+        if drift_exit_code != 0:
+            failures.append("Honcho Drift Detection Failed")
+        if audit_exit_code != 0:
+            failures.append("Clean & Slim Static Audit Failed (Compliance issues detected)")
+        log_audit("check-drift", -1, f"Integrated check failed: {', '.join(failures)}")
+        return -1
 
 def do_close(session_id: str, writeback_args: list[str]) -> int:
     """AC-3: Writeback & Gateway Cleanup."""
