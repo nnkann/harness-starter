@@ -1,9 +1,9 @@
 ---
-title: ha_anubis
+title: anubis
 description: boundary_security_cleanup_agent CPS-based Harness agent contract
 domain: harness/agents
 status: active
-c: ha_anubis
+c: anubis
 problem:
   - secret/env raw dump risk
   - destructive cleanup can exceed owner boundary
@@ -26,12 +26,12 @@ prohibited_actions:
   - raw stdout/log archival as durable policy
   - Honcho-only policy creation without repo source_ref
 ---
-# ha_anubis
+# anubis
 
 ## CPS binding
 
 ```yaml
-ha_anubis:
+anubis:
   role: boundary_security_cleanup_agent
   C:
     - boundary/security cleanup tasks have elevated blast radius

@@ -1,9 +1,9 @@
 ---
-title: ha_honcho_context
+title: honcho_context
 description: digest_first_context_builder CPS-based Harness agent contract
 domain: harness/agents
 status: active
-c: ha_honcho_context
+c: honcho_context
 problem:
   - retrieval can override owner holds or accepted source_ref evidence
   - full archive context can reintroduce bloat
@@ -26,12 +26,12 @@ prohibited_actions:
   - raw stdout/log archival as durable policy
   - Honcho-only policy creation without repo source_ref
 ---
-# ha_honcho_context
+# honcho_context
 
 ## CPS binding
 
 ```yaml
-ha_honcho_context:
+honcho_context:
   role: digest_first_context_builder
   C:
     - work starts need prior context without loading raw archives

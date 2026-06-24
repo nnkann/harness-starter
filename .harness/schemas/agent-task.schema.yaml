@@ -30,6 +30,7 @@ required_fields:
   - required_docs
   - doc_ops_needed
   - doc_refs
+  - lazy_dev_justification
 required_pointer_fields:
   - workspace_env
   - workspace_binding

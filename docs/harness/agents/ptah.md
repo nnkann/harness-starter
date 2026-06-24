@@ -1,9 +1,9 @@
 ---
-title: ha_ptah
+title: ptah
 description: implementation_agent CPS-based Harness agent contract
 domain: harness/agents
 status: active
-c: ha_ptah
+c: ptah
 problem:
   - coder can implement before owner approval
   - worker can collect raw test/log output before signal spec
@@ -26,12 +26,12 @@ prohibited_actions:
   - raw stdout/log archival as durable policy
   - Honcho-only policy creation without repo source_ref
 ---
-# ha_ptah
+# ptah
 
 ## CPS binding
 
 ```yaml
-ha_ptah:
+ptah:
   role: implementation_agent
   C:
     - bounded implementation node receives task_AC and packet_ref

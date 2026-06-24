@@ -169,6 +169,15 @@ profile_sets:
       owns_gateway: false
       writes: proposal-only
       use_when: copy, positioning, release messaging, stakeholder updates, landing-page text, or CPS-triggered efficiency-speed probes for lap time, quota, fan-out, duplicate probes, and model-tier split.
+    - name: cognitive-analyzer
+      deity: sia
+      source_affinity: cognitive analysis and low-token diagnostics
+      personality: perception analyzer; relies primarily on conversation context, memory, and existing knowledge without spawning heavy tool loops, providing high-efficiency reasoning.
+      primary_axis: internal-truth
+      secondary_axis: standard-gate
+      owns_gateway: false
+      writes: read-only
+      use_when: cognitive reasoning, concept diagnostics, low-token analysis, memory retrieval.
   skill_first:
     - name: planner
       source_affinity: implementation plus cps-learn

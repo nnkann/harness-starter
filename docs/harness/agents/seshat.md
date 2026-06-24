@@ -1,9 +1,9 @@
 ---
-title: ha_seshat
+title: seshat
 description: Harness doc_ops and source_ref-backed documentation maintainer CPS-based Harness agent contract
 domain: harness/agents
 status: active
-c: ha_seshat
+c: seshat
 problem:
   - required md files may drift or be missing
   - Honcho ingest can happen without repo source
@@ -26,12 +26,12 @@ prohibited_actions:
   - raw stdout/log archival as durable policy
   - Honcho-only policy creation without repo source_ref
 ---
-# ha_seshat
+# seshat
 
 ## CPS binding
 
 ```yaml
-ha_seshat:
+seshat:
   role: Harness doc_ops and source_ref-backed documentation maintainer
   C:
     - Harness docs require an owner during promotion

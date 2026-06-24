@@ -16,5 +16,6 @@ required_fields:
   - source_refs
   - artifact_refs
   - doc_refs
+  - lazy_dev_justification
 evidence_acquisition_required_sections: [C, P, S]
 stdout_policy: digest-first

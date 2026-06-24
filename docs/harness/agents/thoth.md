@@ -1,9 +1,9 @@
 ---
-title: ha_thoth
+title: thoth
 description: cps_compile_and_task_packet_designer CPS-based Harness agent contract
 domain: harness/agents
 status: active
-c: ha_thoth
+c: thoth
 problem:
   - native decomposition can bypass CPS/frontmatter/source_ref
   - raw evidence prefetch can pollute worker context
@@ -26,12 +26,12 @@ prohibited_actions:
   - raw stdout/log archival as durable policy
   - Honcho-only policy creation without repo source_ref
 ---
-# ha_thoth
+# thoth
 
 ## CPS binding
 
 ```yaml
-ha_thoth:
+thoth:
   role: cps_compile_and_task_packet_designer
   C:
     - rough intake needs CPS compilation before fan-out

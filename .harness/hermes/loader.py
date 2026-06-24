@@ -56,15 +56,16 @@ CANONICAL_HARNESS_DOCS = [
     ROOT / "docs" / "harness" / "contracts" / "cp_kanban_promotion_contract.md",
     ROOT / "docs" / "harness" / "contracts" / "cp_honcho_doc_wiki_boundary.md",
     ROOT / "docs" / "harness" / "contracts" / "cp_honcho_agent_management.md",
-    ROOT / "docs" / "harness" / "agents" / "ha_thoth.md",
-    ROOT / "docs" / "harness" / "agents" / "ha_maat.md",
-    ROOT / "docs" / "harness" / "agents" / "ha_seshat.md",
-    ROOT / "docs" / "harness" / "agents" / "ha_ptah.md",
-    ROOT / "docs" / "harness" / "agents" / "ha_anubis.md",
-    ROOT / "docs" / "harness" / "agents" / "ha_sekhmet.md",
-    ROOT / "docs" / "harness" / "agents" / "ha_honcho_archivist.md",
-    ROOT / "docs" / "harness" / "agents" / "ha_honcho_librarian.md",
-    ROOT / "docs" / "harness" / "agents" / "ha_honcho_context.md",
+    ROOT / "docs" / "harness" / "contracts" / "cp_harness_defect_collection_fix_loop.md",
+    ROOT / "docs" / "harness" / "agents" / "thoth.md",
+    ROOT / "docs" / "harness" / "agents" / "maat.md",
+    ROOT / "docs" / "harness" / "agents" / "seshat.md",
+    ROOT / "docs" / "harness" / "agents" / "ptah.md",
+    ROOT / "docs" / "harness" / "agents" / "anubis.md",
+    ROOT / "docs" / "harness" / "agents" / "sekhmet.md",
+    ROOT / "docs" / "harness" / "agents" / "honcho_archivist.md",
+    ROOT / "docs" / "harness" / "agents" / "honcho_librarian.md",
+    ROOT / "docs" / "harness" / "agents" / "honcho_context.md",
 ]
 RUN_TEMPLATE_FILES = [
     ROOT / ".harness" / "project" / "runs" / "_template" / "cps_packet.yaml",
@@ -523,7 +524,7 @@ def _validate() -> dict[str, Any]:
                 errors.append(f"doc generation contract missing section: {section}")
         if "contract: .harness/hermes/cps-profile-routing.yaml" not in text:
             errors.append("doc generation must point to cps-profile-routing contract")
-        for term in ["ha_seshat", "doc_ops_manifest", "honcho_ingest_manifest", "native_auto_decompose_for_harness_boards: false", "harness_promotion_compiler_required: true", "honcho_agent_management", "ha_honcho_archivist", "ha_honcho_librarian", "ha_honcho_context"]:
+        for term in ["seshat", "doc_ops_manifest", "honcho_ingest_manifest", "native_auto_decompose_for_harness_boards: false", "harness_promotion_compiler_required: true", "honcho_agent_management", "honcho_archivist", "honcho_librarian", "honcho_context"]:
             if term not in text:
                 errors.append(f"doc generation missing Harness promotion/doc_ops term: {term}")
     for doc_path in CANONICAL_HARNESS_DOCS:
@@ -539,7 +540,7 @@ def _validate() -> dict[str, Any]:
                     errors.append(f"canonical doc {doc_path.relative_to(ROOT).as_posix()} missing frontmatter term: {term.rstrip(':')}")
     if BOARD_ASSIGNEES.exists():
         board_text = BOARD_ASSIGNEES.read_text(encoding="utf-8")
-        for term in ["profile: ha_seshat", "role_archetype: docs-operator", "profile: ha_honcho_archivist", "role_archetype: honcho-archivist", "profile: ha_honcho_librarian", "role_archetype: honcho-librarian", "profile: ha_honcho_context", "role_archetype: honcho-context"]:
+        for term in ["profile: seshat", "role_archetype: docs-operator", "profile: honcho_archivist", "role_archetype: honcho-archivist", "profile: honcho_librarian", "role_archetype: honcho-librarian", "profile: honcho_context", "role_archetype: honcho-context"]:
             if term not in board_text:
                 errors.append(f"board assignee contract missing Honcho/doc_ops assignee term: {term}")
     if PROFILES.exists():
@@ -557,12 +558,12 @@ def _validate() -> dict[str, Any]:
             errors.append("doc ops manifest schema missing doc_ops_manifest root")
     if HONCHO_INGEST_MANIFEST_SCHEMA.exists():
         honcho_schema_text = HONCHO_INGEST_MANIFEST_SCHEMA.read_text(encoding="utf-8")
-        for term in ["honcho_ingest_manifest", "digest_required", "line_refs_required", "managed_agents", "ha_honcho_archivist", "ha_honcho_librarian", "ha_honcho_context", "required_digest_fields"]:
+        for term in ["honcho_ingest_manifest", "digest_required", "line_refs_required", "managed_agents", "honcho_archivist", "honcho_librarian", "honcho_context", "required_digest_fields"]:
             if term not in honcho_schema_text:
                 errors.append(f"honcho ingest manifest schema missing term: {term}")
     if HANDOFF_COMPLIANCE_AUDIT.exists():
         handoff_text = HANDOFF_COMPLIANCE_AUDIT.read_text(encoding="utf-8")
-        for term in ["hermes-kann obligations", "ha_maat audit+skill digest gate", "ha_honcho_archivist", "ha_honcho_librarian", "ha_honcho_context", "Kanban promotion shape"]:
+        for term in ["hermes-kann obligations", "maat audit+skill digest gate", "honcho_archivist", "honcho_librarian", "honcho_context", "Kanban promotion shape"]:
             if term not in handoff_text:
                 errors.append(f"handoff compliance audit missing checklist term: {term}")
     if TASK_TEMPLATE.exists() and AGENT_TASK_SCHEMA.exists() and SANDBOX.exists():

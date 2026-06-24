@@ -1,9 +1,9 @@
 ---
-title: ha_honcho_librarian
+title: honcho_librarian
 description: project_knowledge_qa_and_drift_detection CPS-based Harness agent contract
 domain: harness/agents
 status: active
-c: ha_honcho_librarian
+c: honcho_librarian
 problem:
   - stale digest can misroute future work
   - missing CPS/frontmatter/evidence sections can pass unnoticed
@@ -26,12 +26,12 @@ prohibited_actions:
   - raw stdout/log archival as durable policy
   - Honcho-only policy creation without repo source_ref
 ---
-# ha_honcho_librarian
+# honcho_librarian
 
 ## CPS binding
 
 ```yaml
-ha_honcho_librarian:
+honcho_librarian:
   role: project_knowledge_qa_and_drift_detection
   C:
     - Honcho wiki can drift from repo docs

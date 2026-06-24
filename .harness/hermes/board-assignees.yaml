@@ -21,63 +21,63 @@ boards:
     project_slug: harness-starter
     routes: [discord-harness-starter-project, slack-harness-starter-project]
     selectable_assignees:
-      - profile: ha_maat
+      - profile: maat
         role_archetype: moderator
         deity: maat
         lane_shape: hermes-profile
         gateway: local-config
         default_for: [gateway-intake, final-gate, owner-action]
-      - profile: ha_thoth
+      - profile: thoth
         role_archetype: orchestrator
         deity: thoth
         lane_shape: hermes-profile
         gateway: optional-local-config
         default_for: [triage, routing, task-packet]
-      - profile: ha_ptah
+      - profile: ptah
         role_archetype: coder
         deity: ptah
         lane_shape: hermes-profile
         gateway: false
         default_for: [bounded-implementation, tests, refactor]
-      - profile: ha_anubis
+      - profile: anubis
         role_archetype: reviewer
         deity: anubis
         lane_shape: hermes-profile
         gateway: false
         default_for: [review-required, ac-verification, commit-handoff]
-      - profile: ha_sekhmet
+      - profile: sekhmet
         role_archetype: threat-guard
         deity: sekhmet
         lane_shape: hermes-profile
         gateway: false
         default_for: [gateway-permission, sandbox-policy, env-authority, channel-injection, secrets, auth, exposure]
-      - profile: ha_seshat
+      - profile: seshat
         role_archetype: docs-operator
         deity: seshat
         lane_shape: hermes-profile
         gateway: false
         default_for: [doc-ops, frontmatter, required-docs, honcho-digest]
-      - profile: ha_honcho_archivist
+      - profile: honcho_archivist
         role_archetype: honcho-archivist
         deity: honcho_archivist
         lane_shape: hermes-profile
         gateway: false
         default_for: [honcho-ingest, source-ref-backed-wiki, digest-archive]
-      - profile: ha_honcho_librarian
+      - profile: honcho_librarian
         role_archetype: honcho-librarian
         deity: honcho_librarian
         lane_shape: hermes-profile
         gateway: false
         default_for: [honcho-qa, drift-detection, wiki-completeness]
-      - profile: ha_honcho_context
+      - profile: honcho_context
         role_archetype: honcho-context
         deity: honcho_context
         lane_shape: hermes-profile
         gateway: false
         default_for: [digest-first-context, source-ref-candidates, prior-cps-patterns]
-      - profile: seshat
+      - profile: researcher
         role_archetype: researcher
-        deity: seshat
+        deity: imhotep
         lane_shape: hermes-profile
         gateway: false
         default_for: [external-truth, official-docs]
@@ -99,6 +99,12 @@ boards:
         lane_shape: hermes-profile
         gateway: false
         default_for: [copy, positioning, launch-messaging, efficiency-speed-probe, lap-time-review, quota-review, model-tier-review]
+      - profile: sia
+        role_archetype: cognitive-analyzer
+        deity: sia
+        lane_shape: hermes-profile
+        gateway: false
+        default_for: [cognitive-analysis, diagnostics, reasoning-review]
     assignment_rules:
       - task.assignee must match a concrete Hermes profile name from selectable_assignees or a locally registered lane id.
       - role_archetype is classification and routing evidence, not assignee identity.

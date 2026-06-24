@@ -1,9 +1,9 @@
 ---
-title: ha_maat
+title: maat
 description: cps_audit_and_project_digest_gate CPS-based Harness agent contract
 domain: harness/agents
 status: active
-c: ha_maat
+c: maat
 problem:
   - packet can satisfy form while missing owner boundary/source_refs
   - full skill/document dumps can reintroduce tool-output bloat
@@ -26,12 +26,12 @@ prohibited_actions:
   - raw stdout/log archival as durable policy
   - Honcho-only policy creation without repo source_ref
 ---
-# ha_maat
+# maat
 
 ## CPS binding
 
 ```yaml
-ha_maat:
+maat:
   role: cps_audit_and_project_digest_gate
   C:
     - compiled packet and docs must pass before todo/ready

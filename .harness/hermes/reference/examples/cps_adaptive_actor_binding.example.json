@@ -19,7 +19,7 @@
       "actor_binding": {
         "mode": "late_bound",
         "candidate_pool": ["thoth", "maat"],
-        "selected": {"actor": "thoth", "profile": "ha_thoth"},
+        "selected": {"actor": "thoth", "profile": "thoth"},
         "selection_basis": ["cps_expression_step", "judgment_function", "source_ref_authority"],
         "alternatives_considered": [{"actor": "maat", "reason_not_selected": "final judgment not required before packet compile"}],
         "rebind_triggers": ["missing_evidence", "source_ref_conflict", "context_stale"]
@@ -38,7 +38,7 @@
       "actor_binding": {
         "mode": "late_bound",
         "candidate_pool": ["maat", "sekhmet", "thoth"],
-        "selected": {"actor": "sekhmet", "profile": "ha_sekhmet"},
+        "selected": {"actor": "sekhmet", "profile": "sekhmet"},
         "selection_basis": ["current_risk", "owner_boundary", "source_ref_authority"],
         "alternatives_considered": [{"actor": "maat", "reason_not_selected": "security/permission boundary dominates this step"}],
         "rebind_triggers": ["failed_audit", "owner_boundary_detected", "new_security_signal"]
@@ -57,7 +57,7 @@
       "actor_binding": {
         "mode": "late_bound",
         "candidate_pool": ["anubis", "agy_advisory", "generic_reviewer"],
-        "selected": {"actor": "anubis", "profile": "ha_anubis"},
+        "selected": {"actor": "anubis", "profile": "anubis"},
         "selection_basis": ["evidence_obligation", "available_context", "prior_outcome_trace"],
         "alternatives_considered": [{"actor": "agy_advisory", "reason_not_selected": "local project evidence is sufficient"}],
         "rebind_triggers": ["failed_review", "external_fact_required", "missing_evidence"]
@@ -76,7 +76,7 @@
       "actor_binding": {
         "mode": "late_bound",
         "candidate_pool": ["maat", "thoth", "owner"],
-        "selected": {"actor": "maat", "profile": "ha_maat"},
+        "selected": {"actor": "maat", "profile": "maat"},
         "selection_basis": ["cps_expression_step", "evidence_obligation", "prior_outcome_trace"],
         "alternatives_considered": [{"actor": "thoth", "reason_not_selected": "compile already completed; final closure judgment required"}],
         "rebind_triggers": ["blocked_owner_action", "missing_evidence", "failed_audit"]

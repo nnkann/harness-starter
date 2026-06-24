@@ -11,7 +11,7 @@ problem:
   - sibling Discord threads can complete related work without future Harness workers seeing it
   - Hermes gateway routes can outlive archived/completed threads and misrepresent active work
 s:
-  - register ha_honcho_archivist, ha_honcho_librarian, and ha_honcho_context as managed roles
+  - register honcho_archivist, honcho_librarian, and honcho_context as managed roles
   - keep repo markdown as SSOT and Honcho as digest-first context/wiki plane
   - require manifest-driven ingestion, drift QA, and advisory context retrieval
   - route Honcho work through CPS/task_AC/owner boundary/source_ref contracts
@@ -25,9 +25,9 @@ tags:
   - management
 relates-to:
   - docs/harness/contracts/cp_honcho_doc_wiki_boundary.md
-  - docs/harness/agents/ha_honcho_archivist.md
-  - docs/harness/agents/ha_honcho_librarian.md
-  - docs/harness/agents/ha_honcho_context.md
+  - docs/harness/agents/honcho_archivist.md
+  - docs/harness/agents/honcho_librarian.md
+  - docs/harness/agents/honcho_context.md
 owner_approval_boundary:
   - no Honcho policy write without repo md source_ref
   - no commit/push before explicit owner approval
@@ -43,15 +43,15 @@ prohibited_actions:
 ```yaml
 honcho_agent_management:
   managed_agents:
-    - profile: ha_honcho_archivist
+    - profile: honcho_archivist
       role_archetype: honcho-archivist
       trigger: honcho_ingest_manifest docs with status pending
       responsibility: ingest source_ref-backed md digests into Honcho
-    - profile: ha_honcho_librarian
+    - profile: honcho_librarian
       role_archetype: honcho-librarian
       trigger: scheduled drift QA or post-ingestion verification
       responsibility: compare repo source docs against Honcho digests and report drift
-    - profile: ha_honcho_context
+    - profile: honcho_context
       role_archetype: honcho-context
       trigger: pre-compile context retrieval or CPS routing support
       responsibility: return advisory digest-first context with source_ref candidates
@@ -68,11 +68,11 @@ honcho_agent_management:
 
 ## Lifecycle
 
-1. `ha_seshat` creates/updates `honcho_ingest_manifest.yaml` from repo docs.
-2. `ha_maat` audits source_refs, frontmatter summaries, and raw-ingestion prohibitions.
-3. `ha_honcho_archivist` ingests digests and records status.
-4. `ha_honcho_librarian` verifies completeness/drift and emits a QA report.
-5. `ha_honcho_context` retrieves digest-first context for future CPS compile; it is advisory only.
+1. `seshat` creates/updates `honcho_ingest_manifest.yaml` from repo docs.
+2. `maat` audits source_refs, frontmatter summaries, and raw-ingestion prohibitions.
+3. `honcho_archivist` ingests digests and records status.
+4. `honcho_librarian` verifies completeness/drift and emits a QA report.
+5. `honcho_context` retrieves digest-first context for future CPS compile; it is advisory only.
 
 ## Cross-thread learning and route lifecycle
 

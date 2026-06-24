@@ -1,9 +1,9 @@
 ---
-title: ha_sekhmet
+title: sekhmet
 description: incident_recovery_agent CPS-based Harness agent contract
 domain: harness/agents
 status: active
-c: ha_sekhmet
+c: sekhmet
 problem:
   - emergency can bypass CPS history
   - full logs can be ingested by default
@@ -26,12 +26,12 @@ prohibited_actions:
   - raw stdout/log archival as durable policy
   - Honcho-only policy creation without repo source_ref
 ---
-# ha_sekhmet
+# sekhmet
 
 ## CPS binding
 
 ```yaml
-ha_sekhmet:
+sekhmet:
   role: incident_recovery_agent
   C:
     - incident recovery needs speed without bypassing policy

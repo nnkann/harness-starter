@@ -45,15 +45,16 @@ exports:
     - docs/harness/contracts/cp_kanban_promotion_contract.md
     - docs/harness/contracts/cp_honcho_doc_wiki_boundary.md
     - docs/harness/contracts/cp_honcho_agent_management.md
-    - docs/harness/agents/ha_thoth.md
-    - docs/harness/agents/ha_maat.md
-    - docs/harness/agents/ha_seshat.md
-    - docs/harness/agents/ha_ptah.md
-    - docs/harness/agents/ha_anubis.md
-    - docs/harness/agents/ha_sekhmet.md
-    - docs/harness/agents/ha_honcho_archivist.md
-    - docs/harness/agents/ha_honcho_librarian.md
-    - docs/harness/agents/ha_honcho_context.md
+    - docs/harness/contracts/cp_harness_defect_collection_fix_loop.md
+    - docs/harness/agents/thoth.md
+    - docs/harness/agents/maat.md
+    - docs/harness/agents/seshat.md
+    - docs/harness/agents/ptah.md
+    - docs/harness/agents/anubis.md
+    - docs/harness/agents/sekhmet.md
+    - docs/harness/agents/honcho_archivist.md
+    - docs/harness/agents/honcho_librarian.md
+    - docs/harness/agents/honcho_context.md
     - .harness/schemas/cps-packet.schema.yaml
     - .harness/schemas/doc-ops-manifest.schema.yaml
     - .harness/schemas/honcho-ingest-manifest.schema.yaml

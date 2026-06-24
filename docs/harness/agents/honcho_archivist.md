@@ -1,9 +1,9 @@
 ---
-title: ha_honcho_archivist
+title: honcho_archivist
 description: source_ref_backed_project_wiki_ingestion CPS-based Harness agent contract
 domain: harness/agents
 status: active
-c: ha_honcho_archivist
+c: honcho_archivist
 problem:
   - raw transcript/log archival can become false policy
   - Honcho-only policy creation can drift from repo source
@@ -26,12 +26,12 @@ prohibited_actions:
   - raw stdout/log archival as durable policy
   - Honcho-only policy creation without repo source_ref
 ---
-# ha_honcho_archivist
+# honcho_archivist
 
 ## CPS binding
 
 ```yaml
-ha_honcho_archivist:
+honcho_archivist:
   role: source_ref_backed_project_wiki_ingestion
   C:
     - Honcho should become wiki/context plane, not policy SSOT

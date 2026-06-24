@@ -7,8 +7,8 @@ allowed_status: [pending, ingested, skipped, failed]
 prohibited: [full raw stdout/log/test output ingestion, full chat transcript as project policy]
 
 managed_agents:
-  archivist: ha_honcho_archivist
-  librarian: ha_honcho_librarian
-  context: ha_honcho_context
+  archivist: honcho_archivist
+  librarian: honcho_librarian
+  context: honcho_context
 authority_order: [owner_approval_boundary, repo_source_ref, cps_packet, Honcho_digest]
 required_digest_fields: [project_id, source_path, source_commit, doc_type, frontmatter_summary, digest, required_sections_present, line_refs, artifact_refs, status, updated_at]
