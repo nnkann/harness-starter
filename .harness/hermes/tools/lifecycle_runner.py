@@ -117,7 +117,8 @@ def load_packet(packet_path: Path) -> dict[str, Any]:
 def route_task_packet(packet_data: dict[str, Any]) -> dict[str, Any]:
     """Analyze CPS and other metadata in a task packet to route it to the optimal profile."""
     # Look at CPS C, P, S
-    cps = packet_data.get("CPS", {})
+    cps_raw = packet_data.get("CPS", {})
+    cps = cps_raw if isinstance(cps_raw, dict) else {}
     c_list = cps.get("C", []) if isinstance(cps.get("C"), list) else [str(cps.get("C") or "")]
     p_list = cps.get("P", []) if isinstance(cps.get("P"), list) else [str(cps.get("P") or "")]
     s_list = cps.get("S", []) if isinstance(cps.get("S"), list) else [str(cps.get("S") or "")]
@@ -132,7 +133,8 @@ def route_task_packet(packet_data: dict[str, Any]) -> dict[str, Any]:
     
     goal = str(packet_data.get("root_goal", "") or packet_data.get("goal", "")).lower()
     
-    all_text = f"{c_text} {p_text} {s_text} {task_ac} {goal}"
+    cps_full_text = json.dumps(cps, ensure_ascii=False).lower() if isinstance(cps, dict) else str(cps).lower()
+    all_text = f"{c_text} {p_text} {s_text} {task_ac} {goal} {cps_full_text}"
     
     # Scored mapping based on domain keywords
     scores = {
@@ -405,10 +407,58 @@ def do_delegate(packet_path: str) -> int:
         print(f"ERROR: Failed to load task packet: {e}")
         return 1
         
+    preflight_script = REPO_ROOT / ".harness" / "hermes" / "tools" / "cps_preflight_route_gate.py"
+    preflight_dir = REPO_ROOT / ".harness" / "project" / "runs" / "preflight_route_gate" / p_path.stem
+    preflight_result: dict[str, Any] | None = None
+    if preflight_script.exists():
+        preflight_cmd = [
+            str(PYTHON_EXEC),
+            str(preflight_script),
+            "--packet",
+            str(p_path),
+            "--repo",
+            str(REPO_ROOT),
+            "--out-dir",
+            str(preflight_dir),
+            "--json",
+        ]
+        result = subprocess.run(preflight_cmd, cwd=str(REPO_ROOT), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, check=False)
+        (REPO_ROOT / ".harness" / "project" / "runs").mkdir(parents=True, exist_ok=True)
+        (REPO_ROOT / ".harness" / "project" / "runs" / "last_preflight-route-gate.log").write_text(result.stdout, encoding="utf-8")
+        if result.returncode != 0:
+            print("ERROR: CPS preflight route-gate returned HOLD/FAIL.")
+            print(result.stdout)
+            return result.returncode
+        try:
+            preflight_result = json.loads(result.stdout)
+        except Exception:
+            preflight_result = None
+
     routing = route_task_packet(packet_data)
+    if preflight_result:
+        selected_agents = preflight_result.get("route_gate", {}).get("selected_agents", {})
+        non_control = [a for a in selected_agents if a not in {"maat", "hermes-kann"}]
+        if non_control:
+            details = {
+                "seshat": ("docs-operator", "seshat", "Handles documents, frontmatter, source refs, and doc_ops evidence."),
+                "ptah": ("coder", "ptah", "Handles bounded implementation after settled local P/S/AC/body."),
+                "thoth": ("orchestrator", "thoth", "Handles CPS compile/fan-out when Maat keeps that branch."),
+                "sia": ("cognitive-analyzer", "sia", "Handles compact recall when Maat keeps that branch."),
+                "sekhmet": ("threat-guard", "sekhmet", "Handles security/sandbox/secret/path risk."),
+                "hu": ("efficiency-advisor", "hu", "Handles token/time/footprint optimization."),
+                "anubis": ("reviewer", "anubis", "Handles integrity, diff, and reversibility checks."),
+            }
+            chosen = non_control[0]
+            routing["selected_profile"] = chosen
+            if chosen in details:
+                routing["role"], routing["deity"], routing["description"] = details[chosen]
+            routing["rationale"] = f"Selected after CPS preflight route-gate; local body is available under {preflight_result.get('out_dir')}"
+        routing["preflight_route_gate"] = preflight_result
     
     print("\n--- Delegation Decision ---")
     print(f"Target Packet: {p_path.relative_to(REPO_ROOT)}")
+    if preflight_result:
+        print(f"Preflight Route:  {preflight_result.get('out_dir')}")
     print(f"Selected Profile: {routing['selected_profile']}")
     print(f"Role Archetype:   {routing['role']}")
     print(f"Deity Binding:    {routing['deity']}")

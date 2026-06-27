@@ -4,46 +4,94 @@ source_task_id: ${HERMES_KANBAN_TASK}
 root_goal_id: rg-${SLUG}
 flow_graph_id: fg-${RUN_ID}
 CPS:
-  C:
-    - doc_ops ownership gap
-    - Kanban triage-to-todo promotion boundary
-  P:
-    - native auto-decompose can bypass CPS/frontmatter
-    - task packets need doc_refs/frontmatter_refs
-  S:
-    - ha_seshat doc_ops owner
-    - Harness promotion compiler gate
+  Goal: Fix the compact CPS packet and plan created by Seshat.
+  C: Keep the delegation packet compact and operator-routable without prompt bundles.
+  SSOT:
+    operational: Project repo is the operational/executable SSOT for CPS templates, active plans, and code-adjacent system definitions.
+    decision_memory: harness-brain/GBrain is the decision-memory/history/learning/index SSOT; it may hold backup/reference copies, but it is not the executable template source.
+  P1: 'Fix /Users/kann/projects/harness-starter/.harness/project/runs/_template/cps_packet.yaml: keep P1/P2 as short received inputs and replace placeholder S fields with concrete operators.'
+  P2: 'Fix /Users/kann/projects/harness-starter/.harness/project/docs/harness/hn_cps_delegation_packet_plan.md: avoid execution-dump references and keep under 120 lines.'
+  S1: seshat_doc_ops_fix
+  S2: seshat_doc_ops_fix
+  AC:
+    owner: maat
+    checks:
+      - id: AC1
+        judge: maat
+        evidence: deterministic_allowed_path_scan
+        pass_if: Only the approved paths are touched.
+      - id: AC2
+        judge: maat
+        evidence: deterministic_packet_shape_scan
+        pass_if: C, P, S, AC, and Goal stay compact.
+      - id: AC3
+        judge: maat
+        evidence: deterministic_forbidden_text_scan
+        pass_if: No prompt bundle or placeholder S fields remain.
+      - id: AC4
+        judge: maat
+        evidence: cps_semantic_trace
+        pass_if: Live Maat -> Thoth -> Maat trace proves C-boundary, ordered P->S edges, AC judgment, and Goal closure.
 task_AC:
-  - CPS/task_AC/owner_approval_boundary/prohibited_actions/evidence_acquisition are present
-  - required_docs and doc_ops_needed are identified
+  owner: maat
+  checks:
+    - id: AC1
+      judge: maat
+      evidence: deterministic_allowed_path_scan
+      pass_if: Only the approved paths are touched.
+    - id: AC2
+      judge: maat
+      evidence: deterministic_packet_shape_scan
+      pass_if: C, P, S, AC, and Goal stay compact.
+    - id: AC3
+      judge: maat
+      evidence: deterministic_forbidden_text_scan
+      pass_if: No prompt bundle or placeholder S fields remain.
+    - id: AC4
+      judge: maat
+      evidence: cps_semantic_trace
+      pass_if: Live Maat -> Thoth -> Maat trace proves C-boundary, ordered P->S edges, AC judgment, and Goal closure.
 owner_approval_boundary:
-  implementation_scope: owner-approved packet scope only
+  implementation_scope: owner-approved packet and planning-doc edits only
   commit: explicit owner approval required
   push: explicit owner approval required
 prohibited_actions:
-  - native direct auto-decompose on Harness CPS boards
-  - raw terminal stdout collection as first evidence step
-  - implementation mutation before owner approval
+  - full prompt bundling
+  - prompt-bundle inclusion
+  - git add
+  - git commit
+  - git push
 evidence_acquisition:
-  mode: digest-first
+  mode: digest-first maat-evidence
+  evidence_generator: deterministic_validator
+  authority: evidence only; Maat owns PASS/WARN/FAIL judgment
   C:
-    decision_context: validate promotion packet and required docs
-    scope_refs: [root_goal, task_AC, cps_flow_graph_node]
+    - validate single compact context line under CPS.C
   P:
-    uncertainty: packet/doc/frontmatter completeness
-    failure_mode_if_wrong: todo nodes materialize without Harness policy context
+    - validate P1/P2 are short received inputs, not prompt bundles
   S:
-    evidence_strategy: schema_field_presence plus source_ref line checks
-    expected_signal: [schema_field_presence, line_refs, artifact_refs]
-    stdout_shape: bounded digest; no raw corpus by default
+    - validate S1/S2 are concrete operators, not placeholders
+  AC:
+    - validate every S# result is judged by Maat-owned AC
+  Goal:
+    - validate explicit Goal closure, not just route JSON/probe counts
+  CPS_trace:
+    - validate ordered P# receipt, mapped S# operator, P# -> S# edge, AC verdict, and Goal closure
+  preflight_probe:
+    - validate Maat candidate_agents receive role-local draft_CPS probes, not identical full prompts
+    - validate probe responses are gathered as-arrives and summarized for Maat reducer
+  failure_codes:
+    - FAIL_CPS_SEMANTIC_ABSENCE
+    - FAIL_MISSING_LIVE_MAAT_C_BOUNDARY
+    - FAIL_MISSING_THOTH_COMPILE
+    - FAIL_MISSING_MAAT_FINAL_AC_JUDGMENT
+  allowed_paths:
+    - /Users/kann/projects/harness-starter/.harness/project/runs/_template/cps_packet.yaml
+    - /Users/kann/projects/harness-starter/.harness/project/docs/harness/hn_cps_delegation_packet_plan.md
 required_docs:
-  - docs/harness/contracts/cp_frontmatter_schema.md
-  - docs/harness/contracts/cp_cps_evidence_acquisition.md
-  - docs/harness/contracts/cp_owner_approval_boundary.md
-  - docs/harness/contracts/cp_agent_role_contracts.md
-  - docs/harness/contracts/cp_kanban_promotion_contract.md
-  - docs/harness/contracts/cp_honcho_doc_wiki_boundary.md
-doc_ops_needed: true
+  - /Users/kann/projects/harness-starter/.harness/project/docs/harness/hn_cps_delegation_packet_plan.md
+doc_ops_needed:
+  - compact_packet_template_rewrite_plan
 source_refs: []
 artifact_refs: []
 doc_refs: []
