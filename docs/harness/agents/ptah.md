@@ -61,6 +61,7 @@ ptah:
     - apply scoped implementation
     - run bounded checks matching evidence_acquisition.S
     - return completion_delta evidence
+    - consume only Maat-selected local bodies
   prohibited_actions:
     - implementation before owner approval
     - commit/push before explicit approval

@@ -38,6 +38,22 @@ Treat any work touching Hermes runtime, Harness, CPS, Honcho, GBrain, project me
 - **Honcho**: Digest-first context plane. Stores compact conclusions/session messages with source_refs, not raw stdout/transcripts. Verifies write path separately.
 - **GBrain / harness-brain**: Git-backed long-term project memory/wiki. Stores source_ref-backed decisions, procedures, session-close snapshots, doc_ops manifests, lifecycle incidents, and searchable project records. Never replaces project repo docs.
 
+### CPS preflight route-gate automation
+
+Operational contract: `/Users/kann/projects/harness-brain/projects/harness-starter/contracts/cp-cps-preflight-route-gate.md`.
+Executable runner: `.harness/hermes/tools/cps_preflight_route_gate.py`.
+Lifecycle hook: `.harness/hermes/tools/lifecycle_runner.py delegate --packet <packet>` automatically runs the route-gate before legacy profile scoring.
+
+Loop:
+1. Hermes-kann drafts `C_candidate_packet` from the task packet.
+2. Live Maat route-gate settles C-boundary, P?/S?, P→S edges, order/dependency, gap scan, audit scope, AC mode, and the selected agent such as Thoth.
+3. Hermes-kann sends selected-agent probes only; it does not reselect or repackage agents after Maat decides.
+   It forwards only Maat-selected role-local packets unchanged.
+4. Accepted/`need_local_body` agents receive only Maat-approved local C/P#/S#/AC task bodies, and doc-writing flows directly to the selected writer lane.
+5. Maat↔Thoth ping-pong resolves HOLD_GAP/REVISE before final judgment.
+6. Full audit/`validation_refs` are required only when the settled route says final-gate evidence is needed.
+7. Route JSON, validator success, selected-agent count, or local-body count without a CPS trace table is `FAIL_CPS_SEMANTIC_ABSENCE`, not E2E PASS.
+
 ### Honcho & GBrain Background Sync & Learning Substrate
 - **GBrain Syncer (`honcho_background_worker.py`)**: 세션 종료 및 writeback 시, 스냅샷 정보를 `.harness/project/runs/gbrain_memory_store.json` 로컬 학습 기저에 리스트 형태로 누적 저장하여 세션 간 컨텍스트 데카이(Decay)를 방지합니다.
 - **Background Daemon (`run_harness_background_loop.sh`)**: `daemon [interval_seconds]` 액션을 통해 백그라운드에서 주기적으로 기동하여 프로젝트 drift 감지 및 manifest auto-ingest를 자동화하고, 구조화된 JSON 감사 이력을 `.harness/project/runs/background_audit.log`에 기록합니다. SIGINT/SIGTERM 시 안전한 종료 트랩이 동작합니다.

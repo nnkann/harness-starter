@@ -1,6 +1,6 @@
 ---
 title: Harness Agent Role Contracts
-description: Role contracts for Thoth, Maat, Seshat, Ptah, Anubis, Sekhmet, and Honcho wiki roles
+description: Role contracts for Hermes-kann transport, Maat fan-out, Thoth compile, Seshat doc-writing, Ptah apply, and audit roles
 domain: harness/contracts
 status: active
 c: agent_role_contracts
@@ -8,7 +8,7 @@ problem:
   - Agent roles can collapse into generic execution
   - Execution agents can miss CPS/frontmatter/source_ref context
 s:
-  - Separate compile, doc_ops, audit, implementation, security, recovery, and wiki roles
+  - Separate transport, fan-out, compile, doc-writing, implementation, security, recovery, and wiki roles
   - Require CPS/task_AC/frontmatter/source_refs before execution
 tags:
   - agents
@@ -41,9 +41,11 @@ required_context:
 
 ## Role separation
 
-- ha_thoth compiles CPS and task packets; it does not implement.
-- ha_seshat owns doc_ops and source_ref-backed documentation lifecycle.
-- ha_maat audits packet/docs/skill digest before ready.
+- ha_hermes_kann transports raw intake only and never reselects agents.
+- ha_maat owns C-boundary and fan-out selection.
+- ha_maat audits the final route and CPS closure.
+- ha_thoth compiles Maat-approved CPS packets only.
+- ha_seshat owns doc-writing/doc_ops and source_ref-backed documentation lifecycle.
 - ha_ptah implements only approved bounded task_AC.
 - ha_anubis checks boundary/security/cleanup risks.
 - ha_sekhmet handles incident recovery without bypassing CPS history.

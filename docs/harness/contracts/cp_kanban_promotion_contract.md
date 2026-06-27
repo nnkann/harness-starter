@@ -10,6 +10,7 @@ problem:
 s:
   - Retain Kanban but route Harness CPS boards through a promotion compiler
   - Create packet/manifests/gate node before ready materialization
+  - Preserve Maat fan-out and doc-writing lane separation
 tags:
   - kanban
   - promotion-compiler
@@ -42,7 +43,7 @@ triage root
   -> write doc_ops_manifest
   -> write honcho_ingest_manifest
   -> create compile/audit gate node
-  -> create compact implementation/review nodes
+  -> create compact implementation/review/doc nodes behind the selected writer lane
   -> link nodes behind compile/audit gate
   -> promote root as graph container, not completed work
 ```

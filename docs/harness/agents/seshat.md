@@ -57,6 +57,7 @@ seshat:
     - doc_refs
   responsibilities:
     - create/update required md files during planning/compile promotion
+    - own doc-writing lane for approved docs
     - enforce frontmatter schema
     - maintain docs in git as source of truth
     - generate doc_ops_manifest

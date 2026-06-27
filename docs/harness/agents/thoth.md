@@ -64,6 +64,7 @@ thoth:
     - identify required_docs
     - identify doc_ops_needed
     - propose actor_binding with selection_basis and rebind_triggers
+    - compile only after Maat-selected fan-out is known
   prohibited_actions:
     - implementation
     - commit/push

@@ -60,6 +60,7 @@ maat:
     - audit owner_approval_boundary
     - audit prohibited_actions
     - audit frontmatter/doc_refs/source_refs
+    - settle C-boundary and fan-out selection
     - create or approve project-specific skill digest
     - reject raw-output-first evidence plans
     - request missing evidence only as signal specs
