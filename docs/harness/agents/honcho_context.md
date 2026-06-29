@@ -1,6 +1,6 @@
 ---
-title: honcho_context
-description: digest_first_context_builder CPS-based Harness agent contract
+title: honcho_context (logical function handled by seshat)
+description: digest_first_context_builder logical function handled by seshat
 domain: harness/agents
 status: active
 c: honcho_context

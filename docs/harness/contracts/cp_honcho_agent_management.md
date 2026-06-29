@@ -1,6 +1,6 @@
 ---
 title: Honcho Agent Management Contract
-description: Management plane for source_ref-backed Honcho wiki agents in Harness CPS boards
+description: Management plane for source_ref-backed Honcho wiki functions handled by Seshat in Harness CPS boards
 domain: harness/contracts
 status: active
 c: honcho_agent_management
@@ -11,8 +11,8 @@ problem:
   - sibling Discord threads can complete related work without future Harness workers seeing it
   - Hermes gateway routes can outlive archived/completed threads and misrepresent active work
 s:
-  - register honcho_archivist, honcho_librarian, and honcho_context as managed roles
   - keep repo markdown as SSOT and Honcho as digest-first context/wiki plane
+  - treat honcho_archivist, honcho_librarian, and honcho_context as logical functions executed by seshat, not standalone profiles
   - require manifest-driven ingestion, drift QA, and advisory context retrieval
   - route Honcho work through CPS/task_AC/owner boundary/source_ref contracts
   - require post-completion write-back and sibling-thread recall checks for project work
@@ -38,21 +38,21 @@ prohibited_actions:
 
 # Honcho Agent Management Contract
 
-## Managed Honcho agents
+## Managed Honcho functions (handled by seshat)
 
 ```yaml
 honcho_agent_management:
-  managed_agents:
-    - profile: honcho_archivist
-      role_archetype: honcho-archivist
+  managed_functions:
+    - function: honcho_archivist
+      handled_by: seshat
       trigger: honcho_ingest_manifest docs with status pending
       responsibility: ingest source_ref-backed md digests into Honcho
-    - profile: honcho_librarian
-      role_archetype: honcho-librarian
+    - function: honcho_librarian
+      handled_by: seshat
       trigger: scheduled drift QA or post-ingestion verification
       responsibility: compare repo source docs against Honcho digests and report drift
-    - profile: honcho_context
-      role_archetype: honcho-context
+    - function: honcho_context
+      handled_by: seshat
       trigger: pre-compile context retrieval or CPS routing support
       responsibility: return advisory digest-first context with source_ref candidates
   authority_order:
@@ -70,9 +70,9 @@ honcho_agent_management:
 
 1. `seshat` creates/updates `honcho_ingest_manifest.yaml` from repo docs.
 2. `maat` audits source_refs, frontmatter summaries, and raw-ingestion prohibitions.
-3. `honcho_archivist` ingests digests and records status.
-4. `honcho_librarian` verifies completeness/drift and emits a QA report.
-5. `honcho_context` retrieves digest-first context for future CPS compile; it is advisory only.
+3. `seshat` performs honcho_archivist ingestion and records status.
+4. `seshat` performs honcho_librarian drift QA and emits a QA report.
+5. `seshat` performs honcho_context retrieval for future CPS compile; it is advisory only.
 
 ## Cross-thread learning and route lifecycle
 

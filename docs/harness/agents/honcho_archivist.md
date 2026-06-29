@@ -1,6 +1,6 @@
 ---
-title: honcho_archivist
-description: source_ref_backed_project_wiki_ingestion CPS-based Harness agent contract
+title: honcho_archivist (logical function handled by seshat)
+description: source_ref_backed_project_wiki_ingestion logical function handled by seshat
 domain: harness/agents
 status: active
 c: honcho_archivist
@@ -8,10 +8,12 @@ problem:
   - raw transcript/log archival can become false policy
   - Honcho-only policy creation can drift from repo source
   - ingestion without digest/frontmatter summary can bloat context
+  - change tracking can be lost without source_ref grouping
 s:
   - ingest required md digests into Honcho with source_refs
   - preserve source_path/source_commit/line_ref/artifact_ref
   - store frontmatter_summary and doc_type only
+  - preserve grouped change metadata for later git-readiness review
 tags:
   - harness-agent
   - cps
@@ -60,6 +62,7 @@ honcho_archivist:
     - preserve source_path/source_commit/line_ref/artifact_ref
     - classify doc_type
     - store frontmatter_summary
+    - store grouped change metadata
     - avoid raw stdout/log archival
     - write ingestion result status back to honcho_ingest_manifest
   prohibited_actions:

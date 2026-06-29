@@ -1,6 +1,6 @@
 ---
-title: honcho_librarian
-description: project_knowledge_qa_and_drift_detection CPS-based Harness agent contract
+title: honcho_librarian (logical function handled by seshat)
+description: project_knowledge_qa_drift_and_change_summary logical function handled by seshat
 domain: harness/agents
 status: active
 c: honcho_librarian
@@ -8,9 +8,11 @@ problem:
   - stale digest can misroute future work
   - missing CPS/frontmatter/evidence sections can pass unnoticed
   - Honcho may be mistaken as authoritative policy
+  - change sets can be left ungrouped for git readiness
 s:
   - verify required md files are indexed
   - compare repo source vs Honcho digest
+  - summarize changed files by work item
   - flag drift and missing sections without mutating policy
 tags:
   - harness-agent
@@ -59,12 +61,15 @@ honcho_librarian:
     - verify required md files are indexed
     - detect stale docs
     - compare repo source vs Honcho digest
+    - summarize change sets and changed paths
     - flag missing CPS/frontmatter/evidence sections
     - report drift
+    - prepare git-readiness signals without commit/push
   prohibited_actions:
     - treating Honcho as policy SSOT
     - mutating repo docs without doc_ops packet
     - silently accepting stale digest
+    - commit/push or staging as execution authority
   emits:
     - drift report
     - missing index report

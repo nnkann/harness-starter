@@ -43,7 +43,8 @@ triage root
   -> write doc_ops_manifest
   -> write honcho_ingest_manifest
   -> create compile/audit gate node
-  -> create compact implementation/review/doc nodes behind the selected writer lane
+  -> create compact implementation/review nodes
+  -> assign doc-writing to the selected writer lane when the packet says docs are needed
   -> link nodes behind compile/audit gate
   -> promote root as graph container, not completed work
 ```

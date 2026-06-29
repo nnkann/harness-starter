@@ -46,10 +46,10 @@ Lifecycle hook: `.harness/hermes/tools/lifecycle_runner.py delegate --packet <pa
 
 Loop:
 1. Hermes-kann drafts `C_candidate_packet` from the task packet.
-2. Live Maat route-gate settles C-boundary, P?/S?, P→S edges, order/dependency, gap scan, audit scope, AC mode, and the selected agent such as Thoth.
+2. Live Maat route-gate settles C-boundary, P?/S?, P→S edges, order/dependency, gap scan, audit scope, AC mode, and the selected agent such as Thoth or Seshat (writer lane).
 3. Hermes-kann sends selected-agent probes only; it does not reselect or repackage agents after Maat decides.
    It forwards only Maat-selected role-local packets unchanged.
-4. Accepted/`need_local_body` agents receive only Maat-approved local C/P#/S#/AC task bodies, and doc-writing flows directly to the selected writer lane.
+4. Accepted/`need_local_body` agents receive only Maat-approved local C/P#/S#/AC task bodies, and doc-writing flows directly to the selected writer lane (Seshat for doc_ops/source_ref work).
 5. Maat↔Thoth ping-pong resolves HOLD_GAP/REVISE before final judgment.
 6. Full audit/`validation_refs` are required only when the settled route says final-gate evidence is needed.
 7. Route JSON, validator success, selected-agent count, or local-body count without a CPS trace table is `FAIL_CPS_SEMANTIC_ABSENCE`, not E2E PASS.

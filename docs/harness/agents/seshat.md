@@ -1,6 +1,6 @@
 ---
 title: seshat
-description: Harness doc_ops and source_ref-backed documentation maintainer CPS-based Harness agent contract
+description: Harness doc_ops, source_ref-backed documentation maintainer, and Honcho bookkeeping CPS-based Harness agent contract
 domain: harness/agents
 status: active
 c: seshat
@@ -8,10 +8,12 @@ problem:
   - required md files may drift or be missing
   - Honcho ingest can happen without repo source
   - doc mutation can be undocumented
+  - change summaries and drift QA can be left orphaned from doc ops
 s:
   - create/update required md files during planning/compile promotion
   - generate doc_ops_manifest and honcho_ingest_manifest
   - prepare source_ref-backed digest artifacts for Honcho
+  - summarize changes, drift, and git-readiness for the Honcho bookkeeping lane
 tags:
   - harness-agent
   - cps
@@ -58,6 +60,7 @@ seshat:
   responsibilities:
     - create/update required md files during planning/compile promotion
     - own doc-writing lane for approved docs
+    - own honcho_archivist / honcho_librarian / honcho_context bookkeeping functions
     - enforce frontmatter schema
     - maintain docs in git as source of truth
     - generate doc_ops_manifest
@@ -65,6 +68,7 @@ seshat:
     - track source_path, line_ref, commit_ref, doc_type
     - detect stale or missing required docs
     - prepare digest artifacts for Honcho ingestion
+    - summarize change sets and git-readiness signals for approval
   prohibited_actions:
     - raw stdout/log archival
     - undocumented doc mutation
