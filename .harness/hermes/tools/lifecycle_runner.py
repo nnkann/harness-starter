@@ -12,6 +12,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from session_reclaim import build_reclaim_manifest, classify_lane_state, read_hermes_sessions_json, read_hermes_state_db_summary, reuse_decision
+from session_registry import clear_orphan_route, enforce_profile_cap, lane_key, load_registry, mark_reclaim_candidate, save_registry, upsert_representative
+
 # Find repository root
 def find_repo_root() -> Path:
     current = Path(__file__).resolve()
@@ -113,6 +116,118 @@ def load_packet(packet_path: Path) -> dict[str, Any]:
                 if line_strip.startswith("-"):
                     data[current_key].append(line_strip[1:].strip())
         return data
+
+
+def _utc_now() -> str:
+    return datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+
+
+def _packet_value(packet_data: dict[str, Any], *keys: str, default: str | None = None) -> str | None:
+    for key in keys:
+        value = packet_data.get(key)
+        if value not in (None, ""):
+            return str(value)
+    return default
+
+
+def _project_slug(packet_data: dict[str, Any]) -> str:
+    return _packet_value(packet_data, "project_slug", "project", default=REPO_ROOT.name) or REPO_ROOT.name
+
+
+def _request_signature(packet_data: dict[str, Any], profile: str) -> str:
+    value = packet_data.get("request_signature")
+    if value:
+        return str(value)
+    root_goal = str(packet_data.get("root_goal", "") or packet_data.get("goal", ""))
+    normalized = " ".join(root_goal.lower().split())
+    return f"{profile}:{normalized}"
+
+
+def _packet_session_id(packet_data: dict[str, Any], profile: str) -> str:
+    root_goal = str(packet_data.get("root_goal") or packet_data.get("goal") or "unknown")
+    normalized = " ".join(root_goal.lower().split())[:80]
+    return str(
+        packet_data.get("representative_session_id")
+        or packet_data.get("session_id")
+        or packet_data.get("run_id")
+        or packet_data.get("flow_graph_id")
+        or f"pending:{profile}:{normalized}"
+    )
+
+
+def apply_session_policy(packet_data: dict[str, Any], routing: dict[str, Any], runs_dir: Path) -> dict[str, Any]:
+    registry_path = runs_dir / "session_registry.json"
+    manifest_path = runs_dir / "session_reclaim_manifest.json"
+    profile = str(routing.get("selected_profile") or packet_data.get("profile") or packet_data.get("target_profile") or "default")
+    platform = _packet_value(packet_data, "platform", "source_platform", default="local") or "local"
+    chat_id = _packet_value(packet_data, "chat_id", "channel_id", "conversation_id", default="local") or "local"
+    thread_id = _packet_value(packet_data, "thread_id", "topic_id")
+    project_slug = _project_slug(packet_data)
+    key = lane_key(profile=profile, platform=platform, chat_id=chat_id, thread_id=thread_id, project_slug=project_slug)
+    now = _utc_now()
+    registry = load_registry(registry_path)
+    row = registry.get("lanes", {}).get(key)
+    evidence_session_ids = [str(s.get("session_id")) for s in (row or {}).get("open_sessions", []) if isinstance(s, dict) and s.get("session_id")]
+    if row and row.get("representative_session_id"):
+        evidence_session_ids.append(str(row["representative_session_id"]))
+    hermes_evidence = {
+        "sessions_json": read_hermes_sessions_json(),
+        "state_db": read_hermes_state_db_summary(sorted(set(evidence_session_ids))),
+    }
+    classification = classify_lane_state(row, hermes_evidence, now_iso=now) if row else {"state": "closed", "reason": "no_existing_lane", "reuse_blockers": []}
+    if row:
+        row["state"] = classification["state"]
+        row["reuse_blockers"] = classification.get("reuse_blockers", [])
+        if classification["state"] == "orphan_route_present":
+            row = clear_orphan_route(registry, key=key, evidence_refs=["~/.hermes/state.db", "~/.hermes/sessions/sessions.json"], now_iso=now)
+        elif classification["state"] == "duplicate_open_present":
+            open_sessions = sorted(row.get("open_sessions", []), key=lambda item: str(item.get("last_activity_at") or item.get("started_at") or ""))
+            for duplicate in open_sessions[:-1]:
+                mark_reclaim_candidate(registry, key=key, session_id=str(duplicate.get("session_id")), reason="duplicate_open", state="duplicate_open_present", evidence_refs=["session_registry.json"], now_iso=now)
+        elif classification["state"] == "stale_open" and row.get("representative_session_id"):
+            mark_reclaim_candidate(registry, key=key, session_id=str(row["representative_session_id"]), reason="stale_open", state="stale_open", evidence_refs=["session_registry.json"], now_iso=now)
+    row = registry.get("lanes", {}).get(key, {})
+    decision = reuse_decision(row, packet_data, context_limit_hint=packet_data.get("context_limit_hint")) if row else {"decision": "fresh", "representative_session_id": None, "blockers": ["no_existing_lane"]}
+    if decision["decision"] == "fresh":
+        row = upsert_representative(
+            registry,
+            key=key,
+            profile=profile,
+            platform=platform,
+            chat_id=chat_id,
+            thread_id=thread_id,
+            project_slug=project_slug,
+            session_id=_packet_session_id(packet_data, profile),
+            request_signature=_request_signature(packet_data, profile),
+            now_iso=now,
+            handoff_snapshot_ref=".harness/project/runs/handoff_snapshot.json",
+            evidence={"sessions_json_seen": bool(hermes_evidence["sessions_json"]), "state_db_seen": bool(hermes_evidence["state_db"].get("seen")), "thread_snapshot_seen": bool(thread_id)},
+            state=classification["state"] if classification["state"] in {"duplicate_open_present", "orphan_route_present", "stale_open"} else "representative_open",
+        )
+    cap_result = enforce_profile_cap(registry, profile=profile)
+    if cap_result.get("status") == "blocked_reclaim":
+        row = registry.get("lanes", {}).get(key, row)
+        row["state"] = "blocked_reclaim"
+        decision = {"decision": "blocked", "representative_session_id": None, "blockers": ["profile_cap_exceeded_no_candidate"]}
+    save_registry(registry_path, registry)
+    manifest_ref = None
+    manifest = build_reclaim_manifest(registry)
+    if manifest["candidate_count"]:
+        manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        manifest_ref = str(manifest_path.relative_to(REPO_ROOT))
+    elif manifest_path.exists():
+        manifest_path.unlink()
+    return {
+        "lane_key": key,
+        "representative_session_id": row.get("representative_session_id"),
+        "reuse_decision": decision["decision"],
+        "reuse_blockers": decision.get("blockers", []),
+        "reclaim_state": row.get("state", classification["state"]),
+        "reclaim_manifest_ref": manifest_ref,
+        "registry_ref": str(registry_path.relative_to(REPO_ROOT)),
+        "cap_status": cap_result,
+    }
+
 
 def route_task_packet(packet_data: dict[str, Any]) -> dict[str, Any]:
     """Analyze CPS and other metadata in a task packet to route it to the optimal profile."""
@@ -454,6 +569,11 @@ def do_delegate(packet_path: str) -> int:
                 routing["role"], routing["deity"], routing["description"] = details[chosen]
             routing["rationale"] = f"Selected after CPS preflight route-gate; local body is available under {preflight_result.get('out_dir')}"
         routing["preflight_route_gate"] = preflight_result
+    runs_dir = REPO_ROOT / ".harness" / "project" / "runs"
+    session_policy = apply_session_policy(packet_data, routing, runs_dir)
+    routing["session_policy"] = session_policy
+    if preflight_result and isinstance(preflight_result.get("route_gate"), dict):
+        preflight_result["route_gate"]["session_policy"] = session_policy
     
     print("\n--- Delegation Decision ---")
     print(f"Target Packet: {p_path.relative_to(REPO_ROOT)}")

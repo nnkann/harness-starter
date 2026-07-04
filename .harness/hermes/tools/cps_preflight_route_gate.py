@@ -23,6 +23,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from session_registry import lane_key, load_registry
+
 PROFILES = {
     "maat": "C-boundary/route-gate/audit-scope",
     "hermes-kann": "orchestration/dispatch/integration",
@@ -106,6 +108,34 @@ def _repo_meta(repo: Path) -> dict[str, str]:
         "repo_root": str(repo),
         "branch": run(["git", "rev-parse", "--abbrev-ref", "HEAD"]),
         "remote": run(["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"]) or "untracked-upstream",
+    }
+
+
+
+def _packet_field(packet: dict[str, Any], *keys: str, default: str = "local") -> str:
+    for key in keys:
+        value = packet.get(key)
+        if value not in (None, ""):
+            return str(value)
+    return default
+
+
+def build_session_policy(packet: dict[str, Any], repo: Path, selected_profile: str | None = None) -> dict[str, Any]:
+    profile = selected_profile or _packet_field(packet, "profile", "target_profile", default="default")
+    platform = _packet_field(packet, "platform", "source_platform", default="local")
+    chat_id = _packet_field(packet, "chat_id", "channel_id", "conversation_id", default="local")
+    thread_id = packet.get("thread_id") or packet.get("topic_id")
+    project_slug = _packet_field(packet, "project_slug", "project", default=repo.name)
+    key = lane_key(profile=profile, platform=platform, chat_id=chat_id, thread_id=str(thread_id) if thread_id else None, project_slug=project_slug)
+    registry_path = repo / ".harness" / "project" / "runs" / "session_registry.json"
+    row = load_registry(registry_path).get("lanes", {}).get(key, {}) if registry_path.exists() else {}
+    state = row.get("state", "closed")
+    return {
+        "lane_key": key,
+        "representative_session_id": row.get("representative_session_id"),
+        "reuse_decision": "reuse" if state in {"representative_open", "reusable_open"} and row.get("representative_session_id") else "fresh",
+        "reclaim_state": state if state in {"duplicate_open_present", "orphan_route_present", "stale_open", "blocked_reclaim"} else "clear",
+        "reclaim_manifest_ref": ".harness/project/runs/session_reclaim_manifest.json" if (repo / ".harness" / "project" / "runs" / "session_reclaim_manifest.json").exists() else None,
     }
 
 
@@ -996,6 +1026,8 @@ def run(packet_path: Path, out_dir: Path, repo: Path, mode: str = "live-maat") -
     hold_gap_loop = chain["hold_gap_loop"]
     final_selected_agents = chain["final_selected_agents"]
     final_output = final_output_from_judgment(final_judgment, hold_gap_loop)
+    selected_for_policy = next((agent for agent in final_selected_agents if agent not in {"maat", "hermes-kann"}), None)
+    route["session_policy"] = build_session_policy(packet, repo, selected_for_policy)
     learning = {
         "schema": "harness.cps_preflight.learning_event.v1",
         "contract_ref": str(CONTRACT_PATH),
