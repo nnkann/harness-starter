@@ -117,9 +117,26 @@ def load_packet(packet_path: Path) -> dict[str, Any]:
                     data[current_key].append(line_strip[1:].strip())
         return data
 
-
 def _utc_now() -> str:
     return datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+
+
+def _parse_iso8601(timestamp: str | None) -> datetime | None:
+    if not timestamp:
+        return None
+    try:
+        return datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def _normalize_request_signature(root_goal: str, expected_next_hop: str) -> str:
+    normalized = " ".join(str(root_goal or "").lower().split())
+    return f"{expected_next_hop}:{normalized}"
+
+
+def _normalized_goal_key(root_goal: str) -> str:
+    return " ".join(str(root_goal or "").lower().split())
 
 
 def _packet_value(packet_data: dict[str, Any], *keys: str, default: str | None = None) -> str | None:
@@ -135,23 +152,17 @@ def _project_slug(packet_data: dict[str, Any]) -> str:
 
 
 def _request_signature(packet_data: dict[str, Any], profile: str) -> str:
-    value = packet_data.get("request_signature")
-    if value:
-        return str(value)
     root_goal = str(packet_data.get("root_goal", "") or packet_data.get("goal", ""))
-    normalized = " ".join(root_goal.lower().split())
-    return f"{profile}:{normalized}"
+    return str(packet_data.get("request_signature") or _normalize_request_signature(root_goal, profile))
 
 
 def _packet_session_id(packet_data: dict[str, Any], profile: str) -> str:
-    root_goal = str(packet_data.get("root_goal") or packet_data.get("goal") or "unknown")
-    normalized = " ".join(root_goal.lower().split())[:80]
     return str(
         packet_data.get("representative_session_id")
         or packet_data.get("session_id")
         or packet_data.get("run_id")
         or packet_data.get("flow_graph_id")
-        or f"pending:{profile}:{normalized}"
+        or f"pending:{profile}:{_normalized_goal_key(str(packet_data.get('root_goal') or packet_data.get('goal') or 'unknown'))[:80]}"
     )
 
 
@@ -227,6 +238,191 @@ def apply_session_policy(packet_data: dict[str, Any], routing: dict[str, Any], r
         "registry_ref": str(registry_path.relative_to(REPO_ROOT)),
         "cap_status": cap_result,
     }
+
+
+def build_handoff_snapshot(packet_data: dict[str, Any], routing: dict[str, Any], preflight_result: dict[str, Any] | None) -> dict[str, Any]:
+    route_gate = preflight_result.get("route_gate", {}) if isinstance(preflight_result, dict) and isinstance(preflight_result.get("route_gate"), dict) else {}
+    selected_agents = route_gate.get("selected_agents", {}) if isinstance(route_gate.get("selected_agents"), dict) else {}
+    expected_next_hop = routing.get("selected_profile") or "unknown"
+    handoff_chain = ["hermes-kann"] + [agent for agent in selected_agents if agent != "hermes-kann"]
+    root_goal = str(packet_data.get("root_goal", "") or packet_data.get("goal", ""))
+    snapshot_at = packet_data.get("snapshot_at") or _utc_now()
+    response_received_at = packet_data.get("response_received_at")
+    last_response_at = packet_data.get("last_response_at") or response_received_at or snapshot_at
+    return {
+        "schema": "harness.handoff_snapshot.v1",
+        "snapshot_at": snapshot_at,
+        "task_id": packet_data.get("run_id") or packet_data.get("flow_graph_id") or packet_data.get("task_id") or root_goal or "unknown_task",
+        "packet_ref": routing.get("packet_ref"),
+        "root_goal": root_goal,
+        "request_signature": packet_data.get("request_signature") or _normalize_request_signature(root_goal, expected_next_hop),
+        "current_owner": "hermes-kann",
+        "expected_next_hop": expected_next_hop,
+        "current_stage": "delegation_ready",
+        "last_action": "delegate_route_selected",
+        "last_response_from": "maat_preflight" if preflight_result else "local_router",
+        "last_response_at": last_response_at,
+        "response_received_at": response_received_at,
+        "handoff_chain": handoff_chain,
+        "anomaly_flag": False,
+        "anomaly_type": None,
+        "anomaly_brief": None,
+        "handoff_count": max(len(handoff_chain) - 1, 0),
+        "retry_count": int(packet_data.get("retry_count", 0) or 0),
+        "elapsed_seconds": int(packet_data.get("elapsed_seconds", 0) or 0),
+        "token_budget_remaining": packet_data.get("token_budget_remaining"),
+        "context_remaining_pct": packet_data.get("context_remaining_pct"),
+        "session_policy": routing.get("session_policy"),
+    }
+
+
+def write_handoff_snapshot(snapshot: dict[str, Any], runs_dir: Path) -> Path:
+    current = runs_dir / "handoff_snapshot.json"
+    prev1 = runs_dir / "handoff_snapshot.prev1.json"
+    prev2 = runs_dir / "handoff_snapshot.prev2.json"
+    prev3 = runs_dir / "handoff_snapshot.prev3.json"
+    runs_dir.mkdir(parents=True, exist_ok=True)
+    prev3.unlink(missing_ok=True)
+    if prev1.exists():
+        if prev2.exists():
+            prev2.unlink()
+        prev1.replace(prev2)
+    if current.exists():
+        current.replace(prev1)
+    current.write_text(json.dumps(snapshot, indent=2), encoding="utf-8")
+    return current
+
+
+def _load_json_if_exists(path: Path) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def build_hu_handoff_analysis(current_snapshot: dict[str, Any], previous_snapshot: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not previous_snapshot:
+        return None
+    risk_points: list[str] = []
+    anomaly_type: str | None = None
+    idle_gap_seconds = None
+    if current_snapshot.get("request_signature") == previous_snapshot.get("request_signature"):
+        risk_points.append("same_request_signature_as_prev1")
+    response_received_at = _parse_iso8601(current_snapshot.get("response_received_at"))
+    snapshot_at = _parse_iso8601(current_snapshot.get("snapshot_at"))
+    if response_received_at and snapshot_at:
+        idle_gap_seconds = int((snapshot_at - response_received_at).total_seconds())
+        if idle_gap_seconds >= 300:
+            risk_points.append("idle_gap_exceeded_threshold")
+    if response_received_at:
+        risk_points.append("response_received_before_repeat_request")
+    if {
+        "same_request_signature_as_prev1",
+        "response_received_before_repeat_request",
+        "idle_gap_exceeded_threshold",
+    }.issubset(set(risk_points)):
+        anomaly_type = "duplicate_request_after_response"
+    elif {"response_received_before_repeat_request", "idle_gap_exceeded_threshold"}.issubset(set(risk_points)):
+        anomaly_type = "idle_after_response"
+    if not anomaly_type:
+        return None
+    return {
+        "anomaly_type": anomaly_type,
+        "severity": "medium" if anomaly_type == "duplicate_request_after_response" else "low",
+        "idle_gap_seconds": idle_gap_seconds,
+        "risk_points": risk_points,
+        "current_snapshot_ref": current_snapshot.get("packet_ref"),
+        "previous_snapshot_ref": previous_snapshot.get("packet_ref"),
+        "request_signature": current_snapshot.get("request_signature"),
+        "summary": f"{anomaly_type} detected for {current_snapshot.get('expected_next_hop')} after {idle_gap_seconds}s idle gap" if idle_gap_seconds is not None else f"{anomaly_type} detected",
+    }
+
+
+def detect_follow_up_continuity(packet_data: dict[str, Any], previous_snapshot: dict[str, Any] | None, previous_routing: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not previous_snapshot or not previous_routing:
+        return None
+    if not packet_data.get("response_received_at"):
+        return None
+    current_goal = _normalized_goal_key(str(packet_data.get("root_goal", "") or packet_data.get("goal", "")))
+    previous_goal = _normalized_goal_key(str(previous_snapshot.get("root_goal", "")))
+    if not current_goal or current_goal != previous_goal:
+        return None
+    return {
+        "status": "follow_up",
+        "classification": "reused_existing_handoff",
+        "previous_task_id": previous_snapshot.get("task_id"),
+        "previous_snapshot_ref": previous_snapshot.get("packet_ref"),
+        "selected_profile": previous_snapshot.get("expected_next_hop") or previous_routing.get("selected_profile"),
+        "reason": "same_root_goal_after_response",
+    }
+
+
+def build_follow_up_snapshot(packet_data: dict[str, Any], previous_snapshot: dict[str, Any], routing: dict[str, Any], packet_ref: Path) -> dict[str, Any]:
+    snapshot = build_handoff_snapshot(packet_data, routing, None)
+    snapshot.update({
+        "current_stage": "follow_up_linked",
+        "last_action": "reuse_existing_handoff",
+        "request_kind": "follow_up",
+        "linked_snapshot_ref": previous_snapshot.get("packet_ref"),
+        "linked_task_id": previous_snapshot.get("task_id"),
+        "anomaly_flag": False,
+        "anomaly_type": None,
+        "anomaly_brief": None,
+        "packet_ref": str(packet_ref),
+    })
+    return snapshot
+
+
+def write_handoff_continuity(continuity: dict[str, Any], current_snapshot: dict[str, Any], runs_dir: Path) -> Path:
+    path = runs_dir / "handoff_continuity.json"
+    payload = dict(continuity)
+    payload.update({
+        "schema": "harness.handoff_continuity.v1",
+        "current_task_id": current_snapshot.get("task_id"),
+        "current_snapshot_ref": current_snapshot.get("packet_ref"),
+        "request_signature": current_snapshot.get("request_signature"),
+    })
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return path
+
+
+def reuse_previous_routing(previous_routing: dict[str, Any], packet_ref: Path, continuity: dict[str, Any]) -> dict[str, Any]:
+    routing = dict(previous_routing)
+    routing["packet_ref"] = str(packet_ref)
+    routing["selected_profile"] = continuity.get("selected_profile") or previous_routing.get("selected_profile")
+    routing["rationale"] = "Follow-up continuation matched an existing handoff; reused prior selected route instead of creating a new delegation request."
+    routing["request_kind"] = "follow_up"
+    routing["continuity"] = continuity
+    return routing
+
+
+def write_hu_handoff_artifacts(analysis: dict[str, Any] | None, current_snapshot: dict[str, Any], runs_dir: Path) -> tuple[Path | None, Path | None]:
+    packet_path = runs_dir / "hu_handoff_packet.json"
+    analysis_path = runs_dir / "hu_handoff_analysis.json"
+    if not analysis:
+        packet_path.unlink(missing_ok=True)
+        analysis_path.unlink(missing_ok=True)
+        return None, None
+    hu_packet = {
+        "schema": "harness.hu_handoff_packet.v1",
+        "target_profile": "hu",
+        "source_profile": "hermes-kann",
+        "anomaly_type": analysis["anomaly_type"],
+        "snapshot_ref": current_snapshot.get("packet_ref"),
+        "snapshot_task_id": current_snapshot.get("task_id"),
+        "request_signature": analysis.get("request_signature"),
+        "summary": analysis.get("summary"),
+    }
+    hu_analysis = {
+        "schema": "harness.hu_handoff_analysis.v1",
+        "target_profile": "hu",
+        "analysis": analysis,
+    }
+    packet_path.write_text(json.dumps(hu_packet, indent=2), encoding="utf-8")
+    analysis_path.write_text(json.dumps(hu_analysis, indent=2), encoding="utf-8")
+    return packet_path, analysis_path
 
 
 def route_task_packet(packet_data: dict[str, Any]) -> dict[str, Any]:
@@ -515,12 +711,32 @@ def do_delegate(packet_path: str) -> int:
     p_path = Path(packet_path)
     if not p_path.is_absolute():
         p_path = REPO_ROOT / p_path
+    runs_dir = REPO_ROOT / ".harness" / "project" / "runs"
+    previous_snapshot = _load_json_if_exists(runs_dir / "handoff_snapshot.json")
+    previous_routing = _load_json_if_exists(runs_dir / "delegation_decision.json")
         
     try:
         packet_data = load_packet(p_path)
     except Exception as e:
         print(f"ERROR: Failed to load task packet: {e}")
         return 1
+
+    continuity = detect_follow_up_continuity(packet_data, previous_snapshot, previous_routing)
+    if continuity and previous_snapshot and previous_routing:
+        routing = reuse_previous_routing(previous_routing, p_path, continuity)
+        session_policy = apply_session_policy(packet_data, routing, runs_dir)
+        routing["session_policy"] = session_policy
+        decision_file = runs_dir / "delegation_decision.json"
+        decision_file.parent.mkdir(parents=True, exist_ok=True)
+        decision_file.write_text(json.dumps(routing, indent=2), encoding="utf-8")
+        snapshot = build_follow_up_snapshot(packet_data, previous_snapshot, routing, p_path)
+        snapshot_file = write_handoff_snapshot(snapshot, runs_dir)
+        continuity_file = write_handoff_continuity(continuity, snapshot, runs_dir)
+        write_hu_handoff_artifacts(None, snapshot, runs_dir)
+        print(f"Follow-up continuation reused via {continuity_file.relative_to(REPO_ROOT)}")
+        print(f"Delegation decision saved to {decision_file.relative_to(REPO_ROOT)}")
+        print(f"Handoff snapshot saved to {snapshot_file.relative_to(REPO_ROOT)}")
+        return 0
         
     preflight_script = REPO_ROOT / ".harness" / "hermes" / "tools" / "cps_preflight_route_gate.py"
     preflight_dir = REPO_ROOT / ".harness" / "project" / "runs" / "preflight_route_gate" / p_path.stem
@@ -550,8 +766,11 @@ def do_delegate(packet_path: str) -> int:
             preflight_result = None
 
     routing = route_task_packet(packet_data)
+    routing["packet_ref"] = str(p_path)
     if preflight_result:
-        selected_agents = preflight_result.get("route_gate", {}).get("selected_agents", {})
+        route_gate = preflight_result.get("route_gate", {}) if isinstance(preflight_result.get("route_gate"), dict) else {}
+        verification_gate = route_gate.get("verification_gate", {}) if isinstance(route_gate.get("verification_gate"), dict) else {}
+        selected_agents = route_gate.get("selected_agents", {})
         non_control = [a for a in selected_agents if a not in {"maat", "hermes-kann"}]
         if non_control:
             details = {
@@ -568,12 +787,13 @@ def do_delegate(packet_path: str) -> int:
             if chosen in details:
                 routing["role"], routing["deity"], routing["description"] = details[chosen]
             routing["rationale"] = f"Selected after CPS preflight route-gate; local body is available under {preflight_result.get('out_dir')}"
+        routing["preflight_verification_gate"] = verification_gate
         routing["preflight_route_gate"] = preflight_result
-    runs_dir = REPO_ROOT / ".harness" / "project" / "runs"
     session_policy = apply_session_policy(packet_data, routing, runs_dir)
     routing["session_policy"] = session_policy
     if preflight_result and isinstance(preflight_result.get("route_gate"), dict):
         preflight_result["route_gate"]["session_policy"] = session_policy
+    snapshot = build_handoff_snapshot(packet_data, routing, preflight_result)
     
     print("\n--- Delegation Decision ---")
     print(f"Target Packet: {p_path.relative_to(REPO_ROOT)}")
@@ -591,9 +811,22 @@ def do_delegate(packet_path: str) -> int:
     
     # Output delegation JSON for machine parsing
     decision_file = REPO_ROOT / ".harness" / "project" / "runs" / "delegation_decision.json"
+    runs_dir = REPO_ROOT / ".harness" / "project" / "runs"
     decision_file.parent.mkdir(parents=True, exist_ok=True)
     decision_file.write_text(json.dumps(routing, indent=2), encoding="utf-8")
+    snapshot_file = write_handoff_snapshot(snapshot, runs_dir)
+    previous_snapshot = _load_json_if_exists(runs_dir / "handoff_snapshot.prev1.json")
+    hu_analysis = build_hu_handoff_analysis(snapshot, previous_snapshot)
+    if hu_analysis:
+        snapshot["anomaly_flag"] = True
+        snapshot["anomaly_type"] = hu_analysis["anomaly_type"]
+        snapshot["anomaly_brief"] = hu_analysis["summary"]
+        snapshot_file.write_text(json.dumps(snapshot, indent=2), encoding="utf-8")
+    write_hu_handoff_artifacts(hu_analysis, snapshot, runs_dir)
     print(f"Delegation decision saved to {decision_file.relative_to(REPO_ROOT)}")
+    print(f"Handoff snapshot saved to {snapshot_file.relative_to(REPO_ROOT)}")
+    if hu_analysis:
+        print(f"Hu handoff analysis saved to {(runs_dir / 'hu_handoff_analysis.json').relative_to(REPO_ROOT)}")
     return 0
 
 def main() -> int:

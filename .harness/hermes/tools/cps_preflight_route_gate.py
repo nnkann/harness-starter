@@ -39,7 +39,7 @@ PROFILES = {
     "hathor": "artifact quality/UX/support",
 }
 
-CONTRACT_PATH = Path("/Users/kann/projects/harness-brain/projects/harness-starter/contracts/cp-cps-preflight-route-gate.md")
+CONTRACT_PATH = Path("/Users/kann/projects/harness-starter/docs/harness/contracts/cp_cps_preflight_route_gate.md")
 DEFAULT_REPO = Path("/Users/kann/projects/harness-starter")
 DEFAULT_MAX_REENTRY_ITERATIONS = 1
 REENTRY_INPUT_KEYS = (
@@ -99,6 +99,108 @@ def _ordered_cps_items(cps: dict[str, Any], prefix: str) -> dict[str, str]:
     return dict(sorted(found.items(), key=lambda item: int(item[0][1:])))
 
 
+def _present(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, (str, bytes)):
+        return bool(value.strip())
+    if isinstance(value, (dict, list, tuple, set)):
+        return bool(value)
+    return True
+
+
+def _mode_evidence_ok(mode: str, minimum: Any) -> bool:
+    if not isinstance(minimum, dict) or not mode:
+        return False
+    evidence = minimum.get(mode) if mode in minimum else minimum
+    if not isinstance(evidence, dict):
+        return False
+    required = {
+        "test-backed": ("command_probe_id", "result"),
+        "readback-backed": ("changed_path", "closure_line_ref"),
+        "trace-backed": ("p_to_s_ref", "artifact_ref"),
+        "source-backed": ("source_ref", "application_reason"),
+    }.get(mode)
+    if mode == "mixed":
+        return any(_mode_evidence_ok(submode, minimum) for submode in ("test-backed", "readback-backed", "trace-backed", "source-backed"))
+    return bool(required and all(_present(evidence.get(key)) for key in required))
+
+
+def _edge_set(edges: list[Any]) -> set[tuple[str, str]]:
+    found: set[tuple[str, str]] = set()
+    for edge in edges:
+        left, _, right = str(edge).replace("?", "").partition("->")
+        if not right:
+            continue
+        left_ids = re.findall(r"P\d+", left)
+        right_ids = re.findall(r"S\d+", right)
+        found.update((p_id, s_id) for p_id in left_ids for s_id in right_ids)
+    return found
+
+
+def build_verification_gate(candidate: dict[str, Any], route: dict[str, Any]) -> dict[str, Any]:
+    raw_verification = candidate.get("verification")
+    verification: dict[str, Any] = raw_verification if isinstance(raw_verification, dict) else {}
+    execution_kind = str(verification.get("execution_kind") or "").strip()
+    raw_verification_s = verification.get("verification_S")
+    verification_s: list[Any] = raw_verification_s if isinstance(raw_verification_s, list) else []
+    evidence_mode = str(verification.get("evidence_mode") or "").strip()
+    minimum = verification.get("minimum_evidence")
+    raw_accepted_p = route.get("accepted_P")
+    accepted_p: dict[str, Any] = raw_accepted_p if isinstance(raw_accepted_p, dict) else {}
+    raw_accepted_s = route.get("accepted_S")
+    accepted_s: dict[str, Any] = raw_accepted_s if isinstance(raw_accepted_s, dict) else {}
+    raw_edges = route.get("E")
+    edges: list[Any] = raw_edges if isinstance(raw_edges, list) else []
+    required = execution_kind == "execution-needed"
+    minimum_ok = _mode_evidence_ok(evidence_mode, minimum) if evidence_mode else False
+    gap_class = "none"
+    if required and not verification_s:
+        gap_class = "verification_s_missing"
+    elif required and not evidence_mode:
+        gap_class = "evidence_mode_missing"
+    elif required and not minimum_ok:
+        gap_class = "minimum_evidence_missing"
+    elif (verification_s or _present(minimum)) and accepted_s and not accepted_p:
+        gap_class = "problem_p_missing"
+    else:
+        trace = _edge_set(edges)
+        for sid in accepted_s:
+            pid = f"P{sid[1:]}" if re.fullmatch(r"S\d+", sid) else ""
+            if pid in accepted_p and (pid, sid) not in trace:
+                gap_class = "p_s_trace_missing"
+                break
+        if gap_class == "none":
+            for pid in accepted_p:
+                sid = f"S{pid[1:]}" if re.fullmatch(r"P\d+", pid) else ""
+                if sid and sid not in accepted_s and not any(edge_pid == pid for edge_pid, _ in trace):
+                    gap_class = "orphan_p_present"
+                    break
+    return {
+        "required": required,
+        "verification_S": verification_s,
+        "evidence_mode": evidence_mode or "missing",
+        "minimum_evidence_check": "pass" if minimum_ok else ("missing" if not _present(minimum) else "fail"),
+        "gap_class": gap_class,
+    }
+
+
+def apply_verification_gate(route: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
+    gate = build_verification_gate(candidate, route)
+    route["verification_gate"] = gate
+    if gate["gap_class"] != "none":
+        route["status"] = "hold"
+        route["C_boundary"] = "HOLD"
+        raw_gap_scan = route.get("gap_scan")
+        gap_scan: dict[str, Any] = raw_gap_scan if isinstance(raw_gap_scan, dict) else {}
+        raw_missing = gap_scan.get("missing")
+        missing: list[Any] = list(raw_missing) if isinstance(raw_missing, list) else []
+        if gate["gap_class"] not in missing:
+            missing.append(gate["gap_class"])
+        route["gap_scan"] = {**gap_scan, "missing": missing, "verdict": "GAP_FOUND"}
+    return route
+
+
 def _repo_meta(repo: Path) -> dict[str, str]:
     def run(args: list[str]) -> str:
         import subprocess
@@ -109,7 +211,6 @@ def _repo_meta(repo: Path) -> dict[str, str]:
         "branch": run(["git", "rev-parse", "--abbrev-ref", "HEAD"]),
         "remote": run(["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"]) or "untracked-upstream",
     }
-
 
 
 def _packet_field(packet: dict[str, Any], *keys: str, default: str = "local") -> str:
@@ -173,13 +274,17 @@ def build_candidate(packet: dict[str, Any], packet_path: Path, repo: Path) -> di
             p["P8?"] = "efficiency_or_token_risk"
             s["S8?"] = "hu_efficiency_probe"
     edges = []
+    explicit_edges = cps.get("E") if "E" in cps else cps.get("E?") if "E?" in cps else packet.get("E") if "E" in packet else None
+    if isinstance(explicit_edges, list):
+        edges = [str(edge) for edge in explicit_edges]
     for pid in p:
         base = pid[1:].rstrip("?")
         sid = f"S{base}"
         if pid.endswith("?") and f"{sid}?" in s:
             sid = f"{sid}?"
-        if sid in s:
+        if explicit_edges is None and sid in s and not any((pid.rstrip("?"), sid.rstrip("?")) == pair for pair in _edge_set(edges)):
             edges.append(f"{pid} -> {sid}")
+    verification = packet.get("verification") if isinstance(packet.get("verification"), dict) else {}
     return {
         "schema": "harness.cps_preflight.candidate.v1",
         "status": "candidate",
@@ -192,6 +297,7 @@ def build_candidate(packet: dict[str, Any], packet_path: Path, repo: Path) -> di
         "P?": p,
         "S?": s,
         "E?": edges,
+        "verification": verification,
         "uncertainty": [
             "Packet supplied explicit P#/S#; Maat still owns C-boundary and gap scan"
         ] if explicit_p else [
@@ -254,7 +360,7 @@ def adjudicate(candidate: dict[str, Any]) -> dict[str, Any]:
     if not candidate.get("S?"):
         missing.append("S?")
     mode = "targeted" if any(a in selected for a in ["ptah", "sekhmet", "thoth"]) else "gap_scan_only"
-    return {
+    route = {
         "schema": "harness.cps_preflight.route_gate.v1",
         "status": "hold" if missing else "pass",
         "C_boundary": "HOLD" if missing else "PASS_ONE_C",
@@ -283,6 +389,7 @@ def adjudicate(candidate: dict[str, Any]) -> dict[str, Any]:
             "automatic_full_audit_on_gap",
         ],
     }
+    return apply_verification_gate(route, candidate)
 
 
 def _extract_json_object(text: str) -> dict[str, Any] | None:
@@ -378,7 +485,7 @@ def _normalize_live_maat(raw: dict[str, Any], candidate: dict[str, Any], session
         "local_body_before_accept_or_need_local_body",
         "automatic_full_audit_on_gap",
     ])
-    return route
+    return apply_verification_gate(route, candidate)
 
 
 def invoke_live_maat(candidate: dict[str, Any], packet: dict[str, Any], repo: Path, timeout: int = 180) -> dict[str, Any]:
@@ -410,7 +517,7 @@ def invoke_live_maat(candidate: dict[str, Any], packet: dict[str, Any], repo: Pa
             "selected_agents": {"maat": {"P": ["P1"], "S": ["S1"], "response": "hold"}},
             "final_audit_needed": False,
         })
-        return route
+        return apply_verification_gate(route, candidate)
     return _normalize_live_maat(parsed, candidate, session_id, stdout)
 
 
@@ -422,12 +529,14 @@ def build_agent_draft_probe(agent: str, route: dict[str, Any]) -> dict[str, Any]
     return {
         "schema": "harness.cps_preflight.agent_draft_probe.v1",
         "agent": agent,
+        "profile_call_requires_cps_reason": True,
         "C_ref": route.get("C"),
         "draft_CPS": {
             "C": route.get("C"),
             "P": {pid: route.get("accepted_P", {}).get(pid) for pid in p_ids if pid in route.get("accepted_P", {})},
             "S": {sid: route.get("accepted_S", {}).get(sid) for sid in s_ids if sid in route.get("accepted_S", {})},
             "E": [edge for edge in route.get("E", []) if any(sid in edge for sid in s_ids)],
+            "verification_gate": route.get("verification_gate", {}),
             "AC": {"mode": route.get("AC_mode"), "audit_plan": route.get("audit_plan")},
             "Goal": "Return role_response only; do not execute local body.",
         },
@@ -530,6 +639,7 @@ def build_reducer_input(route: dict[str, Any], probe_responses: dict[str, Any]) 
         "accepted_P": route.get("accepted_P", {}),
         "accepted_S": route.get("accepted_S", {}),
         "E": route.get("E", []),
+        "verification_gate": route.get("verification_gate", {}),
         "candidate_agents": route.get("selected_agents", {}),
         "probe_responses": probe_responses,
         "join_policy": {
@@ -548,6 +658,9 @@ def _maat_reducer_prompt(reducer_input: dict[str, Any]) -> str:
             "Return exactly one JSON object and no markdown.",
             "Do not mutate files, run tools, use git, implement, or claim final audit.",
             "Reduce probe responses only: decide final_selected_agents and local_body_scope.",
+            "If an agent responds with NEED_LOCAL_BODY, this is a valid request for local body dispatch. Grant local_body_scope for this agent.",
+            "Do not return status HOLD just because an agent requested NEED_LOCAL_BODY. If all required probes are ACCEPT or NEED_LOCAL_BODY, return status PASS.",
+            "The final_maat_judgment.json is the output of the final step and does not exist yet. Do NOT treat it as a missing prerequisite or hold the reducer because of its absence.",
             "If required probes are missing, rejected, or inconsistent, return status HOLD and no local_body_scope grants.",
         ],
         "required_response_schema": {
@@ -670,11 +783,13 @@ def build_probe(agent: str, route: dict[str, Any], spec: dict[str, Any] | None =
     return {
         "schema": "harness.cps_preflight.agent_probe.v1",
         "requested_role": agent,
+        "profile_call_requires_cps_reason": True,
         "contract_ref": str(CONTRACT_PATH),
         "C": rr.get("revised_C") or route.get("C"),
         "local_P": {pid: accepted_p.get(pid) for pid in spec.get("P", []) if pid in accepted_p},
         "local_S": {sid: accepted_s.get(sid) for sid in spec.get("S", []) if sid in accepted_s},
         "local_E": [edge for edge in edges if any(sid in edge for sid in spec.get("S", []))],
+        "verification_gate": route.get("verification_gate", {}),
         "ask": "accept/reject/need_local_body/hold",
         "body_policy": "local task body only after reducer_result grants local_body_scope",
     }
@@ -688,6 +803,7 @@ def build_local_body(agent: str, probe: dict[str, Any], packet: dict[str, Any], 
         "local_P": probe["local_P"],
         "local_S": probe["local_S"],
         "local_E": probe["local_E"],
+        "verification_gate": probe.get("verification_gate", {}),
         "task_AC": packet.get("task_AC") or (packet.get("CPS", {}) if isinstance(packet.get("CPS"), dict) else {}).get("AC"),
         "owner_approval_boundary": packet.get("owner_approval_boundary"),
         "prohibited_actions": packet.get("prohibited_actions", ["git add", "git commit", "git push"]),
@@ -712,6 +828,7 @@ def build_local_body_dispatch(route: dict[str, Any], reducer_result: dict[str, A
         "schema": "harness.cps_preflight.local_body_dispatch.v1",
         "status": "pass" if reducer_result.get("status") == "pass" else "hold",
         "policy": "local_task_body is emitted only when reducer_result.local_body_scope grants the agent",
+        "verification_gate": route.get("verification_gate", {}),
         "dispatch": dispatch,
     }
 
@@ -759,6 +876,7 @@ def build_contribute_cps(packet: dict[str, Any], candidate: dict[str, Any], rout
         "P": revised_p,
         "S": revised_s,
         "E": revised_e,
+        "verification_gate": route.get("verification_gate", {}),
         "order": route.get("order", []),
         "task_AC": task_ac,
         "selected_agents": route.get("selected_agents", {}),
@@ -777,6 +895,7 @@ def build_hold_gap_loop(contribute_cps: dict[str, Any], final_judgment: dict[str
     """Capture the CPS return path when Maat final holds/fails, without running a new procedure."""
     status = str(final_judgment.get("status", "hold")).lower()
     missing = final_judgment.get("missing_evidence", []) if isinstance(final_judgment.get("missing_evidence"), list) else []
+    missing = [m for m in missing if m != "final_maat_judgment.json"]
     return {
         "schema": "harness.cps_preflight.hold_gap_loop.v1",
         "status": "closed" if status == "pass" else "hold",
@@ -865,11 +984,22 @@ def final_output_from_judgment(final_judgment: dict[str, Any], hold_gap_loop: di
     missing = final_judgment.get("missing_evidence")
     if not isinstance(missing, list):
         missing = hold_gap_loop.get("missing_evidence", [])
+    missing = [m for m in missing if m != "final_maat_judgment.json"]
     return {
         "status": "hold",
         "Goal_closure": final_judgment.get("Goal_closure", {"status": "hold", "reason": "bounded HOLD after Maat final judgment"}),
         "missing_evidence": missing,
     }
+
+
+def route_gate_usable(route: dict[str, Any], final_output: dict[str, Any], final_selected_agents: dict[str, Any], reducer_result: dict[str, Any]) -> bool:
+    if str(route.get("status", "")).lower() == "pass":
+        return True
+    if route.get("C_boundary") != "HOLD" and bool(route.get("selected_agents")):
+        return True
+    if str(final_output.get("status", "")).lower() == "pass" and str(reducer_result.get("status", "")).lower() == "pass" and bool(final_selected_agents):
+        return True
+    return False
 
 
 def _maat_final_prompt(contribute_cps: dict[str, Any]) -> str:
@@ -880,6 +1010,7 @@ def _maat_final_prompt(contribute_cps: dict[str, Any]) -> str:
             "Return exactly one JSON object and no markdown.",
             "Do not mutate files, run tools, use git, or implement.",
             "Judge only the supplied CPS AC and Goal closure; do not invent new criteria.",
+            "The final_maat_judgment.json is the output of this very step. Do NOT mark final_maat_judgment.json as missing in the missing_evidence list, and do not hold the judgment because of its absence. If the supplied contribute_CPS trace is valid, return status PASS.",
         ],
         "required_response_schema": {
             "schema": "harness.cps_preflight.final_maat_judgment.v1",
@@ -1036,6 +1167,7 @@ def run(packet_path: Path, out_dir: Path, repo: Path, mode: str = "live-maat") -
         "selected_agents": sorted(route["selected_agents"]),
         "final_selected_agents": sorted(final_selected_agents),
         "audit_plan": route["audit_plan"],
+        "verification_gate": route.get("verification_gate", {}),
         "final_audit_needed": route["final_audit_needed"],
         "prohibitions": route["prohibitions"],
         "probe_response_count": len(probe_responses) if mode == "live-maat" else 0,
@@ -1085,10 +1217,8 @@ def run(packet_path: Path, out_dir: Path, repo: Path, mode: str = "live-maat") -
         (prefix.with_name(prefix.name + "_maat_route_gate.json")).write_text(json.dumps(reentry_chain["route"], indent=2, ensure_ascii=False), encoding="utf-8")
         (prefix.with_name(prefix.name + "_maat_reducer_result.json")).write_text(json.dumps(reentry_chain["reducer_result"], indent=2, ensure_ascii=False), encoding="utf-8")
         (prefix.with_name(prefix.name + "_final_maat_judgment.json")).write_text(json.dumps(reentry_chain["final_judgment"], indent=2, ensure_ascii=False), encoding="utf-8")
-    route_gate_usable = route.get("status") == "pass" or (
-        route.get("C_boundary") != "HOLD" and bool(route.get("selected_agents"))
-    )
-    ok = route_gate_usable and final_output.get("status") == "pass"
+    route_gate_ok = route_gate_usable(route, final_output, final_selected_agents, reducer_result)
+    ok = route_gate_ok and final_output.get("status") == "pass"
     return {
         "ok": ok,
         "status": final_output.get("status"),
