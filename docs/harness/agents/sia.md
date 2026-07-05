@@ -17,8 +17,8 @@ tags:
   - cps
   - source-ref
 relates-to:
-  - docs/harness/contracts/cp_agent_role_contracts.md
-  - docs/harness/contracts/cp_cps_evidence_acquisition.md
+  - /Users/kann/projects/harness-brain/projects/harness-starter/contracts/cp_agent_role_contracts.md
+  - /Users/kann/projects/harness-brain/projects/harness-starter/contracts/cp_cps_evidence_acquisition.md
 owner_approval_boundary:
   - no active codebase changes or system mutations
   - no heavy tool execution without explicit user authorization

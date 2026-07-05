@@ -14,7 +14,7 @@ summary: Default keeps admin/recovery capability; hermes-kann orchestrates via M
 tags: [harness, lazycodex, role-enforcement, orchestrator, cps, doc_ops, maat]
 validation_refs:
   - /Users/kann/projects/harness-starter/.harness/project/docs/harness/hn_lazycodex_role_permission_enforcement_plan.md
-  - /Users/kann/projects/harness-brain/projects/harness-starter/contracts/cp-lazycodex-role-permission-enforcement.md
+  - /Users/kann/projects/harness-brain/projects/harness-starter/decisions/lazycodex-role-permission-enforcement-index.md
 source_refs:
   - /Users/kann/projects/harness-starter/AGENTS.md
   - /Users/kann/projects/harness-starter/.harness/hermes/wrappers.yaml

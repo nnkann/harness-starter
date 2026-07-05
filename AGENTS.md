@@ -40,16 +40,18 @@ Treat any work touching Hermes runtime, Harness, CPS, Honcho, GBrain, project me
 
 ### CPS preflight route-gate automation
 
-Operational contract: `/Users/kann/projects/harness-brain/projects/harness-starter/contracts/cp-cps-preflight-route-gate.md`.
+Operational contract: `/Users/kann/projects/harness-brain/projects/harness-starter/contracts/cp_cps_preflight_route_gate.md`.
 Executable runner: `.harness/hermes/tools/cps_preflight_route_gate.py`.
 Lifecycle hook: `.harness/hermes/tools/lifecycle_runner.py delegate --packet <packet>` automatically runs the route-gate before legacy profile scoring.
 
 Loop:
-1. Hermes-kann drafts `C_candidate_packet` from the task packet.
-2. Live Maat route-gate settles C-boundary, P?/S?, P→S edges, order/dependency, gap scan, audit scope, AC mode, and the selected agent such as Thoth or Seshat (writer lane).
-3. Hermes-kann sends selected-agent probes only; it does not reselect or repackage agents after Maat decides.
-   It forwards only Maat-selected role-local packets unchanged.
-4. Accepted/`need_local_body` agents receive only Maat-approved local C/P#/S#/AC task bodies, and doc-writing flows directly to the selected writer lane (Seshat for doc_ops/source_ref work).
+- Hermes-kann drafts `C_candidate_packet` from the task packet after checking C SSOT / similar work / existing packet first. If the same or similar SSOT exists, classify the task as follow_up/rework/linked rather than new.
+- Live Maat route-gate settles C-boundary, P?/S?, P→S edges, order/dependency, gap scan, audit scope, AC mode, and the selected agent such as Thoth or Seshat (writer lane).
+- Hermes-kann sends selected-agent probes only; it does not reselect or repackage agents after Maat decides. It forwards only Maat-selected role-local packets unchanged.
+- Selected-agent probes must be compact CPS call packets, not role-reset boilerplate. Prefer `profile_call_requires_cps_reason: true` and include a reasoned packet instead of saying "You are X".
+- If a required field is missing, trace the cause back to the source packet, SSOT, or memory comparison (Honcho → GBrain → harness-brain) rather than halting blindly; then request only the missing element.
+- For Maat, keep the bounded `draft_CPS`/C_candidate packet shape, following the packet format SSOT rather than inventing a new format.
+
 5. Maat↔Thoth ping-pong resolves HOLD_GAP/REVISE before final judgment.
 6. Full audit/`validation_refs` are required only when the settled route says final-gate evidence is needed.
 7. Route JSON, validator success, selected-agent count, or local-body count without a CPS trace table is `FAIL_CPS_SEMANTIC_ABSENCE`, not E2E PASS.
@@ -63,11 +65,11 @@ For CPS-governed work, do not proceed as ad-hoc terminal/debug action. Before im
 
 1. Bind to a concrete board/project and filesystem scope: board slug, `default_workdir`/cwd, repo root, branch, remote, and owner approval boundary. Never infer this from Discord thread title or prior conversation alone.
 2. Find or create a source-ref-backed CPS/Maat artifact containing `root_goal`, `task_AC`, C/P/S framing, `source_refs`, `artifact_refs`, `owner_approval_boundary`, `prohibited_actions`, `evidence_acquisition`, a Maat compliance matrix, and validation/readback plan.
-3. If no artifact exists, stop execution immediately. A missing CPS/Maat artifact is a hard pre-action blocker. Create the appropriate packet first: harness-brain/GBrain for work history or project memory, repo docs for policy/contracts/source of truth, skill for reusable procedure, and Honcho only for compact digest-first context.
+3. If no artifact exists, stop execution immediately. A missing CPS/Maat artifact is a hard pre-action blocker. Create the appropriate packet first: harness-brain/GBrain for the canonical decision record or project memory, project repo docs for execution-facing agents and helper scripts, skill for reusable procedure, and Honcho only for compact digest-first context.
 4. If an unexpected blocker diverts the work, do not silently switch `root_goal`. Create or update a CPS incident artifact first, recording: original root_goal, blocker, evidence, temporary remediation, Maat gap, and required return path to original task_AC. After resolving the blocker, explicitly return to the original CPS packet. Do not report "operational normal" as completion if the root goal is still incomplete.
 5. Use digest-first evidence: paths, line refs, counts, timestamps, exit codes, HTTP status, and top errors. Do not dump raw logs, full transcripts, broad grep output, or secrets into Honcho/GBrain.
 6. Before any completion claim, run a Maat-style matrix against all `task_AC` and prohibited actions. Where applicable, verify enforcement in runnable schemas, templates, validators, manifests, scripts, or CI/check commands; Markdown keyword presence alone is not enough.
-7. At completion or blocker, perform the correct learning write-back: repo SSOT for policy/contract changes, harness-brain/GBrain for lifecycle/decisions/procedures, Honcho for compact source-ref-backed context, skill patch/create for reusable procedure, and memory only for compact durable facts.
+7. At completion or blocker, perform the correct learning write-back: harness-brain/GBrain for lifecycle/decisions/procedures and canonical doc records, project repo for execution-facing agent docs and helper scripts, Honcho for compact source-ref-backed context, skill patch/create for reusable procedure, and memory only for compact durable facts.
 8. After prerequisite or infrastructure remediation, explicitly return to the original `root_goal`/`task_AC` or report the documented hold.
 
 ### Secret Hygiene Rules
@@ -102,7 +104,7 @@ Harness operates above Hermes as the routing/process plane, so every task prefli
 
 Completion claims for Harness work require a learning write-back decision:
 
-- if the result changes project policy, contracts, routing, or operating procedure, update the repo source_ref and queue/perform a Honcho digest update;
+- if the result changes project policy, contracts, routing, or operating procedure, update the harness-brain canonical record first, then refresh the project-local runtime docs/artifacts and queue/perform a Honcho digest update;
 - if the result is a corrected agent procedure, patch the relevant skill or Agent/SOUL instruction immediately;
 - if the result closes a thread/task, verify route/session cleanup ownership and session-close snapshot creation or create an explicit follow-up task;
 - if a conversation/session is completed or intentionally archived, emit a bounded snapshot for background analysis/propagation instead of relying on the full transcript;
@@ -167,6 +169,6 @@ Raw terminal stdout is not a default evidence source. Commands should emit the a
 - **2회 자가교정 한도 및 HOLD_BLOCKED 분기**: 구현(T5) 단계에서 발생하는 오류에 대한 자가교정 시도는 동일 태스크/오류 지점 기준 **최대 2회**로 제한됩니다. 2회차 수정 실패 시 즉시 `HOLD_BLOCKED` 상태로 전이합니다.
 - **HOLD_BLOCKED Context Chaining (New C)**: `HOLD_BLOCKED` 상태에 진입하면 기존 루프를 정지하는 동시에, 이전 실패 이력과 `cps_trace`를 상속받은 `chained_context` (New C)를 자동으로 수립합니다. 이는 새로운 맥락의 문제 해결을 위한 신규 루프 분기(Transition) 시 핵심 근거로 작동하여 맥락을 지속시킵니다.
 - **CPS Trace 공식 필수화**: 자가교정 및 오류 분석 시, 이슈의 흐름을 `C > P[이슈번호] > S[해결책]` 형태의 단선 공식으로 구조화하여 상태 로그(`.harness/project/runs/boulder_state.json`)와 ledger에 기록해야 합니다. (예: `C > P1, P3 > S2, S4 > P2 > S3`)
-- **doc_ops LLM Wiki 연동**: 도메인 약어(abbr) 및 아키텍처 맥락 정보를 LLM Wiki 형태로 관리하고, 울트라워크 실행 시 최우선 순위로 고속 인덱싱하여 리서치 지연을 최소화합니다.
+- **doc_ops LLM Wiki 연동**: 도메인 약어(abbr) 및 아키텍처 맥락 정보를 LLM Wiki 형태로 관리하고, 울트라워크 실행 시 최우선 순위로 고속 인덱싱하여 리서치 지연을 최소화합니다. 네이밍/도메인/cluster SSOT는 `/Users/kann/projects/harness-brain/projects/hermes/decisions/hermes_doc_naming_chain_ssot.md`를 우선 참조합니다.
 - **Clean & Slim 감사 기준**: 물리적 100 LOC 제한의 단순 적용보다, 산출물의 청결성(예방용 try-catch 남발 배제, 디버깅용 임시 주석 배제, 동일 표현 중복 강조 제거)을 최우선으로 검증하며, 이는 T8(Maat) 감사 게이트의 절대 필수 통과 조건으로 작동합니다.
 

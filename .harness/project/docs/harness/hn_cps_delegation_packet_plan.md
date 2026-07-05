@@ -26,7 +26,7 @@ source_refs:
     freshness: 2026-06-26 edited
     confidence: High
     reason: Active packet template updated to include semantic CPS checks.
-  - path: /Users/kann/projects/harness-brain/projects/harness-starter/contracts/cp-cps-preflight-route-gate.md
+  - path: /Users/kann/projects/harness-brain/projects/harness-starter/contracts/cp_cps_preflight_route_gate.md
     freshness: 2026-06-26 edited
     confidence: High
     reason: Contract records live Maat -> Thoth ping-pong requirement.
