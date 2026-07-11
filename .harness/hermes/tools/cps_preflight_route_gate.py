@@ -347,6 +347,99 @@ def _path_refs(packet: dict[str, Any], text: str) -> list[str]:
     return ordered
 
 
+def _readable_current_source(record: dict[str, Any]) -> tuple[str | None, bool]:
+    raw_ref = record.get("source_ref") or record.get("source_refs")
+    source_ref = str(raw_ref[0]) if isinstance(raw_ref, list) and raw_ref else str(raw_ref or "")
+    content_hash = str(record.get("content_hash") or "").removeprefix("sha256:")
+    if not source_ref or not content_hash:
+        return None, False
+    path = Path(source_ref.removeprefix("file://"))
+    try:
+        actual_hash = hashlib.sha256(path.read_bytes()).hexdigest()
+    except (OSError, ValueError):
+        return source_ref, False
+    return source_ref, actual_hash == content_hash
+
+
+def _memory_records(raw: Any) -> tuple[list[dict[str, Any]], str]:
+    if isinstance(raw, BaseException) or raw is None or raw == "" or raw == []:
+        return [], "unavailable"
+    if isinstance(raw, str):
+        try:
+            return _memory_records(json.loads(raw))
+        except (json.JSONDecodeError, TypeError):
+            return [], "unavailable"
+    if isinstance(raw, list):
+        records = [item for item in raw if isinstance(item, dict)]
+        return records, "records" if records else "unavailable"
+    if not isinstance(raw, dict):
+        return [], "unavailable"
+    status = str(raw.get("status") or "").lower()
+    for key in ("matches", "results", "items", "data"):
+        if key in raw:
+            records, nested_status = _memory_records(raw[key])
+            if records:
+                return records, "records"
+            if status == "no_match":
+                return [], "no_match"
+            return [], nested_status
+    if status == "no_match":
+        return [], "no_match"
+    record_keys = {"source_ref", "source_refs", "source_revision", "content_hash", "lifecycle"}
+    return ([raw], "records") if record_keys.intersection(raw) else ([], "unavailable")
+
+
+def normalize_memory_lookup_result(readbacks: Any) -> dict[str, Any]:
+    """Normalize foreground reader outputs without inferring lifecycle or matches."""
+    lookup = readbacks if isinstance(readbacks, dict) else {}
+    layer_names = ("honcho", "gbrain", "harness-brain")
+    supplied = [(layer, lookup[layer]) for layer in layer_names if layer in lookup]
+    if not supplied and isinstance(readbacks, (str, list)):
+        supplied = [("unknown", readbacks)]
+
+    matches: list[dict[str, Any]] = []
+    layers: list[dict[str, str]] = []
+    excluded_count = 0
+    for layer, raw in supplied:
+        records, reader_status = _memory_records(raw)
+        layer_matches = 0
+        for record in records:
+            source_ref, current = _readable_current_source(record)
+            required = all(_present(record.get(key)) for key in (
+                "source_revision", "content_hash", "freshness", "lifecycle",
+            ))
+            if str(record.get("lifecycle") or "").lower() not in {"validated", "promoted"} or not required or not current:
+                excluded_count += 1
+                continue
+            matches.append({
+                "layer": layer,
+                "source_ref": source_ref,
+                "source_revision": record["source_revision"],
+                "content_hash": record["content_hash"],
+                "freshness": record["freshness"],
+                "lifecycle": record["lifecycle"],
+                "supersedes": record.get("supersedes"),
+            })
+            layer_matches += 1
+        layer_status = "match" if layer_matches else "no_match" if reader_status == "no_match" or records else "unavailable"
+        layers.append({"layer": layer, "status": layer_status})
+
+    if matches:
+        status = "match"
+    elif layers and all(item["status"] == "no_match" for item in layers):
+        status = "no_match"
+    else:
+        status = "unavailable"
+    return {
+        "lookup_ref": lookup.get("lookup_ref") if isinstance(lookup, dict) else None,
+        "status": status,
+        "active_only": True,
+        "matches": matches,
+        "layers": layers,
+        "excluded_count": excluded_count,
+    }
+
+
 def build_cps_seed_graph(packet: dict[str, Any], packet_path: Path, repo: Path) -> dict[str, Any]:
     """Build the first-class compact draft_C/seed_graph artifact before C_candidate compilation."""
     all_text = _text_values(packet)
@@ -381,6 +474,19 @@ def build_cps_seed_graph(packet: dict[str, Any], packet_path: Path, repo: Path) 
             "surface_ref": refs[1],
             "reason": "implementation surface is governed by the referenced SSOT candidate",
         })
+    memory_enrichment = {
+        "pivots": {
+            "C_shape": ["intent", "boundary_hint", "mutation_or_verification_nature"],
+            "domain": domains,
+            "ssot_residency": [ssot_hint],
+            "project_scope": [project_hint],
+        },
+        "lookup_required": any(domain != "general" for domain in domains) and seed["first_move"] != "short_local_response_or_bounded_probe",
+        "matches": [],
+        "status": "not_started",
+    }
+    if "memory_lookup_result" in packet:
+        memory_enrichment.update(normalize_memory_lookup_result(packet["memory_lookup_result"]))
     return {
         "schema": "harness.cps_entry.seed_graph.v1",
         "request_id": packet.get("run_id") or packet.get("flow_graph_id") or packet_path.stem,
@@ -388,17 +494,7 @@ def build_cps_seed_graph(packet: dict[str, Any], packet_path: Path, repo: Path) 
         "repo": _repo_meta(repo),
         "seeds": {"C0": seed},
         "seed_relations": seed_relations,
-        "memory_enrichment": {
-            "pivots": {
-                "C_shape": ["intent", "boundary_hint", "mutation_or_verification_nature"],
-                "domain": domains,
-                "ssot_residency": [ssot_hint],
-                "project_scope": [project_hint],
-            },
-            "lookup_required": any(domain != "general" for domain in domains) and seed["first_move"] != "short_local_response_or_bounded_probe",
-            "matches": [],
-            "status": "not_started",
-        },
+        "memory_enrichment": memory_enrichment,
         "route_seed": {
             "route_class": "ssot_discovery" if ssot_hint == "unknown" else ("implement_candidate" if "implementation" in domains else "inspect_source"),
             "reason": "seed-first CPS entry; route may grow from memory/SSOT/evidence",
@@ -454,11 +550,18 @@ def build_cps_trace_events(seed_graph: dict[str, Any], packet: dict[str, Any], *
             append("route_expanded", {"route_delta": {"active_route": route_seed.get("route_class")}})
         if maat_needed:
             append("escalation_triggered", {"route_delta": {"adjudicator": "maat"}, "reasons": maat_reasons}, "maat")
-        if isinstance(packet.get("memory_lookup_result"), dict):
-            result = packet["memory_lookup_result"]
-            append("memory_lookup_started", {"lookup_ref": result.get("lookup_ref")})
-            if result.get("matches"):
-                append("memory_match_attached", {"lookup_ref": result.get("lookup_ref"), "match_count": len(result["matches"])})
+        memory = seed_graph.get("memory_enrichment", {})
+        if isinstance(memory, dict) and memory.get("status") != "not_started":
+            append("memory_lookup_started", {
+                "lookup_ref": memory.get("lookup_ref"),
+                "status": memory.get("status"),
+                "active_only": True,
+            })
+            if memory.get("status") == "match" and memory.get("matches"):
+                append("memory_match_attached", {
+                    "lookup_ref": memory.get("lookup_ref"),
+                    "match_count": len(memory["matches"]),
+                })
     elif phase == "reentry":
         append("reentry_started", {"verification_link_delta": packet.get("revised_E", []), "missing_evidence_count": len(packet.get("missing_evidence", []))})
     if final_output is not None:

@@ -90,6 +90,79 @@ class TestCpsPreflightVerificationGate(TestCase):
         self.assertNotIn("current_state", events[0])
         self.assertIn("seed_delta", events[0]["event_payload"])
 
+    def test_memory_match_requires_current_readable_source_and_preserves_provenance(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "decision.md"
+            source.write_text("current decision", encoding="utf-8")
+            content_hash = preflight.hashlib.sha256(source.read_bytes()).hexdigest()
+            result = preflight.normalize_memory_lookup_result({
+                "lookup_ref": "lookup:1",
+                "gbrain": {"matches": [{
+                    "source_ref": str(source),
+                    "source_revision": "revision-1",
+                    "content_hash": content_hash,
+                    "freshness": "2026-07-11T00:00:00Z",
+                    "lifecycle": "validated",
+                    "supersedes": "revision-0",
+                }]},
+            })
+        self.assertEqual(result["status"], "match")
+        self.assertTrue(result["active_only"])
+        self.assertEqual(result["matches"], [{
+            "layer": "gbrain",
+            "source_ref": str(source),
+            "source_revision": "revision-1",
+            "content_hash": content_hash,
+            "freshness": "2026-07-11T00:00:00Z",
+            "lifecycle": "validated",
+            "supersedes": "revision-0",
+        }])
+
+    def test_memory_no_match_and_unavailable_are_explicit(self):
+        no_match = preflight.normalize_memory_lookup_result({
+            "honcho": {"status": "no_match", "matches": []},
+            "gbrain": {"status": "no_match", "matches": []},
+        })
+        unavailable = preflight.normalize_memory_lookup_result({
+            "honcho": "unstructured retrieval text without source provenance",
+            "gbrain": [],
+            "harness-brain": RuntimeError("reader unavailable"),
+        })
+        self.assertEqual(no_match["status"], "no_match")
+        self.assertEqual(no_match["matches"], [])
+        self.assertEqual(unavailable["status"], "unavailable")
+        self.assertEqual(unavailable["matches"], [])
+
+    def test_memory_active_only_excludes_inactive_unknown_and_hash_mismatch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "decision.md"
+            source.write_text("current", encoding="utf-8")
+            common = {
+                "source_ref": str(source), "source_revision": "rev",
+                "content_hash": preflight.hashlib.sha256(source.read_bytes()).hexdigest(),
+                "freshness": "2026-07-11T00:00:00Z", "supersedes": None,
+            }
+            records = [{**common, "lifecycle": lifecycle} for lifecycle in (
+                "stale", "conflict", "withdrawn", "candidate", "unknown",
+            )]
+            records.append({**common, "lifecycle": "promoted", "content_hash": "wrong"})
+            result = preflight.normalize_memory_lookup_result({"harness-brain": records})
+        self.assertEqual(result["status"], "no_match")
+        self.assertEqual(result["matches"], [])
+        self.assertEqual(result["excluded_count"], len(records))
+
+    def test_candidate_attaches_only_normalized_match_and_emits_no_false_match_trace(self):
+        packet = {"root_goal": "implement code", "memory_lookup_result": {
+            "lookup_ref": "lookup:empty", "honcho": [],
+        }}
+        candidate = preflight.build_candidate(packet, Path("packet.json"), REPO)
+        memory = candidate["route_enrichment"]["memory"]
+        events = [event["event_type"] for event in candidate["cps_trace_events"]]
+        self.assertEqual(memory["status"], "unavailable")
+        self.assertEqual(memory["matches"], [])
+        self.assertIn("memory_lookup_started", events)
+        self.assertNotIn("memory_match_attached", events)
+
     def test_reentry_candidate_preserves_seed_graph_and_trace(self):
         original = self.candidate({})
         reentry = preflight.build_candidate_from_reentry({
