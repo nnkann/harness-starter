@@ -52,6 +52,90 @@ def _init_honcho(repo: Path, agent_root: Path, session_key: str | None):
     res_key = session_key or cfg.resolve_session_name()
     return HonchoSessionManager(honcho=get_honcho_client(cfg), config=cfg) if cfg.enabled else None, res_key, cfg
 
+
+class HonchoUnavailable(RuntimeError):
+    pass
+
+
+class HonchoAnchorAdapter:
+    def __init__(self, manager, session_key: str):
+        if manager is None or not session_key:
+            raise HonchoUnavailable("honcho-unavailable-or-disabled")
+        self.manager = manager
+        self.session_key = session_key
+        session = manager.get_or_create(session_key)
+        self.identity = "%s:%s:%s" % (id(manager), id(manager._honcho), session.honcho_session_id)
+        self._session = session
+
+    def _scope(self):
+        target = self._session.user_peer_id
+        observer = self.manager._get_or_create_peer(self._session.assistant_peer_id)
+        return observer.conclusions_of(target)
+
+    @staticmethod
+    def _id(value):
+        if isinstance(value, (list, tuple)) and value:
+            value = value[0]
+        if isinstance(value, dict):
+            return value.get("id") or value.get("conclusion_id")
+        return getattr(value, "id", None) or getattr(value, "conclusion_id", None)
+
+    @staticmethod
+    def _content(value):
+        if isinstance(value, dict):
+            return value.get("content")
+        return getattr(value, "content", None)
+
+    def write_anchor(self, anchor):
+        payload = json.dumps({"cps_compact_anchor": dict(anchor)}, sort_keys=True, separators=(",", ":"))
+        result = self._scope().create([{"content": payload, "session_id": self._session.honcho_session_id}])
+        conclusion_id = self._id(result)
+        if not conclusion_id:
+            raise HonchoUnavailable("honcho-write-returned-no-real-id")
+        return "honcho:%s" % conclusion_id
+
+    def read_anchor(self, anchor_ref):
+        conclusion_id = anchor_ref.removeprefix("honcho:")
+        scope = self._scope()
+        getter = getattr(scope, "get", None)
+        if getter is None:
+            raise HonchoUnavailable("honcho-independent-readback-api-unavailable")
+        value = getter(conclusion_id)
+        content = self._content(value)
+        if not content:
+            raise HonchoUnavailable("honcho-independent-readback-empty")
+        parsed = json.loads(content)
+        return parsed["cps_compact_anchor"]
+
+    def deactivate_anchor(self, anchor_ref, superseded_by):
+        marker = {
+            "anchor_key": "supersession:%s" % anchor_ref,
+            "superseded_ref": anchor_ref,
+            "superseded_by": superseded_by,
+        }
+        return bool(self.write_anchor(marker))
+
+
+def create_production_stage_adapters(repo: Path = DEFAULT_REPO, agent_root: Path = DEFAULT_HERMES_AGENT_ROOT):
+    from cps_memory_lifecycle import ProductionStageAdapters
+    from plugins.memory.honcho.client import reset_honcho_client
+
+    writer_manager, _, writer_cfg = _init_honcho(repo, agent_root, "cps-anchor-writer")
+    if writer_manager is None or not writer_cfg.enabled:
+        raise HonchoUnavailable("honcho-unavailable-or-disabled")
+    writer = HonchoAnchorAdapter(writer_manager, "cps-anchor-writer")
+    reset_honcho_client()
+    reader_manager, _, reader_cfg = _init_honcho(repo, agent_root, "cps-anchor-readback")
+    if reader_manager is None or not reader_cfg.enabled:
+        raise HonchoUnavailable("honcho-readback-unavailable-or-disabled")
+    reader = HonchoAnchorAdapter(reader_manager, "cps-anchor-readback")
+    return ProductionStageAdapters(
+        repo,
+        repo / ".harness/project/runs/cps_memory_lifecycle.sqlite3",
+        writer,
+        reader,
+    )
+
 def find_manifest(repo: Path, arg: str | None) -> Path:
     if arg: return Path(arg) if Path(arg).is_absolute() else repo / Path(arg)
     for p in [repo / "honcho_ingest_manifest.yaml", repo / ".harness/project/runs/honcho_ingest_manifest.yaml", repo / ".harness/project/runs/_template/honcho_ingest_manifest.yaml"]:

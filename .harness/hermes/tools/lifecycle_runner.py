@@ -4,6 +4,8 @@ Automates task session lifecycles (init, check, close) and routes tasks to appro
 """
 from __future__ import annotations
 import argparse
+import hashlib
+import importlib.util
 import json
 import os
 import subprocess
@@ -30,9 +32,39 @@ LOG_FILE = REPO_ROOT / ".harness" / "project" / "runs" / "background_audit.log"
 
 # Fallback paths from environment or standard locations
 HERMES_AGENT_ROOT = Path(os.environ.get("HERMES_AGENT_ROOT", Path.home() / ".hermes/hermes-agent"))
-# Try to find python executable from hermes agent venv, fallback to current python
-DEFAULT_PYTHON = Path("/Users/kann/.hermes/hermes-agent/.venv/bin/python")
-PYTHON_EXEC = DEFAULT_PYTHON if DEFAULT_PYTHON.exists() else Path(sys.executable)
+HERMES_RUNTIME_PYTHON = Path("/Users/kann/.hermes/hermes-agent/venv/bin/python")
+
+
+def _imports_honcho(python: Path, agent_root: Path = HERMES_AGENT_ROOT) -> bool:
+    probe = """
+import os, sys
+from pathlib import Path
+from dotenv import load_dotenv
+load_dotenv(Path.home() / '.hermes/.env')
+sys.path.insert(0, sys.argv[1])
+import honcho
+os.environ['HONCHO_BASE_URL']
+"""
+    if not python.is_file() or not os.access(python, os.X_OK):
+        return False
+    result = subprocess.run(
+        [str(python), "-c", probe, str(agent_root)],
+        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    return result.returncode == 0
+
+
+def _select_python() -> Path:
+    if _imports_honcho(HERMES_RUNTIME_PYTHON):
+        return HERMES_RUNTIME_PYTHON
+    current = Path(sys.executable)
+    if _imports_honcho(current):
+        return current
+    raise RuntimeError("no Hermes runtime interpreter can import Honcho with HONCHO_BASE_URL configured")
+
+
+PYTHON_EXEC = _select_python()
 
 def log_audit(action: str, exit_code: int, message: str) -> None:
     """Write structured audit log to keep compatibility with bash runner."""
@@ -829,12 +861,199 @@ def do_delegate(packet_path: str) -> int:
         print(f"Hu handoff analysis saved to {(runs_dir / 'hu_handoff_analysis.json').relative_to(REPO_ROOT)}")
     return 0
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description="Harness Lifecycle Orchestrator & Delegation Runner")
-    parser.add_argument("action", choices=["init", "check", "close", "all", "delegate"], help="Lifecycle phase or delegation action")
+def _sha(value: str) -> str:
+    if len(value) != 40 or any(character not in "0123456789abcdefABCDEF" for character in value):
+        raise argparse.ArgumentTypeError("must be a 40-character SHA")
+    return value.lower()
+
+
+class _LifecycleArgumentParser(argparse.ArgumentParser):
+    def parse_known_args(self, args: Any = None, namespace: argparse.Namespace | None = None):
+        parsed, unknown = super().parse_known_args(args, namespace)
+        if parsed.action == "c2-memory":
+            missing = [name for name in ("branch", "pushed_sha", "source_ref", "lifecycle") if not getattr(parsed, name)]
+            if missing:
+                self.error("c2-memory requires " + ", ".join("--" + name.replace("_", "-") for name in missing))
+            if parsed.lifecycle == "initialization" and parsed.prior_ref:
+                self.error("initialization cannot be paired with --prior-ref")
+        return parsed, unknown
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = _LifecycleArgumentParser(description="Harness Lifecycle Orchestrator & Delegation Runner")
+    parser.add_argument("action", choices=["init", "check", "close", "all", "delegate", "c2-memory"], help="Lifecycle phase or delegation action")
     parser.add_argument("--session-id", help="Honcho session key or ID")
     parser.add_argument("--packet", help="Path to the task packet (required for 'delegate')")
     parser.add_argument("--manifest", help="Custom path to Honcho ingest manifest")
+    parser.add_argument("--branch", required=False)
+    parser.add_argument("--pushed-sha", type=_sha)
+    parser.add_argument("--source-ref")
+    parser.add_argument("--lifecycle", choices=("initialization", "revised", "withdrawn"))
+    parser.add_argument("--prior-ref")
+    return parser
+
+
+def _load_cps_memory_lifecycle():
+    path = ROUTER_DIR / "cps_memory_lifecycle.py"
+    spec = importlib.util.spec_from_file_location("cps_memory_lifecycle_production", path)
+    if not spec or not spec.loader:
+        raise RuntimeError("c2-memory lifecycle module unavailable")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _remote_branch_contains(repo: Path, branch: str, pushed_sha: str) -> bool:
+    result = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", pushed_sha, f"refs/remotes/origin/{branch}"],
+        cwd=str(repo), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        stdin=subprocess.DEVNULL, check=False,
+    )
+    return result.returncode == 0
+
+
+def _build_event(module, repo: Path, args):
+    blob = subprocess.run(
+        ["git", "show", f"{args.pushed_sha}:{args.source_ref}"], cwd=str(repo),
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.DEVNULL, check=False,
+    )
+    if blob.returncode != 0:
+        raise RuntimeError("source-ref-unavailable-at-pushed-sha")
+    lifecycle_name = "revised" if args.lifecycle == "initialization" else args.lifecycle
+    source_digest = hashlib.sha256(args.source_ref.encode("utf-8")).hexdigest()
+    return module.PushedShaEvent(
+        event_id=f"push:{args.branch}:{args.pushed_sha}:{source_digest}", pushed_sha=args.pushed_sha,
+        source_ref=args.source_ref, source_revision=args.pushed_sha,
+        content_hash=hashlib.sha256(blob.stdout).hexdigest(), lifecycle=lifecycle_name,
+        graph_ref=module.CANONICAL_GRAPH_REF, prior_ref=args.prior_ref, attempt=1,
+        first_anchor_initialization=args.lifecycle == "initialization",
+    )
+
+
+class HonchoUnavailable(RuntimeError):
+    pass
+
+
+class _HonchoSdkAnchorPort:
+    def __init__(self, client, identity: str, observer: str, target: str):
+        self.client, self.identity, self.observer, self.target = client, identity, observer, target
+
+    def _scope(self):
+        return self.client.peer(self.observer).conclusions_of(self.target)
+
+    def write_anchor(self, anchor):
+        created = self._scope().create([{"content": json.dumps(dict(anchor), sort_keys=True)}])
+        item = created[0] if isinstance(created, (list, tuple)) and created else created
+        ref = getattr(item, "id", None) or (item.get("id") if isinstance(item, dict) else None)
+        if not ref:
+            raise RuntimeError("Honcho returned no conclusion ID")
+        return str(ref)
+
+    def read_anchor(self, anchor_ref):
+        conclusion_id = anchor_ref.removeprefix("honcho:")
+        page = self._scope().list(size=50)
+        while page is not None:
+            for item in page:
+                item_id = getattr(item, "id", None) or (item.get("id") if isinstance(item, dict) else None)
+                if str(item_id) != conclusion_id:
+                    continue
+                content = getattr(item, "content", None) or (item.get("content") if isinstance(item, dict) else None)
+                if not content:
+                    raise RuntimeError("Honcho conclusion readback unavailable")
+                parsed = json.loads(content)
+                return parsed.get("cps_compact_anchor", parsed)
+            page = page.get_next_page() if page.has_next_page else None
+        raise RuntimeError("Honcho conclusion readback unavailable")
+
+    def deactivate_anchor(self, anchor_ref, superseded_by):
+        created = self._scope().create([{"content": json.dumps({"inactive_ref": anchor_ref, "superseded_by": superseded_by}, sort_keys=True)}])
+        return bool(created)
+
+
+def _load_honcho_worker():
+    path = ROUTER_DIR / "honcho_background_worker.py"
+    spec = importlib.util.spec_from_file_location("honcho_background_worker_production", path)
+    if not spec or not spec.loader:
+        raise RuntimeError("Honcho production adapter module unavailable")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _build_honcho_ports():
+    worker = _load_honcho_worker()
+    agent_root = Path(os.environ.get("HERMES_AGENT_ROOT", HERMES_AGENT_ROOT))
+    try:
+        writer_manager, _, writer_cfg = worker._init_honcho(REPO_ROOT, agent_root, "cps-anchor-writer")
+        if writer_manager is None or not writer_cfg.enabled:
+            raise RuntimeError("client disabled")
+        writer = worker.HonchoAnchorAdapter(writer_manager, "cps-anchor-writer")
+
+        from plugins.memory.honcho.client import reset_honcho_client
+        reset_honcho_client()
+        reader_manager, _, reader_cfg = worker._init_honcho(REPO_ROOT, agent_root, "cps-anchor-readback")
+        if reader_manager is None or not reader_cfg.enabled:
+            raise RuntimeError("readback client disabled")
+        reader_session = reader_manager.get_or_create("cps-anchor-readback")
+        writer_session = writer_manager.get_or_create("cps-anchor-writer")
+        reader = _HonchoSdkAnchorPort(
+            reader_manager._honcho,
+            "readback:%s" % reader_session.honcho_session_id,
+            writer_session.assistant_peer_id,
+            writer_session.user_peer_id,
+        )
+        return writer, reader
+    except Exception as exc:
+        raise HonchoUnavailable(str(exc)) from exc
+
+
+def run_c2_memory(args, repo: Path = REPO_ROOT) -> tuple[int, dict[str, Any]]:
+    module = _load_cps_memory_lifecycle()
+    action_ref = f"c2-memory:{args.branch}:{args.pushed_sha}"
+    evidence: dict[str, Any] = {
+        "action_ref": action_ref,
+        "call_ref": module.CANONICAL_GRAPH_REF,
+        "profile_call_requires_cps_reason": True,
+    }
+    if not _remote_branch_contains(repo, args.branch, args.pushed_sha):
+        evidence.update(status="blocked", reason="pushed-sha-not-confirmed-on-existing-tracking-ref", closure_candidate=False)
+        return 2, evidence
+    try:
+        event = _build_event(module, repo, args)
+        writer, reader = _build_honcho_ports()
+        database_path = repo / ".harness" / "project" / "runs" / "cps_memory_lifecycle.sqlite3"
+        adapters = module.ProductionStageAdapters(repo, database_path, writer, reader)
+        module.run_stage_core(event, adapters)
+        receipts = tuple(adapters.reload_stage_receipts(event))
+        closure_candidate = module.evaluate_closure(receipts, event)
+    except HonchoUnavailable as exc:
+        evidence.update(status="blocked", reason=f"honcho-unavailable:{exc}", closure_candidate=False)
+        return 3, evidence
+    except Exception as exc:
+        evidence.update(status="blocked", reason=str(exc), closure_candidate=False)
+        return 4, evidence
+    evidence.update(
+        status="closure_candidate" if closure_candidate else "blocked",
+        closure_candidate=closure_candidate,
+        receipt_refs=[f"{receipt.event_id}:{receipt.stage_id}:{receipt.attempt}" for receipt in receipts],
+        receipts=[{
+            "stage_id": receipt.stage_id,
+            "status": receipt.status,
+            "reason": receipt.reason,
+            "refs": dict(receipt.refs),
+        } for receipt in receipts],
+        durable_receipt_reload=tuple(receipts) == tuple(adapters.reload_stage_receipts(event)),
+        anchor_ref=next((receipt.refs.get("conclusion_ref") for receipt in receipts if receipt.stage_id == "N7"), None),
+        readback_ref=next((receipt.refs.get("conclusion_ref") for receipt in receipts if receipt.stage_id == "N8"), None),
+        anchor_readback_exact=next((receipt.refs.get("conclusion_ref") for receipt in receipts if receipt.stage_id == "N7"), None)
+        == next((receipt.refs.get("conclusion_ref") for receipt in receipts if receipt.stage_id == "N8"), None),
+    )
+    return (0 if closure_candidate else 5), evidence
+
+
+def main() -> int:
+    parser = build_parser()
     
     # Capture all remaining arguments to pass to writeback or scripts
     args, unknown = parser.parse_known_args()
@@ -852,6 +1071,12 @@ def main() -> int:
             session_id = os.environ.get("HERMES_KANBAN_RUN_ID") or "session_harness_auto"
             
     # Perform actions
+    if args.action == "c2-memory":
+        if unknown:
+            parser.error("unrecognized arguments: " + " ".join(unknown))
+        code, evidence = run_c2_memory(args)
+        print(json.dumps(evidence, sort_keys=True))
+        return code
     if args.action == "init":
         return do_init(session_id, args.manifest)
     elif args.action == "check":
