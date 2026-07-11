@@ -40,7 +40,7 @@ PROFILES = {
     "hathor": "artifact quality/UX/support",
 }
 
-CONTRACT_PATH = Path("/Users/kann/projects/harness-starter/docs/harness/contracts/cp_cps_preflight_route_gate.md")
+CONTRACT_PATH = Path("/Users/kann/projects/harness-brain/projects/harness-starter/contracts/cp_cps_preflight_route_gate.md")
 DEFAULT_REPO = Path("/Users/kann/projects/harness-starter")
 DEFAULT_MAX_REENTRY_ITERATIONS = 1
 REENTRY_INPUT_KEYS = (
@@ -108,6 +108,81 @@ def _present(value: Any) -> bool:
     if isinstance(value, (dict, list, tuple, set)):
         return bool(value)
     return True
+
+
+def classify_mutation_closure(packet: dict[str, Any]) -> dict[str, Any]:
+    """Classify only packet-declared mutations against active AC and route scope."""
+    raw_cps = packet.get("CPS")
+    cps: dict[str, Any] = raw_cps if isinstance(raw_cps, dict) else {}
+    raw_ac = packet.get("task_AC") or cps.get("AC") or []
+    ac_items = raw_ac.values() if isinstance(raw_ac, dict) else raw_ac if isinstance(raw_ac, list) else [raw_ac]
+    active_ac: list[str] = []
+    for item in ac_items:
+        ref = (item.get("id") or item.get("AC_ref")) if isinstance(item, dict) else item
+        if _present(ref) and str(ref) not in active_ac:
+            active_ac.append(str(ref))
+
+    raw_scope = packet.get("allowed_paths") or packet.get("mutation_scope") or packet.get("write_scope") or []
+    scope_items = raw_scope.values() if isinstance(raw_scope, dict) else raw_scope if isinstance(raw_scope, list) else [raw_scope]
+    scope = [str(item).rstrip("/") for item in scope_items if _present(item)]
+    manifest = packet.get("mutation_manifest")
+    mutations = manifest if isinstance(manifest, list) else []
+    boundary = packet.get("owner_approval_boundary")
+    boundary_evidence = boundary if isinstance(boundary, dict) else {}
+    git_disallowed = (
+        boundary_evidence.get("git_commit") is False
+        or boundary_evidence.get("git_push") is False
+    )
+    candidates: list[dict[str, Any]] = []
+    unclaimed: list[dict[str, Any]] = []
+    excluded: list[dict[str, Any]] = []
+    holds: list[dict[str, Any]] = []
+    evidence_keys = {
+        "conflict_evidence": "conflict_evidence",
+        "ssot_owner_ambiguity": "ssot_owner_ambiguity",
+        "owner_ambiguity": "ssot_owner_ambiguity",
+        "separate_goal_evidence": "separate_goal_evidence",
+    }
+    for raw in mutations:
+        if not isinstance(raw, dict) or not _present(raw.get("path")):
+            continue
+        item = dict(raw)
+        path = str(item["path"]).rstrip("/")
+        ac_ref = str(item.get("AC_ref") or "")
+        in_scope = any(path == allowed or path.startswith(allowed + "/") for allowed in scope)
+        if not ac_ref:
+            unclaimed.append(item)
+            excluded.append({**item, "reason": "missing_AC_ref"})
+        elif ac_ref not in active_ac:
+            unclaimed.append(item)
+            excluded.append({**item, "reason": "inactive_AC_ref"})
+        elif not in_scope:
+            excluded.append({**item, "reason": "scope_violation"})
+            holds.append({"path": path, "reason": "scope_violation", "evidence": scope})
+        elif git_disallowed:
+            excluded.append({**item, "reason": "git_owner_boundary_disallowed"})
+            holds.append({
+                "path": path,
+                "reason": "git_owner_boundary_disallowed",
+                "evidence": {
+                    key: boundary_evidence[key]
+                    for key in ("git_commit", "git_push")
+                    if key in boundary_evidence
+                },
+            })
+        else:
+            candidates.append(item)
+        for key, reason in evidence_keys.items():
+            if _present(item.get(key)):
+                holds.append({"path": path, "reason": reason, "evidence": item[key]})
+    return {
+        "active_AC_refs": active_ac,
+        "git_closure_candidates": candidates,
+        "unclaimed_mutations": unclaimed,
+        "excluded_mutations": excluded,
+        "hold_reasons": holds,
+        "status": "hold" if holds else "candidate" if candidates else "not_required",
+    }
 
 
 def _mode_evidence_ok(mode: str, minimum: Any) -> bool:
@@ -478,6 +553,7 @@ def build_candidate(packet: dict[str, Any], packet_path: Path, repo: Path) -> di
         "E?": edges,
         "verification_links": edges,
         "verification": verification,
+        "mutation_closure": classify_mutation_closure(packet),
         "uncertainty": [
             "Packet supplied explicit P#/S#; Maat still owns C-boundary and gap scan"
         ] if explicit_p else [
@@ -548,6 +624,7 @@ def adjudicate(candidate: dict[str, Any]) -> dict[str, Any]:
         "cps_seed_graph": candidate.get("cps_seed_graph", {}),
         "cps_trace_events": candidate.get("cps_trace_events", []),
         "route_enrichment": candidate.get("route_enrichment", {}),
+        "mutation_closure": candidate.get("mutation_closure", {}),
         "selective_maat_escalation": candidate.get("route_enrichment", {}).get("selective_maat_escalation", {"needed": True, "reasons": ["route_gate_requested"]}),
         "accepted_P": accepted_p,
         "rejected_P": rejected_p,
@@ -1411,6 +1488,7 @@ def execute_preflight_chain(packet: dict[str, Any], packet_path: Path, repo: Pat
             "wire": "short_cps", "audit_plan": {"mode": "local_closure"}, "prohibitions": [],
             "verification_gate": {"gap_class": "none" if short_close else "route_gate_signal_missing"},
             "final_audit_needed": False, "route_enrichment": candidate.get("route_enrichment", {}),
+            "mutation_closure": candidate.get("mutation_closure", {}),
             "route_candidate_catalog": route_candidate_catalog,
         }
         reducer_result = {
@@ -1437,6 +1515,7 @@ def execute_preflight_chain(packet: dict[str, Any], packet_path: Path, repo: Pat
         }
     body_manifest = build_body_manifest(route_candidate_catalog["selected_candidate_ids"])
     route = invoke_live_maat(candidate, packet, repo, body_manifest=body_manifest) if mode == "live-maat" else adjudicate(candidate)
+    route["mutation_closure"] = candidate.get("mutation_closure", {})
     route["route_candidate_catalog"] = route_candidate_catalog
     draft_probes, probe_responses = probe_agents_as_arrive(route, repo) if mode == "live-maat" else ({}, {})
     reducer_input = build_reducer_input(route, probe_responses, body_manifest) if mode == "live-maat" else {}
@@ -1524,6 +1603,7 @@ def run(packet_path: Path, out_dir: Path, repo: Path, mode: str = "live-maat") -
     final_selected_agents = chain["final_selected_agents"]
     route_candidate_catalog = chain.get("route_candidate_catalog") or select_route_candidate_catalog(packet, candidate)
     final_output = final_output_from_judgment(final_judgment, hold_gap_loop)
+    final_output["mutation_closure"] = candidate.get("mutation_closure", {})
     if isinstance(cps_seed_graph, dict) and cps_seed_graph:
         build_cps_trace_events(cps_seed_graph, packet, final_output=final_output, events=cps_trace_events, iteration=iteration, phase="closure")
     selected_for_policy = next((agent for agent in final_selected_agents if agent not in {"maat", "hermes-kann"}), None)
@@ -1607,6 +1687,7 @@ def run(packet_path: Path, out_dir: Path, repo: Path, mode: str = "live-maat") -
         "maat_reducer_result": reducer_result,
         "final_maat_judgment": final_judgment,
         "final_output": final_output,
+        "mutation_closure": final_output["mutation_closure"],
         "reentry_iterations": iteration,
         "reentry_cap": max_reentry,
     }

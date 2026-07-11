@@ -27,6 +27,13 @@ lifecycle = load_module("lifecycle_runner", LIFECYCLE_PATH)
 
 
 class TestCpsPreflightVerificationGate(TestCase):
+    def test_configured_contract_is_active_cps_preflight_route_gate_contract(self):
+        self.assertTrue(preflight.CONTRACT_PATH.is_file())
+        contract = preflight.CONTRACT_PATH.read_text(encoding="utf-8")
+        self.assertIn("title: CPS Preflight Route-Gate Work Contract", contract)
+        self.assertIn("status: active", contract)
+        self.assertIn("c: cps_preflight_route_gate", contract)
+
     def candidate(self, verification, p=None, s=None, e=None):
         packet = {
             "root_goal": "verification gate test",
@@ -399,6 +406,72 @@ class TestCpsPreflightVerificationGate(TestCase):
                 for child in out_dir.iterdir():
                     child.unlink(missing_ok=True)
                 out_dir.rmdir()
+
+    def test_active_ac_ref_and_in_scope_mutation_is_git_closure_candidate(self):
+        packet = {
+            "task_AC": [{"id": "AC1", "text": "change gate"}],
+            "allowed_paths": [".harness/hermes/tools/cps_preflight_route_gate.py"],
+            "mutation_manifest": [{"path": ".harness/hermes/tools/cps_preflight_route_gate.py", "AC_ref": "AC1"}],
+            "owner_approval_boundary": {"git_commit": True, "git_push": True},
+        }
+        closure = preflight.classify_mutation_closure(packet)
+        self.assertEqual(closure["active_AC_refs"], ["AC1"])
+        self.assertEqual(closure["git_closure_candidates"][0]["path"], packet["mutation_manifest"][0]["path"])
+        self.assertEqual(closure["status"], "candidate")
+
+    def test_no_ac_ref_is_excluded_without_hold_or_another_c(self):
+        packet = {
+            "task_AC": ["AC1"], "mutation_scope": ["tmp/output.txt"],
+            "mutation_manifest": [{"path": "tmp/output.txt"}],
+            "owner_approval_boundary": {"git_commit": True, "git_push": True},
+        }
+        closure = preflight.classify_mutation_closure(packet)
+        self.assertEqual(closure["unclaimed_mutations"][0]["path"], "tmp/output.txt")
+        self.assertEqual(closure["excluded_mutations"][0]["reason"], "missing_AC_ref")
+        self.assertEqual(closure["hold_reasons"], [])
+        self.assertNotIn("another_C", json.dumps(closure))
+
+    def test_unclaimed_conflict_evidence_holds(self):
+        closure = preflight.classify_mutation_closure({
+            "task_AC": ["AC1"], "mutation_scope": ["x.py"],
+            "mutation_manifest": [{"path": "x.py", "conflict_evidence": "overlaps owner patch"}],
+        })
+        self.assertEqual(closure["status"], "hold")
+        self.assertEqual(closure["hold_reasons"][0]["reason"], "conflict_evidence")
+
+    def test_ac_linked_out_of_scope_mutation_holds(self):
+        closure = preflight.classify_mutation_closure({
+            "CPS": {"AC": [{"id": "AC2"}]}, "allowed_paths": ["in.py"],
+            "mutation_manifest": [{"path": "out.py", "AC_ref": "AC2"}],
+        })
+        self.assertEqual(closure["status"], "hold")
+        self.assertEqual(closure["excluded_mutations"][0]["reason"], "scope_violation")
+
+    def test_ephemeral_unclaimed_artifact_stays_excluded_without_hold(self):
+        closure = preflight.classify_mutation_closure({
+            "task_AC": ["AC1"], "mutation_scope": ["tmp/test.log"],
+            "mutation_manifest": [{"path": "tmp/test.log", "disposition": "ephemeral"}],
+        })
+        self.assertEqual(closure["status"], "not_required")
+        self.assertEqual(closure["unclaimed_mutations"][0]["disposition"], "ephemeral")
+        self.assertEqual(closure["hold_reasons"], [])
+
+    def test_disallowed_commit_push_boundary_prevents_candidate_status(self):
+        packet = {
+            "task_AC": ["AC1"], "allowed_paths": ["x.py"],
+            "mutation_manifest": [{"path": "x.py", "AC_ref": "AC1"}],
+            "owner_approval_boundary": {"git_commit": False, "git_push": False},
+        }
+        candidate = preflight.build_candidate(packet, Path("packet.json"), REPO)
+        closure = candidate["mutation_closure"]
+        self.assertEqual(closure["status"], "hold")
+        self.assertEqual(closure["git_closure_candidates"], [])
+        self.assertEqual(closure["excluded_mutations"][0]["reason"], "git_owner_boundary_disallowed")
+        self.assertEqual(closure["hold_reasons"], [{
+            "path": "x.py",
+            "reason": "git_owner_boundary_disallowed",
+            "evidence": {"git_commit": False, "git_push": False},
+        }])
 
     def test_lifecycle_delegate_records_preflight_verification_gate(self):
         preflight_result = {
