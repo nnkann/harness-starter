@@ -15,6 +15,7 @@ for offline diagnostics. It enforces the frontmatter-first protocol:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -221,6 +222,174 @@ def _packet_field(packet: dict[str, Any], *keys: str, default: str = "local") ->
     return default
 
 
+
+
+def _domain_hints(text: str) -> list[str]:
+    """Return compact CPS/domain retrieval pivots for the seed stage."""
+    domains: list[str] = []
+    mapping = [
+        ("cps-routing", r"cps|route|routing|gate|maat|agent|delegat|fan[- ]?out|graph"),
+        ("entry-wire", r"entry|seed|draft[_-]?c|wire"),
+        ("doc_ops", r"doc|markdown|frontmatter|wiki|decision|contract|gbrain|brain"),
+        ("memory-continuity", r"honcho|memory|recall|history|previous|continuity|learning"),
+        ("verifier-closure", r"verify|verification|test|audit|closure|evidence|pass|fail|hold"),
+        ("runtime-gateway", r"runtime|runner|hook|lifecycle|gateway|session|thread"),
+        ("implementation", r"implement|patch|code|script|python|write|refactor"),
+        ("security", r"secret|credential|permission|sandbox|security|auth"),
+    ]
+    for domain, pattern in mapping:
+        if re.search(pattern, text):
+            domains.append(domain)
+    return domains or ["general"]
+
+
+def _first_move(text: str, ssot_hint: str) -> str:
+    if ssot_hint == "unknown":
+        return "inspect_for_ssot"
+    if re.search(r"implement|patch|code|script|runtime|hook", text):
+        return "inspect_source_then_bounded_implementation"
+    if re.search(r"verify|test|audit|closure", text):
+        return "inspect_evidence_then_verify"
+    return "short_local_response_or_bounded_probe"
+
+
+def _path_refs(packet: dict[str, Any], text: str) -> list[str]:
+    refs: list[str] = []
+    for key in ("source_refs", "artifact_refs", "visible_paths_or_urls", "attachments"):
+        value = packet.get(key)
+        if isinstance(value, list):
+            refs.extend(str(item) for item in value if item)
+        elif value:
+            refs.append(str(value))
+    refs.extend(re.findall(r"(?:/Users/kann|\.harness|docs|scripts|test_[^\s`]+)[^\s`)]*", text))
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for ref in refs:
+        clean = ref.strip().strip(".,")
+        if clean and clean not in seen:
+            seen.add(clean)
+            ordered.append(clean)
+    return ordered
+
+
+def build_cps_seed_graph(packet: dict[str, Any], packet_path: Path, repo: Path) -> dict[str, Any]:
+    """Build the first-class compact draft_C/seed_graph artifact before C_candidate compilation."""
+    all_text = _text_values(packet)
+    lowered = all_text.lower()
+    refs = _path_refs(packet, all_text)
+    canonical_refs = [ref for ref in refs if "harness-brain" in ref or "contracts" in ref or "decisions" in ref]
+    ssot_hint = canonical_refs[0] if canonical_refs else (refs[0] if refs else "unknown")
+    project_hint = _packet_field(packet, "project_slug", "project", default=repo.name)
+    cps_raw = packet.get("CPS")
+    cps = cps_raw if isinstance(cps_raw, dict) else {}
+    c_hint = _text_values(cps.get("C") or packet.get("root_goal") or packet.get("goal") or packet.get("task") or packet_path.stem.replace("_", " "))[:240] or "runtime CPS entry seed"
+    domains = _domain_hints(lowered)
+    seed = {
+        "seed_id": "C0",
+        "C_hint": c_hint,
+        "source_hint": refs[:8],
+        "project_hint": project_hint,
+        "ssot_hint": ssot_hint,
+        "domain_hint": domains,
+        "first_move": _first_move(lowered, ssot_hint),
+        "expansion_allowed": True,
+        "status": "candidate",
+        "ssot_confidence": "high" if canonical_refs else ("medium" if refs else "low"),
+        "ssot_role": "canonical" if canonical_refs else ("implementation_surface" if refs else "unknown"),
+    }
+    seed_relations: list[dict[str, Any]] = []
+    if len(refs) > 1:
+        seed_relations.append({
+            "from": "C0",
+            "to": ssot_hint,
+            "type": "implements",
+            "surface_ref": refs[1],
+            "reason": "implementation surface is governed by the referenced SSOT candidate",
+        })
+    return {
+        "schema": "harness.cps_entry.seed_graph.v1",
+        "request_id": packet.get("run_id") or packet.get("flow_graph_id") or packet_path.stem,
+        "packet_ref": str(packet_path),
+        "repo": _repo_meta(repo),
+        "seeds": {"C0": seed},
+        "seed_relations": seed_relations,
+        "memory_enrichment": {
+            "pivots": {
+                "C_shape": ["intent", "boundary_hint", "mutation_or_verification_nature"],
+                "domain": domains,
+                "ssot_residency": [ssot_hint],
+                "project_scope": [project_hint],
+            },
+            "lookup_required": any(domain != "general" for domain in domains) and seed["first_move"] != "short_local_response_or_bounded_probe",
+            "matches": [],
+            "status": "not_started",
+        },
+        "route_seed": {
+            "route_class": "ssot_discovery" if ssot_hint == "unknown" else ("implement_candidate" if "implementation" in domains else "inspect_source"),
+            "reason": "seed-first CPS entry; route may grow from memory/SSOT/evidence",
+            "allowed_action": "narrow_read_only" if ssot_hint == "unknown" else "bounded_probe",
+        },
+    }
+
+
+def _seed_requires_maat(seed_graph: dict[str, Any], packet: dict[str, Any]) -> tuple[bool, list[str]]:
+    reasons: list[str] = []
+    mutation_scope = packet.get("mutation_scope") or packet.get("write_scope")
+    if _present(mutation_scope):
+        reasons.append("mutation_scope_present")
+    if _present(packet.get("ssot_authority_uncertainty")) or _present(packet.get("ssot_conflict")):
+        reasons.append("ssot_authority_uncertain_or_conflicting")
+    candidates = packet.get("route_candidates")
+    if isinstance(candidates, (list, dict)) and len(candidates) > 1:
+        reasons.append("multiple_route_candidates")
+    verification = packet.get("verification") if isinstance(packet.get("verification"), dict) else {}
+    if isinstance(verification, dict) and verification.get("execution_kind") == "execution-needed" or _present(packet.get("required_evidence_floor")):
+        reasons.append("verification_or_evidence_floor_required")
+    if _present(packet.get("cross_project_relation")):
+        reasons.append("cross_project_relation_present")
+    return bool(reasons), reasons
+
+def build_cps_trace_events(seed_graph: dict[str, Any], packet: dict[str, Any], *, final_output: dict[str, Any] | None = None, events: list[dict[str, Any]] | None = None, iteration: int = 0, phase: str = "initial") -> list[dict[str, Any]]:
+    """Append compact deltas to one runtime-owned trace."""
+    trace_id = f"trace:{seed_graph.get('request_id', 'request')}"
+    timestamp = datetime.now(timezone.utc).isoformat()
+    seeds = seed_graph.get("seeds", {}) if isinstance(seed_graph.get("seeds"), dict) else {}
+    route_seed = seed_graph.get("route_seed", {}) if isinstance(seed_graph.get("route_seed"), dict) else {}
+    seed = next(iter(seeds.values()), {}) if seeds else {}
+    ssot_hint = seed.get("ssot_hint")
+    maat_needed, maat_reasons = _seed_requires_maat(seed_graph, packet)
+    trace = events if events is not None else []
+
+    def append(event_type: str, payload: dict[str, Any], actor: str = "hermes-kann") -> None:
+        parent = trace[-1]["event_id"] if trace else None
+        event_id = f"evt-{len(trace) + 1:03d}"
+        trace.append({
+            "trace_id": trace_id, "event_id": event_id, "parent_event_id": parent,
+            "timestamp": timestamp, "event_type": event_type, "actor": actor,
+            "iteration": iteration, "event_payload": payload,
+        })
+
+    if not trace:
+        append("seed_created", {"seed_delta": {"added": list(seeds)}, "seed_relation_delta": seed_graph.get("seed_relations", []), "seed_count": len(seeds)})
+        if ssot_hint == "unknown":
+            append("ssot_discovery_started", {"source_ref": None, "pending_requirement": "narrow_read_only_ssot_discovery"})
+        else:
+            append("ssot_discovered", {"source_ref": ssot_hint, "ssot_candidate_count": 1})
+        if route_seed.get("route_class") not in {"short_local", "short_local_rewrite"}:
+            append("route_expanded", {"route_delta": {"active_route": route_seed.get("route_class")}})
+        if maat_needed:
+            append("escalation_triggered", {"route_delta": {"adjudicator": "maat"}, "reasons": maat_reasons}, "maat")
+        if isinstance(packet.get("memory_lookup_result"), dict):
+            result = packet["memory_lookup_result"]
+            append("memory_lookup_started", {"lookup_ref": result.get("lookup_ref")})
+            if result.get("matches"):
+                append("memory_match_attached", {"lookup_ref": result.get("lookup_ref"), "match_count": len(result["matches"])})
+    elif phase == "reentry":
+        append("reentry_started", {"verification_link_delta": packet.get("revised_E", []), "missing_evidence_count": len(packet.get("missing_evidence", []))})
+    if final_output is not None:
+        append("workflow_closed", {"closure_ref": "final_output.json", "closure_type": final_output.get("status")})
+    return trace
+
 def build_session_policy(packet: dict[str, Any], repo: Path, selected_profile: str | None = None) -> dict[str, Any]:
     profile = selected_profile or _packet_field(packet, "profile", "target_profile", default="default")
     platform = _packet_field(packet, "platform", "source_platform", default="local")
@@ -285,6 +454,9 @@ def build_candidate(packet: dict[str, Any], packet_path: Path, repo: Path) -> di
         if explicit_edges is None and sid in s and not any((pid.rstrip("?"), sid.rstrip("?")) == pair for pair in _edge_set(edges)):
             edges.append(f"{pid} -> {sid}")
     verification = packet.get("verification") if isinstance(packet.get("verification"), dict) else {}
+    cps_seed_graph = build_cps_seed_graph(packet, packet_path, repo)
+    cps_trace_events = build_cps_trace_events(cps_seed_graph, packet)
+    maat_needed, maat_reasons = _seed_requires_maat(cps_seed_graph, packet)
     return {
         "schema": "harness.cps_preflight.candidate.v1",
         "status": "candidate",
@@ -292,11 +464,19 @@ def build_candidate(packet: dict[str, Any], packet_path: Path, repo: Path) -> di
         "contract_ref": str(CONTRACT_PATH),
         "packet_ref": str(packet_path),
         "repo": _repo_meta(repo),
+        "cps_seed_graph": cps_seed_graph,
+        "cps_trace_events": cps_trace_events,
+        "route_enrichment": {
+            "memory": cps_seed_graph.get("memory_enrichment", {}),
+            "first_route": cps_seed_graph.get("route_seed", {}),
+            "selective_maat_escalation": {"needed": maat_needed, "reasons": maat_reasons},
+        },
         "C?": {"C1": c_text[:240] or "task_route_candidate"},
         "Goal": goal[:240],
         "P?": p,
         "S?": s,
         "E?": edges,
+        "verification_links": edges,
         "verification": verification,
         "uncertainty": [
             "Packet supplied explicit P#/S#; Maat still owns C-boundary and gap scan"
@@ -365,11 +545,16 @@ def adjudicate(candidate: dict[str, Any]) -> dict[str, Any]:
         "status": "hold" if missing else "pass",
         "C_boundary": "HOLD" if missing else "PASS_ONE_C",
         "C": candidate.get("C?", {}),
+        "cps_seed_graph": candidate.get("cps_seed_graph", {}),
+        "cps_trace_events": candidate.get("cps_trace_events", []),
+        "route_enrichment": candidate.get("route_enrichment", {}),
+        "selective_maat_escalation": candidate.get("route_enrichment", {}).get("selective_maat_escalation", {"needed": True, "reasons": ["route_gate_requested"]}),
         "accepted_P": accepted_p,
         "rejected_P": rejected_p,
         "accepted_S": accepted_s,
         "rejected_S": rejected_s,
         "E": [edge.replace("?", "") for edge in candidate.get("E?", [])],
+        "verification_links": [edge.replace("?", "") for edge in candidate.get("E?", [])],
         "order": [
             "maat_route_gate",
             "selected_agent_probes",
@@ -406,7 +591,100 @@ def _extract_json_object(text: str) -> dict[str, Any] | None:
     return None
 
 
-def _live_maat_prompt(candidate: dict[str, Any], packet: dict[str, Any]) -> str:
+def _route_candidate_name(entry: Any) -> str | None:
+    if isinstance(entry, str):
+        name = entry.strip()
+    elif isinstance(entry, dict):
+        name = str(entry.get("agent") or entry.get("profile") or "").strip()
+    else:
+        return None
+    return name if name in PROFILES and name != "maat" else None
+
+
+def select_route_candidate_catalog(packet: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
+    """Select the smallest structurally justified body-manifest catalog."""
+    selected: list[str] = []
+
+    def add(name: str | None) -> None:
+        if name and name not in selected:
+            selected.append(name)
+
+    explicit = packet.get("route_candidates")
+    if isinstance(explicit, dict):
+        entries: list[Any] = list(explicit.values())
+        entries.extend(explicit.keys())
+    elif isinstance(explicit, list):
+        entries = explicit
+    else:
+        entries = []
+    for entry in entries:
+        add(_route_candidate_name(entry))
+
+    if not selected:
+        raw_s = candidate.get("accepted_S") or candidate.get("S?") or packet.get("accepted_S")
+        s_values = raw_s.values() if isinstance(raw_s, dict) else raw_s if isinstance(raw_s, list) else []
+        for value in s_values:
+            words = set(re.findall(r"[a-z][a-z0-9-]*", _text_values(value).lower()))
+            for profile in PROFILES:
+                if profile != "maat" and profile in words:
+                    add(profile)
+
+    if not selected:
+        compile_required = any(_present(packet.get(key)) for key in ("compile_required", "fan_out_required", "fanout_required"))
+        mutation_required = _present(packet.get("mutation_scope")) or _present(packet.get("write_scope"))
+        source_required = any(_present(packet.get(key)) for key in ("source_refs", "doc_ops", "document_need", "source_need"))
+        verification = packet.get("verification")
+        verification_required = _present(packet.get("required_evidence_floor")) or (
+            isinstance(verification, dict) and (
+                verification.get("execution_kind") == "execution-needed" or _present(verification.get("verification_S"))
+            )
+        )
+        continuity_required = any(_present(packet.get(key)) for key in ("memory_continuity", "continuity_signal", "memory_signal"))
+        if compile_required:
+            add("thoth")
+        if mutation_required:
+            add("ptah")
+        if source_required:
+            add("seshat")
+        if verification_required:
+            add("anubis")
+        if continuity_required:
+            add("sia")
+        if not selected:
+            add("ptah")
+
+    manifest_count = len(build_body_manifest(selected))
+    eligible_profile_count = len(PROFILES) - 1
+    return {
+        "candidate_count": len(selected),
+        "manifest_count": manifest_count,
+        "excluded_profile_count": eligible_profile_count - manifest_count,
+        "selected_candidate_ids": selected,
+    }
+
+
+def build_body_manifest(agents: Any) -> dict[str, dict[str, Any]]:
+    """Describe available local bodies without materializing or relaying them."""
+    names = agents.keys() if isinstance(agents, dict) else agents
+    return {
+        str(agent): {
+            "body_manifest_id": f"body:{agent}:v1",
+            "agent": str(agent),
+            "body_schema": "harness.cps_preflight.local_task_body.v1",
+            "materialization_owner": "hermes-kann",
+            "content_included": False,
+        }
+        for agent in names if agent != "maat"
+    }
+
+
+def _maat_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
+    allowed = {"schema", "status", "C?", "Goal", "P?", "S?", "E?", "verification_links", "verification", "uncertainty", "request_to_maat", "route_enrichment", "cps_seed_graph"}
+    return {key: value for key, value in candidate.items() if key in allowed}
+
+
+def _live_maat_prompt(candidate: dict[str, Any], packet: dict[str, Any], body_manifest: dict[str, Any] | None = None) -> str:
+    manifests = body_manifest or build_body_manifest(PROFILES)
     payload = {
         "role": "hermes-kann_control_plane",
         "request": "live Maat CPS preflight route-gate adjudication",
@@ -431,13 +709,14 @@ def _live_maat_prompt(candidate: dict[str, Any], packet: dict[str, Any]) -> str:
             "audit_plan": {"mode": "none|gap_scan_only|c_boundary_only|targeted|sampled|full", "target": {}},
             "AC_mode": "route_gate_only|readback_only|final_gate",
             "candidate_agents": {"thoth": {"P": [], "S": [], "response": "need_local_body"}},
-            "selected_agents": {"thoth": {"P": [], "S": [], "response": "need_local_body"}},
+            "selected_agents": {"ptah": {"P": [], "S": [], "response": "need_local_body", "body_manifest_ids": [], "order": 1, "weight": 1.0, "dependencies": []}},
             "final_audit_needed": False,
             "failure_codes": [],
             "notes": []
         },
-        "candidate": candidate,
-        "packet_keys": sorted(packet.keys()),
+        "candidate": _maat_candidate(candidate),
+        "body_manifest": manifests,
+        "packet_metadata": {key: packet.get(key) for key in ("run_id", "project_slug", "mutation_scope", "route_candidates", "required_evidence_floor", "cross_project_relation") if key in packet},
     }
     return json.dumps(payload, ensure_ascii=False, indent=2)
 
@@ -488,14 +767,14 @@ def _normalize_live_maat(raw: dict[str, Any], candidate: dict[str, Any], session
     return apply_verification_gate(route, candidate)
 
 
-def invoke_live_maat(candidate: dict[str, Any], packet: dict[str, Any], repo: Path, timeout: int = 180) -> dict[str, Any]:
+def invoke_live_maat(candidate: dict[str, Any], packet: dict[str, Any], repo: Path, timeout: int = 180, body_manifest: dict[str, Any] | None = None) -> dict[str, Any]:
     """Call the live Maat profile for C-boundary/route-gate adjudication."""
     import subprocess
     env = os.environ.copy()
     env["HERMES_PROFILE"] = "maat"
     cmd = [
         "hermes", "chat", "-Q", "--max-turns", "1", "-t", "", "-q",
-        _live_maat_prompt(candidate, packet),
+        _live_maat_prompt(candidate, packet, body_manifest),
     ]
     proc = subprocess.run(cmd, cwd=str(repo), env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False, timeout=timeout)
     stdout = proc.stdout or ""
@@ -630,7 +909,7 @@ def probe_agents_as_arrive(route: dict[str, Any], repo: Path) -> tuple[dict[str,
     return probes, responses
 
 
-def build_reducer_input(route: dict[str, Any], probe_responses: dict[str, Any]) -> dict[str, Any]:
+def build_reducer_input(route: dict[str, Any], probe_responses: dict[str, Any], body_manifest: dict[str, Any] | None = None) -> dict[str, Any]:
     return {
         "schema": "harness.cps_preflight.reducer_input.v1",
         "route_source": route.get("source"),
@@ -641,6 +920,7 @@ def build_reducer_input(route: dict[str, Any], probe_responses: dict[str, Any]) 
         "E": route.get("E", []),
         "verification_gate": route.get("verification_gate", {}),
         "candidate_agents": route.get("selected_agents", {}),
+        "body_manifest": body_manifest or build_body_manifest(route.get("selected_agents", {})),
         "probe_responses": probe_responses,
         "join_policy": {
             "mode": "as_arrives",
@@ -812,24 +1092,58 @@ def build_local_body(agent: str, probe: dict[str, Any], packet: dict[str, Any], 
     }
 
 
-def build_local_body_dispatch(route: dict[str, Any], reducer_result: dict[str, Any], local_bodies: dict[str, Any], final_selected_agents: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Record reducer-based dispatch status without inventing a second verification contract."""
+def build_agent_body_map(selected: dict[str, Any], route: dict[str, Any], reducer_result: dict[str, Any], packet: dict[str, Any], packet_path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Materialize bodies only after Maat selection and scope grant."""
+    probes: dict[str, Any] = {}
+    bodies: dict[str, Any] = {}
+    for agent, spec in selected.items():
+        probe = build_probe(agent, route, spec, reducer_result)
+        probes[agent] = probe
+        if local_body_allowed(agent, reducer_result):
+            bodies[agent] = build_local_body(agent, probe, packet, packet_path)
+    return probes, bodies
+
+
+def build_local_body_dispatch(route: dict[str, Any], reducer_result: dict[str, Any], local_bodies: dict[str, Any], final_selected_agents: dict[str, Any] | None = None, body_manifest: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Record direct selected-agent body transfer and aggregate relay invariants."""
     selected = final_selected_agents or normalize_selected_agents(route, reducer_result)
+    manifests = body_manifest or build_body_manifest(selected)
     scope = reducer_result.get("local_body_scope", {}) if isinstance(reducer_result.get("local_body_scope"), dict) else {}
     dispatch: dict[str, Any] = {}
+    hashes: list[str] = []
+    token_estimate = 0
     for agent in selected:
+        body = local_bodies.get(agent)
+        encoded = json.dumps(body, sort_keys=True, ensure_ascii=False).encode() if body is not None else b""
+        body_hash = hashlib.sha256(encoded).hexdigest() if encoded else None
+        if body_hash:
+            hashes.append(body_hash)
+            token_estimate += (len(encoded) + 3) // 4
         dispatch[agent] = {
             "selected": True,
+            "body_manifest_id": manifests.get(agent, {}).get("body_manifest_id"),
+            "body_hash": body_hash,
+            "direct_dispatch_count": 1 if body is not None else 0,
             "reducer_status": reducer_result.get("status"),
             "local_body_scope": scope.get(agent),
-            "local_body_emitted": agent in local_bodies,
+            "local_body_emitted": body is not None,
+            "dispatch_target": agent if body is not None else None,
         }
+    unselected = [agent for agent in local_bodies if agent not in selected]
     return {
         "schema": "harness.cps_preflight.local_body_dispatch.v1",
         "status": "pass" if reducer_result.get("status") == "pass" else "hold",
-        "policy": "local_task_body is emitted only when reducer_result.local_body_scope grants the agent",
+        "policy": "Hermes-kann dispatches materialized bodies directly to selected agents only",
         "verification_gate": route.get("verification_gate", {}),
         "dispatch": dispatch,
+        "aggregate": {
+            "selected_count": len(selected),
+            "direct_dispatch_count": sum(item["direct_dispatch_count"] for item in dispatch.values()),
+            "duplicate_dispatch_count": len(hashes) - len(set(hashes)),
+            "unselected_dispatch_count": len(unselected),
+            "maat_body_relay_count": 0,
+            "token_estimate": token_estimate,
+        },
     }
 
 
@@ -945,11 +1259,14 @@ def build_reentry_input(hold_gap_loop: dict[str, Any], packet_ref: str, iteratio
     return {key: data.get(key) for key in REENTRY_INPUT_KEYS}
 
 
-def build_candidate_from_reentry(reentry_input: dict[str, Any], packet_path: Path, repo: Path) -> dict[str, Any]:
-    """Convert compact re-entry input back into a Maat route-gate candidate."""
+def build_candidate_from_reentry(reentry_input: dict[str, Any], packet_path: Path, repo: Path, original_candidate: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Convert compact re-entry input without recreating the original seed or trace."""
     revised_p = reentry_input.get("revised_P") if isinstance(reentry_input.get("revised_P"), dict) else {}
     revised_s = reentry_input.get("revised_S") if isinstance(reentry_input.get("revised_S"), dict) else {}
     revised_e = reentry_input.get("revised_E") if isinstance(reentry_input.get("revised_E"), list) else []
+    original = original_candidate or {}
+    cps_seed_graph = original.get("cps_seed_graph", {})
+    cps_trace_events = original.get("cps_trace_events", [])
     return {
         "schema": "harness.cps_preflight.candidate.v1",
         "status": "candidate",
@@ -957,6 +1274,9 @@ def build_candidate_from_reentry(reentry_input: dict[str, Any], packet_path: Pat
         "contract_ref": str(CONTRACT_PATH),
         "packet_ref": str(packet_path),
         "repo": _repo_meta(repo),
+        "cps_seed_graph": cps_seed_graph,
+        "cps_trace_events": cps_trace_events,
+        "route_enrichment": original.get("route_enrichment", {}),
         "C?": reentry_input.get("revised_C") or {"C1": "reentry_candidate"},
         "Goal": "Resolve final Maat HOLD/FAIL missing evidence and close Goal_closure",
         "P?": revised_p,
@@ -1071,9 +1391,55 @@ def invoke_maat_final_judgment(contribute_cps: dict[str, Any], repo: Path, timeo
 
 def execute_preflight_chain(packet: dict[str, Any], packet_path: Path, repo: Path, mode: str, candidate: dict[str, Any]) -> dict[str, Any]:
     """Run route-gate -> probes -> Maat reducer -> local-body gate -> Maat final once."""
-    route = invoke_live_maat(candidate, packet, repo) if mode == "live-maat" else adjudicate(candidate)
+    route_candidate_catalog = select_route_candidate_catalog(packet, candidate)
+    escalation = candidate.get("route_enrichment", {}).get("selective_maat_escalation", {})
+    if not escalation.get("needed", True):
+        cps_raw = packet.get("CPS")
+        cps: dict[str, Any] = cps_raw if isinstance(cps_raw, dict) else {}
+        explicit_agent_work = bool(_ordered_cps_items(cps, "P") or _ordered_cps_items(cps, "S"))
+        inline_raw = packet.get("inline_response_contract")
+        inline_contract: dict[str, Any] = inline_raw if isinstance(inline_raw, dict) else {}
+        short_close = _present(inline_contract.get("response")) and not explicit_agent_work
+        # Named P/S work needs an explicit routing signal; absence is a hold, not implicit escalation.
+        status = "pass" if short_close else "hold"
+        missing = [] if short_close else ["route_gate_signal_missing"]
+        reason = "self-contained inline response contract" if short_close else "explicit route_candidates or mutation_scope signal required"
+        route = {
+            "schema": "harness.cps_preflight.route_gate.v1", "status": status,
+            "C_boundary": "PASS_ONE_C" if short_close else "HOLD", "C": candidate.get("C?", {}),
+            "accepted_P": {}, "accepted_S": {}, "E": [], "selected_agents": {},
+            "wire": "short_cps", "audit_plan": {"mode": "local_closure"}, "prohibitions": [],
+            "verification_gate": {"gap_class": "none" if short_close else "route_gate_signal_missing"},
+            "final_audit_needed": False, "route_enrichment": candidate.get("route_enrichment", {}),
+            "route_candidate_catalog": route_candidate_catalog,
+        }
+        reducer_result = {
+            "schema": "harness.cps_preflight.short_wire_result.v1", "source": "short_cps_wire",
+            "status": status, "revised_C": route["C"], "revised_P": {}, "revised_S": {},
+            "revised_E": [], "final_selected_agents": {}, "local_body_scope": {},
+            "hold_reasons": [] if short_close else [reason],
+        }
+        final_judgment = {
+            "schema": "harness.cps_preflight.local_closure.v1", "source": "short_cps_wire",
+            "status": status, "AC_verdicts": {},
+            "Goal_closure": {"status": status, "reason": reason},
+            "missing_evidence": missing, "failure_codes": [] if short_close else ["HOLD_ROUTE_GATE_SIGNAL_MISSING"],
+            "inline_response": inline_contract.get("response") if short_close else None,
+        }
+        contribute_cps = {"AC_evidence": {}, "Goal_closure": final_judgment["Goal_closure"]}
+        hold_gap_loop = build_hold_gap_loop(contribute_cps, final_judgment, reducer_result)
+        return {
+            "candidate": candidate, "route": route, "draft_probes": {}, "probe_responses": {},
+            "reducer_input": {}, "reducer_result": reducer_result, "probes": {}, "local_bodies": {},
+            "local_body_dispatch": {}, "contribute_cps": contribute_cps,
+            "final_judgment": final_judgment, "hold_gap_loop": hold_gap_loop, "final_selected_agents": {},
+            "route_candidate_catalog": route_candidate_catalog,
+        }
+    body_manifest = build_body_manifest(route_candidate_catalog["selected_candidate_ids"])
+    route = invoke_live_maat(candidate, packet, repo, body_manifest=body_manifest) if mode == "live-maat" else adjudicate(candidate)
+    route["route_candidate_catalog"] = route_candidate_catalog
     draft_probes, probe_responses = probe_agents_as_arrive(route, repo) if mode == "live-maat" else ({}, {})
-    reducer_input = build_reducer_input(route, probe_responses) if mode == "live-maat" else {}
+    reducer_input = build_reducer_input(route, probe_responses, body_manifest) if mode == "live-maat" else {}
     reducer_result = invoke_maat_reducer(reducer_input, repo) if mode == "live-maat" else {
         "schema": "harness.cps_preflight.maat_reducer_result.v1",
         "source": "deterministic_not_live",
@@ -1088,15 +1454,10 @@ def execute_preflight_chain(packet: dict[str, Any], packet_path: Path, repo: Pat
         "hold_reasons": ["deterministic mode does not approve reducer-based local body dispatch"],
         "failure_codes": ["HOLD_DETERMINISTIC_REDUCER_REQUIRED"],
     }
-    probes: dict[str, Any] = {}
-    local_bodies: dict[str, Any] = {}
     final_selected_agents = normalize_selected_agents(route, reducer_result)
-    for agent, spec in final_selected_agents.items():
-        probe = build_probe(agent, route, spec, reducer_result)
-        probes[agent] = probe
-        if local_body_allowed(agent, reducer_result):
-            local_bodies[agent] = build_local_body(agent, probe, packet, packet_path)
-    local_body_dispatch = build_local_body_dispatch(route, reducer_result, local_bodies, final_selected_agents)
+    selected_manifest = {agent: body_manifest[agent] for agent in final_selected_agents if agent in body_manifest}
+    probes, local_bodies = build_agent_body_map(final_selected_agents, route, reducer_result, packet, packet_path)
+    local_body_dispatch = build_local_body_dispatch(route, reducer_result, local_bodies, final_selected_agents, selected_manifest)
     contribute_cps = build_contribute_cps(packet, candidate, route, probe_responses, reducer_result, local_body_dispatch)
     final_judgment = invoke_maat_final_judgment(contribute_cps, repo) if mode == "live-maat" else {
         "schema": "harness.cps_preflight.final_maat_judgment.v1",
@@ -1124,6 +1485,7 @@ def execute_preflight_chain(packet: dict[str, Any], packet_path: Path, repo: Pat
         "final_judgment": final_judgment,
         "hold_gap_loop": hold_gap_loop,
         "final_selected_agents": final_selected_agents,
+        "route_candidate_catalog": route_candidate_catalog,
     }
 
 
@@ -1132,6 +1494,9 @@ def run(packet_path: Path, out_dir: Path, repo: Path, mode: str = "live-maat") -
     out_dir.mkdir(parents=True, exist_ok=True)
     max_reentry = max_reentry_iterations(packet)
     candidate = build_candidate(packet, packet_path, repo)
+    original_candidate = candidate
+    cps_seed_graph = candidate.get("cps_seed_graph", {})
+    cps_trace_events = candidate.get("cps_trace_events", [])
     chain = execute_preflight_chain(packet, packet_path, repo, mode, candidate)
     reentry_input: dict[str, Any] | None = None
     reentry_chains: list[dict[str, Any]] = []
@@ -1139,7 +1504,8 @@ def run(packet_path: Path, out_dir: Path, repo: Path, mode: str = "live-maat") -
     while str(chain["final_judgment"].get("status", "hold")).lower() != "pass" and iteration < max_reentry:
         iteration += 1
         reentry_input = build_reentry_input(chain["hold_gap_loop"], str(packet_path), iteration)
-        reentry_candidate = build_candidate_from_reentry(reentry_input, packet_path, repo)
+        build_cps_trace_events(cps_seed_graph, reentry_input, events=cps_trace_events, iteration=iteration, phase="reentry")
+        reentry_candidate = build_candidate_from_reentry(reentry_input, packet_path, repo, original_candidate)
         chain = execute_preflight_chain(packet, packet_path, repo, mode, reentry_candidate)
         reentry_chains.append(chain)
 
@@ -1156,7 +1522,10 @@ def run(packet_path: Path, out_dir: Path, repo: Path, mode: str = "live-maat") -
     final_judgment = chain["final_judgment"]
     hold_gap_loop = chain["hold_gap_loop"]
     final_selected_agents = chain["final_selected_agents"]
+    route_candidate_catalog = chain.get("route_candidate_catalog") or select_route_candidate_catalog(packet, candidate)
     final_output = final_output_from_judgment(final_judgment, hold_gap_loop)
+    if isinstance(cps_seed_graph, dict) and cps_seed_graph:
+        build_cps_trace_events(cps_seed_graph, packet, final_output=final_output, events=cps_trace_events, iteration=iteration, phase="closure")
     selected_for_policy = next((agent for agent in final_selected_agents if agent not in {"maat", "hermes-kann"}), None)
     route["session_policy"] = build_session_policy(packet, repo, selected_for_policy)
     learning = {
@@ -1164,6 +1533,8 @@ def run(packet_path: Path, out_dir: Path, repo: Path, mode: str = "live-maat") -
         "contract_ref": str(CONTRACT_PATH),
         "packet_ref": str(packet_path),
         "C": reducer_result.get("revised_C") or route.get("C"),
+        "cps_seed_graph_ref": "cps_seed_graph.json",
+        "cps_trace_events_ref": "cps_trace_events.json",
         "selected_agents": sorted(route["selected_agents"]),
         "final_selected_agents": sorted(final_selected_agents),
         "audit_plan": route["audit_plan"],
@@ -1180,6 +1551,8 @@ def run(packet_path: Path, out_dir: Path, repo: Path, mode: str = "live-maat") -
     }
     files = {
         "candidate": out_dir / "c_candidate_packet.json",
+        "cps_seed_graph": out_dir / "cps_seed_graph.json",
+        "cps_trace_events": out_dir / "cps_trace_events.json",
         "route_gate": out_dir / "maat_route_gate.json",
         "probes": out_dir / "selected_agent_probes.json",
         "local_bodies": out_dir / "local_task_bodies.json",
@@ -1197,6 +1570,8 @@ def run(packet_path: Path, out_dir: Path, repo: Path, mode: str = "live-maat") -
     if reentry_input is not None:
         files["reentry_input"] = out_dir / "reentry_input.json"
     files["candidate"].write_text(json.dumps(candidate, indent=2, ensure_ascii=False), encoding="utf-8")
+    files["cps_seed_graph"].write_text(json.dumps(cps_seed_graph, indent=2, ensure_ascii=False), encoding="utf-8")
+    files["cps_trace_events"].write_text(json.dumps(cps_trace_events, indent=2, ensure_ascii=False), encoding="utf-8")
     files["route_gate"].write_text(json.dumps(route, indent=2, ensure_ascii=False), encoding="utf-8")
     files["probes"].write_text(json.dumps(probes, indent=2, ensure_ascii=False), encoding="utf-8")
     files["local_bodies"].write_text(json.dumps(local_bodies, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -1225,7 +1600,10 @@ def run(packet_path: Path, out_dir: Path, repo: Path, mode: str = "live-maat") -
         "mode": mode,
         "out_dir": str(out_dir),
         "files": {k: str(v) for k, v in files.items()},
+        "cps_seed_graph": cps_seed_graph,
+        "cps_trace_events": cps_trace_events,
         "route_gate": route,
+        "route_candidate_catalog": route_candidate_catalog,
         "maat_reducer_result": reducer_result,
         "final_maat_judgment": final_judgment,
         "final_output": final_output,

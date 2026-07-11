@@ -2,6 +2,7 @@ import importlib.util
 import json
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from unittest import TestCase
 from unittest.mock import patch
@@ -58,6 +59,185 @@ class TestCpsPreflightVerificationGate(TestCase):
         }
         candidate = self.candidate(verification)
         self.assertEqual(candidate["verification"], verification)
+
+    def test_seed_relations_are_separate_from_verification_links(self):
+        packet = {
+            "root_goal": "implement route gate",
+            "source_refs": ["/canonical/decision.md", ".harness/hermes/tools/cps_preflight_route_gate.py"],
+            "CPS": {"C": "one C", "P1": "problem", "S1": "solution", "E": ["P1 -> S1"]},
+        }
+        candidate = preflight.build_candidate(packet, Path("packet.json"), REPO)
+        graph = candidate["cps_seed_graph"]
+        self.assertNotIn("edges", graph)
+        self.assertEqual(graph["seed_relations"][0]["to"], "/canonical/decision.md")
+        self.assertEqual(candidate["verification_links"], ["P1 -> S1"])
+        route = preflight.adjudicate(candidate)
+        self.assertEqual(route["E"], route["verification_links"])
+
+    def test_trace_has_no_false_memory_lookup_and_uses_delta_payloads(self):
+        candidate = preflight.build_candidate({"root_goal": "implement code"}, Path("packet.json"), REPO)
+        events = candidate["cps_trace_events"]
+        self.assertEqual([event["event_type"] for event in events].count("seed_created"), 1)
+        self.assertNotIn("memory_lookup_started", [event["event_type"] for event in events])
+        self.assertNotIn("memory_match_attached", [event["event_type"] for event in events])
+        self.assertNotIn("current_state", events[0])
+        self.assertIn("seed_delta", events[0]["event_payload"])
+
+    def test_reentry_candidate_preserves_seed_graph_and_trace(self):
+        original = self.candidate({})
+        reentry = preflight.build_candidate_from_reentry({
+            "revised_C": {"C1": "close gap"}, "revised_P": {"P1": "problem"},
+            "revised_S": {"S1": "solution"}, "revised_E": ["P1 -> S1"],
+            "missing_evidence": ["evidence"], "iteration": 1, "packet_ref": "packet.json",
+        }, Path("packet.json"), REPO, original)
+        self.assertIs(reentry["cps_seed_graph"], original["cps_seed_graph"])
+        self.assertEqual(reentry["cps_trace_events"], original["cps_trace_events"])
+        self.assertEqual(reentry["reentry"]["iteration"], 1)
+
+    def test_maat_inputs_are_body_free_and_reference_manifests(self):
+        candidate = self.candidate({})
+        candidate["agent_body_map"] = {"ptah": {"secret_body": "must not relay"}}
+        manifests = preflight.build_body_manifest(["ptah"])
+        prompt = json.loads(preflight._live_maat_prompt(candidate, {"raw_transcript": "secret"}, manifests))
+        serialized = json.dumps(prompt)
+        self.assertNotIn("agent_body_map", serialized)
+        self.assertNotIn("secret_body", serialized)
+        self.assertNotIn("raw_transcript", serialized)
+        self.assertEqual(prompt["body_manifest"], manifests)
+        self.assertIn("body_manifest_ids", prompt["required_response_schema"]["selected_agents"]["ptah"])
+        reducer = preflight.build_reducer_input(preflight.adjudicate(candidate), {}, manifests)
+        self.assertEqual(reducer["body_manifest"], manifests)
+        self.assertNotIn("agent_body_map", reducer)
+
+    def test_explicit_route_candidates_narrow_manifest_catalog(self):
+        packet = {"route_candidates": ["ptah", {"agent": "anubis"}, {"profile": "seshat"}, "maat"]}
+        catalog = preflight.select_route_candidate_catalog(packet, {})
+        self.assertEqual(catalog["selected_candidate_ids"], ["ptah", "anubis", "seshat"])
+        self.assertEqual(catalog["candidate_count"], 3)
+        self.assertEqual(catalog["manifest_count"], 3)
+        self.assertEqual(catalog["excluded_profile_count"], len(preflight.PROFILES) - 1 - 3)
+
+    def test_candidate_s_values_narrow_to_referenced_known_profiles(self):
+        candidate = {"S?": {"S1": "ptah apply", "S2": "anubis evidence", "S3": "unknown lane"}}
+        catalog = preflight.select_route_candidate_catalog({}, candidate)
+        self.assertEqual(catalog["selected_candidate_ids"], ["ptah", "anubis"])
+
+    def test_structural_fallback_selects_only_relevant_candidates(self):
+        packet = {
+            "source_refs": ["docs/contract.md"],
+            "verification": {"execution_kind": "execution-needed"},
+            "memory_continuity": {"required": True},
+        }
+        catalog = preflight.select_route_candidate_catalog(packet, {})
+        self.assertEqual(catalog["selected_candidate_ids"], ["seshat", "anubis", "sia"])
+        mutation = preflight.select_route_candidate_catalog({"mutation_scope": ["runtime"]}, {})
+        self.assertEqual(mutation["selected_candidate_ids"], ["ptah"])
+
+    def test_execute_chain_uses_narrow_catalog_and_keeps_maat_inputs_body_free(self):
+        packet = {"root_goal": "bounded task", "mutation_scope": ["runtime"], "route_candidates": ["ptah", "anubis", "seshat"]}
+        candidate = preflight.build_candidate(packet, Path("packet.json"), REPO)
+        route = preflight.adjudicate(candidate)
+        with patch.object(preflight, "invoke_live_maat", return_value=route) as route_maat, \
+             patch.object(preflight, "probe_agents_as_arrive", return_value=({}, {})), \
+             patch.object(preflight, "invoke_maat_reducer", return_value={"status": "hold", "final_selected_agents": {}, "local_body_scope": {}}), \
+             patch.object(preflight, "invoke_maat_final_judgment", return_value={"status": "hold", "Goal_closure": {"status": "hold"}}):
+            chain = preflight.execute_preflight_chain(packet, Path("packet.json"), REPO, "live-maat", candidate)
+        manifests = route_maat.call_args.kwargs["body_manifest"]
+        self.assertEqual(list(manifests), ["ptah", "anubis", "seshat"])
+        self.assertEqual(chain["route_candidate_catalog"]["manifest_count"], 3)
+        prompt = preflight._live_maat_prompt(candidate, packet, manifests)
+        self.assertNotIn("body:thoth:v1", prompt)
+        self.assertNotIn("agent_body_map", prompt)
+
+    def test_dispatch_trace_counts_selected_duplicate_unselected_and_no_maat_relay(self):
+        bodies = {"ptah": {"schema": "body", "value": "x"}}
+        manifests = preflight.build_body_manifest(["ptah", "anubis"])
+        trace = preflight.build_local_body_dispatch(
+            {"verification_gate": {}}, {"status": "pass", "local_body_scope": {"ptah": True}},
+            bodies, {"ptah": {"body_manifest_ids": [manifests["ptah"]["body_manifest_id"]]}}, manifests,
+        )
+        aggregate = trace["aggregate"]
+        self.assertEqual(aggregate["direct_dispatch_count"], 1)
+        self.assertEqual(aggregate["duplicate_dispatch_count"], 0)
+        self.assertEqual(aggregate["unselected_dispatch_count"], 0)
+        self.assertEqual(aggregate["maat_body_relay_count"], 0)
+        self.assertGreater(aggregate["token_estimate"], 0)
+        self.assertTrue(trace["dispatch"]["ptah"]["body_hash"])
+
+    def test_selective_maat_escalation_uses_explicit_signals(self):
+        short = preflight.build_candidate({"root_goal": "rewrite this sentence"}, Path("packet.json"), REPO)
+        self.assertFalse(short["route_enrichment"]["selective_maat_escalation"]["needed"])
+        scoped = preflight.build_candidate({
+            "root_goal": "change runtime", "mutation_scope": ["runtime"],
+            "route_candidates": ["ptah", "anubis"], "required_evidence_floor": "test-backed",
+        }, Path("packet.json"), REPO)
+        reasons = scoped["route_enrichment"]["selective_maat_escalation"]["reasons"]
+        self.assertIn("mutation_scope_present", reasons)
+        self.assertIn("multiple_route_candidates", reasons)
+        self.assertIn("verification_or_evidence_floor_required", reasons)
+
+    def test_short_local_contract_bypasses_maat_reducer_and_final_maat(self):
+        packet = {
+            "root_goal": "rewrite this sentence",
+            "inline_response_contract": {"response": "Rewritten sentence."},
+        }
+        candidate = preflight.build_candidate(packet, Path("packet.json"), REPO)
+        with patch.object(preflight, "invoke_live_maat") as route_maat, \
+             patch.object(preflight, "invoke_maat_reducer") as reducer, \
+             patch.object(preflight, "invoke_maat_final_judgment") as final_maat:
+            chain = preflight.execute_preflight_chain(packet, Path("packet.json"), REPO, "live-maat", candidate)
+        route_maat.assert_not_called()
+        reducer.assert_not_called()
+        final_maat.assert_not_called()
+        self.assertEqual(chain["route"]["wire"], "short_cps")
+        self.assertEqual(chain["final_judgment"]["status"], "pass")
+
+    def test_mutation_verification_multi_agent_and_ssot_uncertainty_route_to_maat(self):
+        signals = (
+            {"mutation_scope": ["runtime"]},
+            {"required_evidence_floor": "test-backed"},
+            {"route_candidates": ["ptah", "anubis"]},
+            {"ssot_authority_uncertainty": True},
+        )
+        for signal in signals:
+            packet = {"root_goal": "bounded task", **signal}
+            candidate = preflight.build_candidate(packet, Path("packet.json"), REPO)
+            with self.subTest(signal=signal), patch.object(preflight, "invoke_live_maat", return_value=preflight.adjudicate(candidate)) as route_maat, \
+                 patch.object(preflight, "probe_agents_as_arrive", return_value=({}, {})), \
+                 patch.object(preflight, "invoke_maat_reducer", return_value={"status": "hold", "final_selected_agents": {}, "local_body_scope": {}}), \
+                 patch.object(preflight, "invoke_maat_final_judgment", return_value={"status": "hold", "Goal_closure": {"status": "hold"}}):
+                preflight.execute_preflight_chain(packet, Path("packet.json"), REPO, "live-maat", candidate)
+                route_maat.assert_called_once()
+
+    def test_explicit_agent_work_without_route_signal_holds_without_implicit_maat(self):
+        packet = {
+            "root_goal": "agent work",
+            "CPS": {"C": "one C", "P1": "implement", "S1": "ptah apply", "E": ["P1 -> S1"]},
+        }
+        candidate = preflight.build_candidate(packet, Path("packet.json"), REPO)
+        with patch.object(preflight, "invoke_live_maat") as route_maat:
+            chain = preflight.execute_preflight_chain(packet, Path("packet.json"), REPO, "live-maat", candidate)
+        route_maat.assert_not_called()
+        self.assertEqual(chain["final_judgment"]["status"], "hold")
+        self.assertIn("route_gate_signal_missing", chain["final_judgment"]["missing_evidence"])
+
+    def test_deterministic_run_records_one_reentry_and_terminal_closure(self):
+        packet = {
+            "root_goal": "change runtime",
+            "mutation_scope": ["runtime"],
+            "max_reentry_iterations": 1,
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            packet_path = Path(tmp) / "packet.json"
+            packet_path.write_text(json.dumps(packet), encoding="utf-8")
+            result = preflight.run(packet_path, Path(tmp) / "out", REPO, mode="deterministic")
+        events = result["cps_trace_events"]
+        reentries = [event for event in events if event["event_type"] == "reentry_started"]
+        self.assertEqual(len(reentries), 1)
+        self.assertEqual(reentries[0]["iteration"], 1)
+        self.assertEqual(reentries[0]["parent_event_id"], events[events.index(reentries[0]) - 1]["event_id"])
+        self.assertEqual(events[-1]["event_type"], "workflow_closed")
+        self.assertEqual(events[-1]["parent_event_id"], reentries[0]["event_id"])
 
     def test_execution_needed_without_verification_s_holds_with_gap_class(self):
         gap, route = self.route_gap({"execution_kind": "execution-needed", "evidence_mode": "source-backed"})
