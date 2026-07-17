@@ -52,16 +52,17 @@ uv run --locked pytest tests/runtime
 uv build
 ```
 
-runtime state는 source tree 밖의 `~/.harness/state/<profile>/<project-slug>/<canonical-cwd-hash>/`에만 둔다. test에서는 반드시 임시 state root를 지정한다. `$HERMES_HOME`, Hermes service venv, live gateway, repository `runs/`는 fallback이나 fixture가 아니다.
+runtime state는 source tree와 실행 worktree 밖의 명시적 `HARNESS_STATE_DIR`에만 둔다. test에서는 반드시 임시 state root를 지정한다. `$HERMES_HOME`, Hermes service venv, live gateway, repository `runs/`는 fallback이나 fixture가 아니다.
 
 ```bash
 export HARNESS_STATE_DIR="$(mktemp -d)"
 harness-runtime schema
-harness-runtime run --case smoke --consumer artifact-smoke --body-file body.bin -- python -c 'import sys; sys.stdout.buffer.write(sys.stdin.buffer.read())'
+harness-runtime run --case smoke --consumer artifact-smoke --body-file body.bin --worktree-cwd /path/to/clean/git/worktree -- /absolute/path/to/python -c 'import sys; sys.stdout.buffer.write(sys.stdin.buffer.read())'
 harness-runtime readback --case smoke --consumer artifact-smoke
+harness-runtime analysis-input --case smoke --consumer artifact-smoke
 ```
 
-`run` producer가 dispatch/terminal receipt와 body/stdout/stderr artifact를 external state 아래에 기록하고, `readback` consumer가 receipt와 artifact digest를 다시 대조한다. invalid input은 validation error로 종료한다.
+`run` producer는 clean Git worktree root만 받아 제한된 환경에서 명령을 실행한다. dispatch/terminal receipt와 body/stdout/stderr artifact를 external state 아래에 기록하고 자체 readback 검증을 통과한 terminal receipt만 출력한다. `readback`은 receipt와 artifact digest를 다시 대조하고, `analysis-input`은 같은 검증 뒤 bounded stdout/stderr를 제공한다. invalid input은 validation error로 종료한다.
 
 ## 구조
 

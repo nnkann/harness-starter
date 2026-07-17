@@ -9,4 +9,8 @@ policy_refs:
   - .harness/project/docs/decisions/hn_harness_runtime_externalization.md
 state:
   source_tree: forbidden
-  root: ~/.harness/state/<profile>/<project-slug>/<canonical-cwd-hash>
+  receipt_storage: explicit-HARNESS_STATE_DIR-only
+deterministic_runner:
+  worktree_cwd: explicit-clean-git-root-required
+  environment: constrained-no-caller-inheritance
+  analyst_input: verified-receipt-only

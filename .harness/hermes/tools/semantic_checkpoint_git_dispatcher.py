@@ -53,7 +53,7 @@ def _job_lock(job_path: Path):
 def build_worker_argv(packet_path: Path) -> list[str]:
     return [
         "agy", "--model", MODEL, "--dangerously-skip-permissions", "--print",
-        f"Read and execute only the Git closure packet at {packet_path.resolve()}.",
+        f"Read and execute only the Git closure packet at {packet_path}.",
     ]
 
 

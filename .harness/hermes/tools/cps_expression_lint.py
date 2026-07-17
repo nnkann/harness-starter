@@ -107,7 +107,7 @@ def validate(packet: dict[str, Any]) -> list[str]:
     raw_steps = packet.get("flow_expression")
     if not isinstance(raw_steps, list) or not raw_steps:
         errors.append("flow_expression must be a non-empty ordered list")
-        return errors
+        return sorted(errors)
     steps: list[Any] = raw_steps
 
     orders: list[int] = []
@@ -197,7 +197,7 @@ def validate(packet: dict[str, Any]) -> list[str]:
         # This is only a warning-level modelling smell, but this linter is used
         # for CPS design packets where order/repetition should be explicit.
         errors.append("no repeated P/S pair found; confirm this is not a 1:1/static mapping packet")
-    return errors
+    return sorted(errors)
 
 
 def main() -> int:

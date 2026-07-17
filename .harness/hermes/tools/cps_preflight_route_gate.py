@@ -2035,9 +2035,8 @@ def invoke_live_maat(candidate: dict[str, Any], packet: dict[str, Any], repo: Pa
     """Call the live Maat profile for C-boundary/route-gate adjudication."""
     import subprocess
     env = os.environ.copy()
-    env["HERMES_PROFILE"] = "maat"
     cmd = [
-        "hermes", "chat", "-Q", "--max-turns", "1", "-t", "", "-q",
+        "hermes", "-p", "maat", "chat", "-Q", "--max-turns", "1", "-t", "", "-q",
         _live_maat_prompt(candidate, packet, body_manifest),
     ]
     proc = subprocess.run(cmd, cwd=str(repo), env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False, timeout=timeout)
@@ -2126,8 +2125,7 @@ def _agent_probe_prompt(agent: str, probe: dict[str, Any]) -> str:
 def invoke_agent_probe(agent: str, probe: dict[str, Any], repo: Path, timeout: int = 120) -> dict[str, Any]:
     import subprocess
     env = os.environ.copy()
-    env["HERMES_PROFILE"] = agent
-    cmd = ["hermes", "chat", "-Q", "--max-turns", "1", "-t", "", "-q", _agent_probe_prompt(agent, probe)]
+    cmd = ["hermes", "-p", agent, "chat", "-Q", "--max-turns", "1", "-t", "", "-q", _agent_probe_prompt(agent, probe)]
     proc = subprocess.run(cmd, cwd=str(repo), env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False, timeout=timeout)
     stdout = proc.stdout or ""
     session_match = re.search(r"session_id:\s*([A-Za-z0-9_\-]+)", stdout)
@@ -2266,9 +2264,8 @@ def invoke_maat_reducer(reducer_input: dict[str, Any], repo: Path, timeout: int 
     """Ask live Maat to reduce role-probe responses before any local-body dispatch."""
     import subprocess
     env = os.environ.copy()
-    env["HERMES_PROFILE"] = "maat"
     cmd = [
-        "hermes", "chat", "-Q", "--max-turns", "1", "-t", "", "-q",
+        "hermes", "-p", "maat", "chat", "-Q", "--max-turns", "1", "-t", "", "-q",
         _maat_reducer_prompt(reducer_input),
     ]
     runner = process_runner or subprocess.run
@@ -2787,8 +2784,7 @@ def invoke_maat_final_judgment(contribute_cps: dict[str, Any], repo: Path, timeo
     """Ask live Maat to judge the CPS AC/Goal trace; no extra verifier criteria."""
     import subprocess
     env = os.environ.copy()
-    env["HERMES_PROFILE"] = "maat"
-    cmd = ["hermes", "chat", "-Q", "--max-turns", "1", "-t", "", "-q", _maat_final_prompt(contribute_cps)]
+    cmd = ["hermes", "-p", "maat", "chat", "-Q", "--max-turns", "1", "-t", "", "-q", _maat_final_prompt(contribute_cps)]
     proc = subprocess.run(cmd, cwd=str(repo), env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False, timeout=timeout)
     stdout = proc.stdout or ""
     session_match = re.search(r"session_id:\s*([A-Za-z0-9_\-]+)", stdout)
