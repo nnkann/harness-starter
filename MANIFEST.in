@@ -1,0 +1,10 @@
+include LICENSE
+include pyproject.toml
+recursive-include runtime/harness_runtime *.py
+recursive-include contracts *.py *.json
+prune tests
+prune .harness
+prune adapters
+prune templates
+prune docs
+global-exclude __pycache__ *.py[cod]

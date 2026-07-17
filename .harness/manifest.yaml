@@ -1,0 +1,12 @@
+schema: harness.project-manifest.v1
+project_slug: harness-starter
+runtime:
+  package: harness-runtime
+  version: "0.1.0"
+contracts:
+  execution_receipt: execution-receipt.v1
+policy_refs:
+  - .harness/project/docs/decisions/hn_harness_runtime_externalization.md
+state:
+  source_tree: forbidden
+  root: ~/.harness/state/<profile>/<project-slug>/<canonical-cwd-hash>

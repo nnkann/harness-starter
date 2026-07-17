@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "harness-runtime"
+version = "0.1.0"
+description = "Isolated Harness runtime receipt contract"
+readme = "docs/build-and-state-contract.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest>=8.3,<9"]
+
+[project.scripts]
+harness-runtime = "harness_runtime.cli:main"
+
+[tool.setuptools]
+packages = ["harness_runtime", "contracts"]
+package-dir = {harness_runtime = "runtime/harness_runtime", contracts = "contracts"}
+include-package-data = true
+
+[tool.setuptools.package-data]
+contracts = ["*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/runtime"]
+addopts = "-q"

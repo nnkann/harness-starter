@@ -42,6 +42,27 @@ bash /path/to/harness-starter/h-setup.sh --upgrade /path/to/my-project
 # → 사용 가능한 runtime에서 /harness-upgrade (git 3-way merge + MIGRATIONS.md 자동 안내)
 ```
 
+## 독립 Harness runtime build/test
+
+`harness-runtime`은 Hermes core, live gateway, 기존 `.harness/project/runs/`와 분리된 표준 라이브러리 기반 artifact다. build 입력은 root `pyproject.toml`과 `uv.lock`뿐이며, runtime dependency는 없고 test dependency는 `test` extra로 분리한다.
+
+```bash
+uv sync --locked --extra test
+uv run --locked pytest tests/runtime
+uv build
+```
+
+runtime state는 source tree 밖의 `~/.harness/state/<profile>/<project-slug>/<canonical-cwd-hash>/`에만 둔다. test에서는 반드시 임시 state root를 지정한다. `$HERMES_HOME`, Hermes service venv, live gateway, repository `runs/`는 fallback이나 fixture가 아니다.
+
+```bash
+export HARNESS_STATE_DIR="$(mktemp -d)"
+harness-runtime schema
+harness-runtime run --case smoke --consumer artifact-smoke --body-file body.bin -- python -c 'import sys; sys.stdout.buffer.write(sys.stdin.buffer.read())'
+harness-runtime readback --case smoke --consumer artifact-smoke
+```
+
+`run` producer가 dispatch/terminal receipt와 body/stdout/stderr artifact를 external state 아래에 기록하고, `readback` consumer가 receipt와 artifact digest를 다시 대조한다. invalid input은 validation error로 종료한다.
+
 ## 구조
 
 ```

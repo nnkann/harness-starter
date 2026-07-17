@@ -1,0 +1,6 @@
+{
+  "schema": "harness.runtime.execution-request.v1",
+  "case_id": "example-case",
+  "consumer": "example-consumer",
+  "command": ["<executable>", "<args>"]
+}

@@ -1,0 +1,14 @@
+schema: harness.project-manifest.v1
+project_slug: harness-starter
+runtime:
+  package: harness-runtime
+  version: "0.1.0"
+contracts:
+  execution_receipt: execution-receipt.v1
+  canonical_binding: canonical-binding.v1
+binding_registry:
+  authority: source-identity-only
+  bridge: separately-authorized
+state:
+  source_tree: forbidden
+  receipt_storage: explicit-HARNESS_STATE_DIR-only

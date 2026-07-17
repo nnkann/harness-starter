@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://harness.local/contracts/execution-receipt.v1.schema.json",
+  "title": "Harness isolated runtime execution receipt",
+  "type": "object",
+  "required": ["schema", "sequence", "event", "status", "case_id", "consumer", "recorded_at", "artifacts"],
+  "properties": {
+    "schema": {"const": "harness.runtime.execution-receipt.v1"},
+    "sequence": {"type": "integer", "minimum": 1},
+    "event": {"enum": ["dispatch", "terminal"]},
+    "status": {"enum": ["observed", "pass", "fail"]},
+    "case_id": {"type": "string", "minLength": 1},
+    "consumer": {"type": "string", "minLength": 1},
+    "recorded_at": {"type": "string", "format": "date-time"},
+    "exit_code": {"type": ["integer", "null"]},
+    "artifacts": {
+      "type": "object",
+      "required": ["body", "stdout", "stderr"],
+      "additionalProperties": false,
+      "properties": {
+        "body": {"$ref": "#/$defs/artifact"},
+        "stdout": {"$ref": "#/$defs/artifact"},
+        "stderr": {"$ref": "#/$defs/artifact"}
+      }
+    }
+  },
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "required": ["ref", "sha256", "bytes"],
+      "additionalProperties": false,
+      "properties": {
+        "ref": {"type": "string", "pattern": "^artifacts/"},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "bytes": {"type": "integer", "minimum": 0}
+      }
+    }
+  },
+  "additionalProperties": false
+}
