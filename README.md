@@ -2,6 +2,10 @@
 
 AI 코딩 에이전트를 위한 하네스(Harness) 템플릿. 공통 하네스 계약과 runtime adapter를 분리해 Claude, Codex, Hermes, Agy 같은 여러 agent 조합을 통합 관리한다.
 
+## Project entry point
+
+프로젝트 진입·규칙·도메인·cluster의 canonical authority는 `harness-brain`이다. 이 starter는 runtime에 필요한 계약만 유지한다.
+
 > "에이전트가 실수할 때마다, 그 실수가 다시는 일어나지 않도록 엔지니어링 솔루션을 만드는 것" — Mitchell Hashimoto
 
 현재 버전: **v0.55.1** — 0.x = 공개 API·동작 불안정·실험 단계. 다운스트림 실측 누적·매처 동작 검증·README 격차 안정화 후 1.0.0 검토. 변경 이력은 `git log --oneline --grep "(v0\."`, 다운스트림 마이그레이션은 `docs/harness/MIGRATIONS.md`.
@@ -42,7 +46,6 @@ bash /path/to/harness-starter/h-setup.sh --upgrade /path/to/my-project
 
 ```
 CLAUDE.md                        Claude Code runtime adapter 루트 인스트럭션
-AGENTS.md                        Codex runtime adapter 루트 인스트럭션
 .agents/
 └── skills/                      Codex가 직접 읽는 generated/validated adapter 후보
 .codex/

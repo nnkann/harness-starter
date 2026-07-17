@@ -10,7 +10,7 @@
 #   standard        — minimal + check-existing, naming-convention
 #   full            — 전부 (coding-convention, eval, advisor 포함)
 #   주의: 프로파일은 skill bundle 크기만 고른다. `.claude`, `.agents`,
-#   `.codex`, `CLAUDE.md`, `AGENTS.md`는 runtime adapter/manifest 표면이며
+#   `.codex`, `CLAUDE.md`는 runtime adapter/manifest 표면이며
 #   제품 아키텍처가 아니다.
 # 필요한 스킬은 나중에 `bash h-setup.sh --add <skill>`로 추가 가능.
 #
@@ -374,10 +374,9 @@ PY
     fi
   done
 
-  # CLAUDE.md / AGENTS.md
+  # CLAUDE.md
   echo ""
   echo "⏭  CLAUDE.md — 사용자 커스터마이징 파일, 업그레이드 제외"
-  echo "⏭  AGENTS.md — 사용자 커스터마이징 파일, 업그레이드 제외"
 
   # Codex bridge
   echo ""
@@ -521,7 +520,7 @@ echo "═══ 하네스 셋업 ═══"
 echo "타겟:   $TARGET"
 echo "프로파일: $PROFILE"
 echo "스킬:   $SKILLS"
-echo "adapter: .claude/.agents/.codex/CLAUDE.md/AGENTS.md는 하네스 runtime 표면"
+echo "adapter: .claude/.agents/.codex/CLAUDE.md는 하네스 runtime 표면"
 echo ""
 
 CREATED=0
@@ -541,12 +540,9 @@ copy_if_new() {
   fi
 }
 
-# CLAUDE.md / AGENTS.md
+# CLAUDE.md
 echo "📄 CLAUDE.md"
 copy_if_new "$SCRIPT_DIR/CLAUDE.md" "$TARGET/CLAUDE.md"
-
-echo "📄 AGENTS.md"
-copy_if_new "$SCRIPT_DIR/AGENTS.md" "$TARGET/AGENTS.md"
 
 # .claude/rules/
 echo ""
