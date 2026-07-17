@@ -38,7 +38,7 @@ class DispatcherTests(unittest.TestCase):
     def test_exact_git_worker_argv(self):
         self.assertEqual(
             dispatcher.build_worker_argv(Path("/tmp/packet.json")),
-            ["hermes", "chat", "--provider", "openai-codex", "-m", "gpt-5.3-codex-spark", "-t", "terminal,file", "-Q", "-q", "@/tmp/packet.json"],
+            ["agy", "--model", "Gemini 3.5 Flash (High)", "--dangerously-skip-permissions", "--print", "Read and execute only the Git closure packet at /tmp/packet.json."],
         )
 
     def test_dispatch_validates_nested_packet_and_exact_key_is_idempotent(self):
@@ -110,8 +110,8 @@ class DispatcherTests(unittest.TestCase):
             persisted = dispatcher.poll_checkpoint("work-1@r2", root)
         self.assertEqual(receipt, persisted)
         self.assertEqual(receipt["pid"], 4321)
-        self.assertEqual(receipt["provider"], "openai-codex")
-        self.assertEqual(receipt["model"], "gpt-5.3-codex-spark")
+        self.assertEqual(receipt["provider"], "agy-router")
+        self.assertEqual(receipt["model"], "Gemini 3.5 Flash (High)")
         self.assertTrue(receipt["stdout_log_path"].endswith(".stdout.log"))
         self.assertTrue(receipt["stderr_log_path"].endswith(".stderr.log"))
 

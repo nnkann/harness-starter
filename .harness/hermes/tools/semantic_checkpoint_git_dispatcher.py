@@ -23,8 +23,8 @@ TOP_KEYS = {
     "scoped_paths", "excluded_dirty_paths", "closure_AC_ref", "CPS_refs",
     "prohibited_actions", "owner_approval", "execution_instruction", "commit_message", "verification_command",
 }
-PROVIDER = "openai-codex"
-MODEL = "gpt-5.3-codex-spark"
+PROVIDER = "agy-router"
+MODEL = "Gemini 3.5 Flash (High)"
 
 
 def _now() -> str:
@@ -52,9 +52,8 @@ def _job_lock(job_path: Path):
 
 def build_worker_argv(packet_path: Path) -> list[str]:
     return [
-        "hermes", "chat", "--provider", "openai-codex", "-m",
-        "gpt-5.3-codex-spark", "-t", "terminal,file", "-Q", "-q",
-        f"@{packet_path}",
+        "agy", "--model", MODEL, "--dangerously-skip-permissions", "--print",
+        f"Read and execute only the Git closure packet at {packet_path.resolve()}.",
     ]
 
 
