@@ -19,3 +19,6 @@ required_fields:
   - lazy_dev_justification
 evidence_acquisition_required_sections: [C, P, S]
 stdout_policy: digest-first
+semantic_provenance_required_fields: [canonical_source_locator, canonical_source_readback, current_source_revision, current_content_hash, canonical_section, semantic_field_definition_coverage]
+semantic_provenance_applies_when: [semantic_anchor_present, semantic_provenance_binding_present]
+semantic_provenance_failure_code: HOLD_UNMAPPED_SEMANTIC_FIELD

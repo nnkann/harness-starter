@@ -65,8 +65,8 @@ def _read_candidates(path: Path, limit: int) -> list[dict[str, Any]]:
 
 
 def build_seed(repo: Path, candidates_path: Path, candidate_limit: int) -> str:
-    agents = _read(repo / "AGENTS.md", 2600)
-    readme = _read(repo / "README.md", 2600)
+    entry_source = repo / "README.md"
+    entry_source_text = _read(entry_source, 2600)
     cron = _read(repo / ".harness/project/cron/harness_cps_memory_cron.yaml", 1800)
     candidates = _read_candidates(candidates_path, candidate_limit)
     payload = {
@@ -87,8 +87,8 @@ def build_seed(repo: Path, candidates_path: Path, candidate_limit: int) -> str:
             "harness": "CPS/project/routing/policy/source_ref memory",
             "merge_rule": "Honcho context may tune reporting/routing hints but cannot override Harness policy, accepted CPS records, owner approval holds, or source_ref evidence.",
         },
-        "readme_excerpt": readme,
-        "agents_policy_excerpt": agents,
+        "project_entry_source": str(entry_source),
+        "project_entry_source_excerpt": entry_source_text,
         "memory_cron_contract_excerpt": cron,
         "candidate_source_ref_samples": candidates,
     }

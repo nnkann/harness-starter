@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Optional diagnostic: verify which AGENTS.md-style context Hermes loads.
+"""Verify the harness-starter repository project entry source.
 
-This is intentionally not part of validate-reference because it depends on the
-local Hermes source checkout. It exists to prevent root/profile-doc context
-mixups when operating the harness-starter baseline branch.
+This is intentionally not part of validate-reference. It verifies the local
+reader contract without loading Hermes core or AGENTS.md-style context.
 """
 from __future__ import annotations
 
@@ -21,42 +20,17 @@ def find_repo_root(start: Path) -> Path:
 
 
 REPO_ROOT = find_repo_root(Path(__file__).resolve())
-HERMES_SOURCE = Path("/Users/kann/.hermes/hermes-agent")
-PROFILE_DOCS = REPO_ROOT / ".harness" / "hermes" / "profile-docs"
-
-CANARIES = [
-    "MAAT judges first",
-    "THOTH compiles the contract before fan-out",
-    "Failure is a CPS event",
-    "Truthful reporting rules",
-    "Hermes context-loading reality",
+ENTRY_SOURCE = REPO_ROOT / "README.md"
+ROOT_AGENTS = REPO_ROOT / "AGENTS.md"
+LOADER = REPO_ROOT / ".harness" / "hermes" / "loader.py"
+ENTRY_HEADING = "## Project entry point"
+ENTRY_AUTHORITY = "프로젝트 진입·규칙·도메인·cluster의 canonical authority는 `harness-brain`이다."
+PROJECT_READERS = [
+    REPO_ROOT / ".harness" / "project" / "scripts" / "router" / "read_context_probe.py",
+    REPO_ROOT / ".harness" / "project" / "scripts" / "router" / "seed_honcho_project_context.py",
 ]
-PROFILE_DOCS_ONLY = "This file is profile documentation and template source"
-
-
-def load_prompt(cwd: Path) -> str:
-    sys.path.insert(0, str(HERMES_SOURCE))
-    from agent.prompt_builder import build_context_files_prompt  # type: ignore
-
-    return build_context_files_prompt(cwd=str(cwd), skip_soul=True)
-
-
-def run_loader(command: str) -> dict:
-    proc = subprocess.run(
-        [sys.executable, str(REPO_ROOT / ".harness" / "hermes" / "loader.py"), command],
-        cwd=str(REPO_ROOT),
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=False,
-    )
-    try:
-        payload = json.loads(proc.stdout)
-    except json.JSONDecodeError as exc:
-        raise AssertionError(f"loader {command} did not return JSON: {proc.stdout}") from exc
-    if proc.returncode != 0:
-        raise AssertionError(f"loader {command} failed: {payload.get('errors') or proc.stderr}")
-    return payload
+REQUIRED_PROJECT_ENTRY_FIELDS = ["project_entry_source", "project_entry_source_preview"]
+FORBIDDEN_LEGACY_FIELDS = ["agents_md_", "agents_policy_excerpt"]
 
 
 def require(condition: bool, message: str) -> None:
@@ -64,36 +38,57 @@ def require(condition: bool, message: str) -> None:
         raise AssertionError(message)
 
 
+def run_loader(command: str) -> dict:
+    result = subprocess.run(
+        [sys.executable, str(LOADER), command],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"loader {command} failed with exit code {result.returncode}: "
+            f"{result.stderr.strip()}"
+        )
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"loader {command} returned invalid JSON: {exc}") from exc
+    require(isinstance(payload, dict), f"loader {command} did not return an object")
+    return payload
+
+
 def main() -> int:
-    if not HERMES_SOURCE.exists():
-        print(f"SKIP agents context verification: Hermes source missing at {HERMES_SOURCE}")
-        return 0
+    require(ENTRY_SOURCE.is_file(), f"project entry source missing: {ENTRY_SOURCE}")
+    entry_text = ENTRY_SOURCE.read_text(encoding="utf-8", errors="replace")
+    require(ENTRY_HEADING in entry_text, f"project entry heading missing: {ENTRY_HEADING}")
+    require(ENTRY_AUTHORITY in entry_text, "project entry authority declaration missing")
+    require(not ROOT_AGENTS.exists(), f"root AGENTS.md must not exist: {ROOT_AGENTS}")
+
+    for reader in PROJECT_READERS:
+        reader_text = reader.read_text(encoding="utf-8", errors="replace")
+        require("project_entry_source" in reader_text, f"project entry source missing from: {reader}")
+        for forbidden_field in FORBIDDEN_LEGACY_FIELDS:
+            require(forbidden_field not in reader_text, f"legacy field in reader: {reader}")
+
     summary = run_loader("summary")
+    require(summary.get("gateway") == ".harness/hermes/gateway.yaml", "unexpected gateway")
+    require(
+        summary.get("board_assignees") == ".harness/hermes/board-assignees.yaml",
+        "unexpected board_assignees",
+    )
+    require(
+        summary.get("cps_profile_routing") == ".harness/hermes/cps-profile-routing.yaml",
+        "unexpected cps_profile_routing",
+    )
+
     validation = run_loader("validate-reference")
-    require(validation.get("ok") is True, f"loader validate-reference failed: {validation.get('errors')}")
-    require(summary.get("gateway") == ".harness/hermes/gateway.yaml", "summary missing gateway contract")
-    require(summary.get("board_assignees") == ".harness/hermes/board-assignees.yaml", "summary missing board assignees contract")
-    require(summary.get("cps_profile_routing") == ".harness/hermes/cps-profile-routing.yaml", "summary missing CPS profile routing contract")
+    require(validation.get("ok") is True, "reference validation failed")
 
-    root_prompt = load_prompt(REPO_ROOT)
-    profile_prompt = load_prompt(PROFILE_DOCS)
-
-    require("## AGENTS.md" in root_prompt, "root AGENTS.md was not loaded from adapter root cwd")
-    for canary in CANARIES:
-        require(canary in root_prompt, f"missing root AGENTS.md canary in effective prompt: {canary}")
-    if PROFILE_DOCS_ONLY in root_prompt:
-        raise AssertionError("profile-docs AGENTS.md unexpectedly loaded from adapter root cwd")
-    if PROFILE_DOCS_ONLY not in profile_prompt:
-        print("WARN profile-docs AGENTS.md did not load from profile-docs cwd; root context isolation still holds")
-
-    print("PASS agents context verification")
-    print(f"repo_root={REPO_ROOT}")
-    print(f"canonical_branch=hermes/harness-starter-baseline")
-    print(f"loader_validate_reference_ok={validation.get('ok')}")
-    print(f"loader_gateway={summary.get('gateway')}")
-    print(f"loader_board_assignees={summary.get('board_assignees')}")
-    print("loaded_from_root=AGENTS.md")
-    print("profile_docs_auto_loaded_from_root=false")
+    print("PASS project entry context verification")
+    print("project_entry_source=README.md")
+    print("project_entry_authority=harness-brain")
+    print("loader_reference=validated")
     return 0
 
 
@@ -101,5 +96,5 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except Exception as exc:
-        print(f"FAIL agents context verification: {exc}", file=sys.stderr)
+        print(f"FAIL project entry context verification: {exc}", file=sys.stderr)
         raise SystemExit(1)

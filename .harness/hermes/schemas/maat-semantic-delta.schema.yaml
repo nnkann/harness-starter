@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Maat semantic delta materialization",
+  "type": "object",
+  "required": ["schema", "maat_body", "semantic_provenance_binding", "materialization_context", "hermes_kann_addendum"],
+  "properties": {
+    "schema": {"const": "harness.cps.maat-semantic-delta.v1"},
+    "maat_body": {"type": "object"},
+    "semantic_provenance_binding": {"$ref": "#/$defs/semantic_provenance_binding"},
+    "materialization_context": {
+      "type": "object",
+      "required": ["work_id", "base_graph_ref"],
+      "properties": {
+        "work_id": {"type": "string", "minLength": 1},
+        "base_graph_ref": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "hermes_kann_addendum": {
+      "type": "object",
+      "required": ["observations", "source_refs"],
+      "properties": {
+        "observations": {"type": "array", "items": {}},
+        "source_refs": {"type": "array", "items": {}}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "semantic_provenance_binding": {
+      "type": "object",
+      "required": ["canonical_source_locator", "canonical_source_readback", "current_source_revision", "current_content_hash", "canonical_section", "semantic_field_definition_coverage"],
+      "properties": {
+        "canonical_source_locator": {"type": "string", "minLength": 1},
+        "canonical_source_readback": {"type": "string", "minLength": 1},
+        "current_source_revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "current_content_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "canonical_section": {"type": "string", "minLength": 1},
+        "semantic_field_definition_coverage": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "string", "minLength": 1}}
+      },
+      "additionalProperties": false
+    }
+  }
+}

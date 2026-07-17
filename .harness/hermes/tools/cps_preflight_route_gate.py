@@ -15,15 +15,21 @@ for offline diagnostics. It enforces the frontmatter-first protocol:
 from __future__ import annotations
 
 import argparse
+import base64
+from copy import deepcopy
 import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from cps_runtime_navigation import navigate_cps_runtime, validate_semantic_provenance
+from cps_working_graph_registry import RegistryError, WorkingGraphRegistry, materialize_maat_body
+from external_runtime_dispatcher import dispatch_external_runtime
 from session_registry import lane_key, load_registry
 
 PROFILES = {
@@ -52,6 +58,422 @@ REENTRY_INPUT_KEYS = (
     "iteration",
     "packet_ref",
 )
+C2_RUNTIME_DEPENDENCIES = (
+    "C-ROLE-CONTRACT",
+    "C-GATE-DOCOPS",
+    "C-ROUTE-PROJECTION",
+    "C-PHYSICAL-DOCOPS-VALIDATOR",
+)
+NODE_LOCAL_REF_KEYS = {"C", "P", "S", "AC", "E"}
+HANDOFF_INTEGRITY_FAILURE = "HOLD_HANDOFF_TRANSPORT_INTEGRITY"
+DERIVED_C_PARENT_BINDING_FIELDS = {
+    "parent_work_id", "parent_graph_ref", "parent_graph_revision", "parent_graph_digest",
+    "blocked_receipt_ref", "parent_edge_ref", "return_to_node_ref",
+}
+
+
+def build_derived_c_candidate(
+    parent_binding: dict[str, Any],
+    recovery_attempt_refs: list[str],
+    *,
+    same_c_recovery_exhausted: bool,
+) -> dict[str, Any]:
+    if same_c_recovery_exhausted is not True:
+        return {"status": "hold", "failure_code": "HOLD_SAME_C_RECOVERY_AVAILABLE", "graph_mutation": False}
+    if (
+        not isinstance(parent_binding, dict)
+        or set(parent_binding) != DERIVED_C_PARENT_BINDING_FIELDS
+        or type(parent_binding.get("parent_graph_revision")) is not int
+        or parent_binding["parent_graph_revision"] < 1
+        or not re.fullmatch(r"[0-9a-f]{64}", str(parent_binding.get("parent_graph_digest", "")))
+        or any(not isinstance(parent_binding.get(field), str) or not parent_binding[field] for field in DERIVED_C_PARENT_BINDING_FIELDS - {"parent_graph_revision"})
+        or not isinstance(recovery_attempt_refs, list)
+        or not recovery_attempt_refs
+        or any(not isinstance(ref, str) or not ref for ref in recovery_attempt_refs)
+        or len(recovery_attempt_refs) != len(set(recovery_attempt_refs))
+    ):
+        return {"status": "hold", "failure_code": "HOLD_DERIVED_C_CANDIDATE_BINDING", "graph_mutation": False}
+    return {
+        "schema": "harness.cps.derived_c_candidate.v1",
+        "status": "candidate",
+        "authority": "non_authoritative",
+        "parent_binding": deepcopy(parent_binding),
+        "recovery_attempt_refs": list(recovery_attempt_refs),
+        "graph_mutation": False,
+    }
+
+
+def load_production_final_audit(binding: Any) -> dict[str, Any]:
+    if not isinstance(binding, dict) or set(binding) != {"graph_root", "execution_root", "identity"}:
+        return {"status": "hold", "failure_code": "HOLD_FINAL_GATE"}
+    try:
+        from lifecycle_runner import FinalAuditProductionAdapter
+        return FinalAuditProductionAdapter(
+            Path(binding["graph_root"]), Path(binding["execution_root"]),
+        ).reload(binding["identity"])
+    except Exception:
+        return {"status": "hold", "failure_code": "HOLD_FINAL_GATE"}
+
+
+def project_execution_state(packet: dict[str, Any]) -> dict[str, Any]:
+    binding = packet.get("active_case_final_audit")
+    identity = binding.get("identity") if isinstance(binding, dict) else None
+    issued = {
+        "authorization_state": "ISSUED",
+        "runtime_state": None,
+        "execution_status": None,
+        "execution_receipt_ref": None,
+        "execution_event": None,
+        "run_handle": None,
+        "attempt": None,
+        "recorded_at": None,
+        "audit_verdict": None,
+        "state_source_ref": None,
+    }
+    if (
+        not isinstance(binding, dict)
+        or not isinstance(binding.get("execution_root"), (str, os.PathLike))
+        or not str(binding["execution_root"])
+        or not isinstance(identity, dict)
+    ):
+        return issued
+    try:
+        from lifecycle_runner import project_external_runtime_state
+        return project_external_runtime_state(identity, Path(binding["execution_root"]))
+    except Exception:
+        return issued
+
+
+def search_handoff_body(*_args: Any, **_kwargs: Any) -> None:
+    """Handoff consumers must never reconstruct a missing body by search."""
+    raise RuntimeError("handoff body search is prohibited")
+
+
+def build_handoff_envelope(maat_body: bytes, metadata: dict[str, Any]) -> dict[str, Any]:
+    """Wrap opaque Maat bytes without parsing or mixing metadata into the body."""
+    if not isinstance(maat_body, bytes):
+        raise TypeError("maat_body must be bytes")
+    if not isinstance(metadata, dict):
+        raise TypeError("metadata must be a dict")
+    return {
+        "schema": "harness.cps_preflight.handoff_envelope.v1",
+        "body_transport": {
+            "encoding": "base64",
+            "length": len(maat_body),
+            "sha256": hashlib.sha256(maat_body).hexdigest(),
+            "payload": base64.b64encode(maat_body).decode("ascii"),
+        },
+        "metadata": deepcopy(metadata),
+    }
+
+
+def build_handoff_prompt(envelope: dict[str, Any]) -> str:
+    """Serialize the envelope as a distinct prompt field without rewriting its body."""
+    return json.dumps(
+        {"handoff_envelope": envelope},
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+
+def _decode_handoff_envelope(envelope: Any) -> tuple[bytes | None, str | None]:
+    if not isinstance(envelope, dict):
+        return None, HANDOFF_INTEGRITY_FAILURE
+    transport = envelope.get("body_transport")
+    if not isinstance(transport, dict) or transport.get("encoding") != "base64":
+        return None, HANDOFF_INTEGRITY_FAILURE
+    try:
+        body = base64.b64decode(transport.get("payload", ""), validate=True)
+    except (TypeError, ValueError):
+        return None, HANDOFF_INTEGRITY_FAILURE
+    if transport.get("length") != len(body) or transport.get("sha256") != hashlib.sha256(body).hexdigest():
+        return None, HANDOFF_INTEGRITY_FAILURE
+    return body, None
+
+
+def consume_handoff_prompt(prompt: str) -> dict[str, Any]:
+    """Consume only an exact transport body; incomplete or ambiguous bodies never trigger search."""
+    try:
+        payload = json.loads(prompt)
+    except (TypeError, json.JSONDecodeError):
+        return {"status": "hold", "failure_code": HANDOFF_INTEGRITY_FAILURE, "search_count": 0}
+    envelope = payload.get("handoff_envelope") if isinstance(payload, dict) else None
+    metadata = envelope.get("metadata") if isinstance(envelope, dict) else None
+    state = metadata.get("local_body_state") if isinstance(metadata, dict) else None
+    if state == "incomplete":
+        return {"status": "need_local_body", "search_count": 0}
+    if state != "complete":
+        return {"status": "hold", "failure_code": HANDOFF_INTEGRITY_FAILURE, "search_count": 0}
+    body, failure = _decode_handoff_envelope(envelope)
+    if failure:
+        return {"status": "hold", "failure_code": failure, "search_count": 0}
+    assert body is not None
+    return {
+        "status": "accept",
+        "body": body,
+        "body_sha256": hashlib.sha256(body).hexdigest(),
+        "search_count": 0,
+    }
+
+
+def dispatch_handoff_transport(
+    original_body: bytes,
+    envelope: dict[str, Any],
+    prompt: str,
+    consumer_result: Any,
+    runner: Any,
+) -> dict[str, Any]:
+    """Block before runner unless original, envelope, prompt and consumer bytes are identical."""
+    envelope_body, envelope_failure = _decode_handoff_envelope(envelope)
+    try:
+        prompt_payload = json.loads(prompt)
+    except (TypeError, json.JSONDecodeError):
+        prompt_payload = None
+    prompt_envelope = prompt_payload.get("handoff_envelope") if isinstance(prompt_payload, dict) else None
+    prompt_body, prompt_failure = _decode_handoff_envelope(prompt_envelope)
+    consumer_body = consumer_result.get("body") if isinstance(consumer_result, dict) else None
+    envelope_metadata = envelope.get("metadata") if isinstance(envelope, dict) else None
+    prompt_metadata = prompt_envelope.get("metadata") if isinstance(prompt_envelope, dict) else None
+    bodies = (original_body, envelope_body, prompt_body, consumer_body)
+    identities = {
+        name: hashlib.sha256(body).hexdigest() if isinstance(body, bytes) else None
+        for name, body in zip(("original", "envelope", "prompt", "consumer"), bodies)
+    }
+    integrity_ok = (
+        isinstance(original_body, bytes)
+        and envelope_failure is None
+        and prompt_failure is None
+        and isinstance(envelope_metadata, dict)
+        and envelope_metadata.get("local_body_state") == "complete"
+        and isinstance(prompt_metadata, dict)
+        and prompt_metadata.get("local_body_state") == "complete"
+        and isinstance(consumer_result, dict)
+        and consumer_result.get("status") == "accept"
+        and consumer_result.get("body_sha256") == identities["consumer"]
+        and consumer_result.get("search_count") == 0
+        and all(body == original_body for body in bodies)
+    )
+    if not integrity_ok:
+        return {
+            "status": "hold",
+            "failure_code": HANDOFF_INTEGRITY_FAILURE,
+            "identity": identities,
+            "dispatch_count": 0,
+            "search_count": 0,
+        }
+    runner(original_body)
+    return {
+        "status": "dispatched",
+        "identity": identities,
+        "dispatch_count": 1,
+        "search_count": 0,
+    }
+
+
+def validate_node_projection(projection: Any, *, expected_revision: Any = None, expected_changed_paths: Any = None) -> dict[str, Any]:
+    """Validate the reference-only projection required for node dispatch."""
+    gaps: list[str] = []
+
+    def gap(name: str) -> None:
+        if name not in gaps:
+            gaps.append(name)
+
+    if not isinstance(projection, dict):
+        return {"schema": "harness.cps_preflight.node_projection_gate.v1", "status": "hold", "gap_classes": ["node_projection.missing"]}
+    for field in (
+        "graph_ref", "canonical_source_ref", "local_refs", "local_body_ref",
+        "node_local_AC", "evidence", "prohibitions", "source_revision", "changed_path_manifest",
+    ):
+        if not _present(projection.get(field)):
+            gap(f"node_projection.{field}")
+    revision = projection.get("source_revision")
+    for field in ("graph_ref", "canonical_source_ref"):
+        ref = projection.get(field)
+        if not isinstance(ref, dict) or not _present(ref.get("ref")) or not _present(ref.get("revision")):
+            gap(f"node_projection.{field}")
+        elif _present(revision) and ref.get("revision") != revision:
+            gap("node_projection.source_revision_mismatch")
+    if _present(expected_revision) and revision != expected_revision:
+        gap("node_projection.source_revision_mismatch")
+    local_refs = projection.get("local_refs")
+    if not isinstance(local_refs, dict) or set(local_refs) != NODE_LOCAL_REF_KEYS:
+        gap("node_projection.local_refs_exact_map")
+    elif any(not isinstance(value, str) or not value.strip() for value in local_refs.values()):
+        gap("node_projection.local_refs_ref_only")
+    manifest = projection.get("changed_path_manifest")
+    if not isinstance(manifest, list) or not manifest or any(not isinstance(path, str) or not path.strip() for path in manifest):
+        gap("node_projection.changed_path_manifest")
+    elif len(manifest) != len(set(manifest)):
+        gap("node_projection.changed_path_manifest_not_exact")
+    if expected_changed_paths is not None:
+        expected = list(expected_changed_paths) if isinstance(expected_changed_paths, (list, tuple)) else []
+        if manifest != expected:
+            gap("node_projection.changed_path_manifest_not_exact")
+    next_c = projection.get("next_C")
+    terminal = projection.get("terminal")
+    if bool(_present(next_c)) == bool(terminal is True):
+        gap("node_projection.next_C_or_terminal")
+    elif _present(next_c) and (
+        not isinstance(next_c, dict) or not _present(next_c.get("ref")) or not isinstance(next_c.get("order"), int)
+    ):
+        gap("node_projection.next_C_order")
+    return {
+        "schema": "harness.cps_preflight.node_projection_gate.v1",
+        "status": "hold" if gaps else "pass",
+        "gap_classes": gaps,
+    }
+
+
+def apply_node_projection_gate(route: dict[str, Any], reducer_result: dict[str, Any], packet: dict[str, Any]) -> dict[str, Any]:
+    """Block local-body and final-Maat dispatch when a dispatchable node is incomplete."""
+    dispatchable = reducer_result.get("status") == "pass" and any(
+        local_body_allowed(agent, reducer_result) for agent in normalize_selected_agents(route, reducer_result)
+    )
+    if not dispatchable:
+        gate = {"schema": "harness.cps_preflight.node_projection_gate.v1", "status": "not_required", "gap_classes": []}
+        reducer_result["node_projection_gate"] = gate
+        return gate
+    expected_revision = packet.get("source_revision")
+    expected_paths = packet.get("changed_path_manifest")
+    if expected_paths is None and isinstance(packet.get("mutation_manifest"), list):
+        expected_paths = [
+            item.get("path") for item in packet["mutation_manifest"]
+            if isinstance(item, dict) and _present(item.get("path"))
+        ]
+    gate = validate_node_projection(
+        packet.get("node_projection"),
+        expected_revision=expected_revision if _present(expected_revision) else None,
+        expected_changed_paths=expected_paths,
+    )
+    reducer_result["node_projection_gate"] = gate
+    if gate["status"] != "pass":
+        reducer_result["status"] = "hold"
+        reducer_result["C_boundary"] = "HOLD"
+        reducer_result["final_selected_agents"] = {}
+        reducer_result["local_body_scope"] = {}
+        reducer_result.setdefault("hold_reasons", []).extend(gate["gap_classes"])
+        reducer_result.setdefault("failure_codes", []).append("HOLD_NODE_PROJECTION")
+    return gate
+
+
+def validate_physical_docops_route(value: dict[str, Any]) -> dict[str, Any]:
+    """Validate the compact physical projection and conditional doc_ops contract."""
+    gaps: list[str] = []
+
+    def gap(name: str) -> None:
+        if name not in gaps:
+            gaps.append(name)
+
+    projection = value.get("projection")
+    if projection is not None:
+        if not isinstance(projection, dict):
+            gap("projection.invalid")
+        else:
+            if any(key in projection for key in ("C", "P", "S", "AC", "E", "CPS", "task_AC")):
+                gap("projection.canonical_body_present")
+            if any(key not in {"graph_ref", "canonical_source_ref", "local_refs"} for key in projection):
+                gap("projection.unpermitted_field")
+            refs = [projection.get("graph_ref"), projection.get("canonical_source_ref")]
+            local_refs = projection.get("local_refs")
+            if not isinstance(local_refs, list):
+                gap("projection.local_refs_invalid")
+            else:
+                refs.extend(local_refs)
+            for ref in refs:
+                if not isinstance(ref, dict) or not _present(ref.get("ref")) or not _present(ref.get("revision")):
+                    gap("projection.ref_revision_missing")
+                    continue
+                if _present(ref.get("expected_revision")) and ref["expected_revision"] != ref["revision"]:
+                    gap("projection.ref_revision_mismatch")
+            primary_refs = refs[:2]
+            if all(isinstance(ref, dict) and _present(ref.get("revision")) for ref in primary_refs):
+                if primary_refs[0]["revision"] != primary_refs[1]["revision"]:
+                    gap("projection.ref_revision_mismatch")
+            if isinstance(local_refs, list) and any(not isinstance(ref, dict) or not _present(ref.get("node")) for ref in local_refs):
+                gap("projection.local_ref_not_node_local")
+
+    doc_ops = value.get("doc_ops")
+    if doc_ops is not None and not isinstance(doc_ops, dict):
+        gap("doc_ops.invalid")
+    elif isinstance(doc_ops, dict) and doc_ops.get("required") is True:
+        for field in ("doc_refs", "required_docs", "source_refs", "ssot_residency", "allowed_write_surface"):
+            if not _present(doc_ops.get(field)):
+                gap(f"doc_ops.{field}")
+        if doc_ops.get("canonical_author") != "hermes-kann":
+            gap("doc_ops.canonical_author")
+        if doc_ops.get("research_sources_from") != ["seshat"]:
+            gap("doc_ops.research_sources_from")
+        if doc_ops.get("integration_owner") != "hermes-kann":
+            gap("doc_ops.integration_owner")
+        manifest = doc_ops.get("manifest") if isinstance(doc_ops.get("manifest"), dict) else {}
+        verification = doc_ops.get("verification") if isinstance(doc_ops.get("verification"), dict) else {}
+        for field in ("expected_entries", "validator_ref"):
+            if not _present(manifest.get(field)):
+                gap(f"doc_ops.manifest.{field}")
+        for field in ("mode", "changed_paths", "closure_line_refs", "canonical_consistency_ref"):
+            if not _present(verification.get(field)):
+                gap(f"doc_ops.verification.{field}")
+
+    actor_keys = ("candidate_agents", "selected_agents", "final_selected_agents", "fallback", "compile_dependency", "compile_dependencies", "local_body_scope")
+    for key in actor_keys:
+        if key in value and re.search(r"\bthoth\b", _text_values(value[key]), re.IGNORECASE):
+            gap("actor_binding.thoth_forbidden")
+
+    for location in (value.get(key) for key in ("candidate_agents", "selected_agents", "final_selected_agents", "local_body_scope")):
+        if not isinstance(location, dict):
+            continue
+        for agent, raw_spec in location.items():
+            if str(agent).upper() != "C2-RUNTIME":
+                continue
+            spec = raw_spec if isinstance(raw_spec, dict) else {}
+            dependencies = spec.get("dependencies")
+            verified = {
+                str(item.get("id")) for item in dependencies
+                if isinstance(item, dict) and str(item.get("status", "")).lower() == "verified"
+            } if isinstance(dependencies, list) else set()
+            if not set(C2_RUNTIME_DEPENDENCIES).issubset(verified):
+                gap("c2_runtime.dependencies_unverified")
+            if isinstance(dependencies, list) and any(isinstance(item, dict) and item.get("auto_completed") is True for item in dependencies):
+                gap("c2_runtime.dependencies_unverified")
+            downscope = _text_values({key: spec.get(key) for key in ("downscope", "worker", "job", "execution_mode") if key in spec}).lower()
+            if re.search(r"generic|worker|background[-_ ]?job|auto[-_ ]?complet", downscope):
+                gap("c2_runtime.generic_downscope_forbidden")
+
+    return {
+        "schema": "harness.cps_preflight.physical_docops_gate.v1",
+        "status": "hold" if gaps else "pass",
+        "gap_classes": gaps,
+    }
+
+
+def apply_physical_docops_gate(route: dict[str, Any], source: dict[str, Any]) -> dict[str, Any]:
+    inherited = source.get("physical_docops_gate")
+    inherited_gaps = inherited.get("gap_classes", []) if isinstance(inherited, dict) else []
+    checked = validate_physical_docops_route({
+        **source,
+        **route,
+        "projection": source.get("projection"),
+        "doc_ops": source.get("doc_ops"),
+    })
+    gaps = list(dict.fromkeys([*inherited_gaps, *checked["gap_classes"]]))
+    gate = {**checked, "status": "hold" if gaps else "pass", "gap_classes": gaps}
+    route["physical_docops_gate"] = gate
+    if source.get("projection") is not None:
+        route["projection"] = source["projection"]
+    if source.get("doc_ops") is not None:
+        route["doc_ops"] = source["doc_ops"]
+    if gate.get("status") != "pass":
+        route["status"] = "hold"
+        route["C_boundary"] = "HOLD"
+        raw_gap_scan = route.get("gap_scan")
+        gap_scan: dict[str, Any] = raw_gap_scan if isinstance(raw_gap_scan, dict) else {}
+        missing = list(gap_scan.get("missing", [])) if isinstance(gap_scan.get("missing"), list) else []
+        for item in gate.get("gap_classes", []):
+            if item not in missing:
+                missing.append(item)
+        route["gap_scan"] = {**gap_scan, "missing": missing, "verdict": "GAP_FOUND"}
+    return route
 
 
 def _load_packet(path: Path) -> dict[str, Any]:
@@ -108,6 +530,89 @@ def _present(value: Any) -> bool:
     if isinstance(value, (dict, list, tuple, set)):
         return bool(value)
     return True
+
+
+def validate_runtime_graph(packet: dict[str, Any]) -> dict[str, Any]:
+    """Validate explicitly declared runtime graph data without filling gaps."""
+    graph = packet.get("cps_flow_graph")
+    if not isinstance(graph, dict):
+        return {"status": "hold", "gaps": ["cps_flow_graph"]}
+    gaps: list[str] = []
+    if not _present(graph.get("revision")):
+        gaps.append("cps_flow_graph.revision")
+    nodes = graph.get("nodes")
+    if not isinstance(nodes, list) or not nodes:
+        gaps.append("cps_flow_graph.nodes")
+        return {"status": "hold", "gaps": gaps}
+    for index, raw in enumerate(nodes):
+        node = raw if isinstance(raw, dict) else {}
+        node_id = str(node.get("id") or f"node[{index}]")
+        for field in ("dependencies", "parallel_group", "owner", "task_AC", "evidence", "S"):
+            if field not in node or (field != "dependencies" and not _present(node.get(field))):
+                gaps.append(f"{node_id}.{field}")
+        if isinstance(node.get("S"), list):
+            seen_s: set[str] = set()
+            seen_ordinals: set[Any] = set()
+            for s_index, raw_s in enumerate(node["S"]):
+                s_node = raw_s if isinstance(raw_s, dict) else {}
+                s_id = str(s_node.get("id") or f"S[{s_index}]")
+                for field in ("ordinal", "dependencies", "owner", "task_AC", "evidence"):
+                    if field not in s_node or (field != "dependencies" and not _present(s_node.get(field))):
+                        gaps.append(f"{node_id}.{s_id}.{field}")
+                if s_id in seen_s:
+                    gaps.append(f"{node_id}.{s_id}.ambiguous")
+                seen_s.add(s_id)
+                ordinal = s_node.get("ordinal")
+                if ordinal in seen_ordinals:
+                    gaps.append(f"{node_id}.S.ordinal_ambiguous")
+                seen_ordinals.add(ordinal)
+    return {"status": "hold" if gaps else "pass", "gaps": gaps, "graph": graph}
+
+
+def build_dispatch_plan(graph: dict[str, Any]) -> dict[str, Any]:
+    """Build a read-only dependency-ready plan from a validated canonical graph."""
+    nodes: dict[str, Any] = {}
+    ready_by_group: dict[str, list[str]] = {}
+    for p_node in graph["nodes"]:
+        p_id = str(p_node["id"])
+        p_dependencies = list(p_node["dependencies"])
+        blocked_reason = f"dependency:{p_dependencies[0]}" if p_dependencies else None
+        ordered_s = sorted(p_node["S"], key=lambda item: item["ordinal"])
+        ready_s: list[str] = []
+        blocked_s: dict[str, str] = {}
+        for s_node in ordered_s:
+            dependencies = list(s_node["dependencies"])
+            if blocked_reason:
+                blocked_s[str(s_node["id"])] = blocked_reason
+            elif dependencies:
+                blocked_s[str(s_node["id"])] = f"dependency:{dependencies[0]}"
+            else:
+                ready_s.append(str(s_node["id"]))
+        nodes[p_id] = {
+            "P_ref": p_id,
+            "S_refs": [str(item["id"]) for item in ordered_s],
+            "AC_refs": list(p_node["task_AC"]),
+            "evidence_refs": list(p_node["evidence"]),
+            "owner": p_node["owner"],
+            "parallel_group": p_node["parallel_group"],
+            "dependencies": p_dependencies,
+            "ready_S": ready_s,
+            "blocked_S": blocked_s,
+            "blocked_reason": blocked_reason,
+        }
+        if not blocked_reason:
+            ready_by_group.setdefault(str(p_node["parallel_group"]), []).append(p_id)
+    return {
+        "schema": "harness.cps_preflight.dispatch_plan.v1",
+        "graph_revision": graph["revision"],
+        "nodes": nodes,
+        "ready_groups": [
+            {"parallel_group": group, "P_refs": refs}
+            for group, refs in ready_by_group.items()
+        ],
+        "ready_nodes": [p_id for p_id, node in nodes.items() if node["blocked_reason"] is None],
+        "blocked_nodes": {p_id: node["blocked_reason"] for p_id, node in nodes.items() if node["blocked_reason"]},
+    }
 
 
 def classify_mutation_closure(packet: dict[str, Any]) -> dict[str, Any]:
@@ -212,6 +717,344 @@ def _edge_set(edges: list[Any]) -> set[tuple[str, str]]:
         right_ids = re.findall(r"S\d+", right)
         found.update((p_id, s_id) for p_id in left_ids for s_id in right_ids)
     return found
+
+
+R3_SCOPE_KEYS = {
+    "repo_cwd", "target_command", "allowed_source_paths", "allowed_test_paths",
+    "exact_unittest_selectors", "maat_import",
+}
+R3_EXECUTABLE = Path("/usr/bin/python3")
+R3_MAAT_IMPORT_KEYS = {
+    "adjudication_ref", "adjudication_sha256", "adjudicator_identity",
+    "observation_ids", "scope_binding_digest",
+}
+R3_MAAT_ADJUDICATION_KEYS = {
+    "schema", "adjudicator_identity", "observation_ids", "scope_binding_digest",
+}
+R3_ADJUDICATOR_IDENTITY_KEYS = {"actor_ref", "role", "adjudication_id"}
+R3_EXECUTION_IDENTITY_FIELDS = (
+    "executable_path", "executable_realpath", "executable_sha256", "cwd", "argv",
+    "selectors", "allowed_source_paths", "allowed_test_paths", "allowed_path_hashes",
+)
+R3_FOCUSED_EXECUTION_RECEIPT_FIELDS = {
+    "receipt_type", "status", *R3_EXECUTION_IDENTITY_FIELDS, "completed_process_args",
+    "scope_binding_digest", "execution_identity_digest", "exit_code", "stdout_sha256",
+    "stderr_sha256", "streams_digest", "receipt_digest",
+}
+
+
+def _r3_sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _r3_json_digest(value: Any) -> str:
+    encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _r3_exact_paths(raw_paths: Any, repo: Path) -> tuple[list[str], str | None]:
+    if not isinstance(raw_paths, list) or not raw_paths:
+        return [], "path_evidence_missing"
+    normalized: list[str] = []
+    for raw in raw_paths:
+        if not isinstance(raw, str) or not raw or re.search(r"[*?\[\]{}]", raw):
+            return [], "path_not_exact"
+        relative = Path(raw)
+        if relative.is_absolute() or ".." in relative.parts or raw != relative.as_posix():
+            return [], "path_not_exact"
+        try:
+            resolved = (repo / relative).resolve(strict=True)
+            resolved.relative_to(repo)
+        except (OSError, RuntimeError, ValueError):
+            return [], "path_escape"
+        if not resolved.is_file():
+            return [], "path_not_file"
+        normalized.append(relative.as_posix())
+    if len(normalized) != len(set(normalized)):
+        return [], "path_not_exact"
+    return normalized, None
+
+
+def _r3_hold(
+    scope: dict[str, Any],
+    focused: dict[str, Any],
+    baselines: list[dict[str, Any]],
+    reason: str,
+) -> dict[str, Any]:
+    return {
+        "schema": "harness.cps_preflight.bounded_verifier_candidate.v1",
+        "verifier_scope": {**scope, "status": "hold", "hold_reason": reason},
+        "focused_result": {**focused, "status": "hold", "hold_reason": reason},
+        "focused_execution_receipt": {**focused, "status": "hold", "hold_reason": reason},
+        "baseline_observations": baselines,
+        "active_case_verdict_candidate": {
+            "status": "hold",
+            "authority": "candidate_only",
+            "final_audit_verdict": False,
+            "hold_reason": reason,
+            "evidence": focused,
+        },
+        "side_effects": {
+            "receipt_writes": 0, "graph_writes": 0, "route_writes": 0,
+            "business_writes": 0,
+        },
+    }
+
+
+def build_bounded_verifier_candidate(
+    verifier_scope: Any,
+    baseline_observations: Any,
+    *,
+    repo: Path = DEFAULT_REPO,
+    caller_result: Any = None,
+) -> dict[str, Any]:
+    """Execute the exact R3 verifier and return its non-authoritative candidate."""
+    scope = deepcopy(verifier_scope) if isinstance(verifier_scope, dict) else {}
+    focused: dict[str, Any] = {}
+    raw_baselines = baseline_observations if isinstance(baseline_observations, list) else []
+    baselines = [
+        {
+            **deepcopy(item),
+            "in_focused_scope": False,
+            "explicitly_imported": False,
+            "case_effect": "none",
+        }
+        for item in raw_baselines if isinstance(item, dict)
+    ]
+    baseline_gap = (
+        not isinstance(baseline_observations, list)
+        or len(baselines) != len(raw_baselines)
+        or any(
+            not isinstance(item.get("observation_id"), str)
+            or not item["observation_id"]
+            or item.get("status") not in {"pass", "fail", "hold"}
+            or "evidence" not in item
+            for item in baselines
+        )
+        or len({item["observation_id"] for item in baselines}) != len(baselines)
+    )
+    if baseline_gap:
+        return _r3_hold(scope, focused, baselines, "baseline_evidence_missing")
+    if caller_result is not None:
+        return _r3_hold(scope, focused, baselines, "fabricated_caller_result")
+    try:
+        expected_repo = repo.resolve(strict=True)
+        scope_repo = Path(scope.get("repo_cwd", "")).resolve(strict=True)
+    except (OSError, RuntimeError, ValueError):
+        return _r3_hold(scope, focused, baselines, "repo_cwd_mismatch")
+    if set(scope) != R3_SCOPE_KEYS or scope_repo != expected_repo or scope.get("repo_cwd") != str(expected_repo):
+        return _r3_hold(scope, focused, baselines, "repo_cwd_mismatch")
+
+    source_paths, source_gap = _r3_exact_paths(scope.get("allowed_source_paths"), expected_repo)
+    test_paths, test_gap = _r3_exact_paths(scope.get("allowed_test_paths"), expected_repo)
+    if source_gap or test_gap:
+        return _r3_hold(scope, focused, baselines, source_gap or test_gap or "path_evidence_missing")
+
+    selectors = scope.get("exact_unittest_selectors")
+    test_modules = {Path(path).stem for path in test_paths}
+    selector_ok = (
+        isinstance(selectors, list)
+        and bool(selectors)
+        and len(selectors) == len(set(selectors))
+        and all(
+            isinstance(selector, str)
+            and re.fullmatch(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*){2,}", selector)
+            and selector.split(".", 1)[0] in test_modules
+            for selector in selectors
+        )
+    )
+    command = scope.get("target_command")
+    expected_command = [str(R3_EXECUTABLE), "-B", "-m", "unittest", *(selectors or [])]
+    command_ok = (
+        selector_ok
+        and isinstance(command, list)
+        and all(isinstance(arg, str) and arg for arg in command)
+        and command == expected_command
+    )
+    if not command_ok:
+        return _r3_hold(scope, focused, baselines, "target_command_not_exact")
+    selectors_exact = [str(item) for item in selectors] if isinstance(selectors, list) else []
+    command_exact = [str(item) for item in command] if isinstance(command, list) else []
+
+    try:
+        executable_realpath = R3_EXECUTABLE.resolve(strict=True)
+        executable = {
+            "path": str(R3_EXECUTABLE),
+            "realpath": str(executable_realpath),
+            "sha256": _r3_sha256_file(executable_realpath),
+        }
+        allowed_paths = source_paths + test_paths
+        allowed_path_hashes = {
+            path: _r3_sha256_file(expected_repo / path)
+            for path in allowed_paths
+        }
+    except OSError:
+        return _r3_hold(scope, focused, baselines, "path_evidence_missing")
+    scope_binding = {
+        "executable": executable,
+        "cwd": str(expected_repo),
+        "argv": command_exact,
+        "selectors": selectors_exact,
+        "allowed_path_hashes": allowed_path_hashes,
+    }
+    scope_binding_digest = _r3_json_digest(scope_binding)
+
+    maat_import = scope.get("maat_import")
+    imported_ids: list[str] = []
+    maat_readback: dict[str, Any] | None = None
+    if maat_import is not None:
+        adjudicator_identity = maat_import.get("adjudicator_identity") if isinstance(maat_import, dict) else None
+        if (
+            not isinstance(maat_import, dict)
+            or set(maat_import) != R3_MAAT_IMPORT_KEYS
+            or not isinstance(maat_import.get("adjudication_ref"), str)
+            or not maat_import["adjudication_ref"]
+            or not re.fullmatch(r"[0-9a-f]{64}", str(maat_import.get("adjudication_sha256", "")))
+            or not isinstance(adjudicator_identity, dict)
+            or set(adjudicator_identity) != R3_ADJUDICATOR_IDENTITY_KEYS
+            or adjudicator_identity.get("actor_ref") != "maat"
+            or adjudicator_identity.get("role") != "final_gate"
+            or not isinstance(adjudicator_identity.get("adjudication_id"), str)
+            or not adjudicator_identity["adjudication_id"]
+            or not isinstance(maat_import.get("observation_ids"), list)
+            or not maat_import["observation_ids"]
+            or any(not isinstance(item, str) or not item for item in maat_import["observation_ids"])
+            or len(maat_import["observation_ids"]) != len(set(maat_import["observation_ids"]))
+            or maat_import.get("scope_binding_digest") != scope_binding_digest
+        ):
+            return _r3_hold(scope, focused, baselines, "maat_import_mismatch")
+        imported_ids = maat_import["observation_ids"]
+        known_ids = [item.get("observation_id") for item in baselines]
+        if any(item not in known_ids for item in imported_ids):
+            return _r3_hold(scope, focused, baselines, "maat_import_mismatch")
+        try:
+            adjudication_ref = Path(maat_import["adjudication_ref"])
+            if not adjudication_ref.is_absolute():
+                raise ValueError("noncanonical ref")
+            adjudication_ref = adjudication_ref.resolve(strict=True)
+            adjudication_bytes = adjudication_ref.read_bytes()
+            document = json.loads(adjudication_bytes)
+        except (OSError, ValueError, json.JSONDecodeError):
+            return _r3_hold(scope, focused, baselines, "maat_import_mismatch")
+        if (
+            not isinstance(document, dict)
+            or set(document) != R3_MAAT_ADJUDICATION_KEYS
+            or document.get("schema") != "harness.maat.final_gate_adjudication.v1"
+            or hashlib.sha256(adjudication_bytes).hexdigest() != maat_import["adjudication_sha256"]
+            or document.get("adjudicator_identity") != adjudicator_identity
+            or document.get("observation_ids") != imported_ids
+            or document.get("scope_binding_digest") != scope_binding_digest
+        ):
+            return _r3_hold(scope, focused, baselines, "maat_import_mismatch")
+        maat_readback = {
+            "adjudication_ref": str(adjudication_ref),
+            "adjudication_sha256": maat_import["adjudication_sha256"],
+            "adjudicator_identity": deepcopy(document["adjudicator_identity"]),
+            "observation_ids": list(imported_ids),
+            "scope_binding_digest": scope_binding_digest,
+        }
+        for item in baselines:
+            if item.get("observation_id") in imported_ids:
+                item["in_focused_scope"] = True
+                item["explicitly_imported"] = True
+                item["case_effect"] = item.get("status") if item.get("status") in {"pass", "fail"} else "hold"
+
+    try:
+        completed = subprocess.run(
+            command_exact,
+            cwd=str(expected_repo),
+            capture_output=True,
+            text=False,
+            check=False,
+        )
+    except OSError:
+        return _r3_hold(scope, focused, baselines, "verifier_execution_failed")
+    if (
+        not isinstance(completed, subprocess.CompletedProcess)
+        or completed.args != command_exact
+        or type(completed.returncode) is not int
+        or not isinstance(completed.stdout, bytes)
+        or not isinstance(completed.stderr, bytes)
+    ):
+        return _r3_hold(scope, focused, baselines, "completed_process_mismatch")
+    try:
+        executable_after = _r3_sha256_file(executable_realpath)
+        allowed_path_hashes_after = {
+            path: _r3_sha256_file(expected_repo / path)
+            for path in allowed_paths
+        }
+    except OSError:
+        return _r3_hold(scope, focused, baselines, "allowed_path_hash_mismatch")
+    if executable_after != executable["sha256"]:
+        return _r3_hold(scope, focused, baselines, "executable_hash_mismatch")
+    if allowed_path_hashes_after != allowed_path_hashes:
+        return _r3_hold(scope, focused, baselines, "allowed_path_hash_mismatch")
+
+    stdout_sha256 = hashlib.sha256(completed.stdout).hexdigest()
+    stderr_sha256 = hashlib.sha256(completed.stderr).hexdigest()
+    streams_digest = _r3_json_digest({
+        "stderr_sha256": stderr_sha256,
+        "stdout_sha256": stdout_sha256,
+    })
+    focused_status = "pass" if completed.returncode == 0 else "fail"
+    execution_identity = {
+        "executable_path": executable["path"],
+        "executable_realpath": executable["realpath"],
+        "executable_sha256": executable["sha256"],
+        "cwd": str(expected_repo),
+        "argv": command_exact,
+        "selectors": selectors_exact,
+        "allowed_source_paths": source_paths,
+        "allowed_test_paths": test_paths,
+        "allowed_path_hashes": allowed_path_hashes,
+    }
+    normalized_focused = {
+        "receipt_type": "in_memory_completed_process",
+        "status": focused_status,
+        **execution_identity,
+        "completed_process_args": list(completed.args),
+        "scope_binding_digest": scope_binding_digest,
+        "execution_identity_digest": _r3_json_digest(execution_identity),
+        "exit_code": completed.returncode,
+        "stdout_sha256": stdout_sha256,
+        "stderr_sha256": stderr_sha256,
+        "streams_digest": streams_digest,
+    }
+    normalized_focused["receipt_digest"] = _r3_json_digest(normalized_focused)
+    imported_effects = [item["case_effect"] for item in baselines if item["explicitly_imported"]]
+    candidate_status = focused_status
+    if "hold" in imported_effects:
+        candidate_status = "hold"
+    elif "fail" in imported_effects:
+        candidate_status = "fail"
+    return {
+        "schema": "harness.cps_preflight.bounded_verifier_candidate.v1",
+        "verifier_scope": {
+            **scope,
+            "repo_cwd": str(expected_repo),
+            "allowed_source_paths": source_paths,
+            "allowed_test_paths": test_paths,
+            "status": "accepted",
+        },
+        "focused_result": normalized_focused,
+        "focused_execution_receipt": normalized_focused,
+        "baseline_observations": baselines,
+        "active_case_verdict_candidate": {
+            "status": candidate_status,
+            "authority": "candidate_only",
+            "final_audit_verdict": False,
+            "evidence": normalized_focused,
+            "maat_adjudication_readback": maat_readback,
+        },
+        "side_effects": {
+            "receipt_writes": 0, "graph_writes": 0, "route_writes": 0,
+            "business_writes": 0,
+        },
+    }
 
 
 def build_verification_gate(candidate: dict[str, Any], route: dict[str, Any]) -> dict[str, Any]:
@@ -389,6 +1232,222 @@ def _memory_records(raw: Any) -> tuple[list[dict[str, Any]], str]:
     return ([raw], "records") if record_keys.intersection(raw) else ([], "unavailable")
 
 
+def canonical_hash(value: Any) -> str:
+    return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
+
+
+def _receipt_value(packet: dict[str, Any], key: str, *fallbacks: str) -> Any:
+    for name in (key, *fallbacks):
+        if _present(packet.get(name)):
+            return packet[name]
+    return None
+
+
+def build_downstream_packet_delta(packet: dict[str, Any], prior_verdict_ref: Any = None) -> dict[str, Any]:
+    """Build the reference-only delta used after a C1 HOLD."""
+    cps = packet.get("CPS") if isinstance(packet.get("CPS"), dict) else {}
+    task_ac = packet.get("task_AC") or cps.get("AC")
+    evidence = _receipt_value(packet, "new_evidence_refs", "repair_evidence_refs") or []
+    if not isinstance(evidence, list):
+        evidence = [evidence]
+    return {
+        "C_ref": _receipt_value(packet, "C_ref", "graph_ref"),
+        "AC_digest": _receipt_value(packet, "AC_digest") or (canonical_hash(task_ac) if _present(task_ac) else None),
+        "graph_revision": _receipt_value(packet, "graph_revision", "source_revision")
+        or ((packet.get("cps_flow_graph") or {}).get("revision") if isinstance(packet.get("cps_flow_graph"), dict) else None),
+        "parent_edge_ref": _receipt_value(packet, "parent_edge_ref"),
+        "new_evidence_refs": evidence,
+        "prior_verdict_ref": prior_verdict_ref or _receipt_value(packet, "prior_verdict_ref"),
+    }
+
+
+def evaluate_receipt_delta(packet: dict[str, Any]) -> dict[str, Any]:
+    """Validate HOLD continuation identity and decide whether fresh evidence permits re-entry."""
+    prior = packet.get("prior_continuation_receipt") or packet.get("continuation_receipt")
+    if not isinstance(prior, dict):
+        return {"active": False, "full_chain_required": True, "status": "not_required"}
+
+    delta = build_downstream_packet_delta(packet, prior.get("verdict_ref"))
+    identity_body = {key: delta.get(key) for key in ("C_ref", "AC_digest", "graph_revision", "parent_edge_ref")}
+    receipt_identity = canonical_hash(identity_body)
+    gaps = [f"receipt_delta.{key}" for key, value in delta.items() if key != "new_evidence_refs" and not _present(value)]
+    if prior.get("receipt_identity") != receipt_identity:
+        gaps.append("receipt_delta.identity_mismatch")
+
+    mutation_actor = _receipt_value(packet, "mutation_actor", "repair_actor")
+    verifier = packet.get("verifier_receipt")
+    repair_revision = _receipt_value(packet, "repair_revision", "source_revision")
+    if not isinstance(verifier, dict):
+        gaps.append("receipt_delta.verifier_receipt_missing")
+    else:
+        if not _present(mutation_actor) or verifier.get("actor") == mutation_actor:
+            gaps.append("receipt_delta.verifier_not_independent")
+        if verifier.get("receipt_identity") != receipt_identity:
+            gaps.append("receipt_delta.verifier_identity_mismatch")
+        if verifier.get("repair_revision") != repair_revision:
+            gaps.append("receipt_delta.verifier_revision_mismatch")
+        if prior.get("repair_revision") != repair_revision and verifier.get("receipt_ref") == prior.get("verifier_receipt_ref"):
+            gaps.append("receipt_delta.new_verifier_receipt_required")
+
+    fingerprint = canonical_hash(delta["new_evidence_refs"])
+    same_evidence = fingerprint == prior.get("evidence_fingerprint")
+    if gaps:
+        action = "hold_mismatch"
+    elif same_evidence and str(prior.get("status", "")).lower() == "hold":
+        action = "continue_hold"
+    elif delta["new_evidence_refs"]:
+        action = "reenter"
+    else:
+        action = "hold_no_new_evidence"
+    return {
+        "active": True,
+        "schema": "harness.cps_preflight.receipt_delta_gate.v1",
+        "status": "pass" if action == "reenter" else "hold",
+        "action": action,
+        "full_chain_required": False,
+        "delta_only_reentry": action == "reenter",
+        "receipt_identity": receipt_identity,
+        "evidence_fingerprint": fingerprint,
+        "downstream_packet_delta": delta,
+        "gap_classes": list(dict.fromkeys(gaps)),
+    }
+
+
+def build_c_ac_route_receipt(route: dict[str, Any], gate: dict[str, Any]) -> dict[str, Any]:
+    delta = gate.get("downstream_packet_delta", {})
+    return {
+        "schema": "harness.cps_preflight.c_ac_route_receipt.v1",
+        "receipt_identity": gate.get("receipt_identity"),
+        **{key: delta.get(key) for key in ("C_ref", "AC_digest", "graph_revision", "parent_edge_ref")},
+        "route": route,
+    }
+
+
+def prior_c_ac_route_receipt(packet: dict[str, Any], gate: dict[str, Any]) -> tuple[dict[str, Any] | None, list[str]]:
+    prior = packet.get("prior_continuation_receipt") or packet.get("continuation_receipt")
+    receipt = prior.get("C_AC_route_receipt") if isinstance(prior, dict) else None
+    if not isinstance(receipt, dict) or not isinstance(receipt.get("route"), dict):
+        return None, ["receipt_delta.C_AC_route_receipt_missing"]
+    delta = gate.get("downstream_packet_delta", {})
+    mismatches = [
+        key for key in ("C_ref", "AC_digest", "graph_revision", "parent_edge_ref")
+        if receipt.get(key) != delta.get(key)
+    ]
+    if receipt.get("receipt_identity") != gate.get("receipt_identity") or mismatches:
+        return None, ["receipt_delta.C_AC_route_receipt_identity_mismatch"]
+    return receipt, []
+
+
+def build_continuation_receipt(
+    packet: dict[str, Any], verdict: dict[str, Any], delta_gate: dict[str, Any] | None = None,
+    route: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Issue a compact, non-closing receipt for subsequent repair evidence."""
+    gate = delta_gate or evaluate_receipt_delta(packet)
+    raw_prior = packet.get("prior_continuation_receipt") or packet.get("continuation_receipt")
+    prior = raw_prior if isinstance(raw_prior, dict) else {}
+    delta = gate.get("downstream_packet_delta") or build_downstream_packet_delta(packet, prior.get("verdict_ref"))
+    identity = gate.get("receipt_identity") or canonical_hash({key: delta.get(key) for key in ("C_ref", "AC_digest", "graph_revision", "parent_edge_ref")})
+    evidence_fingerprint = gate.get("evidence_fingerprint") or canonical_hash(delta.get("new_evidence_refs", []))
+    verifier = packet.get("verifier_receipt") if isinstance(packet.get("verifier_receipt"), dict) else {}
+    prior_route_receipt = prior.get("C_AC_route_receipt") if isinstance(prior.get("C_AC_route_receipt"), dict) else None
+    receipt_gate = {**gate, "downstream_packet_delta": delta, "receipt_identity": identity}
+    route_receipt = build_c_ac_route_receipt(route, receipt_gate) if route is not None else prior_route_receipt
+    return {
+        "schema": "harness.cps_preflight.continuation_receipt.v1",
+        "status": "hold",
+        "closure": False,
+        "receipt_identity": identity,
+        "evidence_fingerprint": evidence_fingerprint,
+        "repair_revision": _receipt_value(packet, "repair_revision", "source_revision"),
+        "verifier_receipt_ref": verifier.get("receipt_ref"),
+        "verdict_ref": verdict.get("verdict_ref") or canonical_hash(verdict),
+        "continuation": gate.get("action", "await_new_repair_evidence"),
+        "downstream_packet_delta": delta,
+        "gap_classes": gate.get("gap_classes", []),
+        "C_AC_route_receipt": route_receipt,
+    }
+
+
+def retrieve_c1_foreground(packet: dict[str, Any], candidate_ref: str, trace_ref: str) -> dict[str, Any]:
+    """Read the packet-referenced harness-brain source before candidate enrichment."""
+    producer_ref = "adapter:harness-brain:file:v1"
+    consumer_ref = "build_candidate"
+    source = packet.get("harness_brain_source")
+    matches: list[dict[str, Any]] = []
+    status = "unavailable"
+    outcome = "source_unavailable"
+    if isinstance(source, dict):
+        path = Path(str(source.get("source_ref") or "").removeprefix("file://"))
+        stat = None
+        try:
+            content = path.read_bytes()
+            stat = path.stat()
+        except OSError:
+            content = None
+        if content is not None and stat is not None:
+            digest = hashlib.sha256(content).hexdigest()
+            admissible = str(source.get("lifecycle") or "").lower() in {"validated", "promoted"}
+            expected_hash = str(source.get("content_hash") or "").removeprefix("sha256:")
+            current = not expected_hash or expected_hash == digest
+            if admissible and current and _present(source.get("source_revision")):
+                matches.append({
+                    "layer": "harness-brain",
+                    "source_ref": str(path),
+                    "source_revision": source["source_revision"],
+                    "content_hash": digest,
+                    "freshness": {"mtime_ns": stat.st_mtime_ns, "size": stat.st_size},
+                    "lifecycle": source["lifecycle"],
+                    "supersedes": source.get("supersedes"),
+                })
+                status, outcome = "match", "match"
+            else:
+                status, outcome = "no_match", "inadmissible_or_stale"
+    normalized = {
+        "lookup_ref": f"foreground:{packet.get('graph_ref') or 'unbound'}",
+        "status": status,
+        "active_only": True,
+        "matches": matches,
+        "layers": [
+            {"layer": "honcho", "status": "unavailable"},
+            {"layer": "gbrain", "status": "unavailable"},
+            {"layer": "harness-brain", "status": status},
+        ],
+        "excluded_count": 0 if matches else int(isinstance(source, dict)),
+    }
+    receipt = {
+        "schema": "harness.cps_preflight.c1_runtime_receipt.v1",
+        "producer_ref": producer_ref,
+        "outcome": outcome,
+        "normalized_result_hash": canonical_hash(normalized),
+        "consumer_ref": consumer_ref,
+        "graph_ref": packet.get("graph_ref"),
+        "graph_revision": packet.get("graph_revision") or (packet.get("cps_flow_graph") or {}).get("revision"),
+        "candidate_artifact_ref": candidate_ref,
+        "trace_artifact_ref": trace_ref,
+    }
+    return {"producer_ref": producer_ref, "consumer_ref": consumer_ref, "normalized_result": normalized, "runtime_receipt": receipt}
+
+
+def validate_c1_runtime_evidence(value: dict[str, Any]) -> dict[str, Any]:
+    receipt = value.get("runtime_receipt")
+    normalized = value.get("normalized_result")
+    valid = (
+        _present(value.get("producer_ref"))
+        and _present(value.get("consumer_ref"))
+        and isinstance(receipt, dict)
+        and isinstance(normalized, dict)
+        and receipt.get("producer_ref") == value.get("producer_ref")
+        and receipt.get("consumer_ref") == value.get("consumer_ref")
+        and receipt.get("normalized_result_hash") == canonical_hash(normalized)
+        and normalized.get("status") == "match"
+    )
+    return {
+        "status": "pass" if valid else "hold",
+        "failure_code": None if valid else "HOLD_C1_RUNTIME_EVIDENCE",
+    }
+
+
 def normalize_memory_lookup_result(readbacks: Any) -> dict[str, Any]:
     """Normalize foreground reader outputs without inferring lifecycle or matches."""
     lookup = readbacks if isinstance(readbacks, dict) else {}
@@ -440,71 +1499,10 @@ def normalize_memory_lookup_result(readbacks: Any) -> dict[str, Any]:
     }
 
 
-def build_cps_seed_graph(packet: dict[str, Any], packet_path: Path, repo: Path) -> dict[str, Any]:
-    """Build the first-class compact draft_C/seed_graph artifact before C_candidate compilation."""
-    all_text = _text_values(packet)
-    lowered = all_text.lower()
-    refs = _path_refs(packet, all_text)
-    canonical_refs = [ref for ref in refs if "harness-brain" in ref or "contracts" in ref or "decisions" in ref]
-    ssot_hint = canonical_refs[0] if canonical_refs else (refs[0] if refs else "unknown")
-    project_hint = _packet_field(packet, "project_slug", "project", default=repo.name)
-    cps_raw = packet.get("CPS")
-    cps = cps_raw if isinstance(cps_raw, dict) else {}
-    c_hint = _text_values(cps.get("C") or packet.get("root_goal") or packet.get("goal") or packet.get("task") or packet_path.stem.replace("_", " "))[:240] or "runtime CPS entry seed"
-    domains = _domain_hints(lowered)
-    seed = {
-        "seed_id": "C0",
-        "C_hint": c_hint,
-        "source_hint": refs[:8],
-        "project_hint": project_hint,
-        "ssot_hint": ssot_hint,
-        "domain_hint": domains,
-        "first_move": _first_move(lowered, ssot_hint),
-        "expansion_allowed": True,
-        "status": "candidate",
-        "ssot_confidence": "high" if canonical_refs else ("medium" if refs else "low"),
-        "ssot_role": "canonical" if canonical_refs else ("implementation_surface" if refs else "unknown"),
-    }
-    seed_relations: list[dict[str, Any]] = []
-    if len(refs) > 1:
-        seed_relations.append({
-            "from": "C0",
-            "to": ssot_hint,
-            "type": "implements",
-            "surface_ref": refs[1],
-            "reason": "implementation surface is governed by the referenced SSOT candidate",
-        })
-    memory_enrichment = {
-        "pivots": {
-            "C_shape": ["intent", "boundary_hint", "mutation_or_verification_nature"],
-            "domain": domains,
-            "ssot_residency": [ssot_hint],
-            "project_scope": [project_hint],
-        },
-        "lookup_required": any(domain != "general" for domain in domains) and seed["first_move"] != "short_local_response_or_bounded_probe",
-        "matches": [],
-        "status": "not_started",
-    }
-    if "memory_lookup_result" in packet:
-        memory_enrichment.update(normalize_memory_lookup_result(packet["memory_lookup_result"]))
-    return {
-        "schema": "harness.cps_entry.seed_graph.v1",
-        "request_id": packet.get("run_id") or packet.get("flow_graph_id") or packet_path.stem,
-        "packet_ref": str(packet_path),
-        "repo": _repo_meta(repo),
-        "seeds": {"C0": seed},
-        "seed_relations": seed_relations,
-        "memory_enrichment": memory_enrichment,
-        "route_seed": {
-            "route_class": "ssot_discovery" if ssot_hint == "unknown" else ("implement_candidate" if "implementation" in domains else "inspect_source"),
-            "reason": "seed-first CPS entry; route may grow from memory/SSOT/evidence",
-            "allowed_action": "narrow_read_only" if ssot_hint == "unknown" else "bounded_probe",
-        },
-    }
-
-
-def _seed_requires_maat(seed_graph: dict[str, Any], packet: dict[str, Any]) -> tuple[bool, list[str]]:
+def _seed_requires_maat(packet: dict[str, Any]) -> tuple[bool, list[str]]:
     reasons: list[str] = []
+    if packet.get("runtime_packet") is True:
+        reasons.append("runtime_graph_required")
     mutation_scope = packet.get("mutation_scope") or packet.get("write_scope")
     if _present(mutation_scope):
         reasons.append("mutation_scope_present")
@@ -528,7 +1526,7 @@ def build_cps_trace_events(seed_graph: dict[str, Any], packet: dict[str, Any], *
     route_seed = seed_graph.get("route_seed", {}) if isinstance(seed_graph.get("route_seed"), dict) else {}
     seed = next(iter(seeds.values()), {}) if seeds else {}
     ssot_hint = seed.get("ssot_hint")
-    maat_needed, maat_reasons = _seed_requires_maat(seed_graph, packet)
+    maat_needed, maat_reasons = _seed_requires_maat(packet)
     trace = events if events is not None else []
 
     def append(event_type: str, payload: dict[str, Any], actor: str = "hermes-kann") -> None:
@@ -537,7 +1535,7 @@ def build_cps_trace_events(seed_graph: dict[str, Any], packet: dict[str, Any], *
         trace.append({
             "trace_id": trace_id, "event_id": event_id, "parent_event_id": parent,
             "timestamp": timestamp, "event_type": event_type, "actor": actor,
-            "iteration": iteration, "event_payload": payload,
+            "iteration": iteration, "phase": phase, "event_payload": payload,
         })
 
     if not trace:
@@ -551,7 +1549,7 @@ def build_cps_trace_events(seed_graph: dict[str, Any], packet: dict[str, Any], *
         if maat_needed:
             append("escalation_triggered", {"route_delta": {"adjudicator": "maat"}, "reasons": maat_reasons}, "maat")
         memory = seed_graph.get("memory_enrichment", {})
-        if isinstance(memory, dict) and memory.get("status") != "not_started":
+        if isinstance(memory, dict) and (memory.get("lookup_attempted") is True or memory.get("status") in {"match", "no_match"}):
             append("memory_lookup_started", {
                 "lookup_ref": memory.get("lookup_ref"),
                 "status": memory.get("status"),
@@ -567,6 +1565,20 @@ def build_cps_trace_events(seed_graph: dict[str, Any], packet: dict[str, Any], *
     if final_output is not None:
         append("workflow_closed", {"closure_ref": "final_output.json", "closure_type": final_output.get("status")})
     return trace
+
+
+def _c1_trace_context(packet: dict[str, Any], c1_retrieval: dict[str, Any]) -> dict[str, Any]:
+    normalized = c1_retrieval.get("normalized_result", {})
+    matches = normalized.get("matches", []) if isinstance(normalized, dict) else []
+    first_match = matches[0] if matches and isinstance(matches[0], dict) else {}
+    return {
+        "request_id": packet.get("run_id") or packet.get("flow_graph_id") or "request",
+        "seeds": {"C1": {"ssot_hint": first_match.get("source_ref", "unknown")}},
+        "seed_relations": [],
+        "route_seed": {},
+        "memory_enrichment": {**normalized, "lookup_attempted": "memory_lookup_result" in packet},
+    }
+
 
 def build_session_policy(packet: dict[str, Any], repo: Path, selected_profile: str | None = None) -> dict[str, Any]:
     profile = selected_profile or _packet_field(packet, "profile", "target_profile", default="default")
@@ -588,7 +1600,8 @@ def build_session_policy(packet: dict[str, Any], repo: Path, selected_profile: s
 
 
 def build_candidate(packet: dict[str, Any], packet_path: Path, repo: Path) -> dict[str, Any]:
-    all_text = _text_values(packet).lower()
+    routing_packet = {key: value for key, value in packet.items() if key not in {"projection", "doc_ops"}}
+    all_text = _text_values(routing_packet).lower()
     cps_raw = packet.get("CPS")
     cps: dict[str, Any] = cps_raw if isinstance(cps_raw, dict) else {}
     c_text = _text_values(cps.get("C") or packet.get("c") or packet.get("context") or packet.get("root_goal") or packet.get("goal"))
@@ -631,10 +1644,18 @@ def build_candidate(packet: dict[str, Any], packet_path: Path, repo: Path) -> di
             sid = f"{sid}?"
         if explicit_edges is None and sid in s and not any((pid.rstrip("?"), sid.rstrip("?")) == pair for pair in _edge_set(edges)):
             edges.append(f"{pid} -> {sid}")
-    verification = packet.get("verification") if isinstance(packet.get("verification"), dict) else {}
-    cps_seed_graph = build_cps_seed_graph(packet, packet_path, repo)
-    cps_trace_events = build_cps_trace_events(cps_seed_graph, packet)
-    maat_needed, maat_reasons = _seed_requires_maat(cps_seed_graph, packet)
+    raw_verification = packet.get("verification")
+    verification: dict[str, Any] = raw_verification if isinstance(raw_verification, dict) else {}
+    c1_retrieval = retrieve_c1_foreground(packet, "c_candidate_packet.json", "cps_trace_events.json")
+    if "memory_lookup_result" in packet:
+        c1_retrieval["normalized_result"] = normalize_memory_lookup_result(packet["memory_lookup_result"])
+        c1_retrieval["runtime_receipt"]["normalized_result_hash"] = canonical_hash(c1_retrieval["normalized_result"])
+    runtime_graph_gate = validate_runtime_graph(packet) if packet.get("runtime_packet") is True else {"status": "not_required", "gaps": []}
+    dispatch_plan = build_dispatch_plan(runtime_graph_gate["graph"]) if runtime_graph_gate["status"] == "pass" else None
+    runtime_evidence_required = packet.get("runtime_packet") is True or verification.get("execution_kind") in {"runtime", "external"}
+    c1_runtime_evidence_gate = validate_c1_runtime_evidence(c1_retrieval) if runtime_evidence_required else {"status": "not_required", "failure_code": None}
+    cps_trace_events = build_cps_trace_events(_c1_trace_context(packet, c1_retrieval), packet)
+    maat_needed, maat_reasons = _seed_requires_maat(packet)
     return {
         "schema": "harness.cps_preflight.candidate.v1",
         "status": "candidate",
@@ -642,13 +1663,19 @@ def build_candidate(packet: dict[str, Any], packet_path: Path, repo: Path) -> di
         "contract_ref": str(CONTRACT_PATH),
         "packet_ref": str(packet_path),
         "repo": _repo_meta(repo),
-        "cps_seed_graph": cps_seed_graph,
         "cps_trace_events": cps_trace_events,
         "route_enrichment": {
-            "memory": cps_seed_graph.get("memory_enrichment", {}),
-            "first_route": cps_seed_graph.get("route_seed", {}),
+            "memory": c1_retrieval["normalized_result"],
+            "first_route": {},
             "selective_maat_escalation": {"needed": maat_needed, "reasons": maat_reasons},
         },
+        "runtime_graph_gate": runtime_graph_gate,
+        "dispatch_plan": dispatch_plan,
+        "producer_ref": c1_retrieval["producer_ref"],
+        "consumer_ref": c1_retrieval["consumer_ref"],
+        "runtime_receipt": c1_retrieval["runtime_receipt"],
+        "normalized_result": c1_retrieval["normalized_result"],
+        "c1_runtime_evidence_gate": c1_runtime_evidence_gate,
         "C?": {"C1": c_text[:240] or "task_route_candidate"},
         "Goal": goal[:240],
         "P?": p,
@@ -656,6 +1683,10 @@ def build_candidate(packet: dict[str, Any], packet_path: Path, repo: Path) -> di
         "E?": edges,
         "verification_links": edges,
         "verification": verification,
+        "projection": packet.get("projection"),
+        "node_projection": packet.get("node_projection"),
+        "doc_ops": packet.get("doc_ops"),
+        "physical_docops_gate": validate_physical_docops_route(packet),
         "mutation_closure": classify_mutation_closure(packet),
         "uncertainty": [
             "Packet supplied explicit P#/S#; Maat still owns C-boundary and gap scan"
@@ -724,7 +1755,6 @@ def adjudicate(candidate: dict[str, Any]) -> dict[str, Any]:
         "status": "hold" if missing else "pass",
         "C_boundary": "HOLD" if missing else "PASS_ONE_C",
         "C": candidate.get("C?", {}),
-        "cps_seed_graph": candidate.get("cps_seed_graph", {}),
         "cps_trace_events": candidate.get("cps_trace_events", []),
         "route_enrichment": candidate.get("route_enrichment", {}),
         "mutation_closure": candidate.get("mutation_closure", {}),
@@ -754,7 +1784,24 @@ def adjudicate(candidate: dict[str, Any]) -> dict[str, Any]:
             "automatic_full_audit_on_gap",
         ],
     }
-    return apply_verification_gate(route, candidate)
+    route["runtime_graph_gate"] = candidate.get("runtime_graph_gate", {"status": "not_required", "gaps": []})
+    route["dispatch_plan"] = candidate.get("dispatch_plan")
+    route["producer_ref"] = candidate.get("producer_ref")
+    route["consumer_ref"] = candidate.get("consumer_ref")
+    route["runtime_receipt"] = candidate.get("runtime_receipt")
+    route["c1_runtime_evidence_gate"] = candidate.get("c1_runtime_evidence_gate")
+    runtime_gaps = route["runtime_graph_gate"].get("gaps", [])
+    if route["runtime_graph_gate"].get("status") == "hold":
+        route["status"] = "hold"
+        route["C_boundary"] = "HOLD"
+        route["selected_agents"] = {}
+        route["gap_scan"] = {"missing": runtime_gaps, "verdict": "GAP_FOUND"}
+    c1_gate = route.get("c1_runtime_evidence_gate")
+    if isinstance(c1_gate, dict) and c1_gate.get("status") == "hold":
+        route["status"] = "hold"
+        route["C_boundary"] = "HOLD"
+        route.setdefault("failure_codes", []).append("HOLD_C1_RUNTIME_EVIDENCE")
+    return apply_physical_docops_gate(apply_verification_gate(route, candidate), candidate)
 
 
 def _extract_json_object(text: str) -> dict[str, Any] | None:
@@ -859,8 +1906,25 @@ def build_body_manifest(agents: Any) -> dict[str, dict[str, Any]]:
 
 
 def _maat_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
-    allowed = {"schema", "status", "C?", "Goal", "P?", "S?", "E?", "verification_links", "verification", "uncertainty", "request_to_maat", "route_enrichment", "cps_seed_graph"}
+    allowed = {"schema", "status", "C?", "Goal", "P?", "S?", "E?", "verification_links", "verification", "uncertainty", "request_to_maat", "route_enrichment"}
     return {key: value for key, value in candidate.items() if key in allowed}
+
+
+def is_anchor_semantics_packet(packet: dict[str, Any]) -> bool:
+    return "semantic_anchor" in packet or "semantic_provenance_binding" in packet
+
+
+def _anchor_semantic_echo_valid(packet: dict[str, Any], response: dict[str, Any]) -> bool:
+    if not is_anchor_semantics_packet(packet):
+        return True
+    anchor = packet.get("semantic_anchor")
+    binding = packet.get("semantic_provenance_binding")
+    return (
+        response.get("semantic_anchor") == anchor
+        and response.get("semantic_provenance_binding") == binding
+        and validate_semantic_provenance(binding, anchor)["status"] == "pass"
+        and validate_semantic_provenance(response.get("semantic_provenance_binding"), response.get("semantic_anchor"))["status"] == "pass"
+    )
 
 
 def _live_maat_prompt(candidate: dict[str, Any], packet: dict[str, Any], body_manifest: dict[str, Any] | None = None) -> str:
@@ -873,6 +1937,7 @@ def _live_maat_prompt(candidate: dict[str, Any], packet: dict[str, Any], body_ma
             "Do not mutate files, run tools, use git, or claim final audit.",
             "Judge C-boundary, gaps, audit scope, and selected agent only.",
             "Default/hermes-kann is not planner; if planning/compile is needed, select thoth.",
+            "Echo semantic_provenance_binding byte-for-byte; do not inherit or synthesize any proof field.",
         ],
         "required_response_schema": {
             "schema": "harness.cps_preflight.live_maat_route_gate.v1",
@@ -891,12 +1956,14 @@ def _live_maat_prompt(candidate: dict[str, Any], packet: dict[str, Any], body_ma
             "candidate_agents": {"thoth": {"P": [], "S": [], "response": "need_local_body"}},
             "selected_agents": {"ptah": {"P": [], "S": [], "response": "need_local_body", "body_manifest_ids": [], "order": 1, "weight": 1.0, "dependencies": []}},
             "final_audit_needed": False,
+            "semantic_anchor": packet.get("semantic_anchor"),
+            "semantic_provenance_binding": packet.get("semantic_provenance_binding"),
             "failure_codes": [],
             "notes": []
         },
         "candidate": _maat_candidate(candidate),
         "body_manifest": manifests,
-        "packet_metadata": {key: packet.get(key) for key in ("run_id", "project_slug", "mutation_scope", "route_candidates", "required_evidence_floor", "cross_project_relation") if key in packet},
+        "packet_metadata": {key: packet.get(key) for key in ("run_id", "project_slug", "mutation_scope", "route_candidates", "required_evidence_floor", "cross_project_relation", "semantic_anchor", "semantic_provenance_binding") if key in packet},
     }
     return json.dumps(payload, ensure_ascii=False, indent=2)
 
@@ -944,7 +2011,24 @@ def _normalize_live_maat(raw: dict[str, Any], candidate: dict[str, Any], session
         "local_body_before_accept_or_need_local_body",
         "automatic_full_audit_on_gap",
     ])
-    return apply_verification_gate(route, candidate)
+    route["runtime_graph_gate"] = candidate.get("runtime_graph_gate", {"status": "not_required", "gaps": []})
+    route["dispatch_plan"] = candidate.get("dispatch_plan")
+    route["producer_ref"] = candidate.get("producer_ref")
+    route["consumer_ref"] = candidate.get("consumer_ref")
+    route["runtime_receipt"] = candidate.get("runtime_receipt")
+    route["c1_runtime_evidence_gate"] = candidate.get("c1_runtime_evidence_gate")
+    runtime_gaps = route["runtime_graph_gate"].get("gaps", [])
+    if route["runtime_graph_gate"].get("status") == "hold":
+        route["status"] = "hold"
+        route["C_boundary"] = "HOLD"
+        route["selected_agents"] = {}
+        route["gap_scan"] = {"missing": runtime_gaps, "verdict": "GAP_FOUND"}
+    c1_gate = route.get("c1_runtime_evidence_gate")
+    if isinstance(c1_gate, dict) and c1_gate.get("status") == "hold":
+        route["status"] = "hold"
+        route["C_boundary"] = "HOLD"
+        route.setdefault("failure_codes", []).append("HOLD_C1_RUNTIME_EVIDENCE")
+    return apply_physical_docops_gate(apply_verification_gate(route, candidate), candidate)
 
 
 def invoke_live_maat(candidate: dict[str, Any], packet: dict[str, Any], repo: Path, timeout: int = 180, body_manifest: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -1066,6 +2150,8 @@ def invoke_agent_probe(agent: str, probe: dict[str, Any], repo: Path, timeout: i
 def probe_agents_as_arrive(route: dict[str, Any], repo: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     """Probe candidate agents in parallel and collect responses as they complete."""
     from concurrent.futures import ThreadPoolExecutor, as_completed
+    if route.get("physical_docops_gate", {}).get("status") != "pass":
+        return {}, {}
     probes = {agent: build_agent_draft_probe(agent, route) for agent in route.get("selected_agents", {}) if agent != "maat"}
     responses: dict[str, Any] = {}
     if not probes:
@@ -1099,9 +2185,14 @@ def build_reducer_input(route: dict[str, Any], probe_responses: dict[str, Any], 
         "accepted_S": route.get("accepted_S", {}),
         "E": route.get("E", []),
         "verification_gate": route.get("verification_gate", {}),
+        "physical_docops_gate": route.get("physical_docops_gate", {}),
+        "projection": route.get("projection"),
+        "doc_ops": route.get("doc_ops"),
         "candidate_agents": route.get("selected_agents", {}),
         "body_manifest": body_manifest or build_body_manifest(route.get("selected_agents", {})),
         "probe_responses": probe_responses,
+        "semantic_anchor": route.get("semantic_anchor"),
+        "semantic_provenance_binding": route.get("semantic_provenance_binding"),
         "join_policy": {
             "mode": "as_arrives",
             "do_not_wait_for_all_optional": True,
@@ -1122,6 +2213,7 @@ def _maat_reducer_prompt(reducer_input: dict[str, Any]) -> str:
             "Do not return status HOLD just because an agent requested NEED_LOCAL_BODY. If all required probes are ACCEPT or NEED_LOCAL_BODY, return status PASS.",
             "The final_maat_judgment.json is the output of the final step and does not exist yet. Do NOT treat it as a missing prerequisite or hold the reducer because of its absence.",
             "If required probes are missing, rejected, or inconsistent, return status HOLD and no local_body_scope grants.",
+            "Echo semantic_provenance_binding byte-for-byte; do not inherit or synthesize any proof field.",
         ],
         "required_response_schema": {
             "schema": "harness.cps_preflight.maat_reducer_result.v1",
@@ -1133,6 +2225,8 @@ def _maat_reducer_prompt(reducer_input: dict[str, Any]) -> str:
             "revised_E": [],
             "final_selected_agents": {},
             "local_body_scope": {},
+            "semantic_anchor": reducer_input.get("semantic_anchor"),
+            "semantic_provenance_binding": reducer_input.get("semantic_provenance_binding"),
             "hold_reasons": [],
             "failure_codes": [],
             "notes": [],
@@ -1168,7 +2262,7 @@ def _normalize_maat_reducer_result(raw: dict[str, Any], reducer_input: dict[str,
     return result
 
 
-def invoke_maat_reducer(reducer_input: dict[str, Any], repo: Path, timeout: int = 180) -> dict[str, Any]:
+def invoke_maat_reducer(reducer_input: dict[str, Any], repo: Path, timeout: int = 180, process_runner=None) -> dict[str, Any]:
     """Ask live Maat to reduce role-probe responses before any local-body dispatch."""
     import subprocess
     env = os.environ.copy()
@@ -1177,7 +2271,8 @@ def invoke_maat_reducer(reducer_input: dict[str, Any], repo: Path, timeout: int 
         "hermes", "chat", "-Q", "--max-turns", "1", "-t", "", "-q",
         _maat_reducer_prompt(reducer_input),
     ]
-    proc = subprocess.run(cmd, cwd=str(repo), env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False, timeout=timeout)
+    runner = process_runner or subprocess.run
+    proc = runner(cmd, cwd=str(repo), env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False, timeout=timeout)
     stdout = proc.stdout or ""
     session_match = re.search(r"session_id:\s*([A-Za-z0-9_\-]+)", stdout)
     session_id = session_match.group(1) if session_match else None
@@ -1200,7 +2295,114 @@ def invoke_maat_reducer(reducer_input: dict[str, Any], repo: Path, timeout: int 
             "maat_reducer_response_ref": "stdout_tail:last_4000_chars",
             "maat_reducer_response_tail": stdout[-4000:],
         }
-    return _normalize_maat_reducer_result(parsed, reducer_input, session_id, stdout)
+    result = _normalize_maat_reducer_result(parsed, reducer_input, session_id, stdout)
+    expected_anchor = reducer_input.get("semantic_anchor")
+    expected_provenance = reducer_input.get("semantic_provenance_binding")
+    anchor_semantics = expected_anchor is not None or expected_provenance is not None
+    if anchor_semantics and not _anchor_semantic_echo_valid(reducer_input, parsed):
+        result.update({
+            "status": "hold", "C_boundary": "HOLD", "final_selected_agents": {},
+            "local_body_scope": {}, "failure_codes": ["HOLD_UNMAPPED_SEMANTIC_FIELD"],
+            "hold_reasons": ["semantic provenance binding mismatch"],
+        })
+    elif anchor_semantics:
+        result["semantic_anchor"] = expected_anchor
+        result["semantic_provenance_binding"] = expected_provenance
+    result["maat_body"] = expected_anchor if anchor_semantics else dict(parsed)
+    return result
+
+
+def materialize_maat_runtime_binding(maat_body: dict[str, Any], binding: dict[str, Any], provenance: dict[str, Any]) -> dict[str, Any] | None:
+    operational_binding = {key: binding[key] for key in ("work_id", "graph_root") if key in binding}
+    return materialize_maat_body(
+        maat_body,
+        operational_binding,
+        semantic_provenance_binding=provenance,
+        addendum=binding.get("addendum"),
+        checkpoint_settings=binding.get("checkpoint_settings"),
+        dispatcher=binding.get("dispatcher"),
+    )
+
+
+def materialize_preflight_working_graph(packet: dict[str, Any], reducer_result: dict[str, Any]) -> dict[str, Any]:
+    binding = packet.get("cps_working_graph_runtime")
+    maat_body = reducer_result.get("maat_body")
+    provenance = packet.get("semantic_provenance_binding")
+    if (
+        reducer_result.get("status") != "pass"
+        or not isinstance(binding, dict) or not isinstance(maat_body, dict)
+        or not is_anchor_semantics_packet(packet)
+        or not isinstance(provenance, dict)
+        or reducer_result.get("semantic_anchor") != packet.get("semantic_anchor")
+        or reducer_result.get("semantic_provenance_binding") != provenance
+        or validate_semantic_provenance(provenance, maat_body)["status"] != "pass"
+    ):
+        return {}
+    operational = materialize_maat_runtime_binding(maat_body, binding, provenance)
+    return {"cps_working_graph_operational": operational} if operational is not None else {}
+
+
+def record_preflight_runtime_observation(
+    packet: dict[str, Any],
+    files: dict[str, Path],
+    trace_events: list[dict[str, Any]],
+    c1_receipt: Any,
+) -> dict[str, Any] | None:
+    binding = packet.get("cps_working_graph_runtime")
+    if not isinstance(binding, dict):
+        return None
+    work_id = binding.get("work_id")
+    graph_root = binding.get("graph_root")
+    if not isinstance(work_id, str) or not work_id or not isinstance(graph_root, (str, Path)) or not str(graph_root):
+        return None
+
+    store = WorkingGraphRegistry(Path(graph_root))
+    before = store.load(work_id)
+    before_body = before.get("maat_body")
+    before_digest = before.get("maat_body_digest")
+    existing = before.get("hermes_kann_addendum")
+    if not isinstance(before_body, dict) or not isinstance(before_digest, str) or not isinstance(existing, dict):
+        raise RegistryError("HOLD_WRITE_READBACK")
+    observations = existing.get("observations")
+    source_refs = existing.get("source_refs")
+    if not isinstance(observations, list) or not isinstance(source_refs, list):
+        raise RegistryError("HOLD_WRITE_READBACK")
+
+    additions = [
+        {key: event.get(key) for key in ("event_id", "event_type", "parent_event_id", "iteration", "phase")}
+        for event in trace_events
+        if isinstance(event, dict)
+    ]
+    if isinstance(c1_receipt, dict):
+        additions.append({
+            key: c1_receipt.get(key)
+            for key in ("producer_ref", "consumer_ref", "outcome", "normalized_result_hash")
+        })
+
+    def merge_deduped(existing_values: list[Any], additions: list[Any]) -> list[Any]:
+        result = list(existing_values)
+        seen = {
+            json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+            for value in existing_values
+        }
+        for value in additions:
+            identity = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+            if identity not in seen:
+                seen.add(identity)
+                result.append(value)
+        return result
+
+    updated = store.update_addendum(work_id, {
+        "observations": merge_deduped(observations, additions),
+        "source_refs": merge_deduped(source_refs, [str(path) for path in files.values()]),
+    })
+    readback = store.load(work_id)
+    if (
+        canonical_hash(readback.get("maat_body")) != canonical_hash(before_body)
+        or readback.get("maat_body_digest") != before_digest
+    ):
+        raise RegistryError("HOLD_WRITE_READBACK")
+    return updated
 
 
 def local_body_allowed(agent: str, reducer_result: dict[str, Any]) -> bool:
@@ -1221,9 +2423,13 @@ def local_body_allowed(agent: str, reducer_result: dict[str, Any]) -> bool:
 
 def normalize_selected_agents(route: dict[str, Any], reducer_result: dict[str, Any]) -> dict[str, dict[str, Any]]:
     """Use Maat reducer final_selected_agents as the dispatch source, falling back to route-gate selection."""
-    raw = reducer_result.get("final_selected_agents")
-    if not isinstance(raw, dict) or not raw:
-        raw = route.get("selected_agents", {})
+    if reducer_result.get("physical_docops_gate", route.get("physical_docops_gate", {})).get("status") == "hold":
+        return {}
+    raw = (
+        reducer_result.get("final_selected_agents")
+        if "final_selected_agents" in reducer_result
+        else route.get("selected_agents", {})
+    )
     selected: dict[str, dict[str, Any]] = {}
     for agent, spec in (raw or {}).items():
         if not isinstance(spec, dict):
@@ -1250,6 +2456,7 @@ def build_probe(agent: str, route: dict[str, Any], spec: dict[str, Any] | None =
         "local_S": {sid: accepted_s.get(sid) for sid in spec.get("S", []) if sid in accepted_s},
         "local_E": [edge for edge in edges if any(sid in edge for sid in spec.get("S", []))],
         "verification_gate": route.get("verification_gate", {}),
+        "physical_docops_gate": route.get("physical_docops_gate", validate_physical_docops_route(route)),
         "ask": "accept/reject/need_local_body/hold",
         "body_policy": "local task body only after reducer_result grants local_body_scope",
     }
@@ -1264,6 +2471,7 @@ def build_local_body(agent: str, probe: dict[str, Any], packet: dict[str, Any], 
         "local_S": probe["local_S"],
         "local_E": probe["local_E"],
         "verification_gate": probe.get("verification_gate", {}),
+        "physical_docops_gate": probe.get("physical_docops_gate", {}),
         "task_AC": packet.get("task_AC") or (packet.get("CPS", {}) if isinstance(packet.get("CPS"), dict) else {}).get("AC"),
         "owner_approval_boundary": packet.get("owner_approval_boundary"),
         "prohibited_actions": packet.get("prohibited_actions", ["git add", "git commit", "git push"]),
@@ -1279,9 +2487,35 @@ def build_agent_body_map(selected: dict[str, Any], route: dict[str, Any], reduce
     for agent, spec in selected.items():
         probe = build_probe(agent, route, spec, reducer_result)
         probes[agent] = probe
-        if local_body_allowed(agent, reducer_result):
+        if probe["physical_docops_gate"].get("status") == "pass" and local_body_allowed(agent, reducer_result):
             bodies[agent] = build_local_body(agent, probe, packet, packet_path)
     return probes, bodies
+
+
+def dispatch_external_local_bodies(
+    local_bodies: dict[str, Any],
+    record_root: Path,
+    *,
+    identities: dict[str, dict[str, Any]],
+    argv_builder: Any,
+    process_runner: Any = None,
+) -> dict[str, Any]:
+    receipts: dict[str, Any] = {}
+    for agent, body in local_bodies.items():
+        if agent not in identities:
+            raise TypeError(f"explicit receipt identity required for {agent}")
+        encoded = json.dumps(
+            body, sort_keys=True, ensure_ascii=False, separators=(",", ":"),
+        ).encode("utf-8")
+        receipts[agent] = dispatch_external_runtime(
+            agent,
+            encoded,
+            argv_builder(agent),
+            record_root,
+            identity=identities[agent],
+            process_runner=process_runner,
+        )
+    return receipts
 
 
 def build_local_body_dispatch(route: dict[str, Any], reducer_result: dict[str, Any], local_bodies: dict[str, Any], final_selected_agents: dict[str, Any] | None = None, body_manifest: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -1440,12 +2674,11 @@ def build_reentry_input(hold_gap_loop: dict[str, Any], packet_ref: str, iteratio
 
 
 def build_candidate_from_reentry(reentry_input: dict[str, Any], packet_path: Path, repo: Path, original_candidate: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Convert compact re-entry input without recreating the original seed or trace."""
+    """Convert compact re-entry input while preserving the original trace."""
     revised_p = reentry_input.get("revised_P") if isinstance(reentry_input.get("revised_P"), dict) else {}
     revised_s = reentry_input.get("revised_S") if isinstance(reentry_input.get("revised_S"), dict) else {}
     revised_e = reentry_input.get("revised_E") if isinstance(reentry_input.get("revised_E"), list) else []
     original = original_candidate or {}
-    cps_seed_graph = original.get("cps_seed_graph", {})
     cps_trace_events = original.get("cps_trace_events", [])
     return {
         "schema": "harness.cps_preflight.candidate.v1",
@@ -1454,9 +2687,16 @@ def build_candidate_from_reentry(reentry_input: dict[str, Any], packet_path: Pat
         "contract_ref": str(CONTRACT_PATH),
         "packet_ref": str(packet_path),
         "repo": _repo_meta(repo),
-        "cps_seed_graph": cps_seed_graph,
         "cps_trace_events": cps_trace_events,
         "route_enrichment": original.get("route_enrichment", {}),
+        "runtime_graph_gate": original.get("runtime_graph_gate", {"status": "not_required", "gaps": []}),
+        "dispatch_plan": original.get("dispatch_plan"),
+        "producer_ref": original.get("producer_ref"),
+        "consumer_ref": original.get("consumer_ref"),
+        "runtime_receipt": original.get("runtime_receipt"),
+        "normalized_result": original.get("normalized_result"),
+        "c1_runtime_evidence_gate": original.get("c1_runtime_evidence_gate"),
+        "node_projection": original.get("node_projection"),
         "C?": reentry_input.get("revised_C") or {"C1": "reentry_candidate"},
         "Goal": "Resolve final Maat HOLD/FAIL missing evidence and close Goal_closure",
         "P?": revised_p,
@@ -1510,6 +2750,7 @@ def _maat_final_prompt(contribute_cps: dict[str, Any]) -> str:
             "Return exactly one JSON object and no markdown.",
             "Do not mutate files, run tools, use git, or implement.",
             "Judge only the supplied CPS AC and Goal closure; do not invent new criteria.",
+            "Treat eligible_for_maat_audit as evidence eligibility only; never infer acceptance or rewrite the root Goal.",
             "The final_maat_judgment.json is the output of this very step. Do NOT mark final_maat_judgment.json as missing in the missing_evidence list, and do not hold the judgment because of its absence. If the supplied contribute_CPS trace is valid, return status PASS.",
         ],
         "required_response_schema": {
@@ -1569,11 +2810,147 @@ def invoke_maat_final_judgment(contribute_cps: dict[str, Any], repo: Path, timeo
     return _normalize_final_judgment(parsed, session_id, stdout)
 
 
-def execute_preflight_chain(packet: dict[str, Any], packet_path: Path, repo: Path, mode: str, candidate: dict[str, Any]) -> dict[str, Any]:
-    """Run route-gate -> probes -> Maat reducer -> local-body gate -> Maat final once."""
-    route_candidate_catalog = select_route_candidate_catalog(packet, candidate)
+def compact_continuation_chain(packet: dict[str, Any], candidate: dict[str, Any], gate: dict[str, Any]) -> dict[str, Any]:
+    """Return a HOLD receipt without replaying route, reducer, probe, or final-audit calls."""
+    missing = gate.get("gap_classes", []) or ["new_repair_evidence"]
+    final_judgment = {
+        "schema": "harness.cps_preflight.continuation_hold.v1",
+        "source": "receipt_delta_gate", "status": "hold", "closure": False,
+        "audit_outcome": "route_gate_only",
+        "Goal_closure": {"status": "not_requested", "reason": "continuation receipt is not a closure judgment"},
+        "missing_evidence": missing, "failure_codes": ["HOLD_RECEIPT_DELTA"],
+    }
+    receipt = build_continuation_receipt(packet, final_judgment, gate)
+    route = {
+        "schema": "harness.cps_preflight.route_gate.v1", "status": "hold", "C_boundary": "HOLD",
+        "C": candidate.get("C?", {}), "accepted_P": {}, "accepted_S": {}, "E": [], "selected_agents": {},
+        "audit_plan": {"mode": "route_gate_only"}, "AC_mode": "route_gate_only",
+        "final_audit_needed": False, "prohibitions": [], "verification_gate": {"gap_class": "receipt_delta_hold"},
+    }
+    reducer = {
+        "status": "hold", "C_boundary": "HOLD", "revised_C": route["C"], "revised_P": {},
+        "revised_S": {}, "revised_E": [], "final_selected_agents": {}, "local_body_scope": {},
+        "hold_reasons": missing,
+    }
+    contribute = {"AC_evidence": {}, "Goal_closure": final_judgment["Goal_closure"]}
+    return {
+        "candidate": candidate, "route": route, "draft_probes": {}, "probe_responses": {},
+        "reducer_input": {}, "reducer_result": reducer, "probes": {}, "local_bodies": {},
+        "local_body_dispatch": {}, "contribute_cps": contribute, "final_judgment": final_judgment,
+        "hold_gap_loop": build_hold_gap_loop(contribute, final_judgment, reducer),
+        "final_selected_agents": {}, "route_candidate_catalog": {"selected_candidate_ids": []},
+        "continuation_receipt": receipt, "receipt_delta_gate": gate,
+    }
+
+
+def navigation_hold_chain(candidate: dict[str, Any], receipt: dict[str, Any]) -> dict[str, Any]:
+    diagnostics = receipt.get("diagnostic_codes", [])
+    final_judgment = {
+        "schema": "harness.cps_preflight.runtime_navigation_hold.v1",
+        "source": "cps_runtime_navigation", "status": "hold", "closure": False,
+        "Goal_closure": {"status": "hold", "reason": "runtime navigation did not resolve source refs"},
+        "missing_evidence": diagnostics, "failure_codes": diagnostics,
+    }
+    route = {
+        "schema": "harness.cps_preflight.route_gate.v1", "status": "hold", "C_boundary": "HOLD",
+        "C": candidate.get("C?", {}), "accepted_P": {}, "accepted_S": {}, "E": [], "selected_agents": {},
+        "audit_plan": {"mode": "route_gate_only"}, "final_audit_needed": False, "prohibitions": [],
+    }
+    reducer = {
+        "status": "hold", "C_boundary": "HOLD", "revised_C": route["C"], "revised_P": {},
+        "revised_S": {}, "revised_E": [], "final_selected_agents": {}, "local_body_scope": {},
+        "hold_reasons": diagnostics,
+    }
+    contribute = {"AC_evidence": {}, "Goal_closure": final_judgment["Goal_closure"]}
+    return {
+        "candidate": candidate, "route": route, "draft_probes": {}, "probe_responses": {},
+        "reducer_input": {}, "reducer_result": reducer, "probes": {}, "local_bodies": {},
+        "local_body_dispatch": {}, "contribute_cps": contribute, "final_judgment": final_judgment,
+        "hold_gap_loop": build_hold_gap_loop(contribute, final_judgment, reducer),
+        "final_selected_agents": {}, "route_candidate_catalog": {"selected_candidate_ids": []},
+        "runtime_navigation_receipt": receipt,
+    }
+
+
+def semantic_provenance_hold_chain(candidate: dict[str, Any]) -> dict[str, Any]:
+    failure = ["HOLD_UNMAPPED_SEMANTIC_FIELD"]
+    final_judgment = {
+        "schema": "harness.cps_preflight.final_maat_judgment.v1",
+        "source": "semantic_provenance_gate", "status": "hold", "closure": False,
+        "Goal_closure": {"status": "hold", "reason": "canonical semantic provenance is not exact"},
+        "missing_evidence": failure, "failure_codes": failure,
+    }
+    route = {
+        "schema": "harness.cps_preflight.route_gate.v1", "status": "hold", "C_boundary": "HOLD",
+        "C": candidate.get("C?", {}), "accepted_P": {}, "accepted_S": {}, "E": [],
+        "selected_agents": {}, "audit_plan": {"mode": "route_gate_only"},
+        "final_audit_needed": False, "prohibitions": [],
+    }
+    reducer = {
+        "status": "hold", "C_boundary": "HOLD", "revised_C": route["C"],
+        "revised_P": {}, "revised_S": {}, "revised_E": [], "final_selected_agents": {},
+        "local_body_scope": {}, "hold_reasons": failure, "failure_codes": failure,
+    }
+    contribute = {"AC_evidence": {}, "Goal_closure": final_judgment["Goal_closure"]}
+    return {
+        "candidate": candidate, "route": route, "draft_probes": {}, "probe_responses": {},
+        "reducer_input": {}, "reducer_result": reducer, "probes": {}, "local_bodies": {},
+        "local_body_dispatch": {}, "contribute_cps": contribute, "final_judgment": final_judgment,
+        "hold_gap_loop": build_hold_gap_loop(contribute, final_judgment, reducer),
+        "final_selected_agents": {}, "route_candidate_catalog": {"selected_candidate_ids": []},
+    }
+
+
+def execute_preflight_chain(
+    packet: dict[str, Any],
+    packet_path: Path,
+    repo: Path,
+    mode: str,
+    candidate: dict[str, Any],
+    selected_agent_runner: Any = None,
+) -> dict[str, Any]:
+    """Run route-gate -> probes -> Maat reducer -> local-body gate -> optional Maat final."""
+    provenance = packet.get("semantic_provenance_binding")
+    semantic_anchor = packet.get("semantic_anchor")
+    anchor_semantics = is_anchor_semantics_packet(packet)
+    if anchor_semantics and validate_semantic_provenance(provenance, semantic_anchor)["status"] != "pass":
+        return semantic_provenance_hold_chain(candidate)
+    navigation_request = packet.get("runtime_navigation_request")
+    navigation_receipt = navigate_cps_runtime(repo, navigation_request) if isinstance(navigation_request, dict) else None
+    if isinstance(navigation_receipt, dict):
+        candidate["runtime_navigation_receipt"] = navigation_receipt
+        if navigation_receipt.get("status") != "resolved":
+            return navigation_hold_chain(candidate, navigation_receipt)
+    receipt_delta_gate = evaluate_receipt_delta(packet)
+    delta_reentry = receipt_delta_gate.get("action") == "reenter"
+    if receipt_delta_gate.get("active") and not delta_reentry:
+        return compact_continuation_chain(packet, candidate, receipt_delta_gate)
+    prior_route_receipt = None
+    if delta_reentry:
+        prior_route_receipt, route_receipt_gaps = prior_c_ac_route_receipt(packet, receipt_delta_gate)
+        if route_receipt_gaps:
+            receipt_delta_gate = {
+                **receipt_delta_gate,
+                "status": "hold",
+                "action": "hold_mismatch",
+                "delta_only_reentry": False,
+                "gap_classes": list(dict.fromkeys(receipt_delta_gate.get("gap_classes", []) + route_receipt_gaps)),
+            }
+            return compact_continuation_chain(packet, candidate, receipt_delta_gate)
+    prior_route = (
+        prior_route_receipt["route"]
+        if isinstance(prior_route_receipt, dict) and isinstance(prior_route_receipt.get("route"), dict)
+        else None
+    )
+    if anchor_semantics and prior_route is not None:
+        return semantic_provenance_hold_chain(candidate)
+    route_candidate_catalog = (
+        prior_route.get("route_candidate_catalog")
+        if isinstance(prior_route, dict) and isinstance(prior_route.get("route_candidate_catalog"), dict)
+        else select_route_candidate_catalog(packet, candidate)
+    )
     escalation = candidate.get("route_enrichment", {}).get("selective_maat_escalation", {})
-    if not escalation.get("needed", True):
+    if not delta_reentry and not escalation.get("needed", True):
         cps_raw = packet.get("CPS")
         cps: dict[str, Any] = cps_raw if isinstance(cps_raw, dict) else {}
         explicit_agent_work = bool(_ordered_cps_items(cps, "P") or _ordered_cps_items(cps, "S"))
@@ -1617,7 +2994,11 @@ def execute_preflight_chain(packet: dict[str, Any], packet_path: Path, repo: Pat
             "route_candidate_catalog": route_candidate_catalog,
         }
     body_manifest = build_body_manifest(route_candidate_catalog["selected_candidate_ids"])
-    route = invoke_live_maat(candidate, packet, repo, body_manifest=body_manifest) if mode == "live-maat" else adjudicate(candidate)
+    route = json.loads(json.dumps(prior_route)) if prior_route is not None else (
+        invoke_live_maat(candidate, packet, repo, body_manifest=body_manifest) if mode == "live-maat" else adjudicate(candidate)
+    )
+    if mode == "live-maat" and anchor_semantics and not _anchor_semantic_echo_valid(packet, route):
+        return semantic_provenance_hold_chain(candidate)
     route["mutation_closure"] = candidate.get("mutation_closure", {})
     route["route_candidate_catalog"] = route_candidate_catalog
     draft_probes, probe_responses = probe_agents_as_arrive(route, repo) if mode == "live-maat" else ({}, {})
@@ -1636,20 +3017,153 @@ def execute_preflight_chain(packet: dict[str, Any], packet_path: Path, repo: Pat
         "hold_reasons": ["deterministic mode does not approve reducer-based local body dispatch"],
         "failure_codes": ["HOLD_DETERMINISTIC_REDUCER_REQUIRED"],
     }
+    working_graph_operational: dict[str, Any] = {}
+    materialization_failure: str | None = None
+    reducer_result = apply_physical_docops_gate(reducer_result, route)
+    if reducer_result["physical_docops_gate"]["status"] != "pass":
+        reducer_result["final_selected_agents"] = {}
+        reducer_result["local_body_scope"] = {}
+    node_projection_gate = apply_node_projection_gate(route, reducer_result, packet)
+    if node_projection_gate.get("status") == "hold":
+        reducer_result["status"] = "hold"
+        reducer_result["C_boundary"] = "HOLD"
+        reducer_result["final_selected_agents"] = {}
+        reducer_result["local_body_scope"] = {}
+    if reducer_result.get("status") == "pass" and node_projection_gate.get("status") != "hold":
+        try:
+            working_graph_operational = materialize_preflight_working_graph(packet, reducer_result)
+        except RegistryError as exc:
+            materialization_failure = (
+                "HOLD_WRITE_READBACK" if "HOLD_WRITE_READBACK" in str(exc)
+                else "HOLD_UNMAPPED_SEMANTIC_FIELD"
+            )
+            reducer_result.update({
+                "status": "hold", "C_boundary": "HOLD", "final_selected_agents": {},
+                "local_body_scope": {}, "failure_codes": [materialization_failure],
+                "hold_reasons": [materialization_failure],
+            })
     final_selected_agents = normalize_selected_agents(route, reducer_result)
     selected_manifest = {agent: body_manifest[agent] for agent in final_selected_agents if agent in body_manifest}
     probes, local_bodies = build_agent_body_map(final_selected_agents, route, reducer_result, packet, packet_path)
+    handoff_transport: dict[str, Any] = {
+        "status": "not_required", "dispatch_count": 0, "search_count": 0, "agents": {},
+    }
+    if selected_agent_runner is not None and local_bodies:
+        verified_dispatches: list[tuple[str, bytes]] = []
+        transport_results: dict[str, Any] = {}
+        for agent, body in local_bodies.items():
+            original_body = json.dumps(
+                body, sort_keys=True, ensure_ascii=False, separators=(",", ":"),
+            ).encode("utf-8")
+            envelope = build_handoff_envelope(original_body, {"local_body_state": "complete", "agent": agent})
+            prompt = build_handoff_prompt(envelope)
+            consumed = consume_handoff_prompt(prompt)
+            result = dispatch_handoff_transport(
+                original_body,
+                envelope,
+                prompt,
+                consumed,
+                lambda verified_body, selected=agent: verified_dispatches.append((selected, verified_body)),
+            )
+            transport_results[agent] = result
+            if result["status"] != "dispatched":
+                handoff_transport = {**result, "agents": transport_results}
+                break
+        else:
+            for agent, verified_body in verified_dispatches:
+                selected_agent_runner(agent, verified_body)
+            handoff_transport = {
+                "status": "dispatched",
+                "dispatch_count": len(verified_dispatches),
+                "search_count": 0,
+                "agents": transport_results,
+            }
+        if handoff_transport["status"] == "hold":
+            reducer_result["status"] = "hold"
+            reducer_result["C_boundary"] = "HOLD"
+            reducer_result["final_selected_agents"] = {}
+            reducer_result["local_body_scope"] = {}
+            reducer_result.setdefault("failure_codes", []).append(HANDOFF_INTEGRITY_FAILURE)
+            reducer_result.setdefault("hold_reasons", []).append(HANDOFF_INTEGRITY_FAILURE)
+            final_selected_agents = {}
+            local_bodies = {}
     local_body_dispatch = build_local_body_dispatch(route, reducer_result, local_bodies, final_selected_agents, selected_manifest)
     contribute_cps = build_contribute_cps(packet, candidate, route, probe_responses, reducer_result, local_body_dispatch)
-    final_judgment = invoke_maat_final_judgment(contribute_cps, repo) if mode == "live-maat" else {
-        "schema": "harness.cps_preflight.final_maat_judgment.v1",
-        "source": "deterministic_not_live",
-        "status": "hold",
-        "AC_verdicts": {},
-        "Goal_closure": {"status": "hold", "reason": "deterministic mode does not perform live Maat final judgment"},
-        "missing_evidence": ["live_maat_final_judgment"],
-        "failure_codes": ["HOLD_DETERMINISTIC_FINAL_MAAT_REQUIRED"],
-    }
+    if handoff_transport.get("status") == "hold":
+        final_judgment = {
+            "schema": "harness.cps_preflight.final_maat_judgment.v1",
+            "source": "local_handoff_transport_gate",
+            "status": "hold",
+            "AC_verdicts": {},
+            "Goal_closure": {"status": "hold", "reason": "handoff transport integrity mismatch"},
+            "missing_evidence": [HANDOFF_INTEGRITY_FAILURE],
+            "failure_codes": [HANDOFF_INTEGRITY_FAILURE],
+            "notes": ["Selected-agent runner dispatch was blocked before execution."],
+        }
+    elif materialization_failure is not None:
+        final_judgment = {
+            "schema": "harness.cps_preflight.final_maat_judgment.v1",
+            "source": "local_materialization_gate",
+            "status": "hold",
+            "AC_verdicts": {},
+            "Goal_closure": {"status": "hold", "reason": "working graph materialization did not preserve its binding"},
+            "missing_evidence": [materialization_failure],
+            "failure_codes": [materialization_failure],
+            "notes": ["External final Maat dispatch was blocked by the materialization gate."],
+        }
+    elif node_projection_gate.get("status") == "hold":
+        final_judgment = {
+            "schema": "harness.cps_preflight.final_maat_judgment.v1",
+            "source": "local_node_projection_gate",
+            "status": "hold",
+            "AC_verdicts": {},
+            "Goal_closure": {"status": "hold", "reason": "node projection gate requires missing evidence"},
+            "missing_evidence": node_projection_gate.get("gap_classes", []),
+            "failure_codes": ["HOLD_NODE_PROJECTION"],
+            "notes": ["External final Maat dispatch was blocked by the node projection gate."],
+        }
+    elif mode == "live-maat" and route.get("final_audit_needed") is True:
+        active_case_binding = packet.get("active_case_final_audit")
+        if active_case_binding is not None:
+            audit_evidence = load_production_final_audit(active_case_binding)
+            contribute_cps["production_final_audit"] = audit_evidence
+            if audit_evidence.get("status") != "eligible_for_maat_audit":
+                failure = audit_evidence.get("failure_code", "HOLD_FINAL_GATE")
+                final_judgment = {
+                    "schema": "harness.cps_preflight.final_maat_judgment.v1",
+                    "source": "production_final_audit_gate", "status": "hold",
+                    "AC_verdicts": {},
+                    "Goal_closure": {"status": "hold", "reason": "both production lanes are not eligible for Maat audit"},
+                    "missing_evidence": [failure], "failure_codes": [failure],
+                    "notes": ["Maat final dispatch was blocked before audit."],
+                }
+            else:
+                final_judgment = invoke_maat_final_judgment(contribute_cps, repo)
+        else:
+            final_judgment = invoke_maat_final_judgment(contribute_cps, repo)
+    elif mode == "live-maat":
+        audit_outcome = route.get("AC_mode") if route.get("AC_mode") in {"route_gate_only", "readback_only"} else "route_gate_only"
+        final_judgment = {
+            "schema": "harness.cps_preflight.audit_not_requested.v1",
+            "source": "route_gate",
+            "status": "pass" if route.get("status") == "pass" and reducer_result.get("status") == "pass" else "hold",
+            "closure": False,
+            "audit_outcome": audit_outcome,
+            "AC_verdicts": {},
+            "Goal_closure": {"status": "not_requested", "reason": f"{audit_outcome} does not request final Maat closure"},
+            "missing_evidence": [] if route.get("status") == "pass" else route.get("gap_scan", {}).get("missing", []),
+            "failure_codes": [],
+        }
+    else:
+        final_judgment = {
+            "schema": "harness.cps_preflight.final_maat_judgment.v1",
+            "source": "deterministic_not_live",
+            "status": "hold",
+            "AC_verdicts": {},
+            "Goal_closure": {"status": "hold", "reason": "deterministic mode does not perform live Maat final judgment"},
+            "missing_evidence": ["live_maat_final_judgment"],
+            "failure_codes": ["HOLD_DETERMINISTIC_FINAL_MAAT_REQUIRED"],
+        }
     contribute_cps["AC_evidence"].setdefault("AC4", {})["status"] = final_judgment.get("status", "hold")
     contribute_cps["Goal_closure"] = final_judgment.get("Goal_closure", contribute_cps["Goal_closure"])
     hold_gap_loop = build_hold_gap_loop(contribute_cps, final_judgment, reducer_result)
@@ -1663,11 +3177,17 @@ def execute_preflight_chain(packet: dict[str, Any], packet_path: Path, repo: Pat
         "probes": probes,
         "local_bodies": local_bodies,
         "local_body_dispatch": local_body_dispatch,
+        "handoff_transport": handoff_transport,
         "contribute_cps": contribute_cps,
         "final_judgment": final_judgment,
         "hold_gap_loop": hold_gap_loop,
         "final_selected_agents": final_selected_agents,
         "route_candidate_catalog": route_candidate_catalog,
+        "receipt_delta_gate": receipt_delta_gate,
+        "continuation_receipt": build_continuation_receipt(packet, final_judgment, receipt_delta_gate, route) if final_judgment.get("status") != "pass" else None,
+        "C_AC_route_receipt": build_c_ac_route_receipt(route, receipt_delta_gate),
+        "runtime_navigation_receipt": navigation_receipt,
+        **working_graph_operational,
     }
 
 
@@ -1677,19 +3197,13 @@ def run(packet_path: Path, out_dir: Path, repo: Path, mode: str = "live-maat") -
     max_reentry = max_reentry_iterations(packet)
     candidate = build_candidate(packet, packet_path, repo)
     original_candidate = candidate
-    cps_seed_graph = candidate.get("cps_seed_graph", {})
     cps_trace_events = candidate.get("cps_trace_events", [])
+    c1_trace_context = _c1_trace_context(packet, {"normalized_result": candidate.get("normalized_result", {})})
     chain = execute_preflight_chain(packet, packet_path, repo, mode, candidate)
+    receipt_delta_gate = chain.get("receipt_delta_gate", evaluate_receipt_delta(packet))
     reentry_input: dict[str, Any] | None = None
     reentry_chains: list[dict[str, Any]] = []
-    iteration = 0
-    while str(chain["final_judgment"].get("status", "hold")).lower() != "pass" and iteration < max_reentry:
-        iteration += 1
-        reentry_input = build_reentry_input(chain["hold_gap_loop"], str(packet_path), iteration)
-        build_cps_trace_events(cps_seed_graph, reentry_input, events=cps_trace_events, iteration=iteration, phase="reentry")
-        reentry_candidate = build_candidate_from_reentry(reentry_input, packet_path, repo, original_candidate)
-        chain = execute_preflight_chain(packet, packet_path, repo, mode, reentry_candidate)
-        reentry_chains.append(chain)
+    iteration = 1 if receipt_delta_gate.get("action") == "reenter" else 0
 
     candidate = chain["candidate"]
     route = chain["route"]
@@ -1706,9 +3220,9 @@ def run(packet_path: Path, out_dir: Path, repo: Path, mode: str = "live-maat") -
     final_selected_agents = chain["final_selected_agents"]
     route_candidate_catalog = chain.get("route_candidate_catalog") or select_route_candidate_catalog(packet, candidate)
     final_output = final_output_from_judgment(final_judgment, hold_gap_loop)
+    final_output["execution_state"] = project_execution_state(packet)
     final_output["mutation_closure"] = candidate.get("mutation_closure", {})
-    if isinstance(cps_seed_graph, dict) and cps_seed_graph:
-        build_cps_trace_events(cps_seed_graph, packet, final_output=final_output, events=cps_trace_events, iteration=iteration, phase="closure")
+    build_cps_trace_events(c1_trace_context, packet, final_output=final_output, events=cps_trace_events, iteration=iteration, phase="closure")
     selected_for_policy = next((agent for agent in final_selected_agents if agent not in {"maat", "hermes-kann"}), None)
     route["session_policy"] = build_session_policy(packet, repo, selected_for_policy)
     learning = {
@@ -1716,7 +3230,6 @@ def run(packet_path: Path, out_dir: Path, repo: Path, mode: str = "live-maat") -
         "contract_ref": str(CONTRACT_PATH),
         "packet_ref": str(packet_path),
         "C": reducer_result.get("revised_C") or route.get("C"),
-        "cps_seed_graph_ref": "cps_seed_graph.json",
         "cps_trace_events_ref": "cps_trace_events.json",
         "selected_agents": sorted(route["selected_agents"]),
         "final_selected_agents": sorted(final_selected_agents),
@@ -1734,7 +3247,6 @@ def run(packet_path: Path, out_dir: Path, repo: Path, mode: str = "live-maat") -
     }
     files = {
         "candidate": out_dir / "c_candidate_packet.json",
-        "cps_seed_graph": out_dir / "cps_seed_graph.json",
         "cps_trace_events": out_dir / "cps_trace_events.json",
         "route_gate": out_dir / "maat_route_gate.json",
         "probes": out_dir / "selected_agent_probes.json",
@@ -1749,11 +3261,13 @@ def run(packet_path: Path, out_dir: Path, repo: Path, mode: str = "live-maat") -
         "maat_reducer_input": out_dir / "maat_reducer_input.json",
         "maat_reducer_result": out_dir / "maat_reducer_result.json",
         "final_output": out_dir / "final_output.json",
+        "dispatch_plan": out_dir / "dispatch_plan.json",
+        "runtime_receipt": out_dir / "c1_runtime_receipt.json",
+        "continuation_receipt": out_dir / "continuation_receipt.json",
     }
     if reentry_input is not None:
         files["reentry_input"] = out_dir / "reentry_input.json"
     files["candidate"].write_text(json.dumps(candidate, indent=2, ensure_ascii=False), encoding="utf-8")
-    files["cps_seed_graph"].write_text(json.dumps(cps_seed_graph, indent=2, ensure_ascii=False), encoding="utf-8")
     files["cps_trace_events"].write_text(json.dumps(cps_trace_events, indent=2, ensure_ascii=False), encoding="utf-8")
     files["route_gate"].write_text(json.dumps(route, indent=2, ensure_ascii=False), encoding="utf-8")
     files["probes"].write_text(json.dumps(probes, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -1768,6 +3282,10 @@ def run(packet_path: Path, out_dir: Path, repo: Path, mode: str = "live-maat") -
     files["maat_reducer_input"].write_text(json.dumps(reducer_input if mode == "live-maat" else {}, indent=2, ensure_ascii=False), encoding="utf-8")
     files["maat_reducer_result"].write_text(json.dumps(reducer_result, indent=2, ensure_ascii=False), encoding="utf-8")
     files["final_output"].write_text(json.dumps(final_output, indent=2, ensure_ascii=False), encoding="utf-8")
+    files["dispatch_plan"].write_text(json.dumps(candidate.get("dispatch_plan"), indent=2, ensure_ascii=False), encoding="utf-8")
+    files["runtime_receipt"].write_text(json.dumps(candidate.get("runtime_receipt"), indent=2, ensure_ascii=False), encoding="utf-8")
+    continuation_receipt = chain.get("continuation_receipt")
+    files["continuation_receipt"].write_text(json.dumps(continuation_receipt, indent=2, ensure_ascii=False), encoding="utf-8")
     if reentry_input is not None:
         files["reentry_input"].write_text(json.dumps(reentry_input, indent=2, ensure_ascii=False), encoding="utf-8")
     for idx, reentry_chain in enumerate(reentry_chains, start=1):
@@ -1775,6 +3293,7 @@ def run(packet_path: Path, out_dir: Path, repo: Path, mode: str = "live-maat") -
         (prefix.with_name(prefix.name + "_maat_route_gate.json")).write_text(json.dumps(reentry_chain["route"], indent=2, ensure_ascii=False), encoding="utf-8")
         (prefix.with_name(prefix.name + "_maat_reducer_result.json")).write_text(json.dumps(reentry_chain["reducer_result"], indent=2, ensure_ascii=False), encoding="utf-8")
         (prefix.with_name(prefix.name + "_final_maat_judgment.json")).write_text(json.dumps(reentry_chain["final_judgment"], indent=2, ensure_ascii=False), encoding="utf-8")
+    record_preflight_runtime_observation(packet, files, cps_trace_events, candidate.get("runtime_receipt"))
     route_gate_ok = route_gate_usable(route, final_output, final_selected_agents, reducer_result)
     ok = route_gate_ok and final_output.get("status") == "pass"
     return {
@@ -1783,7 +3302,6 @@ def run(packet_path: Path, out_dir: Path, repo: Path, mode: str = "live-maat") -
         "mode": mode,
         "out_dir": str(out_dir),
         "files": {k: str(v) for k, v in files.items()},
-        "cps_seed_graph": cps_seed_graph,
         "cps_trace_events": cps_trace_events,
         "route_gate": route,
         "route_candidate_catalog": route_candidate_catalog,
@@ -1791,6 +3309,8 @@ def run(packet_path: Path, out_dir: Path, repo: Path, mode: str = "live-maat") -
         "final_maat_judgment": final_judgment,
         "final_output": final_output,
         "mutation_closure": final_output["mutation_closure"],
+        "continuation_receipt": continuation_receipt,
+        "receipt_delta_gate": receipt_delta_gate,
         "reentry_iterations": iteration,
         "reentry_cap": max_reentry,
     }
@@ -1812,3 +3332,9 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+def execution_receipt_transition(work_id: str, graph_root: Path, receipt: dict[str, Any]) -> dict[str, str]:
+    registry = WorkingGraphRegistry(graph_root)
+    registry.append_execution_receipt(work_id, receipt)
+    return registry.resume_parent_edge(work_id, receipt["parent_edge_ref"])

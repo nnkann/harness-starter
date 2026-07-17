@@ -1,0 +1,945 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "session_close_state.v1.schema.json",
+  "title": "Harness session close lifecycle state v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "version",
+    "lifecycle_id",
+    "session_id",
+    "state",
+    "created_at",
+    "updated_at",
+    "repo_path",
+    "canonical_target",
+    "snapshot",
+    "durable_receipt",
+    "propagation_receipt",
+    "component_close_receipts",
+    "unresolved_holds",
+    "transition_history"
+  ],
+  "properties": {
+    "schema": {
+      "const": "harness.session_close_state.v1"
+    },
+    "version": {
+      "const": 1
+    },
+    "lifecycle_id": {
+      "$ref": "#/$defs/safeId"
+    },
+    "session_id": {
+      "$ref": "#/$defs/safeId"
+    },
+    "state": {
+      "enum": [
+        "requested",
+        "snapshot_staged",
+        "durable_pending",
+        "propagated",
+        "close_eligible"
+      ]
+    },
+    "created_at": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "updated_at": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "repo_path": {
+      "type": "string",
+      "pattern": "^/"
+    },
+    "snapshot": {
+      "$ref": "#/$defs/snapshot"
+    },
+    "durable_receipt": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/durableReceipt"
+        }
+      ]
+    },
+    "propagation_receipt": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/propagationReceipt"
+        }
+      ]
+    },
+    "component_close_receipts": {
+      "type": "array",
+      "maxItems": 4,
+      "items": {
+        "$ref": "#/$defs/componentReceipt"
+      }
+    },
+    "unresolved_holds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "transition_history": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "items": {
+        "$ref": "#/$defs/transition"
+      }
+    },
+    "canonical_target": {
+      "$ref": "#/$defs/canonicalTarget"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "requested"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "durable_receipt": {
+            "type": "null"
+          },
+          "propagation_receipt": {
+            "type": "null"
+          },
+          "component_close_receipts": {
+            "maxItems": 0
+          },
+          "transition_history": {
+            "minItems": 1,
+            "maxItems": 1,
+            "prefixItems": [
+              {
+                "$ref": "#/$defs/transition0"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "snapshot_staged"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "durable_receipt": {
+            "type": "null"
+          },
+          "propagation_receipt": {
+            "type": "null"
+          },
+          "component_close_receipts": {
+            "maxItems": 0
+          },
+          "transition_history": {
+            "minItems": 2,
+            "maxItems": 2,
+            "prefixItems": [
+              {
+                "$ref": "#/$defs/transition0"
+              },
+              {
+                "$ref": "#/$defs/transition1"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "durable_pending"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "propagation_receipt": {
+            "type": "null"
+          },
+          "component_close_receipts": {
+            "maxItems": 0
+          },
+          "transition_history": {
+            "minItems": 3,
+            "maxItems": 3,
+            "prefixItems": [
+              {
+                "$ref": "#/$defs/transition0"
+              },
+              {
+                "$ref": "#/$defs/transition1"
+              },
+              {
+                "$ref": "#/$defs/transition2"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "propagated"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "durable_receipt": {
+            "$ref": "#/$defs/durableReceipt"
+          },
+          "propagation_receipt": {
+            "$ref": "#/$defs/propagationReceipt"
+          },
+          "component_close_receipts": {
+            "maxItems": 0
+          },
+          "transition_history": {
+            "minItems": 4,
+            "maxItems": 4,
+            "prefixItems": [
+              {
+                "$ref": "#/$defs/transition0"
+              },
+              {
+                "$ref": "#/$defs/transition1"
+              },
+              {
+                "$ref": "#/$defs/transition2"
+              },
+              {
+                "$ref": "#/$defs/transition3"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "close_eligible"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "durable_receipt": {
+            "$ref": "#/$defs/durableReceipt"
+          },
+          "propagation_receipt": {
+            "$ref": "#/$defs/propagationReceipt"
+          },
+          "component_close_receipts": {
+            "minItems": 4,
+            "maxItems": 4,
+            "allOf": [
+              {
+                "contains": {
+                  "properties": {
+                    "component": {
+                      "const": "session"
+                    }
+                  },
+                  "required": [
+                    "component"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "component": {
+                      "const": "database"
+                    }
+                  },
+                  "required": [
+                    "component"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "component": {
+                      "const": "transcript"
+                    }
+                  },
+                  "required": [
+                    "component"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "component": {
+                      "const": "route"
+                    }
+                  },
+                  "required": [
+                    "component"
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              }
+            ]
+          },
+          "unresolved_holds": {
+            "maxItems": 0
+          },
+          "transition_history": {
+            "minItems": 5,
+            "maxItems": 5,
+            "prefixItems": [
+              {
+                "$ref": "#/$defs/transition0"
+              },
+              {
+                "$ref": "#/$defs/transition1"
+              },
+              {
+                "$ref": "#/$defs/transition2"
+              },
+              {
+                "$ref": "#/$defs/transition3"
+              },
+              {
+                "$ref": "#/$defs/transition4"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "requested"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "snapshot": {
+            "properties": {
+              "snapshot_id": {
+                "type": "null"
+              },
+              "sha256": {
+                "type": "null"
+              },
+              "byte_length": {
+                "type": "null"
+              },
+              "relative_path": {
+                "type": "null"
+              },
+              "readback": {
+                "properties": {
+                  "sha256": {
+                    "type": "null"
+                  },
+                  "byte_length": {
+                    "type": "null"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "snapshot_staged"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "snapshot": {
+            "properties": {
+              "snapshot_id": {
+                "$ref": "#/$defs/sha256"
+              },
+              "sha256": {
+                "$ref": "#/$defs/sha256"
+              },
+              "byte_length": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "relative_path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "readback": {
+                "properties": {
+                  "sha256": {
+                    "type": "null"
+                  },
+                  "byte_length": {
+                    "type": "null"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "enum": [
+              "durable_pending",
+              "propagated",
+              "close_eligible"
+            ]
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "snapshot": {
+            "properties": {
+              "snapshot_id": {
+                "$ref": "#/$defs/sha256"
+              },
+              "sha256": {
+                "$ref": "#/$defs/sha256"
+              },
+              "byte_length": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "relative_path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "readback": {
+                "properties": {
+                  "sha256": {
+                    "$ref": "#/$defs/sha256"
+                  },
+                  "byte_length": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "safeId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@+\\-]{0,127}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lifecycle_id",
+        "session_id",
+        "payload",
+        "snapshot_id",
+        "sha256",
+        "byte_length",
+        "relative_path",
+        "readback"
+      ],
+      "properties": {
+        "lifecycle_id": {
+          "$ref": "#/$defs/safeId"
+        },
+        "session_id": {
+          "$ref": "#/$defs/safeId"
+        },
+        "payload": {
+          "type": "object"
+        },
+        "snapshot_id": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/sha256"
+            }
+          ]
+        },
+        "sha256": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/sha256"
+            }
+          ]
+        },
+        "byte_length": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "relative_path": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "readback": {
+          "$ref": "#/$defs/snapshotReadback"
+        }
+      }
+    },
+    "durableReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "remote_ref",
+        "canonical_path",
+        "pushed_sha",
+        "snapshot_id",
+        "snapshot_sha256",
+        "independent_readback_sha256",
+        "verified_at",
+        "writer_identity",
+        "reader_identity",
+        "receipt_hash"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+        },
+        "remote_ref": {
+          "type": "string",
+          "pattern": "^refs/heads/[A-Za-z0-9][A-Za-z0-9._/\\-]*$"
+        },
+        "canonical_path": {
+          "type": "string",
+          "pattern": "^(?!/)(?!.*(?:^|/)(?:\\.|\\.\\.)(?:/|$))(?!.*(?:^|/)session_close_staging(?:/|$))[^/]+(?:/[^/]+)*$"
+        },
+        "pushed_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "snapshot_id": {
+          "$ref": "#/$defs/sha256"
+        },
+        "snapshot_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "independent_readback_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "verified_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "writer_identity": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reader_identity": {
+          "type": "string",
+          "minLength": 1
+        },
+        "receipt_hash": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "propagationReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "remote_ref",
+        "canonical_path",
+        "pushed_sha",
+        "snapshot_id",
+        "snapshot_sha256",
+        "independent_readback_sha256",
+        "durable_receipt_hash",
+        "propagated_at",
+        "propagator_identity",
+        "reader_identity",
+        "receipt_hash"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+        },
+        "remote_ref": {
+          "type": "string",
+          "pattern": "^refs/heads/[A-Za-z0-9][A-Za-z0-9._/\\-]*$"
+        },
+        "canonical_path": {
+          "type": "string",
+          "pattern": "^(?!/)(?!.*(?:^|/)(?:\\.|\\.\\.)(?:/|$))(?!.*(?:^|/)session_close_staging(?:/|$))[^/]+(?:/[^/]+)*$"
+        },
+        "pushed_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "snapshot_id": {
+          "$ref": "#/$defs/sha256"
+        },
+        "snapshot_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "independent_readback_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "durable_receipt_hash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "propagated_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "propagator_identity": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reader_identity": {
+          "type": "string",
+          "minLength": 1
+        },
+        "receipt_hash": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "componentReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "component",
+        "status",
+        "lifecycle_id",
+        "session_id",
+        "snapshot_id",
+        "snapshot_sha256",
+        "verified_at"
+      ],
+      "properties": {
+        "component": {
+          "enum": [
+            "session",
+            "database",
+            "transcript",
+            "route"
+          ]
+        },
+        "status": {
+          "const": "preserved"
+        },
+        "lifecycle_id": {
+          "$ref": "#/$defs/safeId"
+        },
+        "session_id": {
+          "$ref": "#/$defs/safeId"
+        },
+        "snapshot_id": {
+          "$ref": "#/$defs/sha256"
+        },
+        "verified_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "snapshot_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "transition0": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/transition"
+        },
+        {
+          "properties": {
+            "sequence": {
+              "const": 0
+            },
+            "from_state": {
+              "const": null
+            },
+            "to_state": {
+              "const": "requested"
+            }
+          }
+        }
+      ]
+    },
+    "transition1": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/transition"
+        },
+        {
+          "properties": {
+            "sequence": {
+              "const": 1
+            },
+            "from_state": {
+              "const": "requested"
+            },
+            "to_state": {
+              "const": "snapshot_staged"
+            }
+          }
+        }
+      ]
+    },
+    "transition2": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/transition"
+        },
+        {
+          "properties": {
+            "sequence": {
+              "const": 2
+            },
+            "from_state": {
+              "const": "snapshot_staged"
+            },
+            "to_state": {
+              "const": "durable_pending"
+            }
+          }
+        }
+      ]
+    },
+    "transition3": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/transition"
+        },
+        {
+          "properties": {
+            "sequence": {
+              "const": 3
+            },
+            "from_state": {
+              "const": "durable_pending"
+            },
+            "to_state": {
+              "const": "propagated"
+            }
+          }
+        }
+      ]
+    },
+    "transition4": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/transition"
+        },
+        {
+          "properties": {
+            "sequence": {
+              "const": 4
+            },
+            "from_state": {
+              "const": "propagated"
+            },
+            "to_state": {
+              "const": "close_eligible"
+            }
+          }
+        }
+      ]
+    },
+    "transition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sequence",
+        "from_state",
+        "to_state",
+        "transitioned_at",
+        "previous_transition_hash",
+        "transition_hash"
+      ],
+      "properties": {
+        "sequence": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "from_state": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            null,
+            "requested",
+            "snapshot_staged",
+            "durable_pending",
+            "propagated"
+          ]
+        },
+        "to_state": {
+          "enum": [
+            "requested",
+            "snapshot_staged",
+            "durable_pending",
+            "propagated",
+            "close_eligible"
+          ]
+        },
+        "transitioned_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "previous_transition_hash": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/sha256"
+            }
+          ]
+        },
+        "transition_hash": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "canonicalTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "remote_ref",
+        "canonical_path"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+        },
+        "remote_ref": {
+          "type": "string",
+          "pattern": "^refs/heads/[A-Za-z0-9][A-Za-z0-9._/\\-]*$"
+        },
+        "canonical_path": {
+          "type": "string",
+          "pattern": "^(?!/)(?!.*(?:^|/)(?:\\.|\\.\\.)(?:/|$))(?!.*(?:^|/)session_close_staging(?:/|$))[^/]+(?:/[^/]+)*$"
+        }
+      }
+    },
+    "snapshotReadback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sha256",
+        "byte_length"
+      ],
+      "properties": {
+        "sha256": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/sha256"
+            }
+          ]
+        },
+        "byte_length": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

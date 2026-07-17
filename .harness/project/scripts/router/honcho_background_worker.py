@@ -234,58 +234,36 @@ def handle_check_drift(args: argparse.Namespace) -> int:
     return 0
 
 def handle_writeback(args: argparse.Namespace) -> int:
+    from session_close_lifecycle import request_close, stage_snapshot, verify_snapshot_readback
+
     repo = Path(args.repo).resolve()
-    s_id = args.session_id
-    if not s_id:
-        try:
-            _, _, cfg = _init_honcho(repo, Path(args.hermes_agent_root), None)
-            s_id = cfg.resolve_session_name()
-        except Exception: s_id = "sim_" + datetime.now().strftime("%Y%m%d_%H%M%S")
-    snap = {
-        "session_id": s_id, "thread_id": args.thread_id or f"thread_{s_id}",
-        "root_goal_id": args.root_goal_id or "root_goal_harness_init", "task_AC_result": args.task_ac_result,
+    s_id = args.session_id or "sim_" + datetime.now().strftime("%Y%m%d_%H%M%S")
+    snapshot = {
+        "session_id": s_id,
+        "thread_id": args.thread_id or f"thread_{s_id}",
+        "root_goal_id": args.root_goal_id or "root_goal_harness_init",
+        "task_AC_result": args.task_ac_result,
         "changed_policy_or_procedure": args.changed_policy_or_procedure or "None",
         "source_refs": [r.strip() for r in args.source_refs.split(",")] if args.source_refs else [],
         "artifact_refs": [r.strip() for r in args.artifact_refs.split(",")] if args.artifact_refs else [],
         "unresolved_holds": [h.strip() for h in args.unresolved_holds.split(",")] if args.unresolved_holds else [],
-        "route_cleanup_state": "completed", "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
     }
-    out = repo / f".harness/project/runs/writeback_{s_id}.json"
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(snap, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"[Writeback] Snapshot written to: {out.relative_to(repo)}")
-    
-    # GBrain Memory Store Synchronization
-    gbrain_store = repo / ".harness/project/runs/gbrain_memory_store.json"
-    existing = []
-    if gbrain_store.exists():
-        try:
-            loaded = json.loads(gbrain_store.read_text(encoding="utf-8"))
-            existing = loaded if isinstance(loaded, list) else [loaded]
-        except Exception:
-            pass
-    existing.append(snap)
-    gbrain_store.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"[GBrain Store] Accumulated snapshot to: {gbrain_store.relative_to(repo)}")
-    try:
-        mgr, s_key, cfg = _init_honcho(repo, Path(args.hermes_agent_root), s_id)
-        if mgr and cfg.enabled:
-            session = mgr.get_or_create(s_key)
-            session.add_message("assistant", f"<learning_writeback_snapshot>\n{json.dumps(snap, ensure_ascii=False, indent=2)}\n</learning_writeback_snapshot>")
-            mgr.save(session)
-            mgr.flush_all()
-    except Exception as e: print(f"[Writeback] [Warning] Honcho write failed: {e}")
-    s_json = Path.home() / ".hermes/sessions/sessions.json"
-    if s_json.exists():
-        try:
-            data = json.loads(s_json.read_text(encoding="utf-8"))
-            for k, v in data.items():
-                if k == s_id or v.get("session_id") == s_id:
-                    v.update({"suspended": True, "expiry_finalized": True, "route_cleanup_state": "completed"})
-            s_json.write_text(json.dumps(data, indent=2), encoding="utf-8")
-            print(f"[Gateway Cleanup] Finalized route in {s_json}")
-        except Exception as e: print(f"[Gateway Cleanup] [Warning] Failed to edit sessions.json: {e}")
-    else: print("[Gateway Cleanup] sessions.json not found. Simulated.")
+    target_fields = (args.target_repository, args.target_remote_ref, args.target_relative_path)
+    if not all(isinstance(value, str) and value for value in target_fields):
+        raise ValueError("writeback requires an explicit canonical target")
+    canonical_target = {
+        "repository": args.target_repository,
+        "remote_ref": args.target_remote_ref,
+        "relative_path": args.target_relative_path,
+    }
+    state = request_close(repo, s_id, snapshot, canonical_target)
+    state = stage_snapshot(state)
+    state = verify_snapshot_readback(state)
+    print(
+        f"[Writeback] Snapshot staged at {state['snapshot']['relative_path']}; "
+        f"state={state['state']} snapshot_id={state['snapshot']['snapshot_id']}"
+    )
     return 0
 
 def main() -> int:
@@ -295,6 +273,7 @@ def main() -> int:
     ap.add_argument("--repo", default=str(DEFAULT_REPO)); ap.add_argument("--hermes-agent-root", default=str(DEFAULT_HERMES_AGENT_ROOT))
     ap.add_argument("--thread-id"); ap.add_argument("--root-goal-id"); ap.add_argument("--task-ac-result", default="passed")
     ap.add_argument("--changed-policy-or-procedure"); ap.add_argument("--source-refs"); ap.add_argument("--artifact-refs"); ap.add_argument("--unresolved-holds")
+    ap.add_argument("--target-repository"); ap.add_argument("--target-remote-ref"); ap.add_argument("--target-relative-path")
     args = ap.parse_args()
     return {"ingest": handle_ingest, "check-drift": handle_check_drift, "writeback": handle_writeback}[args.action](args)
 

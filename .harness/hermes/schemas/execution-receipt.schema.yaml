@@ -1,0 +1,212 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Runtime execution or continuation receipt",
+  "oneOf": [
+    {"$ref": "#/$defs/execution_receipt"},
+    {"$ref": "#/$defs/continuation_receipt"}
+  ],
+  "properties": {
+    "external_runtime_receipt": {
+      "type": "object",
+      "required": ["producer_ref", "runtime_receipt", "consumer_ref"],
+      "properties": {
+        "producer_ref": {"type": "string", "minLength": 1},
+        "runtime_receipt": {"type": "string", "minLength": 1},
+        "consumer_ref": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "facts_value": {
+      "anyOf": [
+        {"$ref": "#/$defs/facts_without_identity"},
+        {"type": "array", "items": {"$ref": "#/$defs/facts_value"}},
+        {"type": ["string", "number", "boolean", "null"]}
+      ]
+    },
+    "facts_without_identity": {
+      "type": "object",
+      "not": {
+        "anyOf": [
+          {"required": ["graph_ref"]},
+          {"required": ["graph_revision"]},
+          {"required": ["graph_digest"]},
+          {"required": ["stage_ref"]},
+          {"required": ["owner_ref"]},
+          {"required": ["run_handle"]},
+          {"required": ["attempt"]},
+          {"required": ["immutable_body_digest"]}
+        ]
+      },
+      "additionalProperties": {"$ref": "#/$defs/facts_value"}
+    },
+    "external_runtime_facts": {
+      "type": "object",
+      "required": [
+        "event", "argv", "pid", "exit_code",
+        "body_artifact_ref", "body_digest", "body_byte_count",
+        "stdout_artifact_ref", "stdout_digest", "stdout_byte_count",
+        "stderr_artifact_ref", "stderr_digest", "stderr_byte_count"
+      ],
+      "properties": {
+        "event": {"enum": ["dispatch", "heartbeat", "poll", "blocker", "terminal"]},
+        "argv": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "pid": {"type": ["integer", "null"], "minimum": 1},
+        "exit_code": {"type": ["integer", "null"]},
+        "body_artifact_ref": {"type": "string", "minLength": 1},
+        "body_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "body_byte_count": {"type": "integer", "minimum": 0},
+        "stdout_artifact_ref": {"type": "string", "minLength": 1},
+        "stdout_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "stdout_byte_count": {"type": "integer", "minimum": 0},
+        "stderr_artifact_ref": {"type": "string", "minLength": 1},
+        "stderr_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "stderr_byte_count": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "execution_receipt": {
+      "type": "object",
+      "required": ["family", "receipt_ref", "transition_from_ref", "work_id", "checkpoint_id", "status", "recorded_at"],
+      "properties": {
+        "family": {"const": "execution_receipt"},
+        "receipt_ref": {"type": "string", "minLength": 1},
+        "transition_from_ref": {"type": ["string", "null"]},
+        "work_id": {"type": ["string", "null"]},
+        "graph_ref": {"type": "string", "minLength": 1},
+        "graph_revision": {"type": "integer", "minimum": 1},
+        "graph_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "stage_ref": {"type": "string", "minLength": 1},
+        "owner_ref": {"type": "string", "minLength": 1},
+        "run_handle": {"type": "string", "minLength": 1},
+        "attempt": {"type": "integer", "minimum": 1},
+        "immutable_body_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "checkpoint_id": {"type": ["string", "null"]},
+        "status": {"enum": ["observed", "pass", "fail", "blocked"]},
+        "recorded_at": {"type": "string"},
+        "parent_edge_ref": {"type": ["string", "null"]},
+        "changed_paths": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "return_to_node_ref": {"type": ["string", "null"]},
+        "partial_mutation_disposition": {"enum": ["reconcile", "revert", "owner_hold"]},
+        "errors": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {"type": "string", "maxLength": 500}
+        },
+        "external_runtime_receipt": {
+          "type": "object",
+          "required": ["producer_ref", "runtime_receipt", "consumer_ref"],
+          "properties": {
+            "producer_ref": {"type": "string", "minLength": 1},
+            "runtime_receipt": {"type": "string", "minLength": 1},
+            "consumer_ref": {"type": "string", "minLength": 1}
+          },
+          "additionalProperties": false
+        },
+        "facts": {"$ref": "#/$defs/facts_without_identity"}
+      },
+      "allOf": [
+        {
+          "if": {
+            "anyOf": [
+              {"required": ["graph_ref"]},
+              {"required": ["graph_revision"]},
+              {"required": ["graph_digest"]},
+              {"required": ["stage_ref"]},
+              {"required": ["owner_ref"]},
+              {"required": ["run_handle"]},
+              {"required": ["attempt"]},
+              {"required": ["immutable_body_digest"]}
+            ]
+          },
+          "then": {
+            "required": ["work_id", "graph_ref", "graph_revision", "graph_digest", "stage_ref", "owner_ref", "run_handle", "attempt", "immutable_body_digest"],
+            "properties": {
+              "work_id": {"type": "string", "minLength": 1}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {"const": "blocked"},
+              "changed_paths": {"minItems": 1}
+            },
+            "required": ["status", "changed_paths"]
+          },
+          "then": {
+            "required": ["partial_mutation_disposition", "parent_edge_ref", "return_to_node_ref"],
+            "properties": {
+              "parent_edge_ref": {"type": "string", "minLength": 1},
+              "return_to_node_ref": {"type": "string", "minLength": 1}
+            }
+          }
+        },
+        {
+          "if": {"required": ["external_runtime_receipt"]},
+          "then": {
+            "required": [
+              "graph_ref", "graph_revision", "graph_digest", "stage_ref", "owner_ref",
+              "parent_edge_ref", "return_to_node_ref", "run_handle", "attempt",
+              "immutable_body_digest", "facts"
+            ],
+            "properties": {
+              "parent_edge_ref": {"type": "string", "minLength": 1},
+              "return_to_node_ref": {"type": "string", "minLength": 1},
+              "facts": {"$ref": "#/$defs/external_runtime_facts"}
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["external_runtime_receipt", "facts"],
+            "properties": {
+              "facts": {
+                "required": ["event"],
+                "properties": {"event": {"const": "terminal"}}
+              }
+            }
+          },
+          "then": {"properties": {"status": {"enum": ["pass", "fail", "blocked"]}}}
+        },
+        {
+          "if": {
+            "required": ["external_runtime_receipt", "facts"],
+            "properties": {
+              "facts": {
+                "required": ["event"],
+                "properties": {"event": {"enum": ["dispatch", "heartbeat", "poll", "blocker"]}}
+              }
+            }
+          },
+          "then": {"properties": {"status": {"const": "observed"}}}
+        }
+      ],
+      "additionalProperties": false
+    },
+    "continuation_receipt": {
+      "type": "object",
+      "required": ["family", "receipt_ref", "parent_receipt_ref", "work_id", "parent_edge_ref", "returns_to_ref", "return_to_node_ref", "disposition", "recorded_at"],
+      "properties": {
+        "family": {"const": "continuation_receipt"},
+        "receipt_ref": {"type": "string", "minLength": 1},
+        "parent_receipt_ref": {"type": "string", "minLength": 1},
+        "work_id": {"type": "string", "minLength": 1},
+        "parent_edge_ref": {"type": "string", "minLength": 1},
+        "returns_to_ref": {"type": "string", "minLength": 1},
+        "return_to_node_ref": {"type": "string", "minLength": 1},
+        "disposition": {"const": "continue"},
+        "recorded_at": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

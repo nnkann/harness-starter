@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Git worker receipt",
+  "type": "object",
+  "required": ["family", "work_id", "checkpoint_id", "status", "recorded_at"],
+  "properties": {
+    "family": {"const": "git_worker_receipt"},
+    "work_id": {"type": ["string", "null"]},
+    "checkpoint_id": {"type": ["string", "null"]},
+    "status": {"enum": ["git_pending", "git_committed", "git_pushed", "git_failed", "rejected_dispatch"]},
+    "recorded_at": {"type": "string"},
+    "errors": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {"type": "string", "maxLength": 500}
+    },
+    "pid": {"type": ["integer", "null"]},
+    "packet_path": {"type": "string"},
+    "job_path": {"type": "string"},
+    "provider": {"type": "string"},
+    "model": {"type": "string"},
+    "stdout_log_path": {"type": "string"},
+    "stderr_log_path": {"type": "string"},
+    "idempotency_key": {"type": "string"},
+    "worker_exit_code": {"type": ["integer", "null"]},
+    "head_sha": {"type": "string"},
+    "upstream_sha": {"type": "string"}
+  },
+  "additionalProperties": false
+}

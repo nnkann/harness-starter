@@ -11,6 +11,9 @@ STAGE_IDS = tuple("N%d" % number for number in range(1, 10))
 SIA_DISPOSITIONS = frozenset(("same", "revised", "stale", "conflict", "withdrawn"))
 VALID_LIFECYCLES = SIA_DISPOSITIONS
 CANONICAL_GRAPH_REF = "cps-memory-lifecycle-and-honcho-anchor/C2@ee8cb7cbd851ff2eee40b0f2556be5133fc7a2cd"
+MAX_BUDGET_ENVELOPE_AGE_SECONDS = 300
+MAX_BUDGET_AGE_RECEIPT_SECONDS = 86400
+MAX_BUDGET_COUNTER = (1 << 63) - 1
 
 
 @dataclass(frozen=True)
@@ -34,6 +37,36 @@ class SiaComparison:
 
 
 @dataclass(frozen=True)
+class BudgetDecision:
+    schema: str
+    version: int
+    budget_source_ref: str
+    token_estimate: Optional[int]
+    token_budget_remaining_before: Optional[int]
+    budget_age_seconds: Optional[int]
+    actual_token_usage: Optional[int]
+    context_remaining_pct: Any
+    decision: str
+    reason: str
+    measurement_status: str
+
+    def receipt_fields(self) -> Mapping[str, Any]:
+        return {
+            "schema": self.schema,
+            "version": self.version,
+            "budget_source_ref": self.budget_source_ref,
+            "token_estimate": self.token_estimate,
+            "token_budget_remaining_before": self.token_budget_remaining_before,
+            "budget_age_seconds": self.budget_age_seconds,
+            "actual_token_usage": self.actual_token_usage,
+            "context_remaining_pct": self.context_remaining_pct,
+            "decision": self.decision,
+            "reason": self.reason,
+            "measurement_status": self.measurement_status,
+        }
+
+
+@dataclass(frozen=True)
 class StageReceipt:
     event_id: str
     graph_ref: str
@@ -41,7 +74,7 @@ class StageReceipt:
     attempt: int
     status: str
     reason: str
-    refs: Mapping[str, str] = field(default_factory=dict)
+    refs: Mapping[str, Any] = field(default_factory=dict)
     depends_on: Tuple[str, ...] = ()
 
 
@@ -57,7 +90,7 @@ class StageAdapters(Protocol):
 
     def confirm_remote(self, event: PushedShaEvent) -> bool: ...
     def is_duplicate(self, event: PushedShaEvent) -> bool: ...
-    def within_budget(self, event: PushedShaEvent) -> bool: ...
+    def within_budget(self, event: PushedShaEvent) -> BudgetDecision: ...
     def import_source(self, event: PushedShaEvent) -> str: ...
     def read_source(self, import_ref: str) -> Mapping[str, Any]: ...
     def compare(self, event: PushedShaEvent, source: Mapping[str, Any]) -> SiaComparison: ...
@@ -89,11 +122,13 @@ class ProductionStageAdapters:
         database_path: Path,
         writer: HonchoAnchorPort,
         reader: HonchoAnchorPort,
+        budget_decision: BudgetDecision,
     ):
         self.repo = Path(repo).resolve()
         self.database_path = Path(database_path)
         self.writer = writer
         self.reader = reader
+        self.budget_decision = budget_decision
         self.writer_session_id = writer.identity
         self.readback_session_id = reader.identity
         if self.writer_session_id == self.readback_session_id:
@@ -165,7 +200,7 @@ class ProductionStageAdapters:
             ).fetchone() is not None
 
     def within_budget(self, event):
-        return True
+        return self.budget_decision
 
     def import_source(self, event):
         blob = self._git("show", "%s:%s" % (event.pushed_sha, event.source_ref), text=False)
@@ -320,7 +355,7 @@ def _receipt(
     stage_id: str,
     status: str,
     reason: str,
-    refs: Optional[Mapping[str, str]] = None,
+    refs: Optional[Mapping[str, Any]] = None,
     depends_on: Tuple[str, ...] = (),
 ) -> StageReceipt:
     if status not in ALLOWED_STATUSES:
@@ -339,6 +374,76 @@ def _receipt(
 
 def source_ref_digest(source_ref: str) -> str:
     return hashlib.sha256(source_ref.encode("utf-8")).hexdigest()
+
+
+def _nonnegative_int(value: Any, upper_bound: int = MAX_BUDGET_COUNTER) -> Optional[int]:
+    return value if isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= upper_bound else None
+
+
+def _bounded_context_pct(value: Any) -> Any:
+    return value if value is None or (isinstance(value, (int, float)) and not isinstance(value, bool) and 0 <= value <= 100) else None
+
+
+def _bounded_budget_source_ref(value: Any) -> str:
+    return value if isinstance(value, str) and value.strip() and len(value) <= 256 and "\n" not in value and "\r" not in value else "unavailable"
+
+
+def build_budget_decision(
+    budget_source_ref: Any,
+    token_estimate: Any,
+    token_budget_remaining: Any,
+    context_remaining_pct: Any = None,
+    budget_age_seconds: Any = None,
+    actual_token_usage: Any = None,
+) -> BudgetDecision:
+    source_ref = _bounded_budget_source_ref(budget_source_ref)
+    estimate = _nonnegative_int(token_estimate)
+    remaining = _nonnegative_int(token_budget_remaining)
+    age = _nonnegative_int(budget_age_seconds, MAX_BUDGET_AGE_RECEIPT_SECONDS)
+    actual_usage = _nonnegative_int(actual_token_usage)
+    measurement_status = "measured" if actual_usage is not None else "unavailable"
+    if source_ref == "unavailable" or estimate is None or remaining is None or age is None:
+        decision, reason = "blocked", "budget-check-unavailable"
+    elif age > MAX_BUDGET_ENVELOPE_AGE_SECONDS:
+        decision, reason = "blocked", "budget-envelope-stale"
+    elif estimate > remaining:
+        decision, reason = "blocked", "budget-breached"
+    else:
+        decision, reason = "admitted", "budget-admitted"
+    return BudgetDecision(
+        schema="harness.cps_budget_decision_receipt.v1",
+        version=1,
+        budget_source_ref=source_ref,
+        token_estimate=estimate,
+        token_budget_remaining_before=remaining,
+        budget_age_seconds=age,
+        actual_token_usage=actual_usage,
+        context_remaining_pct=_bounded_context_pct(context_remaining_pct),
+        decision=decision,
+        reason=reason,
+        measurement_status=measurement_status,
+    )
+
+
+def _validated_budget_decision(value: Any) -> BudgetDecision:
+    if not isinstance(value, BudgetDecision):
+        return build_budget_decision("unavailable", None, None)
+    expected = build_budget_decision(
+        value.budget_source_ref,
+        value.token_estimate,
+        value.token_budget_remaining_before,
+        value.context_remaining_pct,
+        value.budget_age_seconds,
+        value.actual_token_usage,
+    )
+    return value if value == expected else build_budget_decision(
+        value.budget_source_ref,
+        None,
+        None,
+        value.context_remaining_pct,
+        value.budget_age_seconds,
+        value.actual_token_usage,
+    )
 
 
 def _valid_event(event: PushedShaEvent) -> bool:
@@ -450,14 +555,13 @@ def run_stage_core(event: PushedShaEvent, adapters: StageAdapters) -> StageResul
     add("N2", "pass", "event-admitted")
 
     try:
-        within_budget = adapters.within_budget(event)
+        budget_decision = _validated_budget_decision(adapters.within_budget(event))
     except Exception:
-        add("N3", "blocked", "budget-check-unavailable")
+        budget_decision = build_budget_decision("unavailable", None, None)
+    if budget_decision.decision != "admitted":
+        add("N3", "blocked", budget_decision.reason, budget_decision.receipt_fields())
         return stop()
-    if not within_budget:
-        add("N3", "blocked", "budget-breached")
-        return stop()
-    add("N3", "pass", "budget-admitted")
+    add("N3", "pass", "budget-admitted", budget_decision.receipt_fields())
 
     try:
         import_ref = adapters.import_source(event)

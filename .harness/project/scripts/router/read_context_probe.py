@@ -73,8 +73,7 @@ def _extract_candidate_summary(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def read_harness(repo: Path, candidates_path: Path, limit: int) -> dict[str, Any]:
-    agents = repo / "AGENTS.md"
-    readme = repo / "README.md"
+    entry_source = repo / "README.md"
     migration = repo / "supabase/migrations/202606150001_harness_cps_semantic_memory.sql"
     cron_contract = repo / ".harness/project/cron/harness_cps_memory_cron.yaml"
     rows = _jsonl(candidates_path, limit)
@@ -83,10 +82,9 @@ def read_harness(repo: Path, candidates_path: Path, limit: int) -> dict[str, Any
         "repo": str(repo),
         "repo_exists": repo.exists(),
         "canonical_branch_hint": "hermes/harness-starter-baseline",
-        "agents_md_present": agents.exists(),
-        "agents_md_preview": _read_text(agents, 2200),
-        "readme_present": readme.exists(),
-        "readme_preview": _read_text(readme, 1200),
+        "project_entry_source": str(entry_source),
+        "project_entry_source_present": entry_source.exists(),
+        "project_entry_source_preview": _read_text(entry_source, 2200),
         "cps_migration_present": migration.exists(),
         "cps_migration_tables": [
             "public.cps_memory_items",
@@ -221,8 +219,9 @@ def build_preamble(query: str, harness: dict[str, Any], honcho: dict[str, Any]) 
     return f"""[ROUTER_QUERY]
 {query}
 
-[HARNESS_POLICY]
-{(harness.get('agents_md_preview') or '')[:1800]}
+[PROJECT_ENTRY_SOURCE]
+path={harness.get('project_entry_source')}
+{(harness.get('project_entry_source_preview') or '')[:1800]}
 
 [HARNESS_CPS_CONTEXT]
 repo={harness.get('repo')}

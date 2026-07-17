@@ -32,6 +32,61 @@ CPS:
         judge: maat
         evidence: cps_semantic_trace
         pass_if: Live Maat -> Thoth -> Maat trace proves C-boundary, ordered P->S edges, AC judgment, and Goal closure.
+semantic_anchor:
+  schema: harness.honcho.cps_cluster.v1
+  cluster_key: harness-starter/cps-memory-lifecycle-and-honcho-anchor/decision
+  source_id: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md
+  source_revision: 4e577f07134365be64285223d04b75d5951576d7
+  content_hash: 31e2cbbb9f7ed0644a80f010313d4a413b9ac573be34fa2a1fd74cc6e57e8455
+  C:
+    shape: exact CPS Anchor Contract semantic-definition gate
+    boundary_hint: single
+    domain: [harness-starter]
+  P_order:
+    - id: P1
+      statement: Semantic leaves can reach routing without canonical definition proof.
+  S_mapping:
+    - id: S1
+      targets: [P1]
+      operator: Bind every present semantic leaf to the readable canonical section before runtime action.
+  AC_anchor:
+    - Missing or mismatched provenance holds before dispatch or write.
+  goal_state: partial
+  source_refs:
+    - /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md#CPS-Anchor-Contract
+  gbrain_pointers: []
+  lifecycle: validated
+  freshness: ${ANCHOR_FRESHNESS}
+  expires_at: ${ANCHOR_EXPIRES_AT}
+  supersedes: null
+semantic_provenance_binding:
+  canonical_source_locator: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md
+  canonical_source_readback: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:1-298
+  current_source_revision: 4e577f07134365be64285223d04b75d5951576d7
+  current_content_hash: 31e2cbbb9f7ed0644a80f010313d4a413b9ac573be34fa2a1fd74cc6e57e8455
+  canonical_section: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:75-108
+  semantic_field_definition_coverage:
+    schema: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:78
+    cluster_key: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:79
+    source_id: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:80
+    source_revision: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:81
+    content_hash: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:82
+    C.shape: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:85
+    C.boundary_hint: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:86
+    C.domain: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:87
+    P_order[].id: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:90
+    P_order[].statement: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:91
+    S_mapping[].id: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:94
+    S_mapping[].targets: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:95
+    S_mapping[].operator: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:96
+    AC_anchor: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:98
+    goal_state: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:101
+    source_refs: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:102
+    gbrain_pointers: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:103
+    lifecycle: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:104
+    freshness: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:105
+    expires_at: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:106
+    supersedes: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:107
 task_AC:
   owner: maat
   checks:

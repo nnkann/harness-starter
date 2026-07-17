@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "c2-sia-learning-candidate-promotion@r1",
+  "title": "Immutable verified CPS learning candidate",
+  "type": "object",
+  "required": ["candidate_id", "identity", "pattern", "outcome_binding", "execution_evidence", "source_refs", "lifecycle", "dedupe_key"],
+  "properties": {
+    "candidate_id": {"type": "string", "pattern": "^lc_[0-9a-f]{64}$"},
+    "identity": {
+      "type": "object",
+      "required": ["namespace", "name", "revision"],
+      "properties": {
+        "namespace": {"type": "string", "minLength": 1, "maxLength": 512},
+        "name": {"type": "string", "minLength": 1, "maxLength": 512},
+        "revision": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": false
+    },
+    "pattern": {
+      "type": "object",
+      "required": ["C", "P", "S", "AC"],
+      "properties": {
+        "C": {"type": "string", "minLength": 1, "maxLength": 512},
+        "P": {"$ref": "#/$defs/compactSteps"},
+        "S": {"$ref": "#/$defs/compactSteps"},
+        "AC": {"$ref": "#/$defs/compactSteps"}
+      },
+      "additionalProperties": false
+    },
+    "outcome_binding": {"$ref": "#/$defs/outcomeProof"},
+    "execution_evidence": {
+      "type": "array", "minItems": 1, "maxItems": 16,
+      "items": {"$ref": "#/$defs/executionProof"}
+    },
+    "source_refs": {
+      "type": "array", "minItems": 1, "maxItems": 32, "uniqueItems": true,
+      "items": {"$ref": "#/$defs/ref"}
+    },
+    "lifecycle": {"const": "candidate"},
+    "dedupe_key": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "supersedes_ref": {"type": "string", "pattern": "^lc_[0-9a-f]{64}$"}
+  },
+  "$defs": {
+    "ref": {"type": "string", "minLength": 1, "maxLength": 512, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/@-]*$"},
+    "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "compactSteps": {
+      "type": "array", "minItems": 1, "maxItems": 16,
+      "items": {"type": "string", "minLength": 1, "maxLength": 512}
+    },
+    "verifier": {
+      "type": "object",
+      "required": ["kind", "independent"],
+      "properties": {"kind": {"const": "maat"}, "independent": {"const": true}},
+      "additionalProperties": false
+    },
+    "outcomeProof": {
+      "type": "object",
+      "required": ["outcome_ref", "digest", "state", "terminal", "verifier"],
+      "properties": {
+        "outcome_ref": {"$ref": "#/$defs/ref"},
+        "digest": {"$ref": "#/$defs/digest"},
+        "state": {"const": "verified"},
+        "terminal": {"const": true},
+        "verifier": {"$ref": "#/$defs/verifier"}
+      },
+      "additionalProperties": false
+    },
+    "executionProof": {
+      "type": "object",
+      "required": ["evidence_ref", "digest", "state", "terminal", "verifier"],
+      "properties": {
+        "evidence_ref": {"$ref": "#/$defs/ref"},
+        "digest": {"$ref": "#/$defs/digest"},
+        "state": {"const": "verified"},
+        "terminal": {"const": true},
+        "verifier": {"$ref": "#/$defs/verifier"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "C1 live source observations",
+  "type": "object",
+  "required": ["observations"],
+  "properties": {
+    "observations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source_kind", "status", "source_ref", "evidence"],
+        "properties": {
+          "source_kind": {"enum": ["honcho", "gbrain", "harness_brain"]},
+          "status": {"enum": ["match", "no_match", "unavailable"]},
+          "source_ref": {"type": "string", "minLength": 1},
+          "evidence": {
+            "type": "object",
+            "required": ["count", "timestamp"],
+            "properties": {
+              "count": {"type": "integer", "minimum": 0},
+              "timestamp": {"type": "string", "format": "date-time"},
+              "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

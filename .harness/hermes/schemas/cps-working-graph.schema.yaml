@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CPS working graph",
+  "type": "object",
+  "required": ["family", "work_id", "revision", "maat_body", "maat_body_digest", "pre_authorized_transitions", "materialized_transitions", "semantic_provenance_binding", "hermes_kann_addendum"],
+  "properties": {
+    "family": {"const": "cps_working_graph"},
+    "work_id": {"type": "string", "minLength": 1},
+    "revision": {"type": "integer", "minimum": 1},
+    "maat_body": {
+      "type": "object",
+      "properties": {
+        "returns_to": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/return_edge"}
+        },
+        "derived_c_lineage": {"$ref": "#/$defs/derived_c_lineage"}
+      }
+    },
+    "maat_body_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "pre_authorized_transitions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/pre_authorized_transition"}
+    },
+    "materialized_transitions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/materialized_transition"}
+    },
+    "hermes_kann_addendum": {"$ref": "#/$defs/addendum"},
+    "semantic_provenance_binding": {"$ref": "#/$defs/semantic_provenance_binding"},
+    "split_from": {"type": "string", "minLength": 1}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "derived_c_lineage": {
+      "type": "object",
+      "required": ["issued_by", "status", "derived_c_ref", "parent_work_id", "parent_graph_ref", "parent_graph_revision", "parent_graph_digest", "blocked_receipt_ref", "parent_edge_ref", "return_to_node_ref"],
+      "properties": {
+        "issued_by": {"const": "maat"},
+        "status": {"const": "accepted"},
+        "derived_c_ref": {"type": "string", "minLength": 1},
+        "parent_work_id": {"type": "string", "minLength": 1},
+        "parent_graph_ref": {"type": "string", "minLength": 1},
+        "parent_graph_revision": {"type": "integer", "minimum": 1},
+        "parent_graph_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "blocked_receipt_ref": {"type": "string", "minLength": 1},
+        "parent_edge_ref": {"type": "string", "minLength": 1},
+        "return_to_node_ref": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "pre_authorized_transition": {
+      "type": "object",
+      "required": ["id", "issued_by", "authority_revision", "authority_digest", "source_state_ref", "source_lifecycle", "trigger", "target", "allowed_delta_paths", "forbidden_delta_paths", "expires_on_revision_change", "replay_policy", "failure_disposition"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "issued_by": {"const": "maat"},
+        "authority_revision": {"type": "integer", "minimum": 1},
+        "authority_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "source_state_ref": {"type": "string", "minLength": 1},
+        "source_lifecycle": {"type": "string", "minLength": 1},
+        "trigger": {"$ref": "#/$defs/pre_authorized_trigger"},
+        "target": {"$ref": "#/$defs/pre_authorized_target"},
+        "allowed_delta_paths": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "forbidden_delta_paths": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "expires_on_revision_change": {"const": true},
+        "replay_policy": {"const": "idempotent"},
+        "failure_disposition": {"const": "hold_no_write"}
+      },
+      "additionalProperties": false
+    },
+    "pre_authorized_trigger": {
+      "type": "object",
+      "required": ["predicate_id", "predicate_version", "execution_case_refs", "required_lane_B_AC_refs", "required_evidence_refs"],
+      "properties": {
+        "predicate_id": {"enum": ["lane_b_exact_pass_v1", "blocked_parent_exact_resume_v1"]},
+        "predicate_version": {"const": "1"},
+        "execution_case_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "required_lane_B_AC_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "required_evidence_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      },
+      "additionalProperties": false
+    },
+    "pre_authorized_target": {
+      "type": "object",
+      "required": ["target_state_ref", "target_lifecycle"],
+      "properties": {
+        "target_state_ref": {"type": "string", "minLength": 1},
+        "target_lifecycle": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "materialized_transition": {
+      "type": "object",
+      "required": ["transition_id", "authorization_digest", "predicate_id", "predicate_version", "source_state_ref", "source_lifecycle", "target_lifecycle", "evidence_digests", "authority_revision", "authority_digest", "resulting_revision", "resulting_digest", "materialization_ref"],
+      "properties": {
+        "transition_id": {"type": "string", "minLength": 1},
+        "authorization_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "predicate_id": {"enum": ["lane_b_exact_pass_v1", "blocked_parent_exact_resume_v1"]},
+        "predicate_version": {"const": "1"},
+        "source_state_ref": {"type": "string", "minLength": 1},
+        "source_lifecycle": {"type": "string", "minLength": 1},
+        "target_lifecycle": {"type": "string", "minLength": 1},
+        "evidence_digests": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"}},
+        "authority_revision": {"type": "integer", "minimum": 1},
+        "authority_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "resulting_revision": {"type": "integer", "minimum": 2},
+        "resulting_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "materialization_ref": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "return_edge": {
+      "type": "object",
+      "required": ["kind", "id", "from", "to", "parent_edge_ref", "resume_if", "status"],
+      "properties": {
+        "kind": {"const": "returns_to"},
+        "id": {"type": "string", "minLength": 1},
+        "from": {"type": "string", "minLength": 1},
+        "to": {"type": "string", "minLength": 1},
+        "parent_edge_ref": {"type": "string", "minLength": 1},
+        "resume_if": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/resume_condition"},
+          "allOf": [
+            {"contains": {"properties": {"kind": {"const": "evidence_ref"}}, "required": ["kind"]}, "minContains": 1, "maxContains": 1},
+            {"contains": {"properties": {"kind": {"const": "derived_c_ac_satisfied"}}, "required": ["kind"]}, "minContains": 1, "maxContains": 1},
+            {"contains": {"properties": {"kind": {"const": "execution_terminal_unblocked"}}, "required": ["kind"]}, "minContains": 1, "maxContains": 1}
+          ]
+        },
+        "status": {"enum": ["pending", "eligible", "satisfied", "blocked"]}
+      },
+      "additionalProperties": false
+    },
+    "resume_condition": {
+      "type": "object",
+      "required": ["kind", "ref"],
+      "properties": {
+        "kind": {"enum": ["evidence_ref", "derived_c_ac_satisfied", "execution_terminal_unblocked"]},
+        "ref": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "semantic_provenance_binding": {
+      "type": "object",
+      "required": ["canonical_source_locator", "canonical_source_readback", "current_source_revision", "current_content_hash", "canonical_section", "semantic_field_definition_coverage"],
+      "properties": {
+        "canonical_source_locator": {"type": "string", "minLength": 1},
+        "canonical_source_readback": {"type": "string", "minLength": 1},
+        "current_source_revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "current_content_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "canonical_section": {"type": "string", "minLength": 1},
+        "semantic_field_definition_coverage": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "string", "minLength": 1}}
+      },
+      "additionalProperties": false
+    },
+    "addendum": {
+      "type": "object",
+      "required": ["observations", "source_refs"],
+      "properties": {
+        "observations": {"type": "array", "items": {}},
+        "source_refs": {"type": "array", "items": {}}
+      },
+      "additionalProperties": false
+    }
+  }
+}

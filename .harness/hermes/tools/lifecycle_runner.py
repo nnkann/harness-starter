@@ -14,6 +14,21 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from external_runtime_dispatcher import (
+    IDENTITY_KEYS as _EXTERNAL_RUNTIME_IDENTITY_KEYS,
+    OBSERVED_EVENTS as _EXTERNAL_RUNTIME_OBSERVED_EVENTS,
+    TERMINAL_STATUSES as _EXTERNAL_RUNTIME_TERMINAL_STATUSES,
+    _paths as _locate_external_runtime_receipts,
+    _read_chain_unlocked as _load_external_runtime_chain_read_only,
+    _read_current_unlocked as _load_external_runtime_current_read_only,
+    _validate_identity as _validate_external_runtime_identity,
+    _validate_runtime_facts as _validate_external_runtime_facts,
+    dispatch_external_runtime as _dispatch_external_runtime,
+    load_receipt_chain as _load_external_runtime_chain,
+    poll_external_runtime as _poll_external_runtime,
+    reconcile_external_runtime as _reconcile_external_runtime,
+)
+from cps_working_graph_registry import RegistryError, WorkingGraphRegistry
 from session_reclaim import build_reclaim_manifest, classify_lane_state, read_hermes_sessions_json, read_hermes_state_db_summary, reuse_decision
 from session_registry import clear_orphan_route, enforce_profile_cap, lane_key, load_registry, mark_reclaim_candidate, save_registry, upsert_representative
 
@@ -65,6 +80,246 @@ def _select_python() -> Path:
 
 
 PYTHON_EXEC = _select_python()
+
+
+class ExternalRuntimeProductionAdapter:
+    def __init__(self, record_root: Path):
+        self.record_root = Path(record_root)
+
+    def dispatch(
+        self,
+        identity: dict[str, Any],
+        consumer_ref: str,
+        body: bytes,
+        argv: list[str],
+        *,
+        process_runner=None,
+    ) -> dict[str, Any]:
+        return _dispatch_external_runtime(
+            consumer_ref,
+            body,
+            argv,
+            self.record_root,
+            identity=identity,
+            process_runner=process_runner,
+        )
+
+    def poll(self, identity: dict[str, Any]) -> dict[str, Any] | None:
+        return _poll_external_runtime(identity, self.record_root)
+
+    def reconcile(
+        self,
+        identity: dict[str, Any],
+        *,
+        pid_is_alive=None,
+        stale_after_seconds: float | None = None,
+    ) -> dict[str, Any] | None:
+        return _reconcile_external_runtime(
+            identity,
+            self.record_root,
+            pid_is_alive=pid_is_alive,
+            stale_after_seconds=stale_after_seconds,
+        )
+
+
+class ExternalRuntimeStateProjectionAdapter:
+    def __init__(self, record_root: Path):
+        self.record_root = Path(record_root)
+
+    @staticmethod
+    def _issued(authorization: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "authorization_state": "ISSUED",
+            "runtime_state": None,
+            "execution_status": None,
+            "execution_receipt_ref": None,
+            "execution_event": None,
+            "run_handle": None,
+            "attempt": None,
+            "recorded_at": authorization.get("recorded_at"),
+            "audit_verdict": None,
+            "state_source_ref": authorization.get("state_source_ref"),
+        }
+
+    @staticmethod
+    def _identity(authorization: dict[str, Any]) -> dict[str, Any]:
+        nested = authorization.get("identity")
+        if isinstance(nested, dict):
+            return _validate_external_runtime_identity(nested)
+        identity = {key: authorization.get(key) for key in _EXTERNAL_RUNTIME_IDENTITY_KEYS}
+        return _validate_external_runtime_identity(identity)
+
+    @staticmethod
+    def _valid_chain(chain: list[dict[str, Any]]) -> bool:
+        terminal_seen = False
+        for index, receipt in enumerate(chain):
+            event = receipt.get("facts", {}).get("event")
+            status = receipt.get("status")
+            if terminal_seen or receipt.get("family") != "execution_receipt":
+                return False
+            if not isinstance(receipt.get("recorded_at"), str):
+                return False
+            external = receipt.get("external_runtime_receipt")
+            if not isinstance(external, dict) or not all(external.get(key) for key in ("producer_ref", "runtime_receipt", "consumer_ref")):
+                return False
+            try:
+                _validate_external_runtime_facts(receipt.get("facts"))
+            except ValueError:
+                return False
+            if event == "terminal":
+                if status not in _EXTERNAL_RUNTIME_TERMINAL_STATUSES or index != len(chain) - 1:
+                    return False
+                terminal_seen = True
+            elif event not in _EXTERNAL_RUNTIME_OBSERVED_EVENTS or status != "observed":
+                return False
+        return True
+
+    def project(self, authorization: dict[str, Any]) -> dict[str, Any]:
+        issued = self._issued(authorization)
+        try:
+            identity = self._identity(authorization)
+            chain_path, current_path, _ = _locate_external_runtime_receipts(identity, self.record_root)
+            if not chain_path.is_file() or not current_path.is_file():
+                return issued
+            chain = _load_external_runtime_chain_read_only(identity, self.record_root)
+            current = _load_external_runtime_current_read_only(identity, self.record_root)
+            if not chain or not isinstance(current, dict) or current != chain[-1] or not self._valid_chain(chain):
+                return issued
+            chain_after = _load_external_runtime_chain_read_only(identity, self.record_root)
+            current_after = _load_external_runtime_current_read_only(identity, self.record_root)
+            if chain_after != chain or current_after != current:
+                return issued
+        except (OSError, RuntimeError, TypeError, ValueError):
+            return issued
+        event = current["facts"]["event"]
+        terminal = event == "terminal"
+        return {
+            "authorization_state": "ISSUED",
+            "runtime_state": "TERMINAL" if terminal else "RUNNING",
+            "execution_status": current["status"] if terminal else None,
+            "execution_receipt_ref": current["receipt_ref"],
+            "execution_event": event,
+            "run_handle": current["run_handle"],
+            "attempt": current["attempt"],
+            "recorded_at": current["recorded_at"],
+            "audit_verdict": None,
+            "state_source_ref": str(current_path.resolve()),
+        }
+
+
+def project_external_runtime_state(authorization: dict[str, Any], record_root: Path) -> dict[str, Any]:
+    return ExternalRuntimeStateProjectionAdapter(record_root).project(authorization)
+
+
+class PreAuthorizedTransitionProductionAdapter:
+    def __init__(self, graph_root: Path, evidence_root: Path):
+        self.store = WorkingGraphRegistry(Path(graph_root))
+        self.evidence_root = Path(evidence_root).resolve()
+
+    def _load_ref(self, ref: str) -> dict[str, Any]:
+        if not isinstance(ref, str) or not ref or Path(ref).is_absolute() or ".." in Path(ref).parts:
+            raise RegistryError("HOLD_PREAUTH_PREDICATE")
+        path = (self.evidence_root / ref).resolve()
+        if self.evidence_root not in path.parents:
+            raise RegistryError("HOLD_PREAUTH_PREDICATE")
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except Exception as error:
+            raise RegistryError("HOLD_PREAUTH_PREDICATE") from error
+        if not isinstance(value, dict):
+            raise RegistryError("HOLD_PREAUTH_PREDICATE")
+        return value
+
+    def materialize(
+        self,
+        work_id: str,
+        transition_id: str,
+        materialization_binding: dict[str, Any],
+    ) -> dict[str, Any]:
+        return self.store.materialize_pre_authorized_transition(
+            work_id, transition_id, materialization_binding, self._load_ref,
+        )
+
+
+class FinalAuditProductionAdapter:
+    def __init__(self, graph_root: Path, execution_root: Path):
+        self.graph_root = Path(graph_root)
+        self.store = WorkingGraphRegistry(self.graph_root)
+        self.execution_root = Path(execution_root)
+
+    def reload(self, identity: dict[str, Any]) -> dict[str, Any]:
+        work_id = identity.get("work_id", "")
+        graph = self.store.load(work_id)
+        expected_graph_ref = str((self.graph_root / f"{work_id}.yaml").resolve())
+        if (
+            identity.get("graph_ref") != expected_graph_ref
+            or graph.get("revision") != identity.get("graph_revision")
+            or graph.get("maat_body_digest") != identity.get("graph_digest")
+            or not self.store.verify_readback(work_id)
+        ):
+            return {"status": "hold", "failure_code": "HOLD_BINDING_MISMATCH"}
+        chain = _load_external_runtime_chain(identity, self.execution_root)
+        current = chain[-1] if chain else None
+        if not isinstance(current, dict) or current.get("facts", {}).get("event") != "terminal":
+            return {"status": "hold", "failure_code": "HOLD_EXECUTION_INCOMPLETE"}
+        if current.get("status") != "pass":
+            return {"status": "hold", "failure_code": "HOLD_EXECUTION_CASE"}
+        body = graph.get("maat_body")
+        if not isinstance(body, dict) or body.get("goal_eligible") is not True:
+            return {"status": "hold", "failure_code": "HOLD_SEMANTIC_AC"}
+        returns_to = body.get("returns_to", [])
+        if not isinstance(returns_to, list) or any(
+            not isinstance(edge, dict) or edge.get("status") != "satisfied" for edge in returns_to
+        ):
+            return {"status": "hold", "failure_code": "HOLD_RETURN_EDGE"}
+        return {
+            "status": "eligible_for_maat_audit",
+            "semantic_lane": {
+                "graph_ref": expected_graph_ref,
+                "graph_revision": graph["revision"],
+                "graph_digest": graph["maat_body_digest"],
+            },
+            "execution_lane": {
+                "receipt_ref": current.get("receipt_ref"),
+                "status": current.get("status"),
+                "parent_edge_ref": current.get("parent_edge_ref"),
+                "return_to_node_ref": current.get("return_to_node_ref"),
+            },
+        }
+
+
+def dispatch_external_body(
+    agent: str,
+    body: bytes,
+    argv: list[str],
+    record_root: Path,
+    *,
+    identity: dict[str, Any] | None = None,
+    process_runner=None,
+) -> dict[str, Any]:
+    if identity is None:
+        raise TypeError("explicit receipt identity required; direct runtime bypass rejected")
+    return ExternalRuntimeProductionAdapter(record_root).dispatch(
+        identity, agent, body, argv, process_runner=process_runner,
+    )
+
+
+def poll_external_body(identity: dict[str, Any], record_root: Path) -> dict[str, Any] | None:
+    return ExternalRuntimeProductionAdapter(record_root).poll(identity)
+
+
+def reconcile_external_body(
+    identity: dict[str, Any],
+    record_root: Path,
+    *,
+    pid_is_alive=None,
+    stale_after_seconds: float | None = None,
+) -> dict[str, Any] | None:
+    return ExternalRuntimeProductionAdapter(record_root).reconcile(
+        identity,
+        pid_is_alive=pid_is_alive,
+        stale_after_seconds=stale_after_seconds,
+    )
 
 def log_audit(action: str, exit_code: int, message: str) -> None:
     """Write structured audit log to keep compatibility with bash runner."""
@@ -272,6 +527,17 @@ def apply_session_policy(packet_data: dict[str, Any], routing: dict[str, Any], r
     }
 
 
+def attach_dispatch_plan(routing: dict[str, Any], preflight_result: dict[str, Any]) -> None:
+    route_gate = preflight_result.get("route_gate")
+    plan = route_gate.get("dispatch_plan") if isinstance(route_gate, dict) else None
+    if not isinstance(plan, dict):
+        return
+    routing["dispatch_plan"] = plan
+    routing["selected_nodes"] = list(plan.get("nodes", {}))
+    routing["ready_nodes"] = list(plan.get("ready_nodes", []))
+    routing["blocked_nodes"] = dict(plan.get("blocked_nodes", {}))
+
+
 def build_handoff_snapshot(packet_data: dict[str, Any], routing: dict[str, Any], preflight_result: dict[str, Any] | None) -> dict[str, Any]:
     route_gate = preflight_result.get("route_gate", {}) if isinstance(preflight_result, dict) and isinstance(preflight_result.get("route_gate"), dict) else {}
     selected_agents = route_gate.get("selected_agents", {}) if isinstance(route_gate.get("selected_agents"), dict) else {}
@@ -305,6 +571,10 @@ def build_handoff_snapshot(packet_data: dict[str, Any], routing: dict[str, Any],
         "token_budget_remaining": packet_data.get("token_budget_remaining"),
         "context_remaining_pct": packet_data.get("context_remaining_pct"),
         "session_policy": routing.get("session_policy"),
+        "dispatch_plan": routing.get("dispatch_plan"),
+        "selected_nodes": routing.get("selected_nodes", []),
+        "ready_nodes": routing.get("ready_nodes", []),
+        "blocked_nodes": routing.get("blocked_nodes", {}),
     }
 
 
@@ -821,6 +1091,7 @@ def do_delegate(packet_path: str) -> int:
             routing["rationale"] = f"Selected after CPS preflight route-gate; local body is available under {preflight_result.get('out_dir')}"
         routing["preflight_verification_gate"] = verification_gate
         routing["preflight_route_gate"] = preflight_result
+        attach_dispatch_plan(routing, preflight_result)
     session_policy = apply_session_policy(packet_data, routing, runs_dir)
     routing["session_policy"] = session_policy
     if preflight_result and isinstance(preflight_result.get("route_gate"), dict):
@@ -867,6 +1138,13 @@ def _sha(value: str) -> str:
     return value.lower()
 
 
+def _budget_measurement(value: str) -> Any:
+    try:
+        return int(value)
+    except ValueError:
+        return value
+
+
 class _LifecycleArgumentParser(argparse.ArgumentParser):
     def parse_known_args(self, args: Any = None, namespace: argparse.Namespace | None = None):
         parsed, unknown = super().parse_known_args(args, namespace)
@@ -890,6 +1168,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--source-ref")
     parser.add_argument("--lifecycle", choices=("initialization", "revised", "withdrawn"))
     parser.add_argument("--prior-ref")
+    parser.add_argument("--token-estimate", type=_budget_measurement)
+    parser.add_argument("--token-budget-remaining", type=_budget_measurement)
+    parser.add_argument("--context-remaining-pct", type=_budget_measurement)
+    parser.add_argument("--budget-source-ref", default="lifecycle-runner:c2-memory-cli")
+    parser.add_argument("--budget-age-seconds", type=_budget_measurement)
+    parser.add_argument("--actual-token-usage", type=_budget_measurement)
     return parser
 
 
@@ -933,6 +1217,11 @@ def _build_event(module, repo: Path, args):
 
 class HonchoUnavailable(RuntimeError):
     pass
+
+
+class _BudgetBlockedAnchorPort:
+    def __init__(self, identity: str):
+        self.identity = identity
 
 
 class _HonchoSdkAnchorPort:
@@ -1021,9 +1310,21 @@ def run_c2_memory(args, repo: Path = REPO_ROOT) -> tuple[int, dict[str, Any]]:
         return 2, evidence
     try:
         event = _build_event(module, repo, args)
-        writer, reader = _build_honcho_ports()
+        budget_decision = module.build_budget_decision(
+            getattr(args, "budget_source_ref", "lifecycle-runner:c2-memory-cli"),
+            getattr(args, "token_estimate", None),
+            getattr(args, "token_budget_remaining", None),
+            getattr(args, "context_remaining_pct", None),
+            getattr(args, "budget_age_seconds", None),
+            getattr(args, "actual_token_usage", None),
+        )
+        if budget_decision.decision == "admitted":
+            writer, reader = _build_honcho_ports()
+        else:
+            writer = _BudgetBlockedAnchorPort("budget-gate-writer")
+            reader = _BudgetBlockedAnchorPort("budget-gate-reader")
         database_path = repo / ".harness" / "project" / "runs" / "cps_memory_lifecycle.sqlite3"
-        adapters = module.ProductionStageAdapters(repo, database_path, writer, reader)
+        adapters = module.ProductionStageAdapters(repo, database_path, writer, reader, budget_decision)
         module.run_stage_core(event, adapters)
         receipts = tuple(adapters.reload_stage_receipts(event))
         closure_candidate = module.evaluate_closure(receipts, event)

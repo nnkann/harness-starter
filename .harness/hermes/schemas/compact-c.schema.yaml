@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Canonical compact C",
+  "type": "object",
+  "required": ["request_ref", "binding_ref", "C_shape", "direct_source_refs"],
+  "properties": {
+    "request_ref": {"type": "string", "minLength": 1},
+    "binding_ref": {"type": "string", "minLength": 1},
+    "C_shape": {
+      "type": "object",
+      "required": ["intent", "continuity", "boundary_hint", "cardinality_hint", "source_current_state_need"],
+      "properties": {
+        "intent": {"type": "string", "minLength": 1},
+        "continuity": {"enum": ["new", "follow_up", "rework", "linked", "incident"]},
+        "boundary_hint": {"enum": ["single", "linked", "unknown"]},
+        "cardinality_hint": {"enum": ["single", "multiple", "uncertain"]},
+        "source_current_state_need": {"enum": ["required", "not_required", "uncertain"]}
+      },
+      "additionalProperties": false
+    },
+    "direct_source_refs": {"type": "array", "items": {"type": "string", "minLength": 1}}
+  },
+  "additionalProperties": false
+}
