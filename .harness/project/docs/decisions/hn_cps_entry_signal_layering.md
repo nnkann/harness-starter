@@ -12,7 +12,7 @@ relates-to:
     rel: references
 status: completed
 created: 2026-05-11
-updated: 2026-05-11
+updated: 2026-07-15
 ---
 
 # CPS 진입 신호 계층화 — 3층 책임 분리 + 도구 frontmatter trigger + HARNESS_MAP 역생성
@@ -164,6 +164,21 @@ trigger:
 
 WIP frontmatter `problem`·`solution-ref` + AC 검증 묶음. 기존 docs.md
 규정 그대로. pre-check이 Layer 3 ↔ Layer 1 매칭 객관 검증.
+
+### 강제와 검증의 경계
+
+Layer 1의 사전 정의된 객관 신호만 hook·pre-check 같은 결정적 경로로
+차단하거나 검증할 수 있다. rules·문서·모델 지시는 행동에 영향을 주지만
+그 자체가 독립적 강제 또는 완료 증거는 아니다.
+
+판단형 오류는 자동 closure로 축소하지 않는다. artifact review와 CPS audit이
+각각의 잔여 판단 범위를 다루며, 상류 guardrail은 하류 review 비용을 줄일 때만
+방어 가치에 비례해 추가한다.
+
+이 경계는 S1·S4·S6·S9 및 본 문서의 3층 책임 분리를 해석하는 보충이며,
+새 P#/S#나 별도 도구 목록을 만들지 않는다.
+
+근거: Melody Koh, “[Wrapping the Unpredictable Genius](https://melodykoh.substack.com/p/wrapping-the-unpredictable-genius)” (2026-06-25).
 
 ### HARNESS_MAP 자동 역생성
 

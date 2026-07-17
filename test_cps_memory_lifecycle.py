@@ -44,12 +44,23 @@ def load_runner_module():
 runner = load_runner_module()
 
 
+def admitted_budget(estimate=100, remaining=100, context_remaining_pct=50, budget_age_seconds=0, actual_token_usage=None):
+    return lifecycle.build_budget_decision(
+        budget_source_ref="test:explicit-budget",
+        token_estimate=estimate,
+        token_budget_remaining=remaining,
+        context_remaining_pct=context_remaining_pct,
+        budget_age_seconds=budget_age_seconds,
+        actual_token_usage=actual_token_usage,
+    )
+
+
 class FixtureAdapters:
-    def __init__(self):
+    def __init__(self, budget_decision):
         self.calls = []
         self.remote_ok = True
         self.duplicate = False
-        self.budget_ok = True
+        self.budget_decision = budget_decision
         self.import_error = None
         self.read_error = None
         self.source_graph_ref = lifecycle.CANONICAL_GRAPH_REF
@@ -77,7 +88,7 @@ class FixtureAdapters:
 
     def within_budget(self, event):
         self.calls.append("N3")
-        return self.budget_ok
+        return self.budget_decision
 
     def import_source(self, event):
         self.calls.append("N4.import")
@@ -148,11 +159,11 @@ class TestCpsMemoryLifecycle(unittest.TestCase):
         return replace(base, **changes)
 
     def run_stage(self, adapters=None, event=None):
-        return lifecycle.run_stage_core(event or self.event(), adapters or FixtureAdapters())
+        return lifecycle.run_stage_core(event or self.event(), adapters or FixtureAdapters(admitted_budget()))
 
     def test_graph_ref_propagates_exactly_to_every_successful_receipt(self):
         event = self.event()
-        adapters = FixtureAdapters()
+        adapters = FixtureAdapters(admitted_budget())
         result = self.run_stage(adapters, event)
 
         self.assertTrue(result.closure_candidate)
@@ -161,7 +172,7 @@ class TestCpsMemoryLifecycle(unittest.TestCase):
     def test_invalid_graph_ref_fails_closed_before_calls_or_receipts(self):
         invalid_refs = (None, "", "other-graph/C2@deadbeef")
         for graph_ref in invalid_refs:
-            adapters = FixtureAdapters()
+            adapters = FixtureAdapters(admitted_budget())
             with self.subTest(graph_ref=graph_ref):
                 result = self.run_stage(adapters, self.event(graph_ref=graph_ref))
                 self.assertEqual(adapters.calls, [])
@@ -180,15 +191,15 @@ class TestCpsMemoryLifecycle(unittest.TestCase):
     def test_graph_ref_is_preserved_on_duplicate_readback_and_deactivation_paths(self):
         cases = []
 
-        duplicate = FixtureAdapters()
+        duplicate = FixtureAdapters(admitted_budget())
         duplicate.duplicate = True
         cases.append(self.run_stage(duplicate))
 
-        readback = FixtureAdapters()
+        readback = FixtureAdapters(admitted_budget())
         readback.readback_matches = False
         cases.append(self.run_stage(readback))
 
-        deactivation = FixtureAdapters()
+        deactivation = FixtureAdapters(admitted_budget())
         deactivation.deactivate_ok = False
         cases.append(self.run_stage(deactivation))
 
@@ -200,7 +211,7 @@ class TestCpsMemoryLifecycle(unittest.TestCase):
     def test_event_identity_must_match_source_ref_digest(self):
         original = self.event()
         mismatched = replace(original, source_ref="source:other")
-        adapters = FixtureAdapters()
+        adapters = FixtureAdapters(admitted_budget())
 
         result = self.run_stage(adapters, mismatched)
 
@@ -208,7 +219,7 @@ class TestCpsMemoryLifecycle(unittest.TestCase):
         self.assertEqual(adapters.calls, ["N1"])
 
     def test_duplicate_same_sha_is_noop_without_downstream_calls(self):
-        adapters = FixtureAdapters()
+        adapters = FixtureAdapters(admitted_budget())
         adapters.duplicate = True
         result = self.run_stage(adapters)
         self.assertEqual(result.receipts[-1].status, "noop")
@@ -216,29 +227,101 @@ class TestCpsMemoryLifecycle(unittest.TestCase):
         self.assertFalse(result.closure_candidate)
 
     def test_remote_failure_is_blocked(self):
-        adapters = FixtureAdapters()
+        adapters = FixtureAdapters(admitted_budget())
         adapters.remote_ok = False
         result = self.run_stage(adapters)
         self.assertEqual([(r.stage_id, r.status) for r in result.receipts], [("N1", "blocked")])
         self.assertEqual(adapters.calls, ["N1"])
 
     def test_budget_breach_blocks_without_partial_import(self):
-        adapters = FixtureAdapters()
-        adapters.budget_ok = False
+        adapters = FixtureAdapters(admitted_budget(101, 100))
         result = self.run_stage(adapters)
         self.assertEqual(result.receipts[-1].stage_id, "N3")
         self.assertEqual(result.receipts[-1].status, "blocked")
+        self.assertEqual(result.receipts[-1].reason, "budget-breached")
+        self.assertEqual(adapters.calls, ["N1", "N2", "N3"])
+
+    def test_budget_unavailable_is_reloadable_and_blocks_all_n4_n9_side_effects(self):
+        required = {
+            "schema", "version", "budget_source_ref", "token_estimate",
+            "token_budget_remaining_before", "context_remaining_pct", "decision",
+            "budget_age_seconds", "actual_token_usage", "reason", "measurement_status",
+        }
+        for estimate, remaining in ((None, 100), ("10", 100), (-1, 100), (100, -1)):
+            adapters = FixtureAdapters(lifecycle.build_budget_decision(
+                budget_source_ref="test:caller-envelope",
+                token_estimate=estimate,
+                token_budget_remaining=remaining,
+                context_remaining_pct=17,
+                budget_age_seconds=0,
+            ))
+            with self.subTest(estimate=estimate, remaining=remaining):
+                result = self.run_stage(adapters)
+                receipt = result.receipts[-1]
+                self.assertEqual((receipt.stage_id, receipt.status, receipt.reason), ("N3", "blocked", "budget-check-unavailable"))
+                self.assertEqual(set(receipt.refs), required)
+                self.assertEqual(receipt.refs["decision"], "blocked")
+                self.assertEqual(receipt.refs["measurement_status"], "unavailable")
+                self.assertEqual(adapters.calls, ["N1", "N2", "N3"])
+                self.assertEqual(tuple(adapters.reload_stage_receipts(self.event())), result.receipts)
+
+    def test_budget_equal_and_under_are_admitted_with_observational_context_pct(self):
+        for estimate, remaining, context_pct in ((100, 100, 50), (99, 100, 150)):
+            adapters = FixtureAdapters(admitted_budget(estimate, remaining, context_pct))
+            with self.subTest(estimate=estimate, remaining=remaining):
+                result = self.run_stage(adapters)
+                receipt = result.receipts[2]
+                self.assertEqual((receipt.stage_id, receipt.status, receipt.reason), ("N3", "pass", "budget-admitted"))
+                self.assertEqual(receipt.refs["context_remaining_pct"], context_pct if context_pct <= 100 else None)
+                self.assertTrue(result.closure_candidate)
+
+    def test_actual_usage_measurement_is_independent_from_admission_envelope(self):
+        for actual_usage, status in ((None, "unavailable"), (73, "measured"), ("73", "unavailable")):
+            adapters = FixtureAdapters(admitted_budget(actual_token_usage=actual_usage))
+            with self.subTest(actual_usage=actual_usage):
+                result = self.run_stage(adapters)
+                receipt = result.receipts[2]
+                self.assertEqual((receipt.status, receipt.reason), ("pass", "budget-admitted"))
+                self.assertEqual(receipt.refs["measurement_status"], status)
+                self.assertEqual(receipt.refs["actual_token_usage"], actual_usage if isinstance(actual_usage, int) else None)
+                self.assertTrue(result.closure_candidate)
+
+    def test_budget_source_ref_and_freshness_fail_closed(self):
+        cases = (
+            (None, 0, "budget-check-unavailable"),
+            ("", 0, "budget-check-unavailable"),
+            ("source\nref", 0, "budget-check-unavailable"),
+            ("test:source", None, "budget-check-unavailable"),
+            ("test:source", lifecycle.MAX_BUDGET_ENVELOPE_AGE_SECONDS + 1, "budget-envelope-stale"),
+        )
+        for source_ref, age, reason in cases:
+            decision = lifecycle.build_budget_decision(source_ref, 10, 100, 50, age)
+            adapters = FixtureAdapters(decision)
+            with self.subTest(source_ref=source_ref, age=age):
+                result = self.run_stage(adapters)
+                receipt = result.receipts[-1]
+                self.assertEqual((receipt.stage_id, receipt.status, receipt.reason), ("N3", "blocked", reason))
+                self.assertEqual(receipt.refs["schema"], "harness.cps_budget_decision_receipt.v1")
+                self.assertEqual(adapters.calls, ["N1", "N2", "N3"])
+
+    def test_inconsistent_budget_decision_fails_closed(self):
+        inconsistent = replace(admitted_budget(100, 100), token_budget_remaining_before=99)
+        adapters = FixtureAdapters(inconsistent)
+        result = self.run_stage(adapters)
+        receipt = result.receipts[-1]
+        self.assertEqual((receipt.stage_id, receipt.status, receipt.reason), ("N3", "blocked", "budget-check-unavailable"))
+        self.assertEqual(receipt.refs["measurement_status"], "unavailable")
         self.assertEqual(adapters.calls, ["N1", "N2", "N3"])
 
     def test_gbrain_import_failure_blocks_sia_and_honcho(self):
-        adapters = FixtureAdapters()
+        adapters = FixtureAdapters(admitted_budget())
         adapters.import_error = RuntimeError("unavailable")
         result = self.run_stage(adapters)
         self.assertEqual(result.receipts[-1].status, "blocked")
         self.assertEqual(adapters.calls, ["N1", "N2", "N3", "N4.import"])
 
     def test_gbrain_read_failure_blocks_sia_and_honcho(self):
-        adapters = FixtureAdapters()
+        adapters = FixtureAdapters(admitted_budget())
         adapters.read_error = RuntimeError("unavailable")
         result = self.run_stage(adapters)
         self.assertEqual(result.receipts[-1].status, "blocked")
@@ -246,7 +329,7 @@ class TestCpsMemoryLifecycle(unittest.TestCase):
         self.assertNotIn("N7", adapters.calls)
 
     def test_n4_missing_graph_ref_blocks_without_n9_or_closure_candidate(self):
-        adapters = FixtureAdapters()
+        adapters = FixtureAdapters(admitted_budget())
         adapters.source_graph_ref = None
         result = self.run_stage(adapters)
         self.assertEqual((result.receipts[-1].stage_id, result.receipts[-1].status), ("N4", "blocked"))
@@ -254,7 +337,7 @@ class TestCpsMemoryLifecycle(unittest.TestCase):
         self.assertFalse(result.closure_candidate)
 
     def test_n4_mismatched_graph_ref_blocks_without_n9_or_closure_candidate(self):
-        adapters = FixtureAdapters()
+        adapters = FixtureAdapters(admitted_budget())
         adapters.source_graph_ref = "other-graph/C2@deadbeef"
         result = self.run_stage(adapters)
         self.assertEqual((result.receipts[-1].stage_id, result.receipts[-1].status), ("N4", "blocked"))
@@ -262,20 +345,20 @@ class TestCpsMemoryLifecycle(unittest.TestCase):
         self.assertFalse(result.closure_candidate)
 
     def test_revised_prior_is_deactivated_before_new_write(self):
-        adapters = FixtureAdapters()
+        adapters = FixtureAdapters(admitted_budget())
         result = self.run_stage(adapters)
         self.assertLess(adapters.calls.index("N6"), adapters.calls.index("N7"))
         self.assertTrue(result.closure_candidate)
 
     def test_sia_disposition_is_normalized_to_exact_canonical_value(self):
-        adapters = FixtureAdapters()
+        adapters = FixtureAdapters(admitted_budget())
         adapters.comparison = lifecycle.SiaComparison("  ReViSeD  ", prior_ref="honcho:conclusion:1")
         result = self.run_stage(adapters)
         self.assertTrue(result.closure_candidate)
         self.assertEqual(adapters.calls.count("N7"), 1)
 
     def test_noncanonical_sia_disposition_is_ineligible(self):
-        adapters = FixtureAdapters()
+        adapters = FixtureAdapters(admitted_budget())
         adapters.comparison = lifecycle.SiaComparison("eligible")
         result = self.run_stage(adapters)
         self.assertEqual((result.receipts[-1].stage_id, result.receipts[-1].status), ("N5", "blocked"))
@@ -283,14 +366,14 @@ class TestCpsMemoryLifecycle(unittest.TestCase):
 
     def test_same_stale_conflict_and_withdrawn_never_write(self):
         for disposition in ("same", "stale", "conflict", "withdrawn"):
-            adapters = FixtureAdapters()
+            adapters = FixtureAdapters(admitted_budget())
             adapters.comparison = lifecycle.SiaComparison(disposition, prior_ref="honcho:conclusion:1")
             with self.subTest(disposition=disposition):
                 self.run_stage(adapters, self.event(lifecycle=disposition))
                 self.assertNotIn("N7", adapters.calls)
 
     def test_same_is_no_change_without_deactivation(self):
-        adapters = FixtureAdapters()
+        adapters = FixtureAdapters(admitted_budget())
         adapters.comparison = lifecycle.SiaComparison("same", prior_ref="honcho:conclusion:1")
         result = self.run_stage(adapters, self.event(lifecycle="same"))
         self.assertNotIn("N6", adapters.calls)
@@ -298,32 +381,32 @@ class TestCpsMemoryLifecycle(unittest.TestCase):
         self.assertTrue(result.closure_candidate)
 
     def test_revised_without_prior_deactivation_target_blocks_before_write(self):
-        adapters = FixtureAdapters()
+        adapters = FixtureAdapters(admitted_budget())
         adapters.comparison = lifecycle.SiaComparison("revised")
         result = self.run_stage(adapters, self.event(prior_ref=None))
         self.assertEqual((result.receipts[-1].stage_id, result.receipts[-1].status), ("N6", "blocked"))
         self.assertNotIn("N7", adapters.calls)
 
     def test_explicit_first_anchor_initialization_admits_without_prior(self):
-        adapters = FixtureAdapters()
+        adapters = FixtureAdapters(admitted_budget())
         adapters.comparison = lifecycle.SiaComparison("revised")
         result = self.run_stage(adapters, self.event(prior_ref=None, first_anchor_initialization=True))
         self.assertTrue(result.closure_candidate)
         self.assertEqual(result.receipts[5].reason, "first-anchor-initialization-admitted")
 
     def test_initialization_with_prior_is_blocked(self):
-        result = self.run_stage(FixtureAdapters(), self.event(first_anchor_initialization=True))
+        result = self.run_stage(FixtureAdapters(admitted_budget()), self.event(first_anchor_initialization=True))
         self.assertEqual(result.receipts[-1].reason, "initialization-prohibits-prior-ref")
 
     def test_second_initialization_blocks_even_when_sia_reports_same(self):
-        adapters = FixtureAdapters()
+        adapters = FixtureAdapters(admitted_budget())
         adapters.comparison = lifecycle.SiaComparison("same", "honcho:existing")
         result = self.run_stage(adapters, self.event(prior_ref=None, first_anchor_initialization=True))
         self.assertEqual(result.receipts[-1].reason, "initialization-prohibits-prior-ref")
         self.assertNotIn("N7", adapters.calls)
 
     def test_failed_initialization_claim_blocks_write(self):
-        adapters = FixtureAdapters()
+        adapters = FixtureAdapters(admitted_budget())
         adapters.comparison = lifecycle.SiaComparison("revised")
         adapters.initialization_claimed = False
         result = self.run_stage(adapters, self.event(prior_ref=None, first_anchor_initialization=True))
@@ -331,7 +414,7 @@ class TestCpsMemoryLifecycle(unittest.TestCase):
         self.assertNotIn("N7", adapters.calls)
 
     def test_deactivation_failure_blocks_new_write(self):
-        adapters = FixtureAdapters()
+        adapters = FixtureAdapters(admitted_budget())
         adapters.deactivate_ok = False
         result = self.run_stage(adapters)
         self.assertEqual(result.receipts[-1].stage_id, "N6")
@@ -339,7 +422,7 @@ class TestCpsMemoryLifecycle(unittest.TestCase):
         self.assertNotIn("N7", adapters.calls)
 
     def test_withdrawn_deactivates_prior_and_never_writes_active_conclusion(self):
-        adapters = FixtureAdapters()
+        adapters = FixtureAdapters(admitted_budget())
         adapters.comparison = lifecycle.SiaComparison("withdrawn", prior_ref="honcho:conclusion:1")
         result = self.run_stage(adapters, self.event(lifecycle="withdrawn"))
         self.assertIn("N6", adapters.calls)
@@ -354,7 +437,7 @@ class TestCpsMemoryLifecycle(unittest.TestCase):
             self.event(lifecycle="unknown"),
         )
         for event in malformed:
-            adapters = FixtureAdapters()
+            adapters = FixtureAdapters(admitted_budget())
             with self.subTest(event=event):
                 result = self.run_stage(adapters, event)
                 self.assertEqual(result.receipts[-1].stage_id, "N2")
@@ -362,7 +445,7 @@ class TestCpsMemoryLifecycle(unittest.TestCase):
                 self.assertEqual(adapters.calls, ["N1"])
 
     def test_same_writer_and_readback_session_fails(self):
-        adapters = FixtureAdapters()
+        adapters = FixtureAdapters(admitted_budget())
         adapters.readback_session_id = adapters.writer_session_id
         result = self.run_stage(adapters)
         self.assertEqual(result.receipts[-1].stage_id, "N8")
@@ -370,7 +453,7 @@ class TestCpsMemoryLifecycle(unittest.TestCase):
         self.assertNotIn("N8", adapters.calls)
 
     def test_readback_mismatch_fails(self):
-        adapters = FixtureAdapters()
+        adapters = FixtureAdapters(admitted_budget())
         adapters.readback_matches = False
         result = self.run_stage(adapters)
         self.assertEqual(result.receipts[-1].stage_id, "N8")
@@ -378,7 +461,7 @@ class TestCpsMemoryLifecycle(unittest.TestCase):
         self.assertFalse(result.closure_candidate)
 
     def test_n8_missing_graph_ref_fails_without_n9_or_closure_candidate(self):
-        adapters = FixtureAdapters()
+        adapters = FixtureAdapters(admitted_budget())
         adapters.readback_graph_ref = None
         result = self.run_stage(adapters)
         self.assertEqual((result.receipts[-1].stage_id, result.receipts[-1].status), ("N8", "failed"))
@@ -386,7 +469,7 @@ class TestCpsMemoryLifecycle(unittest.TestCase):
         self.assertFalse(result.closure_candidate)
 
     def test_n8_mismatched_graph_ref_fails_without_n9_or_closure_candidate(self):
-        adapters = FixtureAdapters()
+        adapters = FixtureAdapters(admitted_budget())
         adapters.readback_graph_ref = "other-graph/C2@deadbeef"
         result = self.run_stage(adapters)
         self.assertEqual((result.receipts[-1].stage_id, result.receipts[-1].status), ("N8", "failed"))
@@ -394,13 +477,13 @@ class TestCpsMemoryLifecycle(unittest.TestCase):
         self.assertFalse(result.closure_candidate)
 
     def test_missing_receipt_prevents_closure(self):
-        adapters = FixtureAdapters()
+        adapters = FixtureAdapters(admitted_budget())
         receipts = list(self.run_stage(adapters).receipts)
         receipts.pop(3)
         self.assertFalse(lifecycle.evaluate_closure(receipts, self.event()))
 
     def test_missing_durable_receipt_reload_blocks_n9_closure(self):
-        adapters = FixtureAdapters()
+        adapters = FixtureAdapters(admitted_budget())
         adapters.reload_override = []
         result = self.run_stage(adapters)
         self.assertFalse(result.closure_candidate)
@@ -408,16 +491,16 @@ class TestCpsMemoryLifecycle(unittest.TestCase):
         self.assertNotIn("N9", adapters.persistence_calls)
 
     def test_nondurable_process_local_receipts_do_not_feed_n9(self):
-        durable = FixtureAdapters()
+        durable = FixtureAdapters(admitted_budget())
         reloaded = list(self.run_stage(durable).receipts)
-        adapters = FixtureAdapters()
+        adapters = FixtureAdapters(admitted_budget())
         adapters.reload_override = [receipt for receipt in reloaded if receipt.stage_id != "N4"]
         result = self.run_stage(adapters)
         self.assertFalse(result.closure_candidate)
         self.assertNotEqual(len(result.receipts), 9)
 
     def test_reloaded_receipts_preserve_graph_ref_order_and_dependency(self):
-        adapters = FixtureAdapters()
+        adapters = FixtureAdapters(admitted_budget())
         result = self.run_stage(adapters)
         self.assertEqual(result.receipts, tuple(adapters.durable_receipts))
         self.assertEqual([r.graph_ref for r in result.receipts], [self.event().graph_ref] * 9)
@@ -441,6 +524,19 @@ class TestCpsMemoryLifecycle(unittest.TestCase):
         for receipt in self.run_stage().receipts:
             self.assertTrue(forbidden.isdisjoint(receipt.__dataclass_fields__))
             self.assertTrue(forbidden.isdisjoint(receipt.refs))
+
+        oversized = lifecycle.build_budget_decision(
+            "x" * 257,
+            lifecycle.MAX_BUDGET_COUNTER + 1,
+            100,
+            50,
+            lifecycle.MAX_BUDGET_AGE_RECEIPT_SECONDS + 1,
+            lifecycle.MAX_BUDGET_COUNTER + 1,
+        ).receipt_fields()
+        self.assertEqual(oversized["budget_source_ref"], "unavailable")
+        self.assertIsNone(oversized["token_estimate"])
+        self.assertIsNone(oversized["budget_age_seconds"])
+        self.assertIsNone(oversized["actual_token_usage"])
 
     def test_protocol_surface_has_no_git_mutation_interface(self):
         names = set(dir(lifecycle.StageAdapters))
@@ -501,6 +597,7 @@ class TestProductionStageAdapters(unittest.TestCase):
             self.repo, self.db,
             RecordingHoncho("writer", self.shared, self.calls),
             RecordingHoncho("reader", self.shared, self.calls),
+            admitted_budget(),
         )
 
     def test_remote_ref_containment_fails_without_origin_tracking_ref(self):
@@ -586,6 +683,75 @@ print(json.dumps([graph_ref, receipt_count, supersession_count]))
         historical = replace(event, source_ref="other.md", source_revision="new")
         self.assertFalse(adapters.claim_first_initialization(historical))
 
+    def test_real_runner_composition_enforces_unavailable_over_equal_and_under_budget(self):
+        cases = (
+            (None, 100, "budget-check-unavailable", False),
+            (101, 100, "budget-breached", False),
+            (100, 100, "budget-admitted", True),
+            (99, 100, "budget-admitted", True),
+        )
+        for estimate, remaining, reason, admitted in cases:
+            database = self.repo / ".harness" / "project" / "runs" / "cps_memory_lifecycle.sqlite3"
+            database.unlink(missing_ok=True)
+            self.shared.clear()
+            self.calls.clear()
+            args = Namespace(
+                branch="main", pushed_sha=self.sha, source_ref="memory.md",
+                lifecycle="revised", prior_ref="honcho:real:1",
+                token_estimate=estimate, token_budget_remaining=remaining,
+                context_remaining_pct=41, budget_source_ref="test:real-runner-envelope",
+                budget_age_seconds=0, actual_token_usage=None,
+            )
+            ports = (
+                RecordingHoncho("writer", self.shared, self.calls),
+                RecordingHoncho("reader", self.shared, self.calls),
+            )
+            honcho_ports = mock.Mock(return_value=ports) if admitted else mock.Mock(side_effect=AssertionError("blocked N3 must not initialize Honcho"))
+            with self.subTest(estimate=estimate, remaining=remaining), \
+                 mock.patch.object(runner, "_build_honcho_ports", honcho_ports):
+                code, evidence = runner.run_c2_memory(args, repo=self.repo)
+                n3 = next(receipt for receipt in evidence["receipts"] if receipt["stage_id"] == "N3")
+                self.assertEqual(n3["reason"], reason)
+                self.assertEqual(n3["refs"]["budget_source_ref"], "test:real-runner-envelope")
+                self.assertEqual(n3["refs"]["token_estimate"], estimate)
+                self.assertEqual(n3["refs"]["token_budget_remaining_before"], remaining)
+                self.assertEqual(n3["refs"]["schema"], "harness.cps_budget_decision_receipt.v1")
+                self.assertEqual(n3["refs"]["measurement_status"], "unavailable")
+                self.assertEqual(code == 0, admitted)
+                if admitted:
+                    self.assertEqual(evidence["receipts"][-1]["stage_id"], "N9")
+                    honcho_ports.assert_called_once_with()
+                else:
+                    self.assertEqual(evidence["receipts"][-1]["stage_id"], "N3")
+                    self.assertEqual(self.calls, [])
+                    honcho_ports.assert_not_called()
+
+    def test_real_runner_composition_blocks_invalid_source_and_stale_envelope(self):
+        cases = (
+            (None, 0, "budget-check-unavailable"),
+            ("", 0, "budget-check-unavailable"),
+            ("test\nsource", 0, "budget-check-unavailable"),
+            ("test:source", lifecycle.MAX_BUDGET_ENVELOPE_AGE_SECONDS + 1, "budget-envelope-stale"),
+        )
+        for source_ref, age, reason in cases:
+            database = self.repo / ".harness" / "project" / "runs" / "cps_memory_lifecycle.sqlite3"
+            database.unlink(missing_ok=True)
+            args = Namespace(
+                branch="main", pushed_sha=self.sha, source_ref="memory.md",
+                lifecycle="revised", prior_ref="honcho:real:1",
+                token_estimate=10, token_budget_remaining=100,
+                context_remaining_pct=41, budget_source_ref=source_ref,
+                budget_age_seconds=age, actual_token_usage=None,
+            )
+            with self.subTest(source_ref=source_ref, age=age), \
+                 mock.patch.object(runner, "_build_honcho_ports", side_effect=AssertionError("blocked N3 must not initialize Honcho")):
+                code, evidence = runner.run_c2_memory(args, repo=self.repo)
+                n3 = evidence["receipts"][-1]
+                self.assertNotEqual(code, 0)
+                self.assertEqual((n3["stage_id"], n3["status"], n3["reason"]), ("N3", "blocked", reason))
+                self.assertEqual(n3["refs"]["schema"], "harness.cps_budget_decision_receipt.v1")
+                self.assertEqual(n3["refs"]["measurement_status"], "unavailable")
+
 
 class TestC2MemoryInvocation(unittest.TestCase):
     SHA = "a" * 40
@@ -641,6 +807,9 @@ reset_honcho_client()
         values = {
             "branch": "main", "pushed_sha": self.SHA, "source_ref": "memory.md",
             "lifecycle": "initialization", "prior_ref": None,
+            "token_estimate": 100, "token_budget_remaining": 100,
+            "context_remaining_pct": 50, "budget_source_ref": "test:explicit-runner-budget",
+            "budget_age_seconds": 0, "actual_token_usage": None,
         }
         values.update(changes)
         return Namespace(**values)
@@ -696,6 +865,7 @@ reset_honcho_client()
         event = mock.Mock()
         adapter = mock.Mock()
         module = mock.Mock(ProductionStageAdapters=mock.Mock(return_value=adapter), CANONICAL_GRAPH_REF="graph-ref")
+        module.build_budget_decision.return_value = Namespace(decision="admitted")
         module.run_stage_core.return_value = mock.Mock(closure_candidate=True)
         module.evaluate_closure.return_value = True
         adapter.reload_stage_receipts.return_value = (
@@ -726,6 +896,7 @@ reset_honcho_client()
         adapter = mock.Mock()
         adapter.reload_stage_receipts.return_value = ()
         module = mock.Mock(ProductionStageAdapters=mock.Mock(return_value=adapter), CANONICAL_GRAPH_REF="graph-ref")
+        module.build_budget_decision.return_value = Namespace(decision="admitted")
         module.run_stage_core.return_value = mock.Mock(closure_candidate=True)
         module.evaluate_closure.return_value = False
         with mock.patch.object(runner, "_load_cps_memory_lifecycle", return_value=module), \
@@ -739,6 +910,7 @@ reset_honcho_client()
 
     def test_unavailable_honcho_is_explicit_and_nonzero(self):
         module = mock.Mock()
+        module.build_budget_decision.return_value = Namespace(decision="admitted")
         with mock.patch.object(runner, "_load_cps_memory_lifecycle", return_value=module), \
              mock.patch.object(runner, "_remote_branch_contains", return_value=True), \
              mock.patch.object(runner, "_build_event", return_value=mock.Mock()), \
