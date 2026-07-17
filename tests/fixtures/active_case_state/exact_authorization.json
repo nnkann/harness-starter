@@ -1,0 +1,32 @@
+{
+  "allowed_delta_paths": [
+    "/maat_body/lifecycle"
+  ],
+  "authority_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+  "authority_revision": 1,
+  "expires_on_revision_change": true,
+  "failure_disposition": "hold_no_write",
+  "forbidden_delta_paths": [],
+  "id": "transition:S:active:satisfied",
+  "issued_by": "maat",
+  "replay_policy": "idempotent",
+  "source_lifecycle": "active",
+  "source_state_ref": "/maat_body/lifecycle",
+  "target": {
+    "target_lifecycle": "satisfied",
+    "target_state_ref": "/maat_body/lifecycle"
+  },
+  "trigger": {
+    "execution_case_refs": [
+      "case.json"
+    ],
+    "predicate_id": "lane_b_exact_pass_v1",
+    "predicate_version": "1",
+    "required_evidence_refs": [
+      "evidence.json"
+    ],
+    "required_lane_B_AC_refs": [
+      "ac.json"
+    ]
+  }
+}

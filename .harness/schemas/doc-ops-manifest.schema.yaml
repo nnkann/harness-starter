@@ -1,0 +1,7 @@
+version: 1
+schema: harness-doc-ops-manifest-schema
+required_root: doc_ops_manifest
+required_fields: [run_id, project_id, source_task_id, required_docs, owner_approval_boundary, prohibited_actions]
+required_doc_fields: [path, doc_type, required_frontmatter, status, action]
+allowed_status: [present, missing, stale, needs_update]
+allowed_action: [none, create, update, review]

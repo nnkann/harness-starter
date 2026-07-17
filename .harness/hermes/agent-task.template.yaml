@@ -1,0 +1,143 @@
+version: 1
+schema: harness-agent-task-packet
+task_id: example-hermes-wrapper-loader-contract
+kanban_board: harness-starter-project-hermes
+task_source: ${TASK_SOURCE}
+project_slug: harness-starter
+project_root: ${PROJECT_ROOT_ABSOLUTE_PATH}
+worktree_path: ${WORKTREE_ABSOLUTE_PATH}
+workspace_env:
+  HERMES_KANBAN_TASK: ${HERMES_KANBAN_TASK}
+  HERMES_KANBAN_DB: ${HERMES_KANBAN_DB}
+  HERMES_KANBAN_BOARD: ${HERMES_KANBAN_BOARD}
+  HERMES_KANBAN_WORKSPACES_ROOT: ${HERMES_KANBAN_WORKSPACES_ROOT}
+  HERMES_KANBAN_WORKSPACE: ${WORKTREE_ABSOLUTE_PATH}
+  HERMES_KANBAN_RUN_ID: ${HERMES_KANBAN_RUN_ID}
+  HERMES_KANBAN_CLAIM_LOCK: ${HERMES_KANBAN_CLAIM_LOCK}
+  HERMES_PROFILE: ${HERMES_PROFILE}
+  HERMES_TENANT: ${HERMES_TENANT_OR_NONE}
+workspace_env_classification:
+  filesystem_anchor: HERMES_KANBAN_WORKSPACE
+  lifecycle_audit_context: [HERMES_KANBAN_TASK, HERMES_KANBAN_DB, HERMES_KANBAN_BOARD, HERMES_KANBAN_WORKSPACES_ROOT, HERMES_KANBAN_RUN_ID, HERMES_KANBAN_CLAIM_LOCK, HERMES_PROFILE, HERMES_TENANT]
+  conditional_env: [HERMES_TENANT]
+  permission_rule: Env values are runtime context, not permission grants; writes require verified workspace_binding plus allowed_scope.
+workspace_binding:
+  expected_cwd: ${WORKTREE_ABSOLUTE_PATH}
+  mismatch_policy: block-before-write
+  fallback: Use HERMES_KANBAN_WORKSPACE as cwd only when it matches worktree_path.
+  board_match_policy: HERMES_KANBAN_BOARD must match kanban_board, route kanban_board, and gateway route_to_kanban.kanban_board.
+runtime_stack: hermes-codex-agy
+harness_version: 0.55.2
+packet_ref: ${PACKET_REF_OR_SELF}
+CPS:
+  C: Hermes reference export를 기준으로 executor 실행 경계를 고정한다.
+  P: [P3, P5, P7, P8, P11]
+  S: [S3, S5, S7, S8, S11]
+frontmatter:
+  status: ${FRONTMATTER_STATUS}
+  owner: ${FRONTMATTER_OWNER}
+  owner_boundary: ${OWNER_BOUNDARY_REF}
+  risk: ${FRONTMATTER_RISK}
+task_AC: ${NODE_TASK_AC}
+source_refs: ${SOURCE_REFS}
+artifact_refs: ${ARTIFACT_REFS}
+c: Hermes reference export를 기준으로 executor 실행 경계를 고정한다.
+problem: [P3, P5, P7, P8, P11]
+s: [S3, S5, S7, S8, S11]
+domain: harness
+abbr: hn
+wip_doc: ${TASK_SOURCE}
+allowed_scope: [.harness/hermes/**, .harness/project/**, .harness/schemas/**, docs/harness/**]
+forbidden_scope: [sibling projects, parent directories outside current worktree, Hermes memory full-text CPS/AC storage, direct git commit, direct git push]
+checks: [python .harness/hermes/loader.py validate-reference, python .harness/hermes/loader.py guard-runtime-context --operation write --cwd "$PWD", python .harness/hermes/tools/validate_kanban_task_packet.py packet .harness/project/runs/_template/cps_packet.yaml, python .harness/hermes/tools/audit_handoff_compliance.py, python .harness/hermes/tools/audit_ponytail_compliance.py]
+owner_approval_boundary:
+  implementation_scope: executor packet scope only
+  commit: explicit owner approval required
+  push: explicit owner approval required
+  destructive_actions: blocked
+prohibited_actions:
+  - native direct auto-decompose on Harness CPS boards
+  - raw terminal stdout collection as first evidence step
+  - full git diff/log/sqlite/test output dump before signal spec
+  - full skill/document dump passed to workers when digest suffices
+  - Honcho-only policy creation without repo md source
+  - stdlib나 기존 의존성 검토 없이 requirements.txt / package.json에 신규 외부 패키지 추가
+  - 기존 유틸리티 함수나 모듈과 50% 이상 중복되는 신규 코드 블록 작성
+  - 단일 라인 또는 단일 함수로 해결 가능한 로직을 다중 클래스/인프라 레이어로 비대화시키는 행위
+evidence_acquisition:
+  mode: digest-first
+  C:
+    decision_context: ${EVIDENCE_DECISION_CONTEXT}
+    scope_refs: [root_goal, task_AC, cps_flow_graph_node]
+  P:
+    uncertainty: ${EVIDENCE_UNCERTAINTY}
+    failure_mode_if_wrong: ${EVIDENCE_FAILURE_MODE_IF_WRONG}
+  S:
+    evidence_strategy: ${EVIDENCE_STRATEGY}
+    expected_signal: ${EXPECTED_SIGNAL_LIST}
+    stdout_shape: bounded digest; no raw corpus by default
+    raw_artifact_policy: only when task_AC requires raw evidence; save artifact and report path + reason
+required_docs:
+  - docs/harness/contracts/cp_frontmatter_schema.md
+  - docs/harness/contracts/cp_cps_evidence_acquisition.md
+  - docs/harness/contracts/cp_owner_approval_boundary.md
+  - docs/harness/contracts/cp_agent_role_contracts.md
+  - docs/harness/contracts/cp_kanban_promotion_contract.md
+  - docs/harness/contracts/cp_honcho_doc_wiki_boundary.md
+doc_ops_needed: ${DOC_OPS_NEEDED}
+doc_refs: ${DOC_REFS}
+lazy_dev_justification:
+  yagni_verified: ${LAZY_DEV_YAGNI_VERIFIED_OR_TRUE}
+  reuse_existing_code_checked: ${LAZY_DEV_REUSE_CHECKED_OR_FALSE}
+  stdlib_or_native_feasible: ${LAZY_DEV_STDLIB_FEASIBLE_OR_TBD}
+memory_pointers: [.harness/hermes/reference/catalog.yaml, .harness/hermes/reference/pipeline.yaml, .harness/hermes/reference/rules.yaml, .harness/hermes/workers.yaml, .harness/hermes/sandbox.yaml]
+evidence_sources: [reference-catalog, rule-pack, command-output]
+owner_approval_required: [changes outside allowed_scope, git commit, git push]
+cps_profile_routing:
+  routing_contract: .harness/hermes/cps-profile-routing.yaml
+  doc_generation_contract: .harness/hermes/doc-generation.yaml
+  selected_profiles: []
+  call_justification_required: true
+  result_evidence_required: true
+  gateway_context: ${GATEWAY_CONTEXT_OR_NONE}
+  sandbox_scope_source: allowed_scope and forbidden_scope
+semantic_tooling:
+  contract: .harness/hermes/reference/ops/semantic-tooling-criteria.yaml
+  stack_binding_state: unknown
+  decision: pending
+  fallback_reason: ""
+document_generation:
+  enabled_when: task creates, updates, validates, moves, reopens, or classifies a document
+  required_outputs: [document-plan, docs-op-plan, doc_ops_manifest, honcho_ingest_manifest, profile-call-justification, profile-result-evidence, moderator-pass-rework-block]
+  docs_ops_mode: read-only first; seshat owns required docs and manifests; state-changing operations require owner approval or explicit executor scope
+cps_flow:
+  contract: .harness/hermes/reference/ops/cps-ac.yaml#cps_flow_graph
+  root_goal_id: ${ROOT_GOAL_ID}
+  flow_graph_id: ${FLOW_GRAPH_ID}
+  node_id: ${FLOW_NODE_ID}
+  root_goal_ref: ${ROOT_GOAL_REF}
+  cps_expression_ref: ${CPS_EXPRESSION_REF}
+  local_goal: ${NODE_LOCAL_GOAL}
+  task_AC: ${NODE_TASK_AC}
+  inherited_refs: [root_goal_ref, owner_boundary_ref, global_constraints_ref, cps_expression_ref]
+  edge_refs: ${FLOW_EDGE_REFS}
+  input_refs: ${NODE_INPUT_REFS}
+  expected_evidence: ${NODE_EXPECTED_EVIDENCE}
+  completion_delta_required: [node_status, output_ref, observed_signal, transition_reason, next_payload_ref]
+  handoff_payload_policy: pass minimal refs/reason codes needed by the next actor, not full transcripts or unrelated logs.
+goal_ac_semantics:
+  root_goal: triage/root request end-to-end outcome, inherited by reference by every child node.
+  task_AC: node-local requirements and evidence that a decomposed todo/review/final-gate task must satisfy.
+  c_split_rule: if C separates into independent end-to-end outcomes, create separate triage roots with separate root_goal_id values.
+  closure_rule: A child can complete only its task_AC; the root Goal closes only when graph evidence satisfies the root closure condition.
+langsmith_eval_basis:
+  trace_keys: [root_goal_id, flow_graph_id, node_id, task_id, actor_binding, cps_ref, task_AC, evidence_ref, transition_reason, outcome]
+  review_labels: [root_goal_passed, task_AC_passed, evidence_sufficient, actor_binding_correct, transition_correct, needs_rework, blocked_owner_action]
+  evaluation_unit: root Goal closes at graph level; task AC closes at node level.
+moderator_gate:
+  final_profile: moderator
+  checks: [root Goal, C split decision, task AC, CPS flow graph, node/edge inheritance, LangSmith trace keys, completion delta, selected profile evidence, gateway boundary, sandbox boundary, owner-action]
+lifecycle_return:
+  success: kanban_complete only for read-only or owner-approved terminal tasks
+  review_required: kanban_block reason prefix review-required
+  blocked: kanban_block with owner-action reason

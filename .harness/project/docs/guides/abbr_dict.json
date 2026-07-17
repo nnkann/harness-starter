@@ -1,0 +1,13 @@
+{
+  "CPS": "Context-Problem-Solution framework. Every Harness task compiles into C, P, S segments.",
+  "AC": "Acceptance Criteria. Defines strict boundaries and checks for task completion.",
+  "SSOT": "Single Source of Truth. The authoritative data schema or policy branch (hermes/harness-starter-baseline).",
+  "LOC": "Lines of Code. Limit enforced by Ponytail (100 LOC maximum per task).",
+  "LLM Wiki": "Low-token, high-speed wiki mapping domain schemas and decisions into active prompt context.",
+  "Maat": "The Harness moderator profile acting as an absolute audit gatekeeper (T8) before task merge.",
+  "Thoth": "The Harness orchestrator profile responsible for contract compilation (T4) and routing.",
+  "Ptah": "The Harness implementation coder profile responsible for task execution.",
+  "Sia": "The Harness cognitive analyzer profile responsible for perception diagnostics under minimal tool restrictions.",
+  "Anubis": "The Harness reviewer/cleanup profile responsible for active session pruning and snapshot writebacks.",
+  "Ponytail": "The Lazy Dev's Ladder principles limiting LOC, imports, and unnecessary try-catch code bloat."
+}

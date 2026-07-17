@@ -1,0 +1,599 @@
+{
+  "cases": [
+    {
+      "authorization_fixture": null,
+      "expected_hold": null,
+      "expected_revision_delta": 0,
+      "forbidden_write_assertion": true,
+      "id": "T01",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "exact dispatch/observed",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": true,
+      "production_entrypoint": "dispatch_external_runtime",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "tests/test_external_runtime_dispatcher.py::ExternalRuntimeDispatcherTests::test_dispatch_appends_durable_observed_before_launch_and_uses_identity"
+    },
+    {
+      "authorization_fixture": null,
+      "expected_hold": null,
+      "expected_revision_delta": 0,
+      "forbidden_write_assertion": true,
+      "id": "T02",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "valid heartbeat sequence",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": true,
+      "production_entrypoint": "append_heartbeat",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "tests/test_external_runtime_dispatcher.py::ExternalRuntimeDispatcherTests::test_dispatch_appends_durable_observed_before_launch_and_uses_identity"
+    },
+    {
+      "authorization_fixture": null,
+      "expected_hold": null,
+      "expected_revision_delta": 0,
+      "forbidden_write_assertion": true,
+      "id": "T02a",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "every event_kind/status invalid pairing",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": true,
+      "production_entrypoint": "_validate_event_status",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "tests/test_active_case_state_machine.py::ActiveCaseStateMachineTests::test_T02a_event_status_compatibility_is_exhaustive"
+    },
+    {
+      "authorization_fixture": null,
+      "expected_hold": null,
+      "expected_revision_delta": 0,
+      "forbidden_write_assertion": true,
+      "id": "T03",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "stale/missing poll",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": true,
+      "production_entrypoint": "reconcile_external_runtime",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "tests/test_external_runtime_dispatcher.py::ExternalRuntimeDispatcherTests::test_poll_and_lost_blocker_append_observed_until_terminal_then_only_reload"
+    },
+    {
+      "authorization_fixture": null,
+      "expected_hold": "HOLD_PREAUTH_MISSING",
+      "expected_revision_delta": 0,
+      "forbidden_write_assertion": true,
+      "id": "T04",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "terminal pass, no authorization",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": true,
+      "production_entrypoint": "materialize_pre_authorized_transition",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "tests/test_cps_working_graph_registry.py::WorkingGraphRegistryTests::test_T04_terminal_pass_without_authorization_holds_without_write"
+    },
+    {
+      "authorization_fixture": "exact_authorization.json",
+      "expected_hold": null,
+      "expected_revision_delta": 1,
+      "forbidden_write_assertion": true,
+      "id": "T05",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "terminal pass + exact authorization/predicate",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": true,
+      "production_entrypoint": "materialize_pre_authorized_transition",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "tests/test_cps_working_graph_registry.py::WorkingGraphRegistryTests::test_T05_exact_authorization_and_predicate_materialize_one_named_transition"
+    },
+    {
+      "authorization_fixture": null,
+      "expected_hold": null,
+      "expected_revision_delta": 0,
+      "forbidden_write_assertion": true,
+      "id": "T06",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "terminal fail/blocked",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": false,
+      "production_entrypoint": "materialize_pre_authorized_transition",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "tests/test_cps_working_graph_registry.py::WorkingGraphRegistryTests::test_T06_terminal_fail_or_blocked_never_writes_success"
+    },
+    {
+      "authorization_fixture": "exact_authorization.json",
+      "expected_hold": "HOLD_PREAUTH_STALE",
+      "expected_revision_delta": 0,
+      "forbidden_write_assertion": true,
+      "id": "T07",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "revision/digest mismatch",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": true,
+      "production_entrypoint": "materialize_pre_authorized_transition",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "tests/test_cps_working_graph_registry.py::WorkingGraphRegistryTests::test_T07_revision_digest_or_graph_binding_mismatch_is_stale_without_write"
+    },
+    {
+      "authorization_fixture": "exact_authorization.json",
+      "expected_hold": "HOLD_PREAUTH_PREDICATE",
+      "expected_revision_delta": 0,
+      "forbidden_write_assertion": true,
+      "id": "T08",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "false predicate/missing evidence",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": false,
+      "production_entrypoint": "materialize_pre_authorized_transition",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "tests/test_cps_working_graph_registry.py::WorkingGraphRegistryTests::test_T08_false_predicate_missing_or_changed_reload_holds_without_write"
+    },
+    {
+      "authorization_fixture": "exact_authorization.json",
+      "expected_hold": "HOLD_PREAUTH_SCOPE",
+      "expected_revision_delta": 0,
+      "forbidden_write_assertion": true,
+      "id": "T09",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "unauthorized delta path",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": true,
+      "production_entrypoint": "materialize_pre_authorized_transition",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "tests/test_cps_working_graph_registry.py::WorkingGraphRegistryTests::test_T09_unauthorized_delta_path_holds_without_write"
+    },
+    {
+      "authorization_fixture": "exact_authorization.json",
+      "expected_hold": null,
+      "expected_revision_delta": 1,
+      "forbidden_write_assertion": true,
+      "id": "T10",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "concurrent materializers",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": true,
+      "production_entrypoint": "materialize_pre_authorized_transition",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "tests/test_cps_working_graph_registry.py::WorkingGraphRegistryTests::test_T10_concurrent_materializers_create_one_revision_and_one_record"
+    },
+    {
+      "authorization_fixture": "exact_authorization.json",
+      "expected_hold": null,
+      "expected_revision_delta": 0,
+      "forbidden_write_assertion": true,
+      "id": "T11",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "duplicate replay",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": true,
+      "production_entrypoint": "materialize_pre_authorized_transition",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "tests/test_cps_working_graph_registry.py::WorkingGraphRegistryTests::test_T11_duplicate_replay_returns_same_ref_without_revision"
+    },
+    {
+      "authorization_fixture": null,
+      "expected_hold": null,
+      "expected_revision_delta": 0,
+      "forbidden_write_assertion": true,
+      "id": "T12",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "out-of-order receipt",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": true,
+      "production_entrypoint": "append_heartbeat",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "tests/test_external_runtime_dispatcher.py::ExternalRuntimeDispatcherTests::test_event_status_matrix_and_transition_continuity_reject_before_write"
+    },
+    {
+      "authorization_fixture": null,
+      "expected_hold": null,
+      "expected_revision_delta": 0,
+      "forbidden_write_assertion": true,
+      "id": "T13",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "second terminal",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": true,
+      "production_entrypoint": "append_terminal_receipt",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "tests/test_external_runtime_dispatcher.py::ExternalRuntimeDispatcherTests::test_terminal_is_first_writer_wins_under_concurrency"
+    },
+    {
+      "authorization_fixture": null,
+      "expected_hold": null,
+      "expected_revision_delta": 0,
+      "forbidden_write_assertion": true,
+      "id": "T14",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "heartbeat/blocker after terminal",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": true,
+      "production_entrypoint": "append_heartbeat",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "tests/test_external_runtime_dispatcher.py::ExternalRuntimeDispatcherTests::test_poll_and_lost_blocker_append_observed_until_terminal_then_only_reload"
+    },
+    {
+      "authorization_fixture": null,
+      "expected_hold": null,
+      "expected_revision_delta": 0,
+      "forbidden_write_assertion": true,
+      "id": "T15",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "post-terminal audit poll",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": true,
+      "production_entrypoint": "poll_external_runtime",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "tests/test_external_runtime_dispatcher.py::ExternalRuntimeDispatcherTests::test_poll_and_lost_blocker_append_observed_until_terminal_then_only_reload"
+    },
+    {
+      "authorization_fixture": "exact_authorization.json",
+      "expected_hold": null,
+      "expected_revision_delta": 0,
+      "forbidden_write_assertion": true,
+      "id": "T16",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "crash before CAS",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": true,
+      "production_entrypoint": "materialize_pre_authorized_transition",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "tests/test_active_case_state_machine.py::ActiveCaseStateMachineTests::test_T16_crash_before_CAS_has_no_partial_write_and_retry_recovers"
+    },
+    {
+      "authorization_fixture": "exact_authorization.json",
+      "expected_hold": null,
+      "expected_revision_delta": 0,
+      "forbidden_write_assertion": true,
+      "id": "T17",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "crash after write",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": true,
+      "production_entrypoint": "materialize_pre_authorized_transition",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "tests/test_active_case_state_machine.py::ActiveCaseStateMachineTests::test_T17_crash_after_write_replay_reads_same_materialization_without_duplicate"
+    },
+    {
+      "authorization_fixture": null,
+      "expected_hold": null,
+      "expected_revision_delta": 0,
+      "forbidden_write_assertion": true,
+      "id": "T18",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "derived-C candidate unaccepted",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": true,
+      "production_entrypoint": "build_derived_c_candidate",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "test_cps_preflight_verification_gate.py::TestCpsPreflightVerificationGate::test_T18_derived_c_candidate_is_transient_non_authoritative_and_exactly_bound"
+    },
+    {
+      "authorization_fixture": "exact_authorization.json",
+      "expected_hold": null,
+      "expected_revision_delta": 1,
+      "forbidden_write_assertion": true,
+      "id": "T19",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "exact return authorization",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": true,
+      "production_entrypoint": "materialize_pre_authorized_transition",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "tests/test_cps_working_graph_registry.py::WorkingGraphRegistryTests::test_T19_return_edge_advances_only_pending_eligible_satisfied_by_preauthorized_cas"
+    },
+    {
+      "authorization_fixture": null,
+      "expected_hold": "HOLD_RETURN_EDGE",
+      "expected_revision_delta": 0,
+      "forbidden_write_assertion": true,
+      "id": "T20",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "return evidence absent",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": false,
+      "production_entrypoint": "validate_accepted_derived_c_lineage",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "tests/test_cps_working_graph_registry.py::WorkingGraphRegistryTests::test_T20_unaccepted_or_mismatched_derived_lineage_holds_without_write"
+    },
+    {
+      "authorization_fixture": null,
+      "expected_hold": "HOLD_FINAL_GATE",
+      "expected_revision_delta": 0,
+      "forbidden_write_assertion": true,
+      "id": "T21",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "final Maat audit absent",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": false,
+      "production_entrypoint": "FinalAuditProductionAdapter.reload",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "tests/test_active_case_state_machine.py::ActiveCaseStateMachineTests::test_T21_final_Maat_audit_absence_holds_without_goal_closure"
+    },
+    {
+      "authorization_fixture": null,
+      "expected_hold": "hard_reject",
+      "expected_revision_delta": 0,
+      "forbidden_write_assertion": true,
+      "id": "T22",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "automatic root Goal close attempt",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": true,
+      "production_entrypoint": "FinalAuditProductionAdapter.reload",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "tests/test_active_case_state_machine.py::ActiveCaseStateMachineTests::test_T22_automatic_root_goal_close_is_rejected_without_write"
+    },
+    {
+      "authorization_fixture": null,
+      "expected_hold": "integration_failure",
+      "expected_revision_delta": 0,
+      "forbidden_write_assertion": true,
+      "id": "T23",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "production consumer bypass",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": true,
+      "production_entrypoint": "dispatch_external_body",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "tests/test_lifecycle_runner.py::TestLifecycleRunner::test_external_runtime_production_adapter_requires_identity_and_uses_receipt_path"
+    },
+    {
+      "authorization_fixture": null,
+      "expected_hold": "hard_reject",
+      "expected_revision_delta": 0,
+      "forbidden_write_assertion": true,
+      "id": "T24",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "PID/session/Honcho authority",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": true,
+      "production_entrypoint": "dispatch_external_runtime",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "tests/test_external_runtime_dispatcher.py::ExternalRuntimeDispatcherTests::test_rejects_missing_or_mismatched_explicit_identity_without_writes"
+    },
+    {
+      "authorization_fixture": null,
+      "expected_hold": "schema_failure",
+      "expected_revision_delta": 0,
+      "forbidden_write_assertion": true,
+      "id": "T25",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "body/raw-output copied to state",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": true,
+      "production_entrypoint": "run_job",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "tests/test_external_runtime_dispatcher.py::ExternalRuntimeDispatcherTests::test_run_job_keeps_raw_stdio_out_of_receipts"
+    },
+    {
+      "authorization_fixture": null,
+      "expected_hold": "fail_closed",
+      "expected_revision_delta": 0,
+      "forbidden_write_assertion": true,
+      "id": "T26",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "graph mismatch during reconcile",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": true,
+      "production_entrypoint": "WorkingGraphRegistry.append_execution_receipt",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "tests/test_cps_working_graph_registry.py::WorkingGraphRegistryTests::test_w2_graph_locator_revision_and_digest_mismatch_reject_without_write"
+    },
+    {
+      "authorization_fixture": null,
+      "expected_hold": "HOLD_SAME_C_RECOVERY_AVAILABLE",
+      "expected_revision_delta": 0,
+      "forbidden_write_assertion": true,
+      "id": "T27",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "same-C recovery remains available",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": false,
+      "production_entrypoint": "build_derived_c_candidate",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "test_cps_preflight_verification_gate.py::TestCpsPreflightVerificationGate::test_T27_same_c_recovery_available_holds_without_candidate"
+    },
+    {
+      "authorization_fixture": null,
+      "expected_hold": null,
+      "expected_revision_delta": "Maat_delta_only",
+      "forbidden_write_assertion": true,
+      "id": "T28",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "complete joint evidence + Maat audit",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": true,
+      "production_entrypoint": "FinalAuditProductionAdapter.reload",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "tests/test_active_case_state_machine.py::ActiveCaseStateMachineTests::test_T28_complete_joint_evidence_is_only_eligible_for_Maat_audit"
+    },
+    {
+      "authorization_fixture": "exact_authorization.json",
+      "expected_hold": null,
+      "expected_revision_delta": 1,
+      "forbidden_write_assertion": true,
+      "id": "T29",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "exact preauthorization for blocked-parent resume",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": true,
+      "production_entrypoint": "materialize_pre_authorized_transition",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "tests/test_cps_working_graph_registry.py::WorkingGraphRegistryTests::test_T29_blocked_parent_exact_resume_is_the_only_resumable_write"
+    },
+    {
+      "authorization_fixture": null,
+      "expected_hold": "HOLD_EXECUTION_INCOMPLETE",
+      "expected_revision_delta": 0,
+      "forbidden_write_assertion": true,
+      "id": "T30",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "production final-audit HOLD",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": false,
+      "production_entrypoint": "execute_preflight_chain",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "test_cps_preflight_verification_gate.py::TestCpsPreflightVerificationGate::test_T30_production_final_audit_hold_blocks_live_maat"
+    },
+    {
+      "authorization_fixture": null,
+      "expected_hold": null,
+      "expected_revision_delta": 0,
+      "forbidden_write_assertion": true,
+      "id": "T31",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "final Maat receives reloaded lane evidence",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": true,
+      "production_entrypoint": "_maat_final_prompt",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "tests/test_maat_reducer_registry_integration.py::MaatReducerRegistryIntegrationTests::test_T31_final_maat_prompt_receives_only_reloaded_lane_evidence_and_cannot_mutate_goal"
+    },
+    {
+      "authorization_fixture": null,
+      "expected_hold": "HOLD_BINDING_MISMATCH",
+      "expected_revision_delta": 0,
+      "forbidden_write_assertion": true,
+      "id": "T32",
+      "initial_graph_fixture": "initial_graph.json",
+      "input": "production final-audit adapter bypass/stale binding",
+      "persisted_refs": [
+        "fixture:initial_graph.json",
+        "fixture:receipt_sequences.json"
+      ],
+      "predicate_result": false,
+      "production_entrypoint": "load_production_final_audit",
+      "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+      "receipt_sequence_fixture": "receipt_sequences.json",
+      "test_ref": "tests/test_cps_current_system_integration.py::CpsCurrentSystemIntegrationTests::test_T32_preflight_final_audit_loader_uses_production_adapter_result_without_goal_mutation"
+    }
+  ],
+  "schema": "harness.active-case-state-test-matrix.v1"
+}

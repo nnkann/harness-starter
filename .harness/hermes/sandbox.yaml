@@ -1,0 +1,69 @@
+version: 1
+schema: harness-hermes-sandbox-contract
+purpose: Worktree and filesystem boundary contract for Hermes Kanban executor packets.
+profile_boundary:
+  statement: Hermes profiles isolate Hermes config, memory, sessions, skills, gateways, and state, but do not by themselves sandbox filesystem access.
+  implication: Every runnable task must carry an explicit workspace and allowed scope.
+workspace_binding:
+  required_env:
+    - HERMES_KANBAN_TASK
+    - HERMES_KANBAN_DB
+    - HERMES_KANBAN_BOARD
+    - HERMES_KANBAN_WORKSPACES_ROOT
+    - HERMES_KANBAN_WORKSPACE
+    - HERMES_KANBAN_RUN_ID
+    - HERMES_KANBAN_CLAIM_LOCK
+    - HERMES_PROFILE
+  conditional_env:
+    - HERMES_TENANT
+  cwd_policy: terminal.cwd must point at the pinned task worktree or the worker must use HERMES_KANBAN_WORKSPACE as cwd.
+  runtime_guard: python .harness/hermes/loader.py guard-runtime-context --operation write --cwd "$PWD" must pass before write-capable executor work; branch, commit, push, and auth use the same guard with their operation name.
+  mismatch_policy: If terminal.cwd, worktree_path, and HERMES_KANBAN_WORKSPACE do not resolve to the same pinned worktree, block before any write.
+  worktree_policy: pinned-worktree-required
+env_classification:
+  filesystem_anchor: HERMES_KANBAN_WORKSPACE
+  board_identity: [HERMES_KANBAN_TASK, HERMES_KANBAN_BOARD, HERMES_KANBAN_RUN_ID]
+  lifecycle_audit_context: [HERMES_KANBAN_DB, HERMES_KANBAN_WORKSPACES_ROOT, HERMES_KANBAN_CLAIM_LOCK, HERMES_PROFILE, HERMES_TENANT]
+  permission_rules:
+    - Env values are runtime context, not permission grants.
+    - HERMES_KANBAN_WORKSPACE anchors workspace verification but does not grant writes without task packet allowed_scope.
+    - HERMES_KANBAN_WORKSPACES_ROOT does not authorize sibling workspace access.
+    - HERMES_KANBAN_DB must not be directly written by executors; Kanban lifecycle changes use Hermes kanban tools or API.
+    - HERMES_PROFILE and HERMES_TENANT do not grant gateway, board, or filesystem permission.
+board_binding:
+  board_source: route kanban_board, gateway route_to_kanban.kanban_board, task packet kanban_board, and HERMES_KANBAN_BOARD must match.
+  ambient_current_board_policy: forbidden for channel-routed or packet-bound work.
+  cross_board_policy: owner-action required and locally configured gateway permission.
+context_mixup_regressions:
+  canonical_branch: hermes/harness-starter-baseline
+  intended_project_root: /Users/kann/projects/harness-starter-hermes-adapter
+  control_plane_cwd: /Users/kann/.hermes/hermes-agent
+  channel_bound_project_context: harness-starter-project-hermes
+  allowed_scope_source: task packet allowed_scope
+  block_on_cwd_project_mismatch: true
+  blocked_operations: [branch, commit, push, auth-sensitive, write]
+  diagnostic: "context-mismatch: intended target /Users/kann/projects/harness-starter-hermes-adapter but runtime cwd /Users/kann/.hermes/hermes-agent; block branch/commit/push/auth-sensitive actions until channel-bound pinned worktree context matches allowed_scope."
+  valid_case:
+    pinned_worktree_context_accepted: true
+    accepted_when: channel-bound project context, task worktree_path, HERMES_KANBAN_WORKSPACE, and runtime cwd resolve to the same pinned worktree under allowed_scope.
+allowed_scope_defaults:
+  - .harness/hermes/**
+  - .harness/project/**
+  - .harness/schemas/**
+forbidden_scope:
+  - sibling projects
+  - parent directories outside current worktree
+  - Hermes profile secrets
+  - Hermes memory full-text overwrite
+  - direct git commit
+  - direct git push
+approval_required:
+  - writes outside allowed_scope
+  - state-changing docs operation
+  - dependency install
+  - network write
+  - commit or push
+done_gate:
+  - executor reports changed files relative to HERMES_KANBAN_WORKSPACE
+  - executor reports checks_run and evidence
+  - wrapper blocks with review-required when human review is needed

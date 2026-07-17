@@ -1,0 +1,99 @@
+{
+  "identity": {
+    "attempt": 1,
+    "graph_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+    "graph_ref": "fixture:initial_graph.json",
+    "graph_revision": 1,
+    "immutable_body_digest": "04c41d9d653109b2f93aaed8a86e676a54e50aa5bdf6c616ff006d9c783ce27a",
+    "owner_ref": "ptah",
+    "parent_edge_ref": "C1/P1",
+    "return_to_node_ref": "C1",
+    "run_handle": "run-w5",
+    "stage_ref": "S:active",
+    "work_id": "active-case-w5"
+  },
+  "invalid": [
+    {
+      "event_kind": "dispatch",
+      "status": "pass"
+    },
+    {
+      "event_kind": "dispatch",
+      "status": "fail"
+    },
+    {
+      "event_kind": "dispatch",
+      "status": "blocked"
+    },
+    {
+      "event_kind": "heartbeat",
+      "status": "pass"
+    },
+    {
+      "event_kind": "heartbeat",
+      "status": "fail"
+    },
+    {
+      "event_kind": "heartbeat",
+      "status": "blocked"
+    },
+    {
+      "event_kind": "poll",
+      "status": "pass"
+    },
+    {
+      "event_kind": "poll",
+      "status": "fail"
+    },
+    {
+      "event_kind": "poll",
+      "status": "blocked"
+    },
+    {
+      "event_kind": "blocker",
+      "status": "pass"
+    },
+    {
+      "event_kind": "blocker",
+      "status": "fail"
+    },
+    {
+      "event_kind": "blocker",
+      "status": "blocked"
+    },
+    {
+      "event_kind": "terminal",
+      "status": "observed"
+    }
+  ],
+  "valid": [
+    {
+      "event_kind": "dispatch",
+      "status": "observed"
+    },
+    {
+      "event_kind": "heartbeat",
+      "status": "observed"
+    },
+    {
+      "event_kind": "poll",
+      "status": "observed"
+    },
+    {
+      "event_kind": "blocker",
+      "status": "observed"
+    },
+    {
+      "event_kind": "terminal",
+      "status": "pass"
+    },
+    {
+      "event_kind": "terminal",
+      "status": "fail"
+    },
+    {
+      "event_kind": "terminal",
+      "status": "blocked"
+    }
+  ]
+}

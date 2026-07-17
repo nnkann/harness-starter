@@ -1,0 +1,152 @@
+run_id: ${HERMES_KANBAN_RUN_ID}
+project_id: harness-starter
+source_task_id: ${HERMES_KANBAN_TASK}
+root_goal_id: rg-${SLUG}
+flow_graph_id: fg-${RUN_ID}
+CPS:
+  Goal: Fix the compact CPS packet and plan created by Seshat.
+  C: Keep the delegation packet compact and operator-routable without prompt bundles.
+  SSOT:
+    operational: Project repo is the operational/executable SSOT for CPS templates, active plans, and code-adjacent system definitions.
+    decision_memory: harness-brain/GBrain is the decision-memory/history/learning/index SSOT; it may hold backup/reference copies, but it is not the executable template source.
+  P1: 'Fix /Users/kann/projects/harness-starter/.harness/project/runs/_template/cps_packet.yaml: keep P1/P2 as short received inputs and replace placeholder S fields with concrete operators.'
+  P2: 'Fix /Users/kann/projects/harness-starter/.harness/project/docs/harness/hn_cps_delegation_packet_plan.md: avoid execution-dump references and keep under 120 lines.'
+  S1: seshat_doc_ops_fix
+  S2: seshat_doc_ops_fix
+  AC:
+    owner: maat
+    checks:
+      - id: AC1
+        judge: maat
+        evidence: deterministic_allowed_path_scan
+        pass_if: Only the approved paths are touched.
+      - id: AC2
+        judge: maat
+        evidence: deterministic_packet_shape_scan
+        pass_if: C, P, S, AC, and Goal stay compact.
+      - id: AC3
+        judge: maat
+        evidence: deterministic_forbidden_text_scan
+        pass_if: No prompt bundle or placeholder S fields remain.
+      - id: AC4
+        judge: maat
+        evidence: cps_semantic_trace
+        pass_if: Live Maat -> Thoth -> Maat trace proves C-boundary, ordered P->S edges, AC judgment, and Goal closure.
+semantic_anchor:
+  schema: harness.honcho.cps_cluster.v1
+  cluster_key: harness-starter/cps-memory-lifecycle-and-honcho-anchor/decision
+  source_id: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md
+  source_revision: 4e577f07134365be64285223d04b75d5951576d7
+  content_hash: 31e2cbbb9f7ed0644a80f010313d4a413b9ac573be34fa2a1fd74cc6e57e8455
+  C:
+    shape: exact CPS Anchor Contract semantic-definition gate
+    boundary_hint: single
+    domain: [harness-starter]
+  P_order:
+    - id: P1
+      statement: Semantic leaves can reach routing without canonical definition proof.
+  S_mapping:
+    - id: S1
+      targets: [P1]
+      operator: Bind every present semantic leaf to the readable canonical section before runtime action.
+  AC_anchor:
+    - Missing or mismatched provenance holds before dispatch or write.
+  goal_state: partial
+  source_refs:
+    - /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md#CPS-Anchor-Contract
+  gbrain_pointers: []
+  lifecycle: validated
+  freshness: ${ANCHOR_FRESHNESS}
+  expires_at: ${ANCHOR_EXPIRES_AT}
+  supersedes: null
+semantic_provenance_binding:
+  canonical_source_locator: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md
+  canonical_source_readback: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:1-298
+  current_source_revision: 4e577f07134365be64285223d04b75d5951576d7
+  current_content_hash: 31e2cbbb9f7ed0644a80f010313d4a413b9ac573be34fa2a1fd74cc6e57e8455
+  canonical_section: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:75-108
+  semantic_field_definition_coverage:
+    schema: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:78
+    cluster_key: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:79
+    source_id: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:80
+    source_revision: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:81
+    content_hash: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:82
+    C.shape: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:85
+    C.boundary_hint: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:86
+    C.domain: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:87
+    P_order[].id: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:90
+    P_order[].statement: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:91
+    S_mapping[].id: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:94
+    S_mapping[].targets: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:95
+    S_mapping[].operator: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:96
+    AC_anchor: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:98
+    goal_state: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:101
+    source_refs: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:102
+    gbrain_pointers: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:103
+    lifecycle: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:104
+    freshness: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:105
+    expires_at: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:106
+    supersedes: /Users/kann/projects/harness-brain/projects/harness-starter/decisions/cps-memory-lifecycle-and-honcho-anchor.md:107
+task_AC:
+  owner: maat
+  checks:
+    - id: AC1
+      judge: maat
+      evidence: deterministic_allowed_path_scan
+      pass_if: Only the approved paths are touched.
+    - id: AC2
+      judge: maat
+      evidence: deterministic_packet_shape_scan
+      pass_if: C, P, S, AC, and Goal stay compact.
+    - id: AC3
+      judge: maat
+      evidence: deterministic_forbidden_text_scan
+      pass_if: No prompt bundle or placeholder S fields remain.
+    - id: AC4
+      judge: maat
+      evidence: cps_semantic_trace
+      pass_if: Live Maat -> Thoth -> Maat trace proves C-boundary, ordered P->S edges, AC judgment, and Goal closure.
+owner_approval_boundary:
+  implementation_scope: owner-approved packet and planning-doc edits only
+  commit: explicit owner approval required
+  push: explicit owner approval required
+prohibited_actions:
+  - full prompt bundling
+  - prompt-bundle inclusion
+  - git add
+  - git commit
+  - git push
+evidence_acquisition:
+  mode: digest-first maat-evidence
+  evidence_generator: deterministic_validator
+  authority: evidence only; Maat owns PASS/WARN/FAIL judgment
+  C:
+    - validate single compact context line under CPS.C
+  P:
+    - validate P1/P2 are short received inputs, not prompt bundles
+  S:
+    - validate S1/S2 are concrete operators, not placeholders
+  AC:
+    - validate every S# result is judged by Maat-owned AC
+  Goal:
+    - validate explicit Goal closure, not just route JSON/probe counts
+  CPS_trace:
+    - validate ordered P# receipt, mapped S# operator, P# -> S# edge, AC verdict, and Goal closure
+  preflight_probe:
+    - validate Maat candidate_agents receive role-local draft_CPS probes, not identical full prompts
+    - validate probe responses are gathered as-arrives and summarized for Maat reducer
+  failure_codes:
+    - FAIL_CPS_SEMANTIC_ABSENCE
+    - FAIL_MISSING_LIVE_MAAT_C_BOUNDARY
+    - FAIL_MISSING_THOTH_COMPILE
+    - FAIL_MISSING_MAAT_FINAL_AC_JUDGMENT
+  allowed_paths:
+    - /Users/kann/projects/harness-starter/.harness/project/runs/_template/cps_packet.yaml
+    - /Users/kann/projects/harness-starter/.harness/project/docs/harness/hn_cps_delegation_packet_plan.md
+required_docs:
+  - /Users/kann/projects/harness-starter/.harness/project/docs/harness/hn_cps_delegation_packet_plan.md
+doc_ops_needed:
+  - compact_packet_template_rewrite_plan
+source_refs: []
+artifact_refs: []
+doc_refs: []

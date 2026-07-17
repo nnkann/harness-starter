@@ -2,6 +2,10 @@
 
 AI 코딩 에이전트를 위한 하네스(Harness) 템플릿. 공통 하네스 계약과 runtime adapter를 분리해 Claude, Codex, Hermes, Agy 같은 여러 agent 조합을 통합 관리한다.
 
+## Project entry point
+
+프로젝트 진입·규칙·도메인·cluster의 canonical authority는 `harness-brain`이다. 이 starter는 runtime에 필요한 계약만 유지한다.
+
 > "에이전트가 실수할 때마다, 그 실수가 다시는 일어나지 않도록 엔지니어링 솔루션을 만드는 것" — Mitchell Hashimoto
 
 현재 버전: **v0.55.1** — 0.x = 공개 API·동작 불안정·실험 단계. 다운스트림 실측 누적·매처 동작 검증·README 격차 안정화 후 1.0.0 검토. 변경 이력은 `git log --oneline --grep "(v0\."`, 다운스트림 마이그레이션은 `docs/harness/MIGRATIONS.md`.
@@ -42,7 +46,6 @@ bash /path/to/harness-starter/h-setup.sh --upgrade /path/to/my-project
 
 ```
 CLAUDE.md                        Claude Code runtime adapter 루트 인스트럭션
-AGENTS.md                        Codex runtime adapter 루트 인스트럭션
 .agents/
 └── skills/                      Codex가 직접 읽는 generated/validated adapter 후보
 .codex/
@@ -55,7 +58,7 @@ AGENTS.md                        Codex runtime adapter 루트 인스트럭션
 │   ├── self-verify.md           [상시] 작업 중 자기 검증 (AC 트리거 매트릭스)
 │   ├── code-ssot.md             [상시] 코드 심볼 SSOT drift 방지
 │   ├── coding.md                [상시] 코딩 컨벤션 (Surgical Changes)
-│   ├── naming.md                [paths] 네이밍 + 도메인 등급 + cluster 자동 매핑
+│   ├── naming                  [paths] 네이밍 + 도메인 등급 + cluster 매핑 (SSOT: harness-brain)
 │   ├── docs.md                  [상시] 문서 구조 + 프론트매터 + 탐색 규칙 + completed 차단 키워드
 │   ├── memory.md                [상시] 메모리 활용 규칙 (에이전트 memory vs 프로젝트 memory 경계)
 │   ├── security.md              [상시] 시크릿 금지 + 4계층 방어
@@ -117,7 +120,6 @@ AGENTS.md                        Codex runtime adapter 루트 인스트럭션
 scripts/                         유틸 스크립트 (하네스 외부)
 └── install-secret-scan-hook.sh  pre-commit 시크릿 스캔 훅 설치 (gitleaks 우선, grep 폴백)
 docs/
-├── clusters/                    도메인별 인덱스 (진입점 SSOT — 문서 목록 + 관계 맵)
 ├── WIP/                         진행 중 (파일 있으면 할 일 있다)
 ├── decisions/                   결정과 그 근거 ("왜 X를 선택했나?")
 ├── guides/                      방법과 패턴 ("X를 어떻게 하나?")
@@ -240,17 +242,15 @@ CPS 문서는 `docs/guides/project_kickoff.md`에 저장된다. `docs/guides/pro
 
 ## 문서 체계
 
-모든 docs/ 문서는 YAML 프론트매터 필수 (`title`, `domain`, `status`, `created`).
+모든 docs/ 문서는 YAML 프론트매터 필수 (`title`, `domain`, `status`, `created`). `status` 허용값은 `draft|active|stale|archived`.
 `incidents/`는 `symptom-keywords` 추가 필수 (재발 검색용 고유명사).
-문서 간 관계는 `relates-to` 필드로 명시. rel 타입 정의는 `.claude/rules/docs.md` "프론트매터 — wiki 그래프 모델" SSOT.
+문서 간 관계는 `relates-to` 필드로 명시. rel 타입 정의는 `/Users/kann/projects/harness-brain/projects/harness-starter/contracts/cp_frontmatter_schema.md` SSOT.
 
-```
-탐색 흐름: clusters/{domain}.md (문서 목록 + 관계 맵) → 본문 Read
-```
-
-도메인 목록 SSOT: `.claude/rules/naming.md`.
+도메인/cluster/naming SSOT: `/Users/kann/projects/harness-brain/projects/hermes/decisions/hermes_doc_naming_chain_ssot.md`.
 
 폴더는 문서의 **성격** (왜/어떻게/무엇이 깨졌나), `domain`은 문서의 **의미**를 담당. 이중 분류.
+
+문서 탐색은 harness-brain SSOT 문서와 각 문서의 frontmatter/relates-to를 따른다.
 
 `completed` 전환 차단 키워드: `TODO`, `FIXME`, `후속`, `미결`, `미결정`, `추후`, `나중에`, `별도로`. `docs-ops.sh move`가 본문에서 자동 검사 (회고 섹션은 면제).
 
@@ -266,7 +266,7 @@ CPS 문서는 `docs/guides/project_kickoff.md`에 저장된다. `docs/guides/pro
 
 시크릿 line-confirmed는 플래그 무관하게 review 강제 (보안 게이트).
 
-다운스트림은 `naming.md`의 "도메인 등급" 섹션에 critical/normal/meta 분류 필요. 자세한 안내는 `docs/harness/MIGRATIONS.md`.
+다운스트림은 `harness-brain`의 naming-chain SSOT 문서에 정의된 도메인 등급(critical/normal/meta) 규칙을 따른다. 자세한 안내는 `docs/harness/MIGRATIONS.md`.
 
 ## 핵심 원칙
 

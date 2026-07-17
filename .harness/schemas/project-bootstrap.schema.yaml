@@ -1,0 +1,48 @@
+version: 1
+schema: harness-project-bootstrap-schema
+required_files:
+  - .harness/hermes/project-bootstrap.yaml
+  - .harness/hermes/reference/ops/project-setup-criteria.yaml
+required_top_level_fields:
+  - bootstrap
+  - profile_strategy
+  - packet_defaults
+required_structure_outputs:
+  - project-direction-check
+  - structure-plan
+  - workflow-outline
+  - bootstrap-file-plan
+required_minimum_intake_ids:
+  - target-root
+  - owner-goal
+  - c-evidence
+  - requested-outputs
+  - write-intent
+required_handoff_triggers:
+  - owner accepts the structure proposal
+  - repo-local file creation is required
+  - CPS and docs/WIP lifecycle must move into the target project
+required_profile_strategy_fields:
+  - source
+  - bootstrap_owner_role
+  - routing_inputs
+  - forbidden
+  - contract_bridge
+required_packet_modes:
+  - advisory-only
+  - bounded-executor
+required_forbidden_entries:
+  - gateway context as permission
+  - sibling projects
+  - project-specific profile creation before init
+required_criteria_sections:
+  - advisory_gate
+  - bounded_executor_gate
+  - handoff_gate
+  - boundary_rules
+  - extracted_contracts
+required_contract_bridge_fields:
+  - profiles_contract
+  - routing_contract
+  - doc_generation_contract
+  - coordination_contract

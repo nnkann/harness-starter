@@ -1,0 +1,48 @@
+version: 1
+schema: harness-board-assignees-schema
+required_files:
+  - .harness/hermes/board-assignees.yaml
+  - .harness/hermes/profiles.yaml
+  - .harness/hermes/routes.yaml
+  - .harness/hermes/gateway.yaml
+required_policy_fields:
+  - assignee_identity
+  - role_archetype_is_not_assignee
+  - assignee_source_of_truth
+  - adapter_contract
+  - no_arbitrary_fallback
+  - project_binding_source
+required_board_fields:
+  - board
+  - project_slug
+  - routes
+  - selectable_assignees
+  - assignment_rules
+required_assignee_fields:
+  - profile
+  - role_archetype
+  - deity
+  - lane_shape
+  - gateway
+  - default_for
+required_lane_shape: hermes-profile
+required_role_archetypes:
+  - moderator
+  - orchestrator
+  - coder
+  - reviewer
+  - threat-guard
+  - researcher
+  - advisor
+  - designer
+  - marketer
+required_assignment_rules:
+  - task.assignee must match a concrete Hermes profile name
+  - role_archetype is classification and routing evidence
+  - local Hermes profile config owns profile creation
+  - no arbitrary fallback profile may execute
+required_naming_guidance:
+  - project_profile_pattern
+  - shared_profile_pattern
+  - role_archetype_required
+  - reserved_profiles_require_local_creation

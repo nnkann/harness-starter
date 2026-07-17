@@ -1,0 +1,56 @@
+version: 1
+schema: harness-hermes-kanban-pipeline
+purpose: Harness gate binding for Hermes Kanban tasks.
+official_alignment:
+  kanban_worker_lane: Hermes profile lane owns orchestration and status.
+  external_executor: External CLI execution is bounded by task packets; it is not an automatic Hermes worker lane.
+  messaging_gateways: Discord and Slack route manifests are non-secret bindings to the same Kanban pipeline.
+ownership_boundary:
+  hermes_owns: [Kanban board flow, lane assignment, task status, worker spawn, task comments, task archive]
+  harness_owns: [criteria, gates, task packet constraints, evidence requirements, owner-action handoff]
+  gateway_owns: [message intake authorization, channel policy, user and role admission, token handling]
+entrypoint:
+  route_manifest: .harness/hermes/routes.yaml
+  default_wrapper: harness-implementation
+  task_template: .harness/hermes/agent-task.template.yaml
+  project_loader: .harness/hermes/loader.py
+harness_gates:
+  - gate: intake-context
+    wrapper: harness-project
+    applies_when: Hermes Kanban presents a task context.
+    output: project summary and route context
+    allowed_commands: [python .harness/hermes/loader.py summary]
+    does_not_own: [message authorization, channel permission, task status transition]
+  - gate: classify-cps
+    wrapper: harness-cps
+    applies_when: A task needs Problem/Solution/AC mapping.
+    output: C/P/S candidate, C split decision, flow graph, root Goal reference, node-local task AC, typed graph edges, LangSmith trace keys, and owner-action when CPS is missing
+    reads: [.harness/hermes/reference/ops/cps-ac.yaml, .harness/hermes/reference/ops/document-standards.yaml, .harness/hermes/reference/rules.yaml]
+    does_not_own: [Kanban lane assignment, worker selection, gateway permission]
+  - gate: plan-docs
+    wrapper: harness-docs-ops
+    applies_when: A task needs docs lifecycle, domain, abbr, or WIP criteria.
+    output: WIP lifecycle decision, read-only docs checks, and approval list for state-changing docs ops
+    reads: [.harness/hermes/reference/ops/docs-ops.yaml, .harness/hermes/reference/ops/wip-lifecycle.yaml, .harness/hermes/reference/ops/document-standards.yaml]
+    does_not_own: [Kanban flow, gateway route policy]
+  - gate: executor-scope
+    wrapper: harness-implementation
+    applies_when: A bounded executor packet is requested.
+    output: scoped worktree changes and verification evidence
+    writes: [allowed_scope from .harness/hermes/agent-task.template.yaml]
+    does_not_own: [worker lifecycle status, commit permission, push permission]
+  - gate: review-and-handoff
+    wrapper: harness-commit-assist
+    applies_when: Executor evidence is ready for review, completion, or handoff.
+    output: precheck result, review recommendation, and commit or push owner-action
+    reads: [.harness/hermes/reference/ops/commit-flow.yaml, .harness/hermes/reference/ops/document-standards.yaml, .harness/hermes/reference/hook-contracts.yaml]
+    does_not_own: [Kanban complete command, gateway authorization]
+done_policy:
+  done_requires: [root Goal reference, C split decision, node-local task AC evidence, CPS flow graph linkage, LangSmith trace keys, completion delta, scoped diff, requested checks, no unresolved owner-action]
+  blocked_when: [CPS owner decision missing, C split decision missing, root Goal missing, task AC missing, flow graph linkage missing, forbidden scope requested, secret detected, state-changing docs op not approved]
+  commit_push: owner approval or handoff only
+kanban_lifecycle_return:
+  complete: kanban_complete with summary and metadata for read-only or owner-approved terminal tasks.
+  review_required: kanban_block with reason prefix review-required after code-changing executor output.
+  blocked: kanban_block with owner-action reason when approval, missing context, or scope decision is required.
+  audit_channel: kanban_comment carries changed files, checks run, evidence, decisions, and handoff commands before block or complete.

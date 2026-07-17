@@ -1,0 +1,58 @@
+version: 1
+schema: harness-reference-schema
+required_files:
+  - .harness/hermes/reference/catalog.yaml
+  - .harness/hermes/reference/pipeline.yaml
+  - .harness/hermes/reference/hook-contracts.yaml
+  - .harness/hermes/reference/official-alignment.yaml
+  - .harness/hermes/reference/rules.yaml
+  - .harness/hermes/reference/ops/docs-ops.yaml
+  - .harness/hermes/reference/ops/wip-lifecycle.yaml
+  - .harness/hermes/reference/ops/document-standards.yaml
+  - .harness/hermes/reference/ops/commit-flow.yaml
+  - .harness/hermes/reference/ops/cps-ac.yaml
+  - .harness/hermes/profiles.yaml
+  - .harness/hermes/board-assignees.yaml
+  - .harness/hermes/profile-docs/SOUL.md
+  - .harness/hermes/profile-docs/AGENTS.md
+  - .harness/hermes/profile-docs/USER.md
+  - .harness/hermes/profile-skills.yaml
+  - .harness/hermes/coordination.yaml
+  - .harness/hermes/cps-profile-routing.yaml
+  - .harness/hermes/doc-generation.yaml
+  - .harness/hermes/sandbox.yaml
+  - .harness/hermes/gateway.yaml
+forbidden_top_level_paths:
+  - legacy provider runtime adapter directories
+  - docs
+  - scripts
+required_catalog_sections:
+  - rules
+  - hooks
+forbidden_reference_files: import-style agent, skill, and source mapping manifests
+required_boundary_terms:
+  - harness_owns
+  - hermes_owns
+  - gateway_owns
+required_document_standards:
+  - domain_selection
+  - abbr_selection
+  - document_shape
+  - review_gate
+required_profile_contracts:
+  - profile_call_requires_cps_reason
+  - no_profile_mixing_without_cps_reason
+  - gateway_context_is_evidence_not_permission
+  - sandbox_scope_comes_from_task_packet
+required_assignee_contracts:
+  - concrete-hermes-profile-name
+  - role_archetype is classification
+  - no arbitrary fallback profile may execute
+  - <project>-<egyptian-name>
+  - shared-<egyptian-name>
+required_doc_generation_sections:
+  - cps_decision
+  - document_classification
+  - profile_routing
+  - docs_ops_binding
+  - moderator_gate

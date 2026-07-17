@@ -1,4 +1,7 @@
-# Local settings (머신별, 커밋하지 않음)
+# Local settings / secrets (머신별, 커밋하지 않음)
+.env
+.env.*
+!.env.example
 .claude/settings.local.json
 
 # 세션별 동적 snapshot (commit 스킬의 tree-hash 캐시)
@@ -16,3 +19,32 @@
 
 # Agent worktree 산물 (절대 규칙: worktree 생성 금지 — 우연 산물 차단)
 .claude/worktrees/
+
+# OS metadata
+.DS_Store
+
+# Harness runtime state (generated, never source-controlled)
+# SQLite databases
+*.sqlite3
+
+# Session registry and reclaim manifests (live runtime state)
+.harness/project/runs/session_registry.json
+.harness/project/runs/session_reclaim_manifest.json
+
+# Semantic checkpoint runtime (packets, logs, locks, jobs)
+.harness/project/runs/semantic_checkpoints/
+
+# C1 advisory reader receipts (runtime evidence)
+.harness/project/runs/c1_advisory_readers/
+
+# Preflight route gate test outputs (runtime evidence)
+.harness/project/runs/preflight_route_gate/
+
+# Test verification runtime output
+.harness/project/runs/test_anubis_verification.json
+.harness/project/runs/test_anubis_verification.yaml
+
+# Delegation/handoff runtime artifacts (generated during test runs)
+.harness/project/runs/delegation_decision.json
+.harness/project/runs/handoff_snapshot.json
+.harness/project/runs/test_handoff_snapshot_packet.json

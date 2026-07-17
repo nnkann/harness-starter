@@ -1,0 +1,22 @@
+{
+  "family": "cps_working_graph",
+  "hermes_kann_addendum": {
+    "observations": [],
+    "source_refs": []
+  },
+  "maat_body": {
+    "goal_eligible": false,
+    "lifecycle": "active",
+    "returns_to": [],
+    "root_goal_status": "open",
+    "schema": "harness.active-case.fixture.v1"
+  },
+  "maat_body_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
+  "materialized_transitions": [],
+  "pre_authorized_transitions": [],
+  "revision": 1,
+  "semantic_provenance_binding": {
+    "fixture_ref": "initial_graph.json"
+  },
+  "work_id": "active-case-w5"
+}

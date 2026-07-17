@@ -1,0 +1,124 @@
+version: 1
+schema: harness-hermes-doc-generation
+purpose: Route document creation requests through CPS, profile justification, docs operation criteria, and moderator gate.
+ownership_boundary:
+  kanban_owns: [task state, lane, comments, archival flow]
+  gateway_owns: [requester authorization, channel authorization, mention/free-response policy]
+  harness_owns: [CPS reason, domain and abbr criteria, document shape, doc-ops criteria, AC evidence, moderator gate]
+entry_signal:
+  accepted_context:
+    - gateway message
+    - Kanban card
+    - owner request
+    - existing WIP pointer
+  context_maps_to: C
+  gateway_context_rule: gateway context is C evidence, not permission grant.
+cps_decision:
+  required: true
+  decides:
+    - why this document exists
+    - which Problem and Solution it supports
+    - whether the document updates an existing SSOT or creates a new doc
+    - which profile axis is needed
+  no_cps_match: owner-action to add or clarify CPS before document creation.
+document_classification:
+  domain_rule: choose by stable subject and owner of the decision, not runtime, branch, gateway, or profile name.
+  abbr_rule: choose from domain and stable subject; do not encode runtime provider, profile, branch, or gateway.
+  shape_required:
+    - frontmatter
+    - Goal
+    - AC
+    - tests
+    - measured evidence
+  lifecycle_rule: WIP creation and movement are doc lifecycle events governed by docs operation criteria.
+profile_routing:
+  contract: .harness/hermes/cps-profile-routing.yaml
+  default_profiles:
+    - planner
+    - docs-steward
+    - reviewer
+    - moderator
+  optional_profiles:
+    - researcher
+    - codebase-analyst
+    - risk-analyst
+    - threat-guard
+  rules:
+    - planner maps C/P/S, AC, domain, and abbr.
+    - docs-steward checks SSOT, WIP shape, relates-to, and lifecycle criteria.
+    - researcher is called only when external or current source evidence is a CPS dimension.
+    - codebase-analyst is called only when repo implementation or internal docs evidence is a CPS dimension.
+    - risk-analyst or threat-guard is called only when permission, rollback, exposure, or scope risk is a CPS dimension.
+    - reviewer checks document evidence against AC before moderator gate.
+doc_ops_plane:
+  owner: seshat
+  required_canonical_docs:
+    - docs/harness/contracts/cp_frontmatter_schema.md
+    - docs/harness/contracts/cp_cps_evidence_acquisition.md
+    - docs/harness/contracts/cp_owner_approval_boundary.md
+    - docs/harness/contracts/cp_agent_role_contracts.md
+    - docs/harness/contracts/cp_kanban_promotion_contract.md
+    - docs/harness/contracts/cp_honcho_doc_wiki_boundary.md
+  run_artifacts:
+    path: .harness/project/runs/<run_id>/
+    files: [cps_packet.yaml, doc_ops_manifest.yaml, honcho_ingest_manifest.yaml]
+  honcho_policy: source_ref-backed digest only; repo markdown remains authoritative SSOT.
+  honcho_agent_management:
+    contract: docs/harness/contracts/cp_honcho_agent_management.md
+    managed_agents: [honcho_archivist, honcho_librarian, honcho_context]
+    authority_order: [owner_approval_boundary, repo_harness_markdown_source_ref, cps_packet_task_AC_evidence_acquisition, Honcho_digest_context]
+    lifecycle: [manifest_created_by_seshat, audit_by_maat, ingest_by_archivist, drift_qa_by_librarian, advisory_context_by_context_agent]
+    prohibited: [Honcho-only policy creation, full raw transcript/log/stdout ingestion, overriding source_ref evidence or owner holds]
+  child_task_body_policy: compact packet_ref plus node-local task_AC; no full template pasted into every child.
+docs_ops_binding:
+  read_only_first: true
+  read_only_operations:
+    - docs-health
+    - validate
+    - verify-relates
+    - cps-summary
+  state_changing_operations:
+    - create WIP
+    - move
+    - reopen
+    - cluster-update
+    - wip-sync
+  state_changing_rule: state-changing docs operations require owner approval or an executor packet with explicit scope.
+kanban_promotion_compiler:
+  keep_kanban: true
+  keep_auto_decompose: true
+  native_auto_decompose_for_harness_boards: false
+  harness_promotion_compiler_required: true
+  sequence:
+    - triage root
+    - harness_compile_triage(task_id)
+    - write root cps_packet artifact
+    - write doc_ops_manifest
+    - write honcho_ingest_manifest
+    - create compile/audit gate node
+    - create compact implementation/review nodes
+    - link nodes behind compile/audit gate
+    - promote root as graph container, not completed work
+moderator_gate:
+  pass_when:
+    - document purpose is tied to C/P/S.
+    - domain and abbr have stable criteria.
+    - selected profiles have CPS-backed call justification.
+    - profile results include evidence and AC/CPS impact.
+    - doc-ops criteria were applied.
+    - gateway permission was not inferred from context.
+    - sandbox scope and owner-action status are clear.
+  rework_when:
+    - document is useful but lacks CPS, AC, domain, abbr, or evidence.
+    - profile routing reason is missing.
+    - docs lifecycle criteria are incomplete.
+  block_when:
+    - gateway permission is missing.
+    - state-changing docs operation lacks approval.
+    - document would overwrite Hermes memory or leave allowed scope.
+outputs:
+  - document-plan
+  - profile-call-justification
+  - profile-result-evidence
+  - docs-op-plan
+  - moderator-pass-rework-block

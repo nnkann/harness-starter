@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Executor local selected-ref projection",
+  "type": "object",
+  "required": ["family", "work_id", "graph_ref", "local_nodes", "local_edges", "source_refs", "task_AC", "evidence_requirements"],
+  "properties": {
+    "family": {"const": "executor_local_packet"},
+    "work_id": {"type": "string", "minLength": 1},
+    "graph_ref": {"type": "string", "minLength": 1},
+    "local_nodes": {"type": "array", "minItems": 1, "items": {}},
+    "local_edges": {"type": "array", "items": {}},
+    "source_refs": {"type": "array", "minItems": 1, "items": {}},
+    "task_AC": {"type": "array", "minItems": 1, "items": {}},
+    "evidence_requirements": {"type": "array", "minItems": 1, "items": {}}
+  },
+  "additionalProperties": false
+}

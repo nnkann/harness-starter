@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Semantic checkpoint Git closure packet",
+  "type": "object",
+  "required": ["schema", "checkpoint_id", "work_id", "graph_source", "repository", "scoped_paths", "excluded_dirty_paths", "closure_AC_ref", "CPS_refs", "prohibited_actions", "owner_approval", "execution_instruction", "commit_message", "verification_command"],
+  "properties": {
+    "schema": {"const": "harness.cps.semantic-checkpoint-git-closure.v1"},
+    "checkpoint_id": {"type": "string", "pattern": "^[^/@]+@r[1-9][0-9]*$"},
+    "work_id": {"type": "string", "minLength": 1},
+    "graph_source": {
+      "type": "object",
+      "required": ["ref", "digest", "expected_prior_revision"],
+      "properties": {
+        "ref": {"type": "string", "minLength": 1},
+        "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "expected_prior_revision": {"type": ["integer", "null"], "minimum": 1}
+      },
+      "additionalProperties": false
+    },
+    "repository": {
+      "type": "object",
+      "required": ["root", "branch", "upstream"],
+      "properties": {
+        "root": {"type": "string", "minLength": 1},
+        "branch": {"type": "string", "minLength": 1},
+        "upstream": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "scoped_paths": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "excluded_dirty_paths": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "closure_AC_ref": {"type": "string", "minLength": 1},
+    "CPS_refs": {
+      "type": "object",
+      "required": ["C", "P", "S", "AC", "packet"],
+      "properties": {
+        "C": {"type": "string", "minLength": 1},
+        "P": {"type": "array", "items": {"type": "string"}},
+        "S": {"type": "string", "minLength": 1},
+        "AC": {"type": "string", "minLength": 1},
+        "packet": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "prohibited_actions": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "owner_approval": {"const": true},
+    "execution_instruction": {"type": "string", "minLength": 1},
+    "commit_message": {"type": "string", "minLength": 1},
+    "verification_command": {"type": ["string", "null"]}
+  },
+  "additionalProperties": false
+}

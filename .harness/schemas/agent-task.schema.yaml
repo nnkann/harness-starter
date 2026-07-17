@@ -1,0 +1,121 @@
+version: 1
+schema: harness-agent-task-schema
+required_fields:
+  - task_id
+  - kanban_board
+  - task_source
+  - project_slug
+  - project_root
+  - worktree_path
+  - runtime_stack
+  - harness_version
+  - c
+  - problem
+  - s
+  - domain
+  - abbr
+  - wip_doc
+  - allowed_scope
+  - forbidden_scope
+  - checks
+  - packet_ref
+  - CPS
+  - frontmatter
+  - task_AC
+  - source_refs
+  - artifact_refs
+  - owner_approval_boundary
+  - prohibited_actions
+  - evidence_acquisition
+  - required_docs
+  - doc_ops_needed
+  - doc_refs
+  - lazy_dev_justification
+required_pointer_fields:
+  - workspace_env
+  - workspace_binding
+  - memory_pointers
+  - evidence_sources
+  - owner_approval_required
+  - lifecycle_return
+  - cps_profile_routing
+  - document_generation
+  - cps_flow
+  - goal_ac_semantics
+  - langsmith_eval_basis
+  - moderator_gate
+required_runtime_stack: hermes-codex-agy
+template_path_policy:
+  project_root: execution-time absolute path placeholder
+  worktree_path: execution-time absolute path placeholder
+forbidden_evidence:
+  - hermes memory full-text cps
+  - hermes memory full-text ac
+  - repo-local memory as fact
+  - sibling project evidence
+workspace_env:
+  required_fields:
+    - HERMES_KANBAN_TASK
+    - HERMES_KANBAN_DB
+    - HERMES_KANBAN_BOARD
+    - HERMES_KANBAN_WORKSPACES_ROOT
+    - HERMES_KANBAN_WORKSPACE
+    - HERMES_KANBAN_RUN_ID
+    - HERMES_KANBAN_CLAIM_LOCK
+    - HERMES_PROFILE
+  conditional_fields:
+    - HERMES_TENANT
+required_workspace_env_classification_fields:
+  - filesystem_anchor
+  - lifecycle_audit_context
+  - conditional_env
+  - permission_rule
+required_workspace_binding_fields:
+  - expected_cwd
+  - mismatch_policy
+  - fallback
+  - board_match_policy
+required_cps_profile_routing_fields:
+  - routing_contract
+  - selected_profiles
+  - call_justification_required
+  - result_evidence_required
+  - gateway_context
+  - sandbox_scope_source
+required_document_generation_fields:
+  - enabled_when
+  - required_outputs
+  - docs_ops_mode
+required_semantic_tooling_fields:
+  - contract
+  - stack_binding_state
+  - decision
+  - fallback_reason
+required_cps_flow_fields:
+  - contract
+  - root_goal_id
+  - flow_graph_id
+  - node_id
+  - root_goal_ref
+  - local_goal
+  - task_AC
+  - inherited_refs
+  - completion_delta_required
+required_goal_ac_semantics_fields:
+  - root_goal
+  - task_AC
+  - c_split_rule
+  - closure_rule
+required_evidence_acquisition_fields:
+  - mode
+  - C
+  - P
+  - S
+required_doc_ops_fields:
+  - required_docs
+  - doc_ops_needed
+  - doc_refs
+required_langsmith_eval_basis_fields:
+  - trace_keys
+  - review_labels
+  - evaluation_unit

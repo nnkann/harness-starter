@@ -1,0 +1,15 @@
+honcho_ingest_manifest:
+  run_id: ${HERMES_KANBAN_RUN_ID}
+  project_id: harness-starter
+  source_commit: ${SOURCE_COMMIT}
+  docs:
+    - source_path: docs/harness/contracts/cp_frontmatter_schema.md
+      doc_type: contract
+      digest_required: true
+      frontmatter_summary_required: true
+      line_refs_required: true
+      artifact_refs_required: false
+      status: pending
+  prohibited:
+    - full raw stdout/log/test output ingestion
+    - full chat transcript as project policy

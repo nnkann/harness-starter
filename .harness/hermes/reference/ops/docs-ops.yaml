@@ -1,0 +1,61 @@
+version: 1
+schema: harness-hermes-docs-ops-contract
+purpose: Distilled docs operation contract for Hermes wrappers. Canonical implementation stays on main.
+binding_policy:
+  do_not_import: true
+  run_only_when_target_project_has_harness_core: true
+ownership_boundary:
+  harness_owns: [read-only docs checks, state-changing docs operation criteria, owner-action requirements]
+  hermes_owns: [Kanban task flow, worker lifecycle, task comments]
+  gateway_owns: [requester authorization, channel authorization]
+usage_model:
+  hermes_profile: classify requested docs work and decide whether it is read-only or state-changing.
+  executor_packet: state-changing work is emitted as an executor task packet or owner-action.
+  export_branch: never carries the docs tree and never mutates canonical docs.
+read_only_commands:
+  - command: validate
+    purpose: Check docs frontmatter, domain, tags, CPS references, AC format, completed-doc protections, and architecture contracts that are in scope.
+    expected_output: error count and warning count
+  - command: verify-relates
+    purpose: Report broken relates-to references.
+    expected_output: unresolved reference count
+  - command: cps list
+    purpose: List current Problem/Solution candidates for CPS mapping.
+    expected_output: numbered P/S summary
+  - command: cps cases
+    purpose: List frozen CPS case documents.
+    expected_output: case index
+  - command: cps show
+    purpose: Show one CPS case or problem entry.
+    expected_output: focused CPS detail
+  - command: cps stats
+    purpose: Show CPS inventory statistics.
+    expected_output: count summary
+  - command: validate-harness-architecture
+    purpose: Validate harness architecture manifests and provider-neutral policy for the canonical harness.
+    expected_output: architecture error list
+state_changing_commands:
+  - command: move
+    purpose: Move a WIP document to its completed or archived destination and update lifecycle metadata.
+    approval: owner required
+  - command: reopen
+    purpose: Reopen a completed document before body edits.
+    approval: owner required
+  - command: cluster-update
+    purpose: Regenerate docs cluster indexes after docs movement or tag changes.
+    approval: owner required
+  - command: wip-sync
+    purpose: Commit wrapper helper that syncs staged WIP checkboxes, movement, and cluster references.
+    approval: commit-flow only
+  - command: cps add
+    purpose: Add a new Problem or Solution entry when no existing CPS entry fits the task.
+    approval: owner required
+  - command: tag-normalize
+    purpose: Normalize document tags to naming rules.
+    approval: owner required
+safety_rules:
+  - Hermes may run read-only checks only in a pinned canonical worktree.
+  - Hermes must not run state-changing docs commands from this reference export worktree.
+  - State-changing docs commands become owner-actions unless the executor task packet explicitly authorizes them.
+  - Completed docs body edits require reopen before edit.
+  - WIP creation is owned by implementation or write-doc flow, not ad-hoc file writes.

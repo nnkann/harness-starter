@@ -1,0 +1,48 @@
+# Harness CPS memory cron contract
+# This file is a plan/contract only. No Hermes cron job has been created.
+
+version: 1
+project: harness-starter
+memory_project_name: harness-learning
+workdir: /Users/kann/projects/harness-starter
+secrets_policy:
+  store_in_repo: false
+  runtime_env_file_default: /Users/kann/projects/harness-starter/.env
+  required_runtime_env:
+    - HARNESS_MEMORY_SUPABASE_URL
+    - HARNESS_MEMORY_SUPABASE_SERVICE_ROLE_KEY
+    - HARNESS_MEMORY_SUPABASE_ANON_KEY
+boundary:
+  supabase_role: semantic_index_query_cache
+  truth_source: repo_docs_and_source_refs
+  hermes_core_modified: false
+  hermes_state_db_modified: false
+  harness_hermes_adapter_export_modified: false
+  kanban_db_schema_modified: false
+holds:
+  rename: owner must confirm spelling before dashboard rename
+  migration_apply: owner must approve before remote db push or SQL editor apply
+  ingestion_write: first run must be dry-run report only
+  cron_create: owner must approve after schema/runtime/script gates pass
+jobs:
+  - name: harness_cps_memory_inventory
+    type: manual_or_scheduled
+    default_mode: read_only
+    script_target: scripts/harness_memory/read_only_supabase_inventory.py
+    output: preflight report only
+  - name: harness_cps_memory_candidate_dry_run
+    type: manual_or_scheduled
+    default_mode: dry-run
+    script_target: scripts/harness_memory/ingest_candidates.py
+    output: .harness/project/reports/harness_memory_candidates.jsonl
+    writes_to_supabase: false
+future_command_candidates:
+  inventory: >-
+    python3 scripts/harness_memory/read_only_supabase_inventory.py
+  dry_run: >-
+    python3 scripts/harness_memory/ingest_candidates.py
+    --repo /Users/kann/projects/harness-starter
+    --mode dry-run
+    --out .harness/project/reports/harness_memory_candidates.jsonl
+  migration_apply_cli_hold: >-
+    supabase link --project-ref <project-ref> && supabase db push --linked

@@ -1,0 +1,100 @@
+version: 1
+schema: harness-hermes-reference-catalog
+purpose: Hermes-facing adapter export for binding Kanban tasks to the harness execution pipeline.
+not_a_merge_target: true
+native_agent_policy: Hermes profiles and native Hermes agents keep their own roles; this export provides harness rules and gates, not imported agents or skills.
+official_alignment:
+  worker_lane: Hermes profile lane is the default lane shape.
+  external_cli_lane: External CLI workers are not a paved Hermes lane; use bounded executor task packets only after wrapper approval.
+  gateway_routes: Discord and Slack routes are non-secret manifests; tokens stay in local Hermes profile config.
+exports:
+  pipeline:
+    - .harness/hermes/reference/pipeline.yaml
+    - .harness/hermes/agent-task.template.yaml
+    - .harness/hermes/project-bootstrap.yaml
+    - .harness/hermes/workers.yaml
+    - .harness/hermes/routes.yaml
+    - .harness/hermes/board-assignees.yaml
+    - .harness/hermes/sandbox.yaml
+    - .harness/hermes/gateway.yaml
+    - .harness/hermes/profiles.yaml
+    - .harness/hermes/profile-docs/SOUL.md
+    - .harness/hermes/profile-docs/AGENTS.md
+    - .harness/hermes/profile-docs/USER.md
+    - .harness/hermes/profile-skills.yaml
+    - .harness/hermes/coordination.yaml
+    - .harness/hermes/cps-profile-routing.yaml
+    - .harness/hermes/doc-generation.yaml
+  operations:
+    - .harness/hermes/reference/ops/docs-ops.yaml
+    - .harness/hermes/tools/validate_kanban_task_packet.py
+    - .harness/hermes/tools/audit_handoff_compliance.py
+    - .harness/hermes/reference/ops/wip-lifecycle.yaml
+    - .harness/hermes/reference/ops/document-standards.yaml
+    - .harness/hermes/reference/ops/commit-flow.yaml
+    - .harness/hermes/reference/ops/cps-ac.yaml
+    - .harness/hermes/reference/ops/cps-flow-audit.yaml
+    - .harness/hermes/reference/ops/project-setup-criteria.yaml
+    - .harness/hermes/reference/ops/semantic-tooling-criteria.yaml
+    - .harness/hermes/reference/hook-contracts.yaml
+  contracts:
+    - docs/harness/contracts/cp_frontmatter_schema.md
+    - docs/harness/contracts/cp_cps_evidence_acquisition.md
+    - docs/harness/contracts/cp_owner_approval_boundary.md
+    - docs/harness/contracts/cp_agent_role_contracts.md
+    - docs/harness/contracts/cp_kanban_promotion_contract.md
+    - docs/harness/contracts/cp_honcho_doc_wiki_boundary.md
+    - docs/harness/contracts/cp_honcho_agent_management.md
+    - docs/harness/contracts/cp_harness_defect_collection_fix_loop.md
+    - docs/harness/agents/thoth.md
+    - docs/harness/agents/maat.md
+    - docs/harness/agents/seshat.md
+    - docs/harness/agents/ptah.md
+    - docs/harness/agents/anubis.md
+    - docs/harness/agents/sekhmet.md
+    - docs/harness/agents/honcho_archivist.md
+    - docs/harness/agents/honcho_librarian.md
+    - docs/harness/agents/honcho_context.md
+    - .harness/schemas/cps-packet.schema.yaml
+    - .harness/schemas/doc-ops-manifest.schema.yaml
+    - .harness/schemas/honcho-ingest-manifest.schema.yaml
+    - .harness/schemas/kanban-task-node.schema.yaml
+    - .harness/project/runs/_template/cps_packet.yaml
+    - .harness/project/runs/_template/doc_ops_manifest.yaml
+    - .harness/project/runs/_template/honcho_ingest_manifest.yaml
+    - .harness/hermes/reference/rules.yaml
+    - .harness/hermes/reference/official-alignment.yaml
+    - .harness/hermes/profiles.yaml
+    - .harness/hermes/board-assignees.yaml
+    - .harness/hermes/profile-docs/SOUL.md
+    - .harness/hermes/profile-docs/AGENTS.md
+    - .harness/hermes/profile-docs/USER.md
+    - .harness/hermes/profile-skills.yaml
+    - .harness/hermes/coordination.yaml
+    - .harness/hermes/cps-profile-routing.yaml
+    - .harness/hermes/doc-generation.yaml
+  rules:
+    - code-ssot
+    - coding
+    - docs
+    - hooks
+    - internal-first
+    - memory
+    - naming
+    - no-speculation
+    - security
+    - self-verify
+  hooks:
+    - session-start
+    - stop
+    - post-compact
+    - post-tool-use-format
+    - pre-tool-use-bash
+    - pre-tool-use-write
+    - pre-commit-secret-scan
+excluded:
+  top_level_runtime_adapters: legacy provider runtime adapter directories
+  docs_tree: docs
+  imported_agents_or_skills: all
+  starter_dev_flows: [harness-dev, coding-convention, naming-convention]
+  installer_files: [h-setup.sh, scripts]

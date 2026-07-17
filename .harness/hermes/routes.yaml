@@ -1,0 +1,35 @@
+version: 1
+schema: harness-hermes-routes
+note: Non-secret gateway route manifest. Bot tokens, user tokens, and workspace secrets stay in local Hermes profile config.
+gateway_contract: .harness/hermes/gateway.yaml
+routes:
+  - name: discord-harness-starter-project
+    platform: discord
+    channel_alias: hermes-harness-starter
+    channel_id: ${DISCORD_CHANNEL_ID}
+    project_slug: harness-starter
+    kanban_board: harness-starter-project-hermes
+    default_wrapper: harness-implementation
+    allowed_roles: [owner, maintainer]
+    allowed_users: ["${DISCORD_ALLOWED_USER_ID}"]
+    free_response: false
+    require_mention: true
+    strict_mention: true
+    auto_thread: true
+    worktree_policy: pinned-worktree-required
+    sandbox_contract: .harness/hermes/sandbox.yaml
+  - name: slack-harness-starter-project
+    platform: slack
+    channel_alias: hermes-harness-starter
+    channel_id: ${SLACK_CHANNEL_ID}
+    project_slug: harness-starter
+    kanban_board: harness-starter-project-hermes
+    default_wrapper: harness-implementation
+    allowed_roles: [owner, maintainer]
+    allowed_users: ["${SLACK_ALLOWED_USER_ID}"]
+    free_response: false
+    require_mention: true
+    strict_mention: true
+    reply_in_thread: true
+    worktree_policy: pinned-worktree-required
+    sandbox_contract: .harness/hermes/sandbox.yaml

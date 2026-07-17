@@ -1,0 +1,79 @@
+version: 1
+schema: harness-hermes-project-bootstrap
+note: Hermes may use this starter-owned contract before a target project has repo-local Harness files. The contract describes project structure surfaces and write boundaries only. It does not mirror workflow skill bodies.
+bootstrap:
+  structure_surface:
+    phase: pre-init
+    allowed_outputs:
+      - project-direction-check
+      - structure-plan
+      - workflow-outline
+      - bootstrap-file-plan
+    write_artifacts:
+      - directories-under-target-root
+      - bootstrap-documents-under-allowed-scope
+      - starter-owned setup-notes
+  minimum_intake:
+    - id: target-root
+      required: true
+      meaning: Explicit project root or planned repo root.
+    - id: owner-goal
+      required: true
+      meaning: Owner-stated goal for the new project.
+    - id: c-evidence
+      required: true
+      meaning: The current project direction signal that Hermes will treat as C evidence.
+    - id: requested-outputs
+      required: true
+      meaning: Which structure outputs Hermes should produce.
+    - id: write-intent
+      required: true
+      meaning: Whether Hermes should stay advisory-only or prepare a bounded write packet.
+  cps_bridge:
+    c_required: true
+    default_problem_axis: [P3, P5, P7, P8, P11]
+    default_solution_axis: [S3, S5, S7, S8, S11]
+  handoff_trigger:
+    - owner accepts the structure proposal
+    - repo-local file creation is required
+    - CPS and docs/WIP lifecycle must move into the target project
+profile_strategy:
+  source: role-based-profiles
+  bootstrap_owner_role: orchestrator
+  routing_inputs:
+    - requested-outputs
+    - write-intent
+    - approval-state
+  forbidden:
+    - project-specific profile creation before init
+    - workflow body import from starter skills or agents
+    - gateway context as permission
+  contract_bridge:
+    profiles_contract: .harness/hermes/profiles.yaml
+    routing_contract: .harness/hermes/cps-profile-routing.yaml
+    doc_generation_contract: .harness/hermes/doc-generation.yaml
+    coordination_contract: .harness/hermes/coordination.yaml
+packet_defaults:
+  schema: harness-project-setup-packet
+  task_id_prefix: bootstrap
+  default_mode: advisory-only
+  mode_rules:
+    advisory-only:
+      requires_owner_approval: false
+      requires_allowed_scope: false
+      requires_sandbox_scope: false
+    bounded-executor:
+      requires_owner_approval: true
+      requires_allowed_scope: true
+      requires_sandbox_scope: true
+  owner_approval_required:
+    - file or folder creation under target_root
+    - bootstrap document generation inside target_root
+    - changes outside setup_packet.allowed_scope
+    - git init, git commit, git push
+  forbidden_scope:
+    - gateway context as permission
+    - writes outside sandbox scope
+    - parent directories outside target_root
+    - sibling projects
+    - project-specific profile creation before init
