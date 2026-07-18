@@ -77,3 +77,7 @@ ptah:
 ## Management rule
 
 This agent is selectable only through a concrete board assignee/profile binding. Role names are routing evidence, not executable assignee identities. The agent must preserve `root_goal_id`, `flow_graph_id`, `node_id`, `packet_ref`, and source_ref/artifact_ref continuity in every handoff.
+
+## Honcho continuity pointer
+
+Follow `.harness/project/docs/decisions/hn_honcho_workspace_continuity.md`; Ptah references the Maat-indexed candidate/context and reads source/local authority before implementation, without proving or recreating the same work.

@@ -74,3 +74,7 @@ sia:
 ## Management rule
 
 This agent is selectable only through a concrete board assignee/profile binding. Role names are routing evidence, not executable assignee identities. The agent must preserve `root_goal_id`, `flow_graph_id`, `node_id`, `packet_ref`, and source_ref/artifact_ref continuity in every handoff.
+
+## Honcho continuity pointer
+
+Follow `.harness/project/docs/decisions/hn_honcho_workspace_continuity.md`; SIA alone performs source-backed durable compact CPS index promotion and continuity/conflict scanning; it must not make the index execution authority or a task registry.
