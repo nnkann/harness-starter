@@ -22,6 +22,14 @@ SHARED_HANDOFF_FIELDS = (
     "`decision needed`",
 )
 SIA_ONLY_FIELDS = ("`C/P/S`", "`local_body_ref`")
+RUNTIME_CONFIG_ROWS = (
+    ("shared root", "`peerName`", "`kann`"),
+    ("shared root", "`pinUserPeer`", "`true`"),
+    ("role host", "`workspace`", "`hermes`"),
+    ("role host", "`recallMode`", "`tools`"),
+    ("role host", "`sessionStrategy`", "`per-repo`"),
+    ("role host", "`aiPeer`", "role-specific"),
+)
 
 
 def test_canonical_honcho_continuity_contract_and_role_pointers_remain_distinct() -> None:
@@ -31,6 +39,36 @@ def test_canonical_honcho_continuity_contract_and_role_pointers_remain_distinct(
         for path in root.rglob("*.md")
     }
     canonical = documentation[CANONICAL_DECISION]
+
+    runtime_boundary = canonical.split("## Runtime configuration boundary", maxsplit=1)[1].split(
+        "\n## ", maxsplit=1
+    )[0]
+    runtime_rows = tuple(
+        tuple(cell.strip() for cell in line.strip("|").split("|"))
+        for line in runtime_boundary.splitlines()
+        if line.startswith(("| shared root |", "| role host |"))
+    )
+    assert runtime_rows == RUNTIME_CONFIG_ROWS
+    assert "`/Users/kann/.hermes/honcho.json`" in runtime_boundary
+    assert "project Git 밖의 runtime prerequisite" in runtime_boundary
+    assert "profile-local override는 금지한다" in runtime_boundary
+    assert "`peer=\"user\"`는 Honcho tool alias" in runtime_boundary
+    assert "resolved physical shared user peer는 `kann`" in runtime_boundary
+
+    guarantee_heading = "### Effective continuity guarantee"
+    assert canonical.count(guarantee_heading) == 1
+    guarantee_boundary = runtime_boundary.split(guarantee_heading, maxsplit=1)[1]
+    assert "configured named profiles" in guarantee_boundary
+    assert "`/Users/kann/projects/harness-starter` session override" in guarantee_boundary
+    assert "generic plain-fresh-profile inheritance" in guarantee_boundary
+    assert "strict same-basename multi-repo isolation" in guarantee_boundary
+    assert "fresh-process config-resolution acceptance" in guarantee_boundary
+
+    non_goals = canonical.split("## 비목표", maxsplit=1)[1]
+    assert "profile config 변경" not in non_goals
+    assert "Hermes core 수정" in non_goals
+    assert "live gateway 수정 또는 재시작" in non_goals
+    assert "새 task database/schema/daemon" in non_goals
 
     shared_contract_docs = [
         path
@@ -47,8 +85,7 @@ def test_canonical_honcho_continuity_contract_and_role_pointers_remain_distinct(
     assert "사실·범위·실행 권위는 원본 source/evidence와 현재 local body에 있다" in canonical
     assert "prior Maat handoff note가 없다는 사실만으로 HOLD하지 않는다" in canonical
     assert "per-repo session의 공통 Honcho retrieval substrate" in canonical
-    assert "shared stable user peer (`peer=\"user\"`)" in canonical
-    assert "role-scoped AI peer는 서로 구분된 채 유지한다" in canonical
+    assert "role host의 role-specific `aiPeer`는 서로 구분된 채 유지된다" in canonical
     assert "shared peer/session binding은 startup-read다" in canonical
     assert "`peerName`, `pinUserPeer`, `sessionStrategy`" in canonical
     assert "fresh Hermes session 또는 fresh CLI process" in canonical
@@ -70,6 +107,22 @@ def test_canonical_honcho_continuity_contract_and_role_pointers_remain_distinct(
     assert "Honcho candidate와 source/evidence가 불일치하는 경우" in canonical
     assert "authority가 충돌하는 경우" in canonical
     assert "`need_local_body` 또는 HOLD를 유지한다" in canonical
+
+    promotion_heading = "### Durable promotion route boundary"
+    assert canonical.count(promotion_heading) == 1
+    promotion_boundary = canonical.split(promotion_heading, maxsplit=1)[1].split(
+        "### SIA promotion용 compact CPS index", maxsplit=1
+    )[0]
+    assert "named-profile selection" in promotion_boundary
+    assert "source/evidence review" in promotion_boundary
+    assert "route/role-contract boundary" in promotion_boundary
+    assert "per-tool Honcho ACL이 아니다" in promotion_boundary
+    assert "`honcho_conclude`" in promotion_boundary
+    assert "existing general plugin capability" in promotion_boundary
+    assert "technical prevention" in promotion_boundary
+    assert "out-of-contract incident" in promotion_boundary
+    assert "HOLD" in promotion_boundary
+    assert "Maat escalation" in promotion_boundary
 
     sia_index = canonical.split("### SIA promotion용 compact CPS index", maxsplit=1)[1].split(
         "## 비목표", maxsplit=1

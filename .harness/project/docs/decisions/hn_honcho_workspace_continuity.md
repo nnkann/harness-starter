@@ -13,13 +13,26 @@ relates-to:
 
 ## 결정
 
-Honcho의 shared workspace를 named profile 간의 **검색 가능한 continuity layer**로 사용한다. Hermes core, live gateway, profile config, Kanban, 새 task store는 변경하지 않는다.
+Honcho의 shared workspace를 named profile 간의 **검색 가능한 continuity layer**로 사용한다. Hermes core, live gateway, Kanban, 새 task store는 변경하지 않는다.
 
 Honcho는 실행 authority나 raw session 복제 수단이 아니다. 각 profile의 raw session summary는 분리되어 있으며, 필요한 과거 문맥은 explicit semantic retrieval로만 회복한다.
 
-## 실제 전제
+## Runtime configuration boundary
 
-현재 named profile은 공용 `/Users/kann/.hermes/honcho.json`의 `workspace: hermes`를 사용한다. shared stable user peer (`peer="user"`)는 프로젝트의 per-repo session의 공통 Honcho retrieval substrate다. role-scoped AI peer는 서로 구분된 채 유지한다.
+이 프로젝트는 pre-existing shared root `/Users/kann/.hermes/honcho.json`의 다음 contract를 요구한다. 이 파일은 project Git 밖의 runtime prerequisite이며, repository가 생성하거나 수정하는 산출물이 아니다.
+
+| scope | field | required value |
+|---|---|---|
+| shared root | `peerName` | `kann` |
+| shared root | `pinUserPeer` | `true` |
+| role host | `workspace` | `hermes` |
+| role host | `recallMode` | `tools` |
+| role host | `sessionStrategy` | `per-repo` |
+| role host | `aiPeer` | role-specific |
+
+profile-local override는 금지한다. named role은 shared root contract를 상속해야 하며, profile-local Honcho config로 user peer, workspace, recall mode, session strategy, AI peer binding을 덮어쓰지 않는다.
+
+Honcho tool 호출의 `peer="user"`는 Honcho tool alias이고, 이 contract에서 resolved physical shared user peer는 `kann`이다. alias 문자열을 물리 peer 이름으로 해석하거나 별도 `user` peer로 만들지 않는다. 이 shared user peer가 프로젝트 per-repo session의 공통 Honcho retrieval substrate이며, role host의 role-specific `aiPeer`는 서로 구분된 채 유지된다.
 
 shared peer/session binding은 startup-read다. `peerName`, `pinUserPeer`, `sessionStrategy` 구성을 변경한 뒤 retrieval 결과를 해석하려면 fresh Hermes session 또는 fresh CLI process가 필요하다. 변경 전 session의 결과는 stale binding evidence이며, candidate absence나 HOLD 조건이 아니다.
 
@@ -28,6 +41,12 @@ Maat   → peer=maat
 Ptah   → peer=ptah
 Anubis → peer=anubis
 ```
+
+### Effective continuity guarantee
+
+현재 continuity guarantee는 `/Users/kann/.hermes/honcho.json`에 host로 명시된 configured named profiles와 explicit `/Users/kann/projects/harness-starter` session override에 한정된다. generic plain-fresh-profile inheritance나 strict same-basename multi-repo isolation은 현재 보장하지 않는다.
+
+새 profile 또는 repository는 사용 전에 fresh process에서 effective Honcho config와 resolved session binding을 read back하는 fresh-process config-resolution acceptance를 거쳐야 한다. 기존 named profile이나 explicit override의 결과를 새 대상의 acceptance evidence로 대신하지 않는다.
 
 `recallMode: tools`이므로 다른 session의 문맥은 자동 주입되지 않는다. 각 역할은 먼저 제공된 `local_body_ref`와 `authority references`가 가리키는 원본 source/evidence를 읽는다. 둘만으로 locator와 active obligation이 충분하면 Honcho semantic retrieval을 생략한다. locator/obligation이 빠졌거나 continuity conflict를 해소해야 할 때만 Maat, Ptah, Anubis, SIA가 기존 Honcho tools로 `peer="user"`의 shared user-peer CPS layer에서 candidate를 검색한다. SIA는 retrieval proxy, broker, mandatory call path가 아니다. Maat의 indexed context는 role-specific candidate pivot이며 공통 retrieval substrate를 대체하지 않는다.
 
@@ -138,6 +157,12 @@ readable local_body_ref + authority references 확인
 
 종료된 task의 raw Honcho note는 단기 continuity 용도다. SIA의 exclusive role은 closure 이후 source-backed durable promotion/conflict scanning이며, 재사용 가치가 있는 안정된 정책·결정만 장기 promotion 후보로 정리한다.
 
+### Durable promotion route boundary
+
+SIA-only durable promotion은 named-profile selection과 source/evidence review로 enforce하는 route/role-contract boundary이며, per-tool Honcho ACL이 아니다. `honcho_conclude`는 existing general plugin capability로 남아 있으므로 비-SIA caller의 호출을 technical prevention한다고 주장하지 않는다.
+
+이 경계를 bypass한 write는 out-of-contract incident다. 해당 candidate는 승격 근거로 사용하지 않고 HOLD한 뒤 Maat escalation으로 source, caller role, evidence를 재검토한다.
+
 ### SIA promotion용 compact CPS index
 
 SIA promotion만을 위한 source-backed compact CPS index record는 아래 semantic candidate content만 담는다.
@@ -173,7 +198,7 @@ task 진행 상황
 ```text
 Hermes core 수정
 live gateway 수정 또는 재시작
-profile config 변경
+shared root runtime config의 project Git 내 생성·수정 또는 profile-local override 추가
 Kanban 도입
 새 task database/schema/daemon
 Honcho session 강제 공유
