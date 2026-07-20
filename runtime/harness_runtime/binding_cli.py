@@ -32,7 +32,8 @@ def main(argv: list[str] | None = None) -> int:
         description="Reconcile the minimal Harness project binding desired state.",
         epilog=(
             "The sandbox command constrains only the subprocess launched through sandbox-exec. "
-            "It cannot constrain ambient Hermes patch/write tools. Network is denied unless --network is supplied."
+            "It cannot constrain ambient Hermes patch/write tools. Network is denied unless --network is supplied, "
+            "and provider mutation commands remain blocked."
         ),
     )
     commands = parser.add_subparsers(dest="command", required=True)
@@ -46,7 +47,11 @@ def main(argv: list[str] | None = None) -> int:
     sandbox = commands.add_parser("sandbox")
     sandbox.add_argument("--worktree", required=True, type=Path)
     sandbox.add_argument("--state-dir", required=True, type=Path)
-    sandbox.add_argument("--network", action="store_true", help="permit network only for the resolved Railway CLI executable")
+    sandbox.add_argument(
+        "--network",
+        action="store_true",
+        help="permit network only for exact Railway/Vercel/Supabase read-only discovery/status commands",
+    )
     sandbox.add_argument("--allow-write", action="append", default=[], type=Path)
     sandbox.add_argument("argv", nargs=argparse.REMAINDER)
     args = parser.parse_args(argv)

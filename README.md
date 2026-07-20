@@ -27,7 +27,18 @@ bash /path/to/harness-starter/h-setup.sh apply \
   --railway-service my-service /path/to/my-project
 ```
 
-`h-setup.sh`는 Python desired-state reconciler의 thin launcher다. 적용은 멱등하며 `.harness/project-binding.json`, runtime lock, 두 개의 managed launcher만 생성·갱신한다. `.claude/`, `.agents/`, `.codex/`, `docs/`는 복사하지 않는다. 장기 프로젝트 문서의 SSOT는 `harness-brain`이다.
+`h-setup.sh`는 Python desired-state reconciler의 thin launcher다. 적용은 멱등하며 `.harness/project-binding.json`, runtime lock, 두 개의 managed launcher만 생성·갱신한다. binding/lock에는 Railway·Vercel·Supabase local operation과 n8n·Vercel·deployed API runtime contract를 구분한 typed capability graph와 source snapshot digest가 포함된다. `.claude/`, `.agents/`, `.codex/`, `docs/`는 복사하지 않는다. 장기 프로젝트 문서의 SSOT는 `harness-brain`이다.
+
+guided capability는 binding lifecycle과 분리된 namespace다. capability ID만 받으며 shell argv, URL, SQL, table 입력은 받지 않는다.
+
+```bash
+harness-guided-capability discovery railway.deploy /path/to/my-project --state-dir /tmp/harness-state
+harness-guided-capability plan railway.deploy /path/to/my-project
+harness-guided-capability status vercel.deploy /path/to/my-project --state-dir /tmp/harness-state
+harness-guided-capability apply railway.deploy /path/to/my-project --approval-file approval.json
+```
+
+`discovery`/`status`는 외부 `--state-dir`가 필수다. Railway deploy는 `railway status`, Vercel deploy는 `vercel whoami`, 두 Supabase local operation은 `supabase projects list`만 `run_sandbox`로 실행한다. provider stdout/stderr와 credential 값은 결과 JSON에 포함하지 않고 exit code만 기록한다. provider client, 고정 credential store, exact target identity가 없으면 추측하지 않고 `hold`를 출력한다. n8n과 runtime contract는 resolver가 없으므로 source/config-only `hold`다. `plan`은 파일이나 provider를 변경하지 않으며 현재 Git source snapshot과 binding scope로 canonical digest를 만든다. `apply`는 capability-specific executor, 일치하는 scope/plan digest의 approval receipt, 완전한 target identity가 모두 없으면 닫힌 상태로 실패한다. 이 버전에는 live deploy, migration, webhook/workflow publish, service-role mutation executor가 없다. runtime contract는 apply 대상이 아니다.
 
 ```bash
 # (필수) pre-commit 시크릿 스캔 훅 설치 — 다운스트림 안전망
@@ -40,7 +51,7 @@ gitleaks가 있으면 `gitleaks protect --staged` 사용, 없으면 grep 폴백.
 
 레거시 파일 제거는 `.harness/legacy-files.json` ownership manifest에 기록된 digest와 현재 파일이 일치할 때만 가능하다. `reconcile`은 계획만 출력하고, 실제 제거는 `reconcile --apply /path/to/my-project`처럼 명시한다. 사용자 변경 파일과 manifest 밖 파일은 제거하지 않는다.
 
-macOS 실행 backend는 clean Git worktree와 외부 `HARNESS_STATE_DIR`를 요구한다. network는 기본 차단이다. `--network`를 명시해도 PATH에서 resolve한 Railway CLI와 동일한 executable만 실행하며, 다른 command는 sandbox 실행 전에 거부한다. 이 sandbox는 launcher subprocess에만 적용되며 ambient Hermes patch/write tool을 제한한다고 주장하지 않는다.
+macOS 실행 backend는 clean Git worktree와 외부 `HARNESS_STATE_DIR`를 요구한다. network는 기본 차단이다. provider read-only mode도 PATH에서 resolve한 동일 executable의 Railway `status`, Vercel `whoami`, Supabase `projects list`만 허용한다. profile은 OS 사용자 홈의 해당 provider 고정 store 하나만 쓴다: `~/.railway`, `~/.supabase`, `~/Library/Application Support/com.vercel.cli`. 다른 provider store와 caller `HOME`/XDG/token 환경은 사용하지 않으며 고정 store가 없으면 fail closed한다. deploy/push/link 같은 mutation, 추가 flag/인자, n8n CLI는 sandbox 실행 전에 거부한다. 이 sandbox는 launcher subprocess에만 적용되며 ambient Hermes patch/write tool을 제한한다고 주장하지 않는다.
 
 ## 독립 Harness runtime build/test
 
