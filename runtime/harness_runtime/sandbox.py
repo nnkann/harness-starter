@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import platform
+import pwd
 import shutil
 import subprocess
 from pathlib import Path
@@ -23,8 +24,15 @@ def build_sandbox_profile(
     network: bool,
     allow_write: Sequence[str | Path] = (),
 ) -> str:
-    writable = [Path(worktree).expanduser().resolve(), Path(state_dir).expanduser().resolve()]
-    writable.extend(Path(path).expanduser().resolve() for path in allow_write)
+    root = Path(worktree).expanduser().resolve()
+    state = Path(state_dir).expanduser().resolve()
+    requested = [Path(path).expanduser().resolve() for path in allow_write]
+    if any(not (path == root or root in path.parents or path == state or state in path.parents) for path in requested):
+        raise SandboxError("allow-write paths must be within the worktree or HARNESS_STATE_DIR")
+    writable = [root, state, *requested]
+    railway_credentials = Path(pwd.getpwuid(os.getuid()).pw_dir).resolve() / ".railway"
+    if network:
+        writable.append(railway_credentials)
     rules = [
         "(version 1)",
         "(deny default)",
@@ -35,6 +43,8 @@ def build_sandbox_profile(
         "(allow ipc-posix-shm)",
         "(allow network*)" if network else "(deny network*)",
     ]
+    if not network:
+        rules.append(f'(deny file-write* (subpath "{_literal(railway_credentials)}"))')
     rules.extend(f'(allow file-write* (subpath "{_literal(path)}"))' for path in writable)
     return "\n".join(rules) + "\n"
 
