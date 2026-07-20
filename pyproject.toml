@@ -16,6 +16,7 @@ driver = ["setuptools==80.9.0"]
 
 [project.scripts]
 harness-runtime = "harness_runtime.cli:main"
+harness-project-binding = "harness_runtime.binding_cli:main"
 
 [tool.setuptools]
 packages = ["harness_runtime", "contracts"]
