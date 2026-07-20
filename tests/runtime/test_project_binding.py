@@ -1,5 +1,7 @@
 import hashlib
 import json
+import os
+import pwd
 import subprocess
 import sys
 from pathlib import Path
@@ -185,6 +187,36 @@ def test_sandbox_profile_and_arguments_make_network_opt_in(tmp_path):
     assert argv == ["/usr/bin/sandbox-exec", "-p", offline, "railway", "status"]
 
 
+def test_sandbox_rejects_arbitrary_external_allow_write(tmp_path):
+    worktree = tmp_path / "project"
+    state_dir = tmp_path / "state"
+
+    with pytest.raises(SandboxError, match="worktree or HARNESS_STATE_DIR"):
+        build_sandbox_profile(
+            worktree,
+            state_dir,
+            network=False,
+            allow_write=[tmp_path / "external"],
+        )
+
+
+def test_sandbox_profile_limits_railway_credentials_to_network_mode_and_os_home(tmp_path, monkeypatch):
+    fake_home = tmp_path / "caller-home"
+    railway_credentials = Path(pwd.getpwuid(os.getuid()).pw_dir).resolve() / ".railway"
+    monkeypatch.setenv("HOME", str(fake_home))
+
+    offline = build_sandbox_profile(tmp_path / "project", tmp_path / "state", network=False)
+    online = build_sandbox_profile(tmp_path / "project", tmp_path / "state", network=True)
+    credential_rule = f'(allow file-write* (subpath "{railway_credentials}"))'
+    credential_deny = f'(deny file-write* (subpath "{railway_credentials}"))'
+
+    assert credential_rule not in offline
+    assert credential_deny in offline
+    assert credential_rule in online
+    assert credential_deny not in online
+    assert str(fake_home / ".railway") not in online
+
+
 def test_sandbox_rejects_network_for_arbitrary_command_before_preparation(tmp_path):
     with pytest.raises(SandboxError, match="Railway CLI"):
         run_sandbox(tmp_path / "missing-worktree", tmp_path / "state", ["curl", "https://example.com"], network=True)
@@ -228,10 +260,16 @@ def test_sandbox_executes_resolved_railway_identity_when_network_is_explicit(tmp
     root.mkdir()
     recorded = {}
     monkeypatch.setattr(sandbox_module.shutil, "which", lambda name: str(approved) if name == "railway" else None)
+
+    def fake_prepare(worktree, state_dir, **kwargs):
+        profile = build_sandbox_profile(worktree, state_dir, network=kwargs["network"])
+        recorded["profile"] = profile
+        return root, state, "/usr/bin/sandbox-exec", profile
+
     monkeypatch.setattr(
         sandbox_module,
         "prepare_sandbox",
-        lambda *args, **kwargs: (root, state, "/usr/bin/sandbox-exec", "profile"),
+        fake_prepare,
     )
 
     def fake_run(argv, **kwargs):
@@ -241,7 +279,11 @@ def test_sandbox_executes_resolved_railway_identity_when_network_is_explicit(tmp
     monkeypatch.setattr(sandbox_module.subprocess, "run", fake_run)
 
     assert run_sandbox(root, state, ["railway", "status"], network=True) == 0
-    assert recorded["argv"] == ["/usr/bin/sandbox-exec", "-p", "profile", str(approved.resolve()), "status"]
+    railway_credentials = Path(pwd.getpwuid(os.getuid()).pw_dir).resolve() / ".railway"
+    assert f'(allow file-write* (subpath "{railway_credentials}"))' in recorded["profile"]
+    assert recorded["argv"] == [
+        "/usr/bin/sandbox-exec", "-p", recorded["profile"], str(approved.resolve()), "status",
+    ]
 
 
 def test_sandbox_requires_macos_clean_worktree_and_external_state(tmp_path):
