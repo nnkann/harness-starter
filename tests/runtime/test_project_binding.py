@@ -18,7 +18,14 @@ from harness_runtime.project_binding import (
     plan_binding,
     reconcile_legacy,
 )
-from harness_runtime.sandbox import SandboxError, build_sandbox_argv, build_sandbox_profile, prepare_sandbox, run_sandbox
+from harness_runtime.sandbox import (
+    SandboxError,
+    build_sandbox_argv,
+    build_sandbox_profile,
+    prepare_sandbox,
+    resolve_provider_readonly_command,
+    run_sandbox,
+)
 
 ROOT = Path(__file__).parents[2]
 
@@ -85,6 +92,53 @@ def test_first_bind_creates_minimal_managed_binding(tmp_path):
     ]
     assert (repo / ".harness/bin/harness-binding").stat().st_mode & 0o111
     assert (repo / ".harness/bin/harness-sandbox-run").stat().st_mode & 0o111
+
+
+def test_generated_binding_contains_typed_provider_capability_graph(tmp_path):
+    repo = git_repo(tmp_path / "project")
+    revision = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"],
+        check=True,
+        text=True,
+        capture_output=True,
+    ).stdout.strip()
+
+    apply_binding(inputs(repo))
+
+    manifest = json.loads((repo / ".harness/project-binding.json").read_text(encoding="utf-8"))
+    lock = json.loads((repo / ".harness/runtime.lock.json").read_text(encoding="utf-8"))
+    graph = manifest["capability_graph"]
+    capabilities = {item["capability_id"]: item for item in graph["capabilities"]}
+    assert graph["schema"] == "harness.capability-graph.v1"
+    assert set(capabilities) == {
+        "railway.deploy",
+        "vercel.deploy",
+        "supabase.schema-migration",
+        "supabase.privileged-data-mutation",
+        "n8n.workflow-publish-activation",
+        "n8n.async-effects-runtime",
+        "vercel.revalidate-runtime",
+        "deployed-api.db-write-runtime",
+    }
+    assert capabilities["railway.deploy"]["target_identity"] == {
+        "project_id": None,
+        "environment_id": None,
+        "service_id": None,
+        "service_name": "service-test",
+    }
+    for capability in capabilities.values():
+        assert capability["kind"] in {"local_operation", "runtime_contract"}
+        assert capability["source_snapshot"] == {"kind": "git_commit", "revision": revision}
+        assert isinstance(capability["target_identity"], dict)
+        assert isinstance(capability["credential_refs"], list)
+        assert isinstance(capability["dependencies"], list)
+        assert isinstance(capability["allowed_actions"], list)
+        assert set(capability["profiles"]) == {"preflight", "receipt", "consumer"}
+    assert lock["capability_graph"] == {
+        "schema": graph["schema"],
+        "digest": graph["digest"],
+        "source_snapshot": {"kind": "git_commit", "revision": revision},
+    }
 
 
 def test_reapply_is_noop_and_runtime_version_upgrade_is_managed(tmp_path):
@@ -202,19 +256,35 @@ def test_sandbox_rejects_arbitrary_external_allow_write(tmp_path):
 
 def test_sandbox_profile_limits_railway_credentials_to_network_mode_and_os_home(tmp_path, monkeypatch):
     fake_home = tmp_path / "caller-home"
-    railway_credentials = Path(pwd.getpwuid(os.getuid()).pw_dir).resolve() / ".railway"
+    home = Path(pwd.getpwuid(os.getuid()).pw_dir).resolve()
+    credential_stores = {
+        "railway": home / ".railway",
+        "supabase": home / ".supabase",
+        "vercel": home / "Library/Application Support/com.vercel.cli",
+    }
     monkeypatch.setenv("HOME", str(fake_home))
 
     offline = build_sandbox_profile(tmp_path / "project", tmp_path / "state", network=False)
-    online = build_sandbox_profile(tmp_path / "project", tmp_path / "state", network=True)
-    credential_rule = f'(allow file-write* (subpath "{railway_credentials}"))'
-    credential_deny = f'(deny file-write* (subpath "{railway_credentials}"))'
+    for store in credential_stores.values():
+        assert f'(deny file-write* (subpath "{store}"))' in offline
 
-    assert credential_rule not in offline
-    assert credential_deny in offline
-    assert credential_rule in online
-    assert credential_deny not in online
-    assert str(fake_home / ".railway") not in online
+    for provider, allowed_store in credential_stores.items():
+        profile = sandbox_module._build_provider_readonly_profile(
+            tmp_path / "project", tmp_path / "state", provider
+        )
+        assert f'(allow file-write* (subpath "{allowed_store}"))' in profile
+        for other_provider, denied_store in credential_stores.items():
+            if other_provider != provider:
+                assert f'(allow file-write* (subpath "{denied_store}"))' not in profile
+        assert str(fake_home) not in profile
+
+
+def test_provider_profile_fails_closed_when_fixed_credential_store_is_missing(tmp_path, monkeypatch):
+    missing = tmp_path / "missing-railway-store"
+    monkeypatch.setattr(sandbox_module, "_credential_stores", lambda: {"railway": missing})
+
+    with pytest.raises(SandboxError, match="fixed Railway credential store is unavailable"):
+        sandbox_module._build_provider_readonly_profile(tmp_path / "project", tmp_path / "state", "railway")
 
 
 def test_sandbox_rejects_network_for_arbitrary_command_before_preparation(tmp_path):
@@ -259,10 +329,15 @@ def test_sandbox_executes_resolved_railway_identity_when_network_is_explicit(tmp
     state = tmp_path / "state"
     root.mkdir()
     recorded = {}
+    monkeypatch.setenv("HOME", str(tmp_path / "untrusted-home"))
+    monkeypatch.setenv("RAILWAY_TOKEN", "do-not-forward")
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "untrusted-xdg"))
     monkeypatch.setattr(sandbox_module.shutil, "which", lambda name: str(approved) if name == "railway" else None)
 
     def fake_prepare(worktree, state_dir, **kwargs):
-        profile = build_sandbox_profile(worktree, state_dir, network=kwargs["network"])
+        profile = sandbox_module._build_provider_readonly_profile(
+            worktree, state_dir, kwargs["credential_provider"]
+        )
         recorded["profile"] = profile
         return root, state, "/usr/bin/sandbox-exec", profile
 
@@ -274,6 +349,7 @@ def test_sandbox_executes_resolved_railway_identity_when_network_is_explicit(tmp
 
     def fake_run(argv, **kwargs):
         recorded["argv"] = argv
+        recorded["env"] = kwargs["env"]
         return subprocess.CompletedProcess(argv, 0)
 
     monkeypatch.setattr(sandbox_module.subprocess, "run", fake_run)
@@ -284,6 +360,38 @@ def test_sandbox_executes_resolved_railway_identity_when_network_is_explicit(tmp
     assert recorded["argv"] == [
         "/usr/bin/sandbox-exec", "-p", recorded["profile"], str(approved.resolve()), "status",
     ]
+    assert recorded["env"]["HOME"] == pwd.getpwuid(os.getuid()).pw_dir
+    assert recorded["env"]["VERCEL_TELEMETRY_DISABLED"] == "1"
+    assert "RAILWAY_TOKEN" not in recorded["env"]
+    assert "XDG_DATA_HOME" not in recorded["env"]
+
+
+def test_provider_network_commands_are_exact_read_only_operations(tmp_path, monkeypatch):
+    executables = {}
+    for provider in ("railway", "vercel", "supabase"):
+        executable = tmp_path / "bin" / provider
+        executable.parent.mkdir(exist_ok=True)
+        executable.write_text("#!/bin/sh\n", encoding="utf-8")
+        executable.chmod(0o755)
+        executables[provider] = executable
+    monkeypatch.setattr(sandbox_module.shutil, "which", lambda name: str(executables[name]) if name in executables else None)
+
+    assert resolve_provider_readonly_command(["railway", "status"])[0] == str(executables["railway"].resolve())
+    assert resolve_provider_readonly_command(["vercel", "whoami"])[1:] == ["whoami"]
+    assert resolve_provider_readonly_command(["supabase", "projects", "list"])[1:] == ["projects", "list"]
+
+    for command in (
+        ["railway", "whoami"],
+        ["railway", "up"],
+        ["vercel", "project", "ls"],
+        ["vercel", "deploy"],
+        ["supabase", "status"],
+        ["supabase", "db", "push"],
+        ["supabase", "status", "--workdir", "https://example.invalid"],
+        ["n8n", "status"],
+    ):
+        with pytest.raises(SandboxError, match="read-only discovery/status"):
+            resolve_provider_readonly_command(command)
 
 
 def test_sandbox_requires_macos_clean_worktree_and_external_state(tmp_path):

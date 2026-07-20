@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import shlex
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,7 @@ from typing import Any
 TOOL_ID = "harness-project-binding"
 BINDING_SCHEMA = "harness.project-binding.v1"
 LOCK_SCHEMA = "harness.runtime-lock.v1"
+CAPABILITY_GRAPH_SCHEMA = "harness.capability-graph.v1"
 RUNTIME_ROOT = Path(__file__).resolve().parents[1]
 MANAGED_PATHS = (
     ".harness/bin/harness-binding",
@@ -56,6 +58,101 @@ def _canonical(value: object) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
+def source_snapshot_identity(project_root: Path) -> dict[str, str]:
+    completed = subprocess.run(
+        ["git", "-C", str(project_root), "rev-parse", "HEAD"],
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env={"LANG": "C", "LC_ALL": "C", "PATH": os.defpath},
+    )
+    revision = completed.stdout.strip()
+    if completed.returncode or not revision:
+        raise BindingError("project root must have a committed Git HEAD")
+    return {"kind": "git_commit", "revision": revision}
+
+
+def _capability_graph(inputs: BindingInputs) -> dict[str, Any]:
+    snapshot = source_snapshot_identity(inputs.project_root)
+
+    def capability(
+        capability_id: str,
+        kind: str,
+        provider: str,
+        operation: str,
+        target_identity: dict[str, str | None],
+        credential_refs: list[str],
+        dependencies: list[str],
+    ) -> dict[str, Any]:
+        actions = ["discovery", "plan", "status"]
+        if kind == "local_operation":
+            actions.append("apply")
+        return {
+            "capability_id": capability_id,
+            "kind": kind,
+            "provider": provider,
+            "operation": operation,
+            "source_snapshot": snapshot,
+            "target_identity": target_identity,
+            "credential_refs": credential_refs,
+            "dependencies": dependencies,
+            "allowed_actions": actions,
+            "profiles": {
+                "preflight": f"{capability_id}.preflight.v1",
+                "receipt": f"{capability_id}.receipt.v1",
+                "consumer": f"{capability_id}.consumer.v1",
+            },
+        }
+
+    capabilities = [
+        capability(
+            "railway.deploy", "local_operation", "railway", "deploy",
+            {"project_id": None, "environment_id": None, "service_id": None, "service_name": inputs.railway_service},
+            ["railway.cli-session"], [],
+        ),
+        capability(
+            "vercel.deploy", "local_operation", "vercel", "deploy",
+            {"org_id": None, "project_id": None}, ["vercel.cli-session"], [],
+        ),
+        capability(
+            "supabase.schema-migration", "local_operation", "supabase", "schema_migration",
+            {"project_ref": None}, ["supabase.cli-session"], [],
+        ),
+        capability(
+            "supabase.privileged-data-mutation", "local_operation", "supabase", "bounded_privileged_data_mutation",
+            {"project_ref": None, "boundary_id": None}, ["supabase.privileged-resolver"],
+            ["supabase.schema-migration"],
+        ),
+        capability(
+            "n8n.workflow-publish-activation", "local_operation", "n8n", "workflow_publish_activation",
+            {"instance_id": None, "workflow_id": None}, ["n8n.credential-resolver"], [],
+        ),
+        capability(
+            "n8n.async-effects-runtime", "runtime_contract", "n8n", "async_effects",
+            {"instance_id": None, "workflow_id": None, "contract_id": None}, ["n8n.runtime-credential-resolver"],
+            ["n8n.workflow-publish-activation"],
+        ),
+        capability(
+            "vercel.revalidate-runtime", "runtime_contract", "vercel", "revalidate",
+            {"org_id": None, "project_id": None, "contract_id": None}, ["vercel.runtime-credential-resolver"],
+            ["vercel.deploy"],
+        ),
+        capability(
+            "deployed-api.db-write-runtime", "runtime_contract", "deployed-api", "db_write",
+            {"deployment_id": None, "database_project_ref": None, "contract_id": None},
+            ["deployed-api.runtime-credential-resolver"], ["railway.deploy", "supabase.schema-migration"],
+        ),
+    ]
+    graph: dict[str, Any] = {
+        "schema": CAPABILITY_GRAPH_SCHEMA,
+        "source_snapshot": snapshot,
+        "capabilities": capabilities,
+    }
+    graph["digest"] = hashlib.sha256(_canonical(graph)).hexdigest()
+    return graph
+
+
 def _desired(inputs: BindingInputs) -> dict[str, tuple[bytes, int]]:
     normalized = inputs.normalized()
     project = {
@@ -65,8 +162,14 @@ def _desired(inputs: BindingInputs) -> dict[str, tuple[bytes, int]]:
         "railway_service": normalized.railway_service,
     }
     runtime_root = str(RUNTIME_ROOT)
+    capability_graph = _capability_graph(normalized)
     digest = hashlib.sha256(
-        _canonical({"project": project, "runtime_root": runtime_root, "runtime_version": normalized.runtime_version})
+        _canonical({
+            "project": project,
+            "runtime_root": runtime_root,
+            "runtime_version": normalized.runtime_version,
+            "capability_graph_digest": capability_graph["digest"],
+        })
     ).hexdigest()
     lock = {
         "schema": LOCK_SCHEMA,
@@ -74,6 +177,11 @@ def _desired(inputs: BindingInputs) -> dict[str, tuple[bytes, int]]:
         "version": normalized.runtime_version,
         "root": runtime_root,
         "digest": digest,
+        "capability_graph": {
+            "schema": capability_graph["schema"],
+            "digest": capability_graph["digest"],
+            "source_snapshot": capability_graph["source_snapshot"],
+        },
     }
     binding = {
         "schema": BINDING_SCHEMA,
@@ -84,6 +192,7 @@ def _desired(inputs: BindingInputs) -> dict[str, tuple[bytes, int]]:
             "version": normalized.runtime_version,
             "digest": digest,
         },
+        "capability_graph": capability_graph,
         "verification": {
             "clean_worktree_required": True,
             "external_state_dir_required": True,
