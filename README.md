@@ -12,17 +12,22 @@ AI 코딩 에이전트를 위한 하네스(Harness) 템플릿. 공통 하네스 
 
 ## 빠른 시작
 
-요구사항: Python 3.10+ (하네스 스크립트는 `str | None` 타입 힌트 등 Python 3.10 문법을 사용한다).
+요구사항: Python 3.11.
 
 ```bash
-# 신규 프로젝트에 하네스 설치
-cd my-project
-bash /path/to/harness-starter/h-setup.sh .
+# 변경 없이 현재 상태 확인/계획
+bash /path/to/harness-starter/h-setup.sh inspect /path/to/my-project
+bash /path/to/harness-starter/h-setup.sh plan \
+  --project-id my-project --protected-branch main \
+  --railway-service my-service /path/to/my-project
 
-# Hermes, Codex, Claude 등 사용 가능한 runtime에서 harness-init으로 스택 결정
+# minimal project binding 적용
+bash /path/to/harness-starter/h-setup.sh apply \
+  --project-id my-project --protected-branch main \
+  --railway-service my-service /path/to/my-project
 ```
 
-h-setup.sh는 멱등성 보장. 이미 있는 파일은 건드리지 않는다.
+`h-setup.sh`는 Python desired-state reconciler의 thin launcher다. 적용은 멱등하며 `.harness/project-binding.json`, runtime lock, 두 개의 managed launcher만 생성·갱신한다. `.claude/`, `.agents/`, `.codex/`, `docs/`는 복사하지 않는다. 장기 프로젝트 문서의 SSOT는 `harness-brain`이다.
 
 ```bash
 # (필수) pre-commit 시크릿 스캔 훅 설치 — 다운스트림 안전망
@@ -33,14 +38,9 @@ bash scripts/install-secret-scan-hook.sh
 
 gitleaks가 있으면 `gitleaks protect --staged` 사용, 없으면 grep 폴백. grep 폴백은 best-effort — 리터럴 분할이나 Base64 우회는 탐지하지 못하므로 실제 방어가 중요하면 gitleaks 설치 권장.
 
-```bash
-# 기존 프로젝트에 하네스 이식
-# → 사용 가능한 runtime(Hermes/Codex/Claude 등)에서 /harness-adopt → /harness-init 순서로 실행
+레거시 파일 제거는 `.harness/legacy-files.json` ownership manifest에 기록된 digest와 현재 파일이 일치할 때만 가능하다. `reconcile`은 계획만 출력하고, 실제 제거는 `reconcile --apply /path/to/my-project`처럼 명시한다. 사용자 변경 파일과 manifest 밖 파일은 제거하지 않는다.
 
-# 하네스를 최신 버전으로 업그레이드
-bash /path/to/harness-starter/h-setup.sh --upgrade /path/to/my-project
-# → 사용 가능한 runtime에서 /harness-upgrade (git 3-way merge + MIGRATIONS.md 자동 안내)
-```
+macOS 실행 backend는 clean Git worktree와 외부 `HARNESS_STATE_DIR`를 요구한다. network는 기본 차단이다. `--network`를 명시해도 PATH에서 resolve한 Railway CLI와 동일한 executable만 실행하며, 다른 command는 sandbox 실행 전에 거부한다. 이 sandbox는 launcher subprocess에만 적용되며 ambient Hermes patch/write tool을 제한한다고 주장하지 않는다.
 
 ## 독립 Harness runtime build/test
 
@@ -155,8 +155,8 @@ docs/
 ### 신규 프로젝트
 
 ```
-0a. h-setup.sh         하네스 파일 복사. 프로파일 선택(minimal/standard/full).
-                     완료 시 .claude/HARNESS.json(is_starter=false)과 첫 WIP 작업 문서 생성.
+0a. h-setup.sh apply   project id/root/protected branch/Railway service가 담긴 minimal binding과
+                     runtime lock, managed launcher만 desired-state로 조정한다.
 
 0b. /harness-sync    (클론한 머신에서만, 한 번만) 의존성 설치 + 권한 설정 + git hook 설치.
 
@@ -179,7 +179,7 @@ docs/
 ### 기존 프로젝트 이식
 
 ```
-0. h-setup.sh         하네스 파일 복사 (기존 파일은 건드리지 않음).
+0. h-setup.sh plan/apply  기존 문서·runtime adapter를 복사하지 않고 minimal binding만 조정.
 
 1. /harness-adopt    기존 .claude/, docs/ 병합. 문서 재분류 + 프론트매터 추가.
                      harness-upstream remote 설정. HARNESS.json에 adopted_at 기록.
@@ -200,9 +200,9 @@ docs/
   /harness-upgrade       harness-upstream remote에서 fetch → 변경 분석 → 3-way merge.
                          한 명령으로 완료. Step 10에서 MIGRATIONS.md 수동 액션 안내.
 
-방법 2: 파일 복사 방식 (remote 없을 때)
-  h-setup.sh --upgrade   스타터에서 실행. 변경 파일을 .upgrade/에 스테이징.
-  /harness-upgrade       스테이징된 파일을 대화형 병합.
+project binding 갱신:
+  h-setup.sh plan ...    runtime version/input 변경을 mutation 없이 확인.
+  h-setup.sh apply ...   tool-managed binding/lock/launcher만 갱신.
 
 업그레이드 후 검증:
   pytest .claude/scripts/tests/test_pre_commit.py
