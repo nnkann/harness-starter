@@ -1,403 +1,145 @@
 # harness-starter
 
-AI 코딩 에이전트를 위한 하네스(Harness) 템플릿. 공통 하네스 계약과 runtime adapter를 분리해 Claude, Codex, Hermes, Agy 같은 여러 agent 조합을 통합 관리한다.
+공유 Harness runtime을 프로젝트에 연결하기 위한 얇은 binding 진입점과 독립 실행 계약을 제공한다.
 
-## Project entry point
+- 구현 기준: Git `99b72ab`, package `0.1.1`
+- Python: 정확히 `3.11`
+- runtime dependencies: 없음
 
-프로젝트 진입·규칙·도메인·cluster의 canonical authority는 `harness-brain`이다. 이 starter는 runtime에 필요한 계약만 유지한다.
+## 권한 경계
 
-> "에이전트가 실수할 때마다, 그 실수가 다시는 일어나지 않도록 엔지니어링 솔루션을 만드는 것" — Mitchell Hashimoto
+프로젝트의 지속 가능한 결정, 운영 지식, 문서 체계의 canonical authority는 `harness-brain`이다. 이 저장소는 실행 코드와 기계 검증 가능한 runtime·binding·receipt 계약을 유지한다. 프로젝트별 adapter는 `adapters/`에 둘 수 있지만 독립 runtime은 Hermes core, live gateway, 저장소 내부 실행 state에 의존하지 않는다.
 
-현재 버전: **v0.55.1** — 0.x = 공개 API·동작 불안정·실험 단계. 다운스트림 실측 누적·매처 동작 검증·README 격차 안정화 후 1.0.0 검토. 변경 이력은 `git log --oneline --grep "(v0\."`, 다운스트림 마이그레이션은 `docs/harness/MIGRATIONS.md`.
+이 저장소 자체는 live deployment, 전체 C1 closure, provider mutation 실행, 특정 profile orchestration이 준비되었다고 주장하지 않는다.
+
+## 현재 제공 범위
+
+### Minimal project binding
+
+`h-setup.sh`는 Python 3.11을 확인한 뒤 `harness-project-binding` CLI를 실행한다.
+
+- `inspect`: 현재 binding 상태와 drift를 읽는다.
+- `plan`: 변경 없이 desired-state 작업을 계산한다.
+- `apply`: tool-managed 파일만 생성·갱신하고 unmanaged 충돌은 덮어쓰지 않는다.
+- `reconcile`: ownership manifest와 digest가 일치하는 legacy 파일만 제거 후보로 다룬다.
+
+`apply`의 관리 범위는 다음 네 파일이다.
+
+- `.harness/project-binding.json`
+- `.harness/runtime.lock.json`
+- `.harness/bin/harness-binding`
+- `.harness/bin/harness-sandbox-run`
+
+Binding에는 Git source snapshot, provider target, typed capability graph, clean-worktree·external-state 요구사항이 기록된다. 비밀 값은 binding 입력으로 다루지 않는다.
+
+### Typed guided capabilities
+
+`harness-guided-capability`는 임의 shell command가 아니라 binding에 선언된 capability ID만 받는다.
+
+- `discovery`·`status`: 완전한 target identity와 외부 `--state-dir`를 요구하며, 허용된 provider read-only 조회만 sandbox에서 실행한다.
+- `plan`: source snapshot과 binding scope를 묶은 digest를 만든다.
+- `apply`: runtime contract를 거부하고, scope·plan digest가 일치하는 approval receipt와 capability별 executor 및 유효한 execution receipt가 모두 있어야 성공한다.
+
+현재 bundled CLI는 apply executor를 제공하지 않으므로 mutation은 fail closed된다. 따라서 deploy, migration, privileged data mutation, workflow publish를 수행한다고 해석하면 안 된다.
+
+### Isolated receipt runtime
+
+`harness-runtime`은 표준 라이브러리만 사용하는 독립 package다.
+
+- `run`: 명시한 clean Git worktree에서 제한된 환경으로 한 명령을 실행한다.
+- `readback`: terminal projection, 2-event journal, execution metadata와 artifact digest를 재검증한다.
+- `analysis-input`: 같은 검증 뒤 bounded stdout·stderr만 제공한다.
+- `schema`: versioned execution-receipt schema를 출력한다.
+
+모든 producer·consumer state에는 저장소와 겹치지 않는 명시적 `HARNESS_STATE_DIR`가 필요하다. Hermes home, gateway state, caller 환경, 저장소 내부 state로 fallback하지 않는다. 상세 계약은 `docs/build-and-state-contract.md`에 있다.
+
+### Gateway ingress
+
+`.hermes/plugins/harness-gateway`는 Hermes의 project-bound Gateway event에만 ingress 계약을 적용한다. 현재 plugin hook은 다음을 수행한다.
+
+1. Gateway project binding으로 project cwd를 해석한다.
+2. Git worktree root와 `manifest.yml` 경계를 검증한다.
+3. event·manifest hash·baseline worktree evidence를 canonical ingress packet으로 만든다.
+4. receipt를 `received → intake-ready → route → running → terminal`로 연결한다.
+5. binding 또는 intake가 hold이면 agent 호출 전에 중단하고, unbound event는 변경 없이 통과시킨다.
+
+이는 저장소에 구현된 ingress transport 계약 설명이며 live gateway 배포 상태를 의미하지 않는다.
 
 ## 빠른 시작
 
-요구사항: Python 3.11.
-
-```bash
-# 변경 없이 현재 상태 확인/계획
-bash /path/to/harness-starter/h-setup.sh inspect /path/to/my-project
-bash /path/to/harness-starter/h-setup.sh plan \
-  --project-id my-project --protected-branch main \
-  --railway-service my-service /path/to/my-project
-
-# minimal project binding 적용
-bash /path/to/harness-starter/h-setup.sh apply \
-  --project-id my-project --protected-branch main \
-  --railway-service my-service \
-  --railway-project-id prj --railway-environment-id env --railway-service-id svc \
-  --vercel-org-id team --vercel-project-id prj --vercel-target production \
-  --supabase-project-ref ref --supabase-schema-migration-scope-id schema-scope \
-  --supabase-privileged-data-mutation-boundary-id mutation-boundary \
-  --n8n-instance-host n8n.example.com --n8n-workflow-id workflow \
-  --n8n-webhook-endpoint-sha256 "$ENDPOINT_SHA256" --n8n-webhook-path-sha256 "$PATH_SHA256" \
-  --n8n-callback-consumer-id consumer /path/to/my-project
-```
-
-`h-setup.sh`는 Python desired-state reconciler의 thin launcher다. 적용은 멱등하며 `.harness/project-binding.json`, runtime lock, 두 개의 managed launcher만 생성·갱신한다. binding/lock에는 secret-free explicit provider target과 Railway·Vercel·Supabase local operation, n8n·Vercel·deployed API runtime contract가 포함된다. runtime contract는 대응 local capability와 같은 source identity를 사용한다. 입력이 빠지거나 공백이면 해당 capability는 `hold`이며, n8n webhook 원문 URL은 입력·저장하지 않고 64자리 소문자 hex endpoint/path SHA256만 받는다. `.claude/`, `.agents/`, `.codex/`, `docs/`는 복사하지 않는다.
-
-guided capability는 binding lifecycle과 분리된 namespace다. capability ID만 받으며 shell argv, URL, SQL, table 입력은 받지 않는다.
-
-```bash
-harness-guided-capability discovery railway.deploy /path/to/my-project --state-dir /tmp/harness-state
-harness-guided-capability plan railway.deploy /path/to/my-project
-harness-guided-capability status vercel.deploy /path/to/my-project --state-dir /tmp/harness-state
-harness-guided-capability apply railway.deploy /path/to/my-project --approval-file approval.json
-```
-
-`discovery`/`status`는 외부 `--state-dir`가 필수다. Railway deploy는 `railway status`, Vercel deploy는 `vercel whoami`, 두 Supabase local operation은 `supabase projects list`만 `run_sandbox`로 실행한다. provider stdout/stderr와 credential 값은 결과 JSON에 포함하지 않고 exit code만 기록한다. provider client, 고정 credential store, exact target identity가 없으면 추측하지 않고 `hold`를 출력한다. n8n과 runtime contract는 resolver가 없으므로 source/config-only `hold`다. `plan`은 파일이나 provider를 변경하지 않으며 현재 Git source snapshot과 binding scope로 canonical digest를 만든다. `apply`는 capability-specific executor, 일치하는 scope/plan digest의 approval receipt, 완전한 target identity가 모두 없으면 닫힌 상태로 실패한다. 이 버전에는 live deploy, migration, webhook/workflow publish, service-role mutation executor가 없다. runtime contract는 apply 대상이 아니다.
-
-```bash
-# (필수) pre-commit 시크릿 스캔 훅 설치 — 다운스트림 안전망
-bash scripts/install-secret-scan-hook.sh
-```
-
-이 hook은 **commit 스킬 우회·`HARNESS_DEV=1`·터미널 직접 `git commit` 모든 경로**에서 시크릿 line-confirmed를 차단하는 마지막 안전망. 미설치 시 pre-check이 매 commit마다 경고. 단 `git commit --no-verify`는 hook 자체를 우회 — 절대 사용 금지.
-
-gitleaks가 있으면 `gitleaks protect --staged` 사용, 없으면 grep 폴백. grep 폴백은 best-effort — 리터럴 분할이나 Base64 우회는 탐지하지 못하므로 실제 방어가 중요하면 gitleaks 설치 권장.
-
-레거시 파일 제거는 `.harness/legacy-files.json` ownership manifest에 기록된 digest와 현재 파일이 일치할 때만 가능하다. `reconcile`은 계획만 출력하고, 실제 제거는 `reconcile --apply /path/to/my-project`처럼 명시한다. 사용자 변경 파일과 manifest 밖 파일은 제거하지 않는다.
-
-macOS 실행 backend는 clean Git worktree와 외부 `HARNESS_STATE_DIR`를 요구한다. network는 기본 차단이다. provider read-only mode도 PATH에서 resolve한 동일 executable의 Railway `status`, Vercel `whoami`, Supabase `projects list`만 허용한다. profile은 OS 사용자 홈의 해당 provider 고정 store 하나만 쓴다: `~/.railway`, `~/.supabase`, `~/Library/Application Support/com.vercel.cli`. 다른 provider store와 caller `HOME`/XDG/token 환경은 사용하지 않으며 고정 store가 없으면 fail closed한다. deploy/push/link 같은 mutation, 추가 flag/인자, n8n CLI는 sandbox 실행 전에 거부한다. 이 sandbox는 launcher subprocess에만 적용되며 ambient Hermes patch/write tool을 제한한다고 주장하지 않는다.
-
-## 독립 Harness runtime build/test
-
-`harness-runtime`은 Hermes core, live gateway, 기존 `.harness/project/runs/`와 분리된 표준 라이브러리 기반 artifact다. build 입력은 root `pyproject.toml`과 `uv.lock`뿐이며, runtime dependency는 없고 test dependency는 `test` extra로 분리한다.
+요구사항은 Python `3.11`과 `uv`다. package metadata의 `requires-python`은 `==3.11.*`이며 runtime dependency 목록은 비어 있다.
 
 ```bash
 uv sync --locked --extra test
-uv run --locked pytest tests/runtime
-uv build
+
+# 읽기 전용 상태 확인
+bash h-setup.sh inspect /path/to/project
+
+# minimal binding 변경 계획
+bash h-setup.sh plan \
+  --project-id example \
+  --protected-branch main \
+  --railway-service app \
+  /path/to/project
+
+# schema 확인
+uv run --locked harness-runtime schema
 ```
 
-runtime state는 source tree와 실행 worktree 밖의 명시적 `HARNESS_STATE_DIR`에만 둔다. test에서는 반드시 임시 state root를 지정한다. `$HERMES_HOME`, Hermes service venv, live gateway, repository `runs/`는 fallback이나 fixture가 아니다.
+계획을 검토한 뒤에만 같은 인자로 `plan`을 `apply`로 바꾼다. Binding이 생성된 프로젝트에서는 capability plan을 읽을 수 있다.
 
 ```bash
-export HARNESS_STATE_DIR="$(mktemp -d)"
-harness-runtime schema
-harness-runtime run --case smoke --consumer artifact-smoke --body-file body.bin --worktree-cwd /path/to/clean/git/worktree -- /absolute/path/to/python -c 'import sys; sys.stdout.buffer.write(sys.stdin.buffer.read())'
-harness-runtime readback --case smoke --consumer artifact-smoke
-harness-runtime analysis-input --case smoke --consumer artifact-smoke
+uv run --locked harness-guided-capability plan railway.deploy /path/to/project
 ```
 
-`run` producer는 clean Git worktree root만 받아 제한된 환경에서 명령을 실행한다. dispatch/terminal receipt와 body/stdout/stderr artifact를 external state 아래에 기록하고 자체 readback 검증을 통과한 terminal receipt만 출력한다. `readback`은 receipt와 artifact digest를 다시 대조하고, `analysis-input`은 같은 검증 뒤 bounded stdout/stderr를 제공한다. invalid input은 validation error로 종료한다.
+Receipt runtime의 실제 실행에는 외부 state와 clean worktree root가 필요하다.
 
-## 구조
-
-```
-CLAUDE.md                        Claude Code runtime adapter 루트 인스트럭션
-.agents/
-└── skills/                      Codex가 직접 읽는 generated/validated adapter 후보
-.codex/
-├── agents/                      Codex agent adapter (TOML)
-└── hooks.json                   Codex hook adapter
-.claude/
-├── settings.json                Claude hook adapter (단일 bash-guard.sh로 통합)
-├── HARNESS.json                 하네스 메타 (버전, 프로파일, runtime_stack, runtime_adapters)
-├── rules/                       자동 로드 규칙 (10개)
-│   ├── self-verify.md           [상시] 작업 중 자기 검증 (AC 트리거 매트릭스)
-│   ├── code-ssot.md             [상시] 코드 심볼 SSOT drift 방지
-│   ├── coding.md                [상시] 코딩 컨벤션 (Surgical Changes)
-│   ├── naming                  [paths] 네이밍 + 도메인 등급 + cluster 매핑 (SSOT: harness-brain)
-│   ├── docs.md                  [상시] 문서 구조 + 프론트매터 + 탐색 규칙 + completed 차단 키워드
-│   ├── memory.md                [상시] 메모리 활용 규칙 (에이전트 memory vs 프로젝트 memory 경계)
-│   ├── security.md              [상시] 시크릿 금지 + 4계층 방어
-│   ├── internal-first.md        [상시] 외부 자료 전 내부 자료 우선 (git/docs/rules)
-│   ├── no-speculation.md        [상시] 추측 수정 금지 — 첫 행동은 관찰·재현·선행 사례
-│   └── hooks.md                 [상시] PreToolUse argument-constraint 매처 금지
-├── skills/                      legacy skill source/Claude adapter (13개, starter 전용 3개 포함)
-│   ├── harness-init/            [starter] 프로젝트 초기화 (CPS + 스택 결정)
-│   ├── harness-adopt/           [starter] 기존 프로젝트에 하네스 이식
-│   ├── harness-dev/             [starter] 스크립트·스킬 추가 시 h-setup.sh·README·HARNESS.json 자동 갱신
-│   ├── harness-sync/            클론 후 환경 동기화
-│   ├── harness-upgrade/         하네스 업그레이드 (3-way merge + MIGRATIONS.md 안내)
-│   ├── implementation/          작업 문서 라이프사이클
-│   ├── cps-learn/               복수 P#/S# 해석 + AC 단계화·반복·분리 검증 설계
-│   ├── commit/                  커밋 + Review (--review/--no-review 2단계, starter push 보호)
-│   ├── eval/                    건강 검진 (--quick/--harness)
-│   ├── advisor/                 멀티 에이전트 판단 엔진 (specialist 풀 + 의사결정 프레임)
-│   ├── write-doc/               문서 단독 생성 (incidents symptom-keywords 강제)
-│   ├── naming-convention/       네이밍 + 도메인 등급 설정
-│   └── coding-convention/       코딩 컨벤션 설정
-├── agents/                      서브에이전트 (8개)
-│   ├── advisor.md               PM/orchestrator — specialist 종합 (opus)
-│   ├── doc-finder.md            문서 검색·요약 (사서, haiku)
-│   ├── codebase-analyst.md      내부 코드·문서 분석 (컨설턴트, sonnet)
-│   ├── researcher.md            외부 자료 조사 (sonnet)
-│   ├── risk-analyst.md          비판자·devil's advocate (sonnet)
-│   ├── performance-analyst.md   성능·N+1·동시성 (sonnet)
-│   ├── threat-analyst.md        외부 위협 분석 (public repo·번들·RLS bypass, sonnet)
-│   └── review.md                커밋 전 diff 단위 검증 (2축 + 회귀 알파 + 조기 중단, sonnet)
-├── memory/                      프로젝트 memory (자동 주입 아님, session-start가 제한 노출)
-│   ├── MEMORY.md                memory index
-│   ├── reminders/               active reminder routing signal
-│   │   └── reminder_*.md        반복 패턴·후속 판단 회상 후보
-│   ├── feedback_*.md            다운스트림/운영 피드백
-│   ├── project_eval_last.md     최근 eval 관찰 기록
-│   ├── stop_hook_audit.log      Stop hook 감사 로그
-│   └── session-*.txt            세션 snapshot (gitignore)
-└── scripts/                     hook 스크립트 + 회귀 테스트
-    ├── session-start.py         SessionStart hook
-    ├── stop-guard.py            Stop hook
-    ├── post-compact-guard.py    PostCompact hook
-    ├── auto-format.sh           PostToolUse 포매터
-    ├── write-guard.sh           Write 가드
-    ├── bash-guard.sh            Bash 단일 hook (jq 토큰 파싱 + git commit 직접 호출 차단)
-    ├── agy-review.sh            다운스트림 공통 Agy advisory review runner
-    ├── validate-settings.sh     settings.json schema 검증
-    ├── pre_commit_check.py      커밋 전 정적 검사 + staging 신호 감지 (dead link 증분, frontmatter relates-to 검증, S6 ≤5줄 skip)
-    ├── downstream-readiness.sh  다운스트림 자가 진단 (silent fail 6항목)
-    ├── docs_ops.py              docs/ 관리 (validate/move/reopen/cluster-update/verify-relates)
-    ├── harness_version_bump.py  업스트림 버전 범프 제안 (is_starter 가드 내장)
-    ├── task_groups.py           staged 파일을 WIP task × abbr × kind로 그룹화 (분리 판정)
-    ├── split-commit.sh          커밋 분리 실행 (task_groups.py 기반)
-    ├── install-starter-hooks.sh starter 전용 pre-commit hook 설치 (버전 범프 체크 포함)
-    ├── tests/                   pytest 회귀 테스트
-    │   ├── test_pre_commit.py
-    │   ├── test_eval_harness.py
-    │   └── test_session_start.py
-    └── test-bash-guard.sh       Bash hook 회귀 테스트
-scripts/                         유틸 스크립트 (하네스 외부)
-└── install-secret-scan-hook.sh  pre-commit 시크릿 스캔 훅 설치 (gitleaks 우선, grep 폴백)
-docs/
-├── WIP/                         진행 중 (파일 있으면 할 일 있다)
-├── decisions/                   결정과 그 근거 ("왜 X를 선택했나?")
-├── guides/                      방법과 패턴 ("X를 어떻게 하나?")
-├── incidents/                   문제와 해결 ("X가 왜 깨졌고 어떻게 고쳤나?")
-├── harness/                     하네스 자체 변경 이력 + MIGRATIONS.md
-└── archived/                    중단, 참조 불필요, 대체된 문서
-```
-
-## 워크플로우
-
-### 신규 프로젝트
-
-```
-0a. h-setup.sh apply   project id/root/protected branch/Railway service가 담긴 minimal binding과
-                     runtime lock, managed launcher만 desired-state로 조정한다.
-
-0b. /harness-sync    (클론한 머신에서만, 한 번만) 의존성 설치 + 권한 설정 + git hook 설치.
-
-1. /harness-init     PRD/아이디어 입력 → CPS 정리, 스택/강도 결정, 하네스 빈 칸 채움.
-                     PRD 파일이 이미 있으면 초안을 제안하고, 사용자가 확인한 뒤 반영.
-                     완료 시 도메인 목록·약어·등급 분류와 docs/guides/project_kickoff.md 갱신.
-
-2. docs/WIP/ 확인    파일이 있으면 할 일이 있다.
-
-3. /implementation   작업 시작 전 계획 문서 생성. CPS와 대조.
-                     status: pending → in-progress.
-
-4. 구현              코드 작성. 결정 사항과 메모를 계획 문서에 기록.
-
-5. /commit           작업 잔여물 정리, 완료 문서 이동, staging 자동 단계화 review, 커밋+푸시.
-
-6. 반복              docs/WIP/에 다음 작업이 남아있으면 3번으로.
-```
-
-### 기존 프로젝트 이식
-
-```
-0. h-setup.sh plan/apply  기존 문서·runtime adapter를 복사하지 않고 minimal binding만 조정.
-
-1. /harness-adopt    기존 .claude/, docs/ 병합. 문서 재분류 + 프론트매터 추가.
-                     harness-upstream remote 설정. HARNESS.json에 adopted_at 기록.
-
-2. /harness-init     CPS 정리 + 환경 빈 칸 채우기 (기존 프로젝트라도 필요).
-                     adopt 없이 init 실행 시 차단됨.
-
-3. bash .claude/scripts/downstream-readiness.sh
-                     자가 진단. HARNESS.json·도메인 등급·is_starter·매처 누락 확인.
-
-4. 이후 신규 프로젝트와 동일 흐름.
-```
-
-### 업그레이드
-
-```
-방법 1: remote 방식 (권장)
-  /harness-upgrade       harness-upstream remote에서 fetch → 변경 분석 → 3-way merge.
-                         한 명령으로 완료. Step 10에서 MIGRATIONS.md 수동 액션 안내.
-
-project binding 갱신:
-  h-setup.sh plan ...    runtime version/input 변경을 mutation 없이 확인.
-  h-setup.sh apply ...   tool-managed binding/lock/launcher만 갱신.
-
-업그레이드 후 검증:
-  pytest .claude/scripts/tests/test_pre_commit.py
-  bash .claude/scripts/test-bash-guard.sh   # 18/18 기대
-  bash .claude/scripts/downstream-readiness.sh  # 0 누락 기대
-```
-
-**docs/WIP/가 비어있으면 할 일이 없다는 뜻이다.**
-
-상태값: `pending` → `in-progress` → `completed` (커밋 시 이동) / `abandoned` (archived로 이동)
-
-## 건강 검진 — /eval
-
-하네스가 의도대로 작동하는지 주기적으로 점검한다.
-
-```
-/eval --quick     30초 헬스체크 (린터·WIP 잔여·dead link)
-/eval --harness   문서 헬스체크 + CPS 무결성 + 레거시 정비 안내
-```
-
-`/eval --harness`는 다운스트림에서 특히 유용하다. `harness-upgrade` 후 실행하면
-solution-ref 박제·Problem 인플레이션·CPS 인용 분포를 한 번에 확인할 수 있다.
-제품 CPS와 하네스 운영 CPS가 같은 `project_kickoff.md`에 섞이면 P#/S# 의미가
-충돌하므로, `## Problems`/`## Solutions` 표 형식을 canonical shape로 유지한다.
-
----
-
-## CPS (Context / Problem / Solution)
-
-모든 프로젝트 결정의 출발점. `harness-init`이 대화를 통해 구조화한다.
-
-- **Context**: 배경, 제약, 프로젝트 중요도
-- **Problem**: 해결해야 할 핵심 문제 1~3개
-- **Solution**: 각 Problem에 대한 대응 방안 + 강제력 설계
-
-CPS 문서는 `docs/guides/project_kickoff.md`에 저장된다. `docs/guides/project_kickoff_sample.md`에 예제가 포함되어 있으며, `harness-init` 실행 시 실제 내용으로 대체된다.
-
-권장 canonical shape:
-
-```markdown
-## Problems
-
-| ID | 1줄 요약 |
-|----|---------|
-| P1 | ... |
-
-## Solutions
-
-| ID | 대상 P# | 1줄 메커니즘 | 해결 기준 |
-|----|---------|------------|----------|
-| S1 | P1 | ... | ... |
-```
-
-다운스트림 제품 CPS에는 제품 문제와 제품 해결책만 남긴다. `MCP`, `review maxTurns`,
-`bash-guard`, `harness-upgrade`, `pre-check`, `commit skill` 같은 하네스 운영
-항목이 제품 Solution으로 섞이면 `/eval --harness` warning 신호로 본다.
-
-`/implementation` 스킬은 작업 시작 전 CPS와 대조하여 방향성을 검증한다. init 미완료 시 차단된다.
-
-## 문서 체계
-
-모든 docs/ 문서는 YAML 프론트매터 필수 (`title`, `domain`, `status`, `created`). `status` 허용값은 `draft|active|stale|archived`.
-`incidents/`는 `symptom-keywords` 추가 필수 (재발 검색용 고유명사).
-문서 간 관계는 `relates-to` 필드로 명시. rel 타입 정의는 `/Users/kann/projects/harness-brain/projects/harness-starter/contracts/cp_frontmatter_schema.md` SSOT.
-
-도메인/cluster/naming SSOT: `/Users/kann/projects/harness-brain/projects/hermes/decisions/hermes_doc_naming_chain_ssot.md`.
-
-폴더는 문서의 **성격** (왜/어떻게/무엇이 깨졌나), `domain`은 문서의 **의미**를 담당. 이중 분류.
-
-문서 탐색은 harness-brain SSOT 문서와 각 문서의 frontmatter/relates-to를 따른다.
-
-`completed` 전환 차단 키워드: `TODO`, `FIXME`, `후속`, `미결`, `미결정`, `추후`, `나중에`, `별도로`. `docs-ops.sh move`가 본문에서 자동 검사 (회고 섹션은 면제).
-
-## Review 분기
-
-`/commit` 호출 시 플래그로 review agent 호출 여부 결정.
-
-| 플래그 | 동작 |
-|--------|------|
-| `/commit` (default) | review 안 함 — pre-check + 시크릿 게이트만 |
-| `/commit --review` | review agent 1회 호출, diff별 한 줄 의견 |
-| `/commit --no-review` | review 명시 스킵 |
-
-시크릿 line-confirmed는 플래그 무관하게 review 강제 (보안 게이트).
-
-다운스트림은 `harness-brain`의 naming-chain SSOT 문서에 정의된 도메인 등급(critical/normal/meta) 규칙을 따른다. 자세한 안내는 `docs/harness/MIGRATIONS.md`.
-
-## 핵심 원칙
-
-- **루트 인스트럭션은 소원 목록이다. Hooks는 법이다. Linter는 물리 법칙이다.**
-- 린터가 잡을 수 있는 건 루트 인스트럭션에 쓰지 않는다.
-- 추측으로 수정 시작 금지. 첫 행동은 관찰·재현·선행 사례 (`rules/no-speculation.md`).
-- 외부 자료 전 내부(git log·docs·rules) 우선 (`rules/internal-first.md`).
-- 하네스는 뜯어내기 쉬워야 한다 (rippable harness).
-- "더 추가"가 아니라 "더 빼기" — 단순화 정신 (`docs/harness/hn_simplification.md`).
-
-## 다운스트림 마이그레이션
-
-`docs/harness/MIGRATIONS.md`에 버전별 자동/수동/검증/회귀 위험을 명세. `harness-upgrade` Step 10이 새 버전 섹션을 자동 표시.
-
-**다운스트림 자가 진단:**
 ```bash
-bash .claude/scripts/downstream-readiness.sh
+state_dir="$(mktemp -d)"
+body_file="$(mktemp)"
+python_311="$(command -v python3.11)"
+printf 'smoke\n' > "$body_file"
+
+HARNESS_STATE_DIR="$state_dir" uv run --locked harness-runtime run \
+  --case smoke-001 \
+  --consumer local-check \
+  --body-file "$body_file" \
+  --worktree-cwd /path/to/clean/git/worktree \
+  -- "$python_311" -c 'import sys; sys.stdout.buffer.write(sys.stdin.buffer.read())'
+
+HARNESS_STATE_DIR="$state_dir" uv run --locked harness-runtime readback \
+  --case smoke-001 \
+  --consumer local-check
 ```
 
-`eval --harness`와 pre-check는 라이브 안내·스크립트의 하네스 경로 문자열을
-path contract lint로 확인한다. `ruff`, `pyright`, `mypy`, `shellcheck`는 설치
-상태를 관측 보고하며, 누락된 도구를 실행된 검증으로 간주하지 않는다.
-silent fail 6항목 점검 (HARNESS·도메인 등급·매처·스킬 카테고리). 누락 1+ 시 exit 1.
+## 소스 안내
 
-## 다른 도구
+- `manifest.yml`: project entry와 CPS routing boundary
+- `runtime/harness_runtime/project_binding.py`: binding desired state와 capability graph
+- `runtime/harness_runtime/guided_capability.py`: typed discovery·plan·status·apply gate
+- `runtime/harness_runtime/runtime.py`: isolated execution receipt producer·consumer
+- `runtime/harness_runtime/ingress.py`: bound event intake, canonical packet, lifecycle receipt
+- `.hermes/plugins/harness-gateway/`: Gateway hook adapter
+- `contracts/`: versioned machine-readable contracts
+- `adapters/`: project-facing adapter boundary
 
-현재 기본 pilot 조합은 Hermes + Codex + Agy이며, Claude는 optional runtime adapter로 취급한다. rules/의 마크다운 내용은 Cursor(`.cursor/rules/*.mdc`), Windsurf(`.windsurf/rules/*.md`) 등으로 포맷 변환하면 재사용 가능하다. Claude용 adapter는 `.claude/`, Codex용 adapter는 `.agents/`·`.codex/`, Hermes/Agy orchestration은 Hermes skill·cron·profile 쪽에서 통합 관리한다.
+## 검증
 
-Agy advisory review는 `bash .claude/scripts/agy-review.sh "검토 질문"`로 호출한다. 기본값은 `AGY_PERMISSION_MODE=full`이며 runner가 `agy --dangerously-skip-permissions --add-dir <root> --print ...` 형태로 실행해 Agy가 판단에 필요한 프로젝트 파일을 직접 확인할 수 있게 한다. 권한 프롬프트를 유지해야 하는 환경만 `AGY_PERMISSION_MODE=prompt`로 낮춘다. Agy는 `~/.gemini/antigravity-cli`에 대화·cache·brain 상태를 쓰므로, Codex tool sandbox처럼 해당 디렉터리에 쓸 수 없는 환경에서는 runner가 실행을 중단하고 같은 프로젝트 root에서 로컬 터미널로 직접 실행할 명령을 안내한다. 로컬 실행 결과는 fallback handoff인 `.claude/memory/session-agy-review.md`에 저장되며, Codex는 이 파일을 읽어 같은 작업 흐름에 Agy 의견을 반영한다.
+독립 runtime test extra로 실행되는 focused 계약 검증:
 
-## 최근 주요 변경
+```bash
+uv run --locked pytest \
+  tests/runtime/test_ingress_transport.py \
+  tests/runtime/test_project_binding.py \
+  tests/runtime/test_guided_capability.py \
+  tests/runtime/test_runtime_contract.py
+```
 
-최신 5개만 표기. 더 자세한 마이그레이션 가이드는 `docs/harness/MIGRATIONS.md`
-(최신 5개 본문) + `docs/harness/MIGRATIONS-archive.md` (이전 누적). 전체
-이력은 `git log --oneline --grep "(v0\."`.
+Gateway plugin integration은 Hermes core checkout과 그 test environment를 사용한다. 현재 fixture 기준 경로와 실행 명령은 다음과 같다.
 
-### v0.55.1 (2026-06-06) — WIP/Kanban 통합 정책과 frontmatter 검증 보강 (patch)
-
-WIP/doc 계약과 Hermes Kanban의 역할을 분리하고, PyYAML 없는 환경에서도
-frontmatter 검증이 전체 문서를 실패시키지 않도록 fallback을 보강했다.
-`eval --harness`는 policy/dispatcher drift를 관측한다.
-
-### v0.55.0 (2026-06-02) — CPS+AC 학습 스킬 (minor)
-
-`cps-learn` 스킬을 추가해 복수 P#를 문제 차원 증가로, 복수 S#를 실행 구조 증가로 해석하고 AC 단계화·반복·분리 검증과 specialist 호출 폭 판단을 학습 신호로 남긴다.
-
-### v0.54.2 (2026-06-02) — downstream feedback visibility + bootstrap gate (patch)
-
-신규 설치 HARNESS 정의 파일에 `is_starter=false`를 명시하고, 초기 placeholder가 HARNESS 생성 후 `/harness-init` 도메인 분류로 이어지도록 안내한다. Hermes guardian는 반복 Feedback Report에 상태 라벨을 붙이고, HARNESS 없는 registry 항목을 bootstrap owner-action으로 보고한다.
-
-### v0.54.1 (2026-06-02) — typed AC + CPS agent learning loop (patch)
-
-AC를 대표 Goal + typed AC로 분리하고, pre-check가 개별 P#/S# 추적성을 검사한다. implementation은 reverse/resume/interrupt CPS flow와 specialist CPS packet을 기록하며, cron/guardian report는 `memory-signal`로 재확인하게 했다.
-
-### v0.54.0 (2026-05-30) — downstream 공통 Agy review runner (patch)
-
-다운스트림에서 공통 Agy review runner를 사용할 수 있도록 하네스 문서와 마이그레이션 안내를 보강했다.
-
-### v0.53.0 (2026-05-26) — 다중 runtime adapter 통합 관리 (patch)
-
-하네스 기본 운영 전제를 Claude 중심에서 Hermes + Codex + Agy pilot stack으로 전환했다. `HARNESS.json`과 `h-setup.sh`가 `runtime_stack`/`runtime_adapters`를 기록·백필하고, `downstream-readiness.sh`가 이를 관측 신호로 출력한다. Claude는 호환성을 위해 유지하되 optional adapter로 분류한다.
-
-### v0.52.9 (2026-05-25) — init gate UTF-8 출력 복구 + Python 요구사항 명시 (patch)
-
-`check_init_done.sh`의 `${KICKOFF}` 변수 경계를 명시해 macOS/bash 조합에서 stderr 한글 출력이 깨지며 Python `text=True` 테스트가 실패하던 문제를 고쳤다. 또한 하네스 스크립트가 Python 3.10+ 문법을 사용한다는 요구사항을 README·루트 지침에 명시하고, GitHub license metadata 인식을 위해 `LICENSE` 파일을 추가했다.
-
-### v0.52.8 (2026-05-22) — implementation WIP 실행 계획 soft warning (patch)
-
-implementation WIP에 실행 단계와 단계별 산출물이 없으면 Step 3·5에서 soft warning으로 보완하도록 했다. AC 포맷은 다음 단계 진입 조건을 드러내도록 연결하되, 순수 결정문·조사문·사고 기록·write-doc 산출물은 예외로 둔다.
-
-### v0.52.7 (2026-05-21) — commit review 기본값 정렬과 agy 수동 handoff reminder (patch)
-
-commit review 호출 정책을 실제 commit 스킬 기본값과 맞췄다. 기본 `/commit`은 pre-check + 시크릿 게이트만 실행하고, review는 `/commit --review` 옵트인으로 명시한다. agy CLI 응답 자동 회수 실패 실측을 reminder로 남겨, Codex 명령어 작성 → 사용자 VS Code 터미널 직접 실행 → 답변 수동 전달 흐름을 기억하도록 했다.
-
-### v0.52.6 (2026-05-21) — CPS 헤더형 추출 보강 + canonical shape 문서화 (patch)
-
-StageLink 다운스트림 보고를 반영해 `eval --harness`가 `**P1 — ...**`, `### P5. ...`, `### S7. ... (P8)` 같은 헤더형 CPS를 문제/해결책 ID로 읽도록 보강했다. 제품 CPS와 하네스 CPS 혼합을 피하기 위해 표 형식 canonical shape도 README와 MIGRATIONS에 명시했다.
-
-### v0.52.5 (2026-05-21) — path contract lint + 검증 도구 가용성 관측 (patch)
-
-pre-check이 staged Python/Shell 문법을 직접 검사하고, eval/pre-check/downstream-readiness가 검증 도구 가용성과 라이브 하네스 경로 drift를 보고한다. 누락된 `ruff`, `pyright`, `mypy`, `shellcheck`는 조용한 통과가 아니라 환경 관측 신호로 남긴다.
-
-### v0.52.4 (2026-05-21) — 루트 지침·mirror 경로 정합 복구 (patch)
-
-CLAUDE/AGENTS에 reminder 생성 계약을 추가하고, `.claude`/`.agents` 스킬 mirror와 downstream-readiness의 낡은 hook·memory 경로 검사를 현재 Python hook과 `reminders/` 구조에 맞췄다.
-
-## 참고
-
-- [Mitchell Hashimoto — My AI Adoption Journey](https://mitchellh.com/writing/my-ai-adoption-journey)
-- [OpenAI — Harness Engineering](https://openai.com/index/harness-engineering/)
-- [Birgitta Böckeler — Harness Engineering](https://martinfowler.com/articles/harness-engineering.html)
-- [Claude Code — Permission rule syntax](https://code.claude.com/docs/en/permissions) (matcher 패턴 함정 회피)
-
-MIT License
+```bash
+HERMES_AGENT_ROOT=/Users/kann/.hermes/hermes-agent
+PYTHONPATH="$PWD/runtime:$PWD:$HERMES_AGENT_ROOT" \
+  "$HERMES_AGENT_ROOT/.venv/bin/python" -m pytest -q \
+  tests/runtime/test_gateway_plugin_integration.py
+```
