@@ -24,10 +24,17 @@ bash /path/to/harness-starter/h-setup.sh plan \
 # minimal project binding 적용
 bash /path/to/harness-starter/h-setup.sh apply \
   --project-id my-project --protected-branch main \
-  --railway-service my-service /path/to/my-project
+  --railway-service my-service \
+  --railway-project-id prj --railway-environment-id env --railway-service-id svc \
+  --vercel-org-id team --vercel-project-id prj --vercel-target production \
+  --supabase-project-ref ref --supabase-schema-migration-scope-id schema-scope \
+  --supabase-privileged-data-mutation-boundary-id mutation-boundary \
+  --n8n-instance-host n8n.example.com --n8n-workflow-id workflow \
+  --n8n-webhook-endpoint-sha256 "$ENDPOINT_SHA256" --n8n-webhook-path-sha256 "$PATH_SHA256" \
+  --n8n-callback-consumer-id consumer /path/to/my-project
 ```
 
-`h-setup.sh`는 Python desired-state reconciler의 thin launcher다. 적용은 멱등하며 `.harness/project-binding.json`, runtime lock, 두 개의 managed launcher만 생성·갱신한다. binding/lock에는 Railway·Vercel·Supabase local operation과 n8n·Vercel·deployed API runtime contract를 구분한 typed capability graph와 source snapshot digest가 포함된다. `.claude/`, `.agents/`, `.codex/`, `docs/`는 복사하지 않는다. 장기 프로젝트 문서의 SSOT는 `harness-brain`이다.
+`h-setup.sh`는 Python desired-state reconciler의 thin launcher다. 적용은 멱등하며 `.harness/project-binding.json`, runtime lock, 두 개의 managed launcher만 생성·갱신한다. binding/lock에는 secret-free explicit provider target과 Railway·Vercel·Supabase local operation, n8n·Vercel·deployed API runtime contract가 포함된다. runtime contract는 대응 local capability와 같은 source identity를 사용한다. 입력이 빠지거나 공백이면 해당 capability는 `hold`이며, n8n webhook 원문 URL은 입력·저장하지 않고 64자리 소문자 hex endpoint/path SHA256만 받는다. `.claude/`, `.agents/`, `.codex/`, `docs/`는 복사하지 않는다.
 
 guided capability는 binding lifecycle과 분리된 namespace다. capability ID만 받으며 shell argv, URL, SQL, table 입력은 받지 않는다.
 

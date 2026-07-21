@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from unittest import mock
 
 REPO = Path(__file__).resolve().parents[1]
 TOOLS = REPO / ".harness" / "hermes" / "tools"
@@ -70,7 +71,7 @@ class ExternalRuntimeDispatcherTests(unittest.TestCase):
                 self.assertEqual(facts[f"{stream}_byte_count"], 0)
             self.assertFalse(any(key.endswith("_path") for key in facts))
             self.assertEqual(receipt["status"], "observed")
-            self.assertEqual(receipt["facts"]["event"], "heartbeat")
+            self.assertEqual(receipt["facts"]["event"], "poll")
             self.assertEqual(receipt["facts"]["pid"], 4321)
             for key, value in identity.items():
                 self.assertEqual(receipt[key], value)
@@ -117,12 +118,6 @@ class ExternalRuntimeDispatcherTests(unittest.TestCase):
                 terminal_digests,
             )
             with self.assertRaisesRegex(RuntimeError, "terminal receipt already recorded"):
-                dispatcher.append_heartbeat(identity, root, pid=1)
-            self.assertEqual(
-                (hashlib.sha256(chain_path.read_bytes()).digest(), hashlib.sha256(current_path.read_bytes()).digest()),
-                terminal_digests,
-            )
-            with self.assertRaisesRegex(RuntimeError, "terminal receipt already recorded"):
                 dispatcher.reconcile_external_runtime(identity, root, pid_is_alive=lambda pid: False)
             self.assertEqual(
                 (hashlib.sha256(chain_path.read_bytes()).digest(), hashlib.sha256(current_path.read_bytes()).digest()),
@@ -157,7 +152,7 @@ class ExternalRuntimeDispatcherTests(unittest.TestCase):
             current_path.write_text(json.dumps(chain[0], sort_keys=True), encoding="utf-8")
             before = (chain_path.read_bytes(), current_path.read_bytes())
             with self.assertRaisesRegex(RuntimeError, "current projection does not match chain tail"):
-                dispatcher.append_heartbeat(identity, root, pid=2)
+                dispatcher.poll_external_runtime(identity, root)
             self.assertEqual((chain_path.read_bytes(), current_path.read_bytes()), before)
 
             current_path.write_text(json.dumps(chain[-1], sort_keys=True), encoding="utf-8")
@@ -166,13 +161,13 @@ class ExternalRuntimeDispatcherTests(unittest.TestCase):
             chain_path.write_text("".join(json.dumps(item, sort_keys=True) + "\n" for item in broken), encoding="utf-8")
             before = (chain_path.read_bytes(), current_path.read_bytes())
             with self.assertRaisesRegex(RuntimeError, "broken receipt transition"):
-                dispatcher.append_heartbeat(identity, root, pid=2)
+                dispatcher.poll_external_runtime(identity, root)
             self.assertEqual((chain_path.read_bytes(), current_path.read_bytes()), before)
 
             chain_path.write_text("{malformed\n", encoding="utf-8")
             before = (chain_path.read_bytes(), current_path.read_bytes())
             with self.assertRaisesRegex(RuntimeError, "malformed receipt chain"):
-                dispatcher.append_heartbeat(identity, root, pid=2)
+                dispatcher.poll_external_runtime(identity, root)
             self.assertEqual((chain_path.read_bytes(), current_path.read_bytes()), before)
 
     def test_terminal_rejects_raw_stdout_before_receipt_writes(self):
@@ -265,6 +260,22 @@ class ExternalRuntimeDispatcherTests(unittest.TestCase):
             serialized = json.dumps(dispatcher.load_receipt_chain(identity, root))
             self.assertNotIn("raw-body-marker", serialized)
             self.assertNotIn("raw-stderr-marker", serialized)
+
+    def test_run_job_waits_for_terminal_signal_without_heartbeat_receipts(self):
+        identity = self.identity()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            dispatcher.dispatch_external_runtime(
+                "ptah", b"bounded body",
+                [sys.executable, "-c", "import time; time.sleep(0.05)"],
+                root, identity=identity, process_runner=lambda argv: 999,
+            )
+            _, current_path, _ = dispatcher._paths(identity, root)
+            final = dispatcher.run_job(current_path)
+            chain = dispatcher.load_receipt_chain(identity, root)
+            self.assertEqual(final["status"], "pass")
+            self.assertEqual([item["facts"]["event"] for item in chain], ["dispatch", "poll", "terminal"])
+            self.assertEqual(chain[-1], final)
 
     def test_execution_receipt_schema_carries_exact_runtime_artifact_metadata(self):
         schema_path = REPO / ".harness" / "hermes" / "schemas" / "execution-receipt.schema.yaml"

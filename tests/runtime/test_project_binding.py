@@ -55,6 +55,29 @@ def inputs(repo: Path, *, version: str = "1") -> BindingInputs:
     )
 
 
+def explicit_target_args(repo: Path) -> list[str]:
+    return [
+        "--project-id", "project-test",
+        "--protected-branch", "main",
+        "--railway-service", "service-test",
+        "--railway-project-id", "railway-project",
+        "--railway-environment-id", "railway-environment",
+        "--railway-service-id", "railway-service",
+        "--vercel-org-id", "vercel-org",
+        "--vercel-project-id", "vercel-project",
+        "--vercel-target", "production",
+        "--supabase-project-ref", "supabase-project",
+        "--supabase-schema-migration-scope-id", "schema-scope",
+        "--supabase-privileged-data-mutation-boundary-id", "mutation-boundary",
+        "--n8n-instance-host", "automation.example.invalid",
+        "--n8n-workflow-id", "workflow-1",
+        "--n8n-webhook-endpoint-sha256", "a" * 64,
+        "--n8n-webhook-path-sha256", "b" * 64,
+        "--n8n-callback-consumer-id", "callback-consumer",
+        str(repo),
+    ]
+
+
 def test_first_bind_creates_minimal_managed_binding(tmp_path):
     repo = git_repo(tmp_path / "project")
 
@@ -139,6 +162,75 @@ def test_generated_binding_contains_typed_provider_capability_graph(tmp_path):
         "digest": graph["digest"],
         "source_snapshot": {"kind": "git_commit", "revision": revision},
     }
+
+
+def test_cli_flags_populate_exact_secret_free_provider_identities_in_manifest_and_lock(tmp_path, capsys):
+    repo = git_repo(tmp_path / "project")
+    raw_endpoint = "https://automation.example.invalid/webhook/private-token"
+
+    assert binding_cli(["apply", *explicit_target_args(repo)]) == 0
+    capsys.readouterr()
+
+    manifest = json.loads((repo / ".harness/project-binding.json").read_text(encoding="utf-8"))
+    lock = json.loads((repo / ".harness/runtime.lock.json").read_text(encoding="utf-8"))
+    capabilities = {item["capability_id"]: item for item in manifest["capability_graph"]["capabilities"]}
+    expected_targets = {
+        "railway": {
+            "project_id": "railway-project",
+            "environment_id": "railway-environment",
+            "service_id": "railway-service",
+            "service_name": "service-test",
+        },
+        "vercel": {"org_id": "vercel-org", "project_id": "vercel-project", "target": "production"},
+        "supabase_schema_migration": {
+            "project_ref": "supabase-project",
+            "schema_migration_scope_id": "schema-scope",
+        },
+        "supabase_privileged_data_mutation": {
+            "project_ref": "supabase-project",
+            "privileged_data_mutation_boundary_id": "mutation-boundary",
+        },
+        "n8n": {
+            "instance_host": "automation.example.invalid",
+            "workflow_id": "workflow-1",
+            "webhook_endpoint_sha256": "a" * 64,
+            "webhook_path_sha256": "b" * 64,
+            "callback_consumer_id": "callback-consumer",
+        },
+    }
+    assert manifest["provider_targets"] == expected_targets
+    assert lock["provider_targets"] == expected_targets
+    assert capabilities["railway.deploy"]["target_identity"] == expected_targets["railway"]
+    assert capabilities["vercel.deploy"]["target_identity"] == expected_targets["vercel"]
+    assert capabilities["supabase.schema-migration"]["target_identity"] == expected_targets["supabase_schema_migration"]
+    assert capabilities["supabase.privileged-data-mutation"]["target_identity"] == expected_targets["supabase_privileged_data_mutation"]
+    assert capabilities["n8n.workflow-publish-activation"]["target_identity"] == expected_targets["n8n"]
+    assert capabilities["vercel.revalidate-runtime"]["target_identity"] == capabilities["vercel.deploy"]["target_identity"]
+    assert capabilities["n8n.async-effects-runtime"]["target_identity"] == capabilities["n8n.workflow-publish-activation"]["target_identity"]
+    assert capabilities["deployed-api.db-write-runtime"]["target_identity"] == {
+        "railway_project_id": "railway-project",
+        "railway_environment_id": "railway-environment",
+        "railway_service_id": "railway-service",
+        "railway_service_name": "service-test",
+        "supabase_project_ref": "supabase-project",
+        "supabase_schema_migration_scope_id": "schema-scope",
+    }
+    assert raw_endpoint not in json.dumps(manifest, sort_keys=True)
+    assert raw_endpoint not in json.dumps(lock, sort_keys=True)
+
+
+def test_n8n_raw_webhook_endpoint_is_not_accepted_as_instance_host(tmp_path, capsys):
+    repo = git_repo(tmp_path / "project")
+    raw_endpoint = "https://automation.example.invalid/webhook/private-token"
+    arguments = explicit_target_args(repo)
+    arguments[arguments.index("--n8n-instance-host") + 1] = raw_endpoint
+
+    with pytest.raises(SystemExit) as raised:
+        binding_cli(["plan", *arguments])
+
+    assert raised.value.code == 2
+    assert "instance host must not contain a URL" in capsys.readouterr().err
+    assert not (repo / ".harness").exists()
 
 
 def test_reapply_is_noop_and_runtime_version_upgrade_is_managed(tmp_path):

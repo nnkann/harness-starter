@@ -33,6 +33,20 @@ class BindingInputs:
     protected_branch: str
     railway_service: str
     runtime_version: str = "1"
+    railway_project_id: str | None = None
+    railway_environment_id: str | None = None
+    railway_service_id: str | None = None
+    vercel_org_id: str | None = None
+    vercel_project_id: str | None = None
+    vercel_target: str | None = None
+    supabase_project_ref: str | None = None
+    supabase_schema_migration_scope_id: str | None = None
+    supabase_privileged_data_mutation_boundary_id: str | None = None
+    n8n_instance_host: str | None = None
+    n8n_workflow_id: str | None = None
+    n8n_webhook_endpoint_sha256: str | None = None
+    n8n_webhook_path_sha256: str | None = None
+    n8n_callback_consumer_id: str | None = None
 
     def normalized(self) -> "BindingInputs":
         root = self.project_root.expanduser().resolve()
@@ -41,12 +55,47 @@ class BindingInputs:
             raise BindingError("project id, protected branch, Railway service, and runtime version are required")
         if not root.is_dir():
             raise BindingError(f"project root does not exist: {root}")
+
+        def optional(value: str | None) -> str | None:
+            if value is None:
+                return None
+            if not isinstance(value, str):
+                raise BindingError("provider target identity values must be strings")
+            return value.strip() or None
+
+        endpoint_sha256 = optional(self.n8n_webhook_endpoint_sha256)
+        path_sha256 = optional(self.n8n_webhook_path_sha256)
+        for value in (endpoint_sha256, path_sha256):
+            if value is not None and (
+                len(value) != 64
+                or any(character not in "0123456789abcdef" for character in value)
+            ):
+                raise BindingError("n8n webhook SHA256 values must be 64 lowercase hexadecimal characters")
+        instance_host = optional(self.n8n_instance_host)
+        if instance_host is not None and any(marker in instance_host for marker in ("://", "/", "?", "#", "@")):
+            raise BindingError("n8n instance host must not contain a URL, path, query, fragment, or user info")
         return BindingInputs(
-            self.project_id.strip(),
-            root,
-            self.protected_branch.strip(),
-            self.railway_service.strip(),
-            self.runtime_version.strip(),
+            project_id=self.project_id.strip(),
+            project_root=root,
+            protected_branch=self.protected_branch.strip(),
+            railway_service=self.railway_service.strip(),
+            runtime_version=self.runtime_version.strip(),
+            railway_project_id=optional(self.railway_project_id),
+            railway_environment_id=optional(self.railway_environment_id),
+            railway_service_id=optional(self.railway_service_id),
+            vercel_org_id=optional(self.vercel_org_id),
+            vercel_project_id=optional(self.vercel_project_id),
+            vercel_target=optional(self.vercel_target),
+            supabase_project_ref=optional(self.supabase_project_ref),
+            supabase_schema_migration_scope_id=optional(self.supabase_schema_migration_scope_id),
+            supabase_privileged_data_mutation_boundary_id=optional(
+                self.supabase_privileged_data_mutation_boundary_id
+            ),
+            n8n_instance_host=instance_host,
+            n8n_workflow_id=optional(self.n8n_workflow_id),
+            n8n_webhook_endpoint_sha256=endpoint_sha256,
+            n8n_webhook_path_sha256=path_sha256,
+            n8n_callback_consumer_id=optional(self.n8n_callback_consumer_id),
         )
 
 
@@ -73,7 +122,41 @@ def source_snapshot_identity(project_root: Path) -> dict[str, str]:
     return {"kind": "git_commit", "revision": revision}
 
 
-def _capability_graph(inputs: BindingInputs) -> dict[str, Any]:
+def _provider_targets(inputs: BindingInputs) -> dict[str, dict[str, str | None]]:
+    return {
+        "railway": {
+            "project_id": inputs.railway_project_id,
+            "environment_id": inputs.railway_environment_id,
+            "service_id": inputs.railway_service_id,
+            "service_name": inputs.railway_service,
+        },
+        "vercel": {
+            "org_id": inputs.vercel_org_id,
+            "project_id": inputs.vercel_project_id,
+            "target": inputs.vercel_target,
+        },
+        "supabase_schema_migration": {
+            "project_ref": inputs.supabase_project_ref,
+            "schema_migration_scope_id": inputs.supabase_schema_migration_scope_id,
+        },
+        "supabase_privileged_data_mutation": {
+            "project_ref": inputs.supabase_project_ref,
+            "privileged_data_mutation_boundary_id": inputs.supabase_privileged_data_mutation_boundary_id,
+        },
+        "n8n": {
+            "instance_host": inputs.n8n_instance_host,
+            "workflow_id": inputs.n8n_workflow_id,
+            "webhook_endpoint_sha256": inputs.n8n_webhook_endpoint_sha256,
+            "webhook_path_sha256": inputs.n8n_webhook_path_sha256,
+            "callback_consumer_id": inputs.n8n_callback_consumer_id,
+        },
+    }
+
+
+def _capability_graph(
+    inputs: BindingInputs,
+    provider_targets: dict[str, dict[str, str | None]],
+) -> dict[str, Any]:
     snapshot = source_snapshot_identity(inputs.project_root)
 
     def capability(
@@ -108,39 +191,46 @@ def _capability_graph(inputs: BindingInputs) -> dict[str, Any]:
     capabilities = [
         capability(
             "railway.deploy", "local_operation", "railway", "deploy",
-            {"project_id": None, "environment_id": None, "service_id": None, "service_name": inputs.railway_service},
+            provider_targets["railway"],
             ["railway.cli-session"], [],
         ),
         capability(
             "vercel.deploy", "local_operation", "vercel", "deploy",
-            {"org_id": None, "project_id": None}, ["vercel.cli-session"], [],
+            provider_targets["vercel"], ["vercel.cli-session"], [],
         ),
         capability(
             "supabase.schema-migration", "local_operation", "supabase", "schema_migration",
-            {"project_ref": None}, ["supabase.cli-session"], [],
+            provider_targets["supabase_schema_migration"], ["supabase.cli-session"], [],
         ),
         capability(
             "supabase.privileged-data-mutation", "local_operation", "supabase", "bounded_privileged_data_mutation",
-            {"project_ref": None, "boundary_id": None}, ["supabase.privileged-resolver"],
+            provider_targets["supabase_privileged_data_mutation"], ["supabase.privileged-resolver"],
             ["supabase.schema-migration"],
         ),
         capability(
             "n8n.workflow-publish-activation", "local_operation", "n8n", "workflow_publish_activation",
-            {"instance_id": None, "workflow_id": None}, ["n8n.credential-resolver"], [],
+            provider_targets["n8n"], ["n8n.credential-resolver"], [],
         ),
         capability(
             "n8n.async-effects-runtime", "runtime_contract", "n8n", "async_effects",
-            {"instance_id": None, "workflow_id": None, "contract_id": None}, ["n8n.runtime-credential-resolver"],
+            provider_targets["n8n"], ["n8n.runtime-credential-resolver"],
             ["n8n.workflow-publish-activation"],
         ),
         capability(
             "vercel.revalidate-runtime", "runtime_contract", "vercel", "revalidate",
-            {"org_id": None, "project_id": None, "contract_id": None}, ["vercel.runtime-credential-resolver"],
+            provider_targets["vercel"], ["vercel.runtime-credential-resolver"],
             ["vercel.deploy"],
         ),
         capability(
             "deployed-api.db-write-runtime", "runtime_contract", "deployed-api", "db_write",
-            {"deployment_id": None, "database_project_ref": None, "contract_id": None},
+            {
+                "railway_project_id": inputs.railway_project_id,
+                "railway_environment_id": inputs.railway_environment_id,
+                "railway_service_id": inputs.railway_service_id,
+                "railway_service_name": inputs.railway_service,
+                "supabase_project_ref": inputs.supabase_project_ref,
+                "supabase_schema_migration_scope_id": inputs.supabase_schema_migration_scope_id,
+            },
             ["deployed-api.runtime-credential-resolver"], ["railway.deploy", "supabase.schema-migration"],
         ),
     ]
@@ -162,7 +252,8 @@ def _desired(inputs: BindingInputs) -> dict[str, tuple[bytes, int]]:
         "railway_service": normalized.railway_service,
     }
     runtime_root = str(RUNTIME_ROOT)
-    capability_graph = _capability_graph(normalized)
+    provider_targets = _provider_targets(normalized)
+    capability_graph = _capability_graph(normalized, provider_targets)
     digest = hashlib.sha256(
         _canonical({
             "project": project,
@@ -177,6 +268,7 @@ def _desired(inputs: BindingInputs) -> dict[str, tuple[bytes, int]]:
         "version": normalized.runtime_version,
         "root": runtime_root,
         "digest": digest,
+        "provider_targets": provider_targets,
         "capability_graph": {
             "schema": capability_graph["schema"],
             "digest": capability_graph["digest"],
@@ -187,6 +279,7 @@ def _desired(inputs: BindingInputs) -> dict[str, tuple[bytes, int]]:
         "schema": BINDING_SCHEMA,
         "managed_by": TOOL_ID,
         "project": project,
+        "provider_targets": provider_targets,
         "runtime_lock": {
             "path": ".harness/runtime.lock.json",
             "version": normalized.runtime_version,

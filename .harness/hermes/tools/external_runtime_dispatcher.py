@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from contextlib import contextmanager
@@ -13,7 +14,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 TERMINAL_STATUSES = {"pass", "fail", "blocked"}
-OBSERVED_EVENTS = {"dispatch", "heartbeat", "poll", "blocker"}
+OBSERVED_EVENTS = {"dispatch", "poll", "blocker"}
 SEMANTIC_KEYS = {"verdict", "C", "P", "S", "AC", "task_AC", "closure"}
 RUNTIME_FACT_KEYS = {
     "event",
@@ -44,6 +45,9 @@ IDENTITY_KEYS = (
     "immutable_body_digest",
 )
 PRODUCER_REF = "external_runtime_dispatcher"
+TERMINAL_RETENTION_SECONDS = 7 * 24 * 60 * 60
+_last_prune_at: dict[Path, float] = {}
+PRUNE_INTERVAL_SECONDS = 5 * 60
 
 
 def _now() -> str:
@@ -84,6 +88,41 @@ def _case_dir(identity: dict[str, Any], record_root: Path) -> Path:
 def _paths(identity: dict[str, Any], record_root: Path) -> tuple[Path, Path, Path]:
     case_dir = _case_dir(identity, record_root)
     return case_dir / "receipts.jsonl", case_dir / "current.json", case_dir / "receipt.lock"
+
+
+def prune_terminal_cases(record_root: Path, *, retention_seconds: float = TERMINAL_RETENTION_SECONDS) -> int:
+    """Remove only terminal external-runtime cases older than the retention window."""
+    if retention_seconds < 0:
+        raise ValueError("retention_seconds must be non-negative")
+    cases = Path(record_root) / "external-runtime" / "cases"
+    if not cases.is_dir():
+        return 0
+    cutoff = datetime.now(timezone.utc).timestamp() - retention_seconds
+    removed = 0
+    for case_dir in cases.iterdir():
+        current_path = case_dir / "current.json"
+        try:
+            current = json.loads(current_path.read_text(encoding="utf-8"))
+            recorded_at = datetime.fromisoformat(current["recorded_at"]).timestamp()
+        except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+            continue
+        if current.get("status") not in TERMINAL_STATUSES or recorded_at > cutoff:
+            continue
+        try:
+            shutil.rmtree(case_dir)
+            removed += 1
+        except OSError:
+            continue
+    return removed
+
+
+def _prune_terminal_cases_if_due(record_root: Path) -> None:
+    root = Path(record_root).resolve()
+    now = datetime.now(timezone.utc).timestamp()
+    if now - _last_prune_at.get(root, 0.0) < PRUNE_INTERVAL_SECONDS:
+        return
+    prune_terminal_cases(root)
+    _last_prune_at[root] = now
 
 
 @contextmanager
@@ -337,6 +376,7 @@ def dispatch_external_runtime(
 ) -> dict[str, Any]:
     if not isinstance(body, bytes):
         raise TypeError("body must be bytes")
+    _prune_terminal_cases_if_due(record_root)
     identity = _validate_identity(identity, body)
     if not consumer_ref or not isinstance(argv, list) or not argv or any(not isinstance(item, str) or not item for item in argv):
         raise ValueError("consumer_ref and argv are required")
@@ -361,7 +401,9 @@ def dispatch_external_runtime(
     except Exception as exc:
         return append_terminal_receipt(identity, record_root, "blocked", errors=[f"launch:{type(exc).__name__}:{exc}"])
     try:
-        return append_heartbeat(identity, record_root, pid=pid)
+        # Process creation is a durable state transition.  Do not turn liveness
+        # polling into a stream of synthetic heartbeat receipts.
+        return _append_observed(identity, record_root, "poll", {"pid": pid})
     except RuntimeError as exc:
         if str(exc) != "terminal receipt already recorded":
             raise
@@ -369,11 +411,6 @@ def dispatch_external_runtime(
         if terminal is None:
             raise RuntimeError("terminal receipt disappeared after launch")
         return terminal
-
-
-def append_heartbeat(identity: dict[str, Any], record_root: Path, *, pid: int | None = None) -> dict[str, Any]:
-    updates = {"pid": pid} if pid is not None else {}
-    return _append_observed(identity, record_root, "heartbeat", updates)
 
 
 def append_terminal_receipt(
@@ -421,16 +458,17 @@ def run_job(job_path: Path) -> dict[str, Any]:
         }:
             raise RuntimeError("body artifact metadata mismatch")
         with body_path.open("rb") as body, stdout_path.open("wb") as stdout, stderr_path.open("wb") as stderr:
-            result = subprocess.run(facts["argv"], stdin=body, stdout=stdout, stderr=stderr, check=False)
+            process = subprocess.Popen(facts["argv"], stdin=body, stdout=stdout, stderr=stderr)
+            exit_code = process.wait()
             for output in (stdout, stderr):
                 output.flush()
                 os.fsync(output.fileno())
-        facts["exit_code"] = result.returncode
+        facts["exit_code"] = exit_code
         facts.update(_artifact_facts("stdout", stdout_path, case_dir))
         facts.update(_artifact_facts("stderr", stderr_path, case_dir))
-        status = "pass" if result.returncode == 0 else "fail"
-        if result.returncode:
-            errors.append(f"runtime:exit_code:{result.returncode}")
+        status = "pass" if exit_code == 0 else "fail"
+        if exit_code:
+            errors.append(f"runtime:exit_code:{exit_code}")
     except Exception as exc:
         status = "blocked"
         errors.append(f"runtime:{type(exc).__name__}:{exc}")
@@ -479,15 +517,13 @@ def reconcile_external_runtime(
         consumer_ref = current["external_runtime_receipt"]["consumer_ref"]
         alive = (pid_is_alive or _pid_is_alive)(facts.get("pid"))
         if alive and stale_after_seconds is None:
-            facts["event"] = "heartbeat"
-            return _append_locked(identity, record_root, consumer_ref, "observed", facts)
+            return current
         if alive:
             assert stale_after_seconds is not None
             recorded_at = datetime.fromisoformat(current["recorded_at"])
             age_seconds = (datetime.now(timezone.utc) - recorded_at).total_seconds()
             if age_seconds <= stale_after_seconds:
-                facts["event"] = "heartbeat"
-                return _append_locked(identity, record_root, consumer_ref, "observed", facts)
+                return current
             facts["event"] = "blocker"
             return _append_locked(identity, record_root, consumer_ref, "observed", facts, ["runtime:stale"])
         facts["event"] = "blocker"

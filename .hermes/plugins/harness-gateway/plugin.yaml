@@ -1,0 +1,8 @@
+name: harness-gateway
+version: 0.1.0
+description: Harness CPS intake for bound Gateway project events
+kind: standalone
+provides_hooks:
+  - pre_gateway_dispatch
+  - pre_llm_call
+  - post_llm_call

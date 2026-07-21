@@ -1,0 +1,20 @@
+schema: harness.project-manifest.v2
+project_slug: harness-starter
+purpose: Canonical thin binding entrypoint for shared Harness runtime.
+
+workspace:
+  canonical_cwd: /Users/kann/projects/harness-starter
+  repository: harness-starter
+  default_branch: main
+
+cps:
+  intake: hermes-kann
+  route_gate: hermes-maat
+  execution_receipt_contract: execution-receipt.v1
+
+refs:
+  project_readme: README.md
+
+non_goals:
+  - project-local Harness installation
+  - automatic deploy/destructive actions

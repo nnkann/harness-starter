@@ -15,6 +15,20 @@ def _binding_inputs(args: argparse.Namespace) -> BindingInputs:
         protected_branch=args.protected_branch,
         railway_service=args.railway_service,
         runtime_version=args.runtime_version,
+        railway_project_id=args.railway_project_id,
+        railway_environment_id=args.railway_environment_id,
+        railway_service_id=args.railway_service_id,
+        vercel_org_id=args.vercel_org_id,
+        vercel_project_id=args.vercel_project_id,
+        vercel_target=args.vercel_target,
+        supabase_project_ref=args.supabase_project_ref,
+        supabase_schema_migration_scope_id=args.supabase_schema_migration_scope_id,
+        supabase_privileged_data_mutation_boundary_id=args.supabase_privileged_data_mutation_boundary_id,
+        n8n_instance_host=args.n8n_instance_host,
+        n8n_workflow_id=args.n8n_workflow_id,
+        n8n_webhook_endpoint_sha256=args.n8n_webhook_endpoint_sha256,
+        n8n_webhook_path_sha256=args.n8n_webhook_path_sha256,
+        n8n_callback_consumer_id=args.n8n_callback_consumer_id,
     )
 
 
@@ -22,6 +36,20 @@ def _add_binding_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--project-id", required=True)
     parser.add_argument("--protected-branch", required=True)
     parser.add_argument("--railway-service", required=True)
+    parser.add_argument("--railway-project-id")
+    parser.add_argument("--railway-environment-id")
+    parser.add_argument("--railway-service-id")
+    parser.add_argument("--vercel-org-id")
+    parser.add_argument("--vercel-project-id")
+    parser.add_argument("--vercel-target")
+    parser.add_argument("--supabase-project-ref")
+    parser.add_argument("--supabase-schema-migration-scope-id")
+    parser.add_argument("--supabase-privileged-data-mutation-boundary-id")
+    parser.add_argument("--n8n-instance-host")
+    parser.add_argument("--n8n-workflow-id")
+    parser.add_argument("--n8n-webhook-endpoint-sha256")
+    parser.add_argument("--n8n-webhook-path-sha256")
+    parser.add_argument("--n8n-callback-consumer-id")
     parser.add_argument("--runtime-version", default="1")
     parser.add_argument("project_root", type=Path)
 
