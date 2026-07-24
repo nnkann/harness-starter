@@ -7,13 +7,25 @@ workspace:
   repository: harness-starter
   default_branch: main
 
+source_control:
+  provider: github
+  host: github.com
+  fetch_url: https://github.com/nnkann/harness-starter.git
+  push_url: https://github.com/nnkann/harness-starter.git
+  credential_policy_ref: .env
+  credential_helper: gh auth git-credential
+  git_askpass: disabled
+
 cps:
   intake: hermes-kann
   route_gate: hermes-maat
   execution_receipt_contract: execution-receipt.v1
 
 refs:
+  boundary: contracts
+  environment: .env.example
   project_readme: README.md
+  package_manifest: pyproject.toml
 
 non_goals:
   - project-local Harness installation
