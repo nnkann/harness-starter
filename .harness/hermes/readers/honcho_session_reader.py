@@ -3,8 +3,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Callable, Mapping, Optional, Tuple
 
 
@@ -16,9 +19,7 @@ from cps_advisory_reader_contract import AdvisoryReadRequest, AdvisoryReaderBind
 
 
 DEFAULT_HERMES_AGENT_ROOT = Path.home() / ".hermes" / "hermes-agent"
-SEARCH_TOKEN_LIMIT = 256
-
-
+DEFAULT_PROJECT_ENV = Path(__file__).resolve().parents[3] / ".env"
 def configured_honcho_session_binding(
     session_key: Optional[str] = None,
     *,
@@ -26,6 +27,7 @@ def configured_honcho_session_binding(
     config_loader: Optional[Callable[[], Any]] = None,
     client_factory: Optional[Callable[[Any], Any]] = None,
     manager_factory: Optional[Callable[..., Any]] = None,
+    env_loader: Optional[Callable[..., Any]] = None,
 ) -> AdvisoryReaderBinding:
     """Bind the configured SDK client to one resolved Honcho session.
 
@@ -34,20 +36,77 @@ def configured_honcho_session_binding(
     never adds messages, saves, flushes, or creates conclusions.
     """
     try:
+        load_runtime_env = env_loader is not None or config_loader is None
         config_loader, client_factory, manager_factory = _runtime_factories(
             agent_root, config_loader, client_factory, manager_factory
         )
+        if load_runtime_env:
+            _load_honcho_runtime_env(agent_root, env_loader)
         config = config_loader()
-        resolved_key = session_key or config.resolve_session_name()
+        resolved_key = _resolve_honcho_session_key(config, session_key)
         if not isinstance(resolved_key, str) or not resolved_key:
             return _unavailable_binding("session_key_absent")
         if not bool(getattr(config, "enabled", False)):
             return _unavailable_binding("config_disabled", resolved_key)
-        manager = manager_factory(honcho=client_factory(config), config=config)
-        session = manager.get_or_create(resolved_key)
-        return _available_binding(manager, resolved_key, session, config)
+        client = client_factory(config)
+        manager = manager_factory(honcho=client, config=config)
+        session = _lookup_existing_session(client, manager, resolved_key)
+        if session is None:
+            return _unavailable_binding("session_absent", resolved_key)
+        return _available_binding(client, manager, resolved_key, session, config)
     except Exception:
         return _unavailable_binding("sdk_or_session_failure", session_key)
+
+
+def _resolve_honcho_session_key(config: Any, gateway_session_key: Optional[str]) -> Any:
+    if gateway_session_key:
+        try:
+            return config.resolve_session_name(gateway_session_key=gateway_session_key)
+        except TypeError:
+            # Older config test doubles expose the pre-gateway signature.
+            return config.resolve_session_name()
+    return config.resolve_session_name()
+
+
+def _lookup_existing_session(client: Any, manager: Any, session_key: str) -> Any:
+    """Read the SDK sessions-list endpoint without its workspace upsert wrapper."""
+    if not hasattr(client, "_http"):
+        raise ValueError("sessions lookup unavailable")
+    try:
+        from honcho.http import routes
+
+        route = routes.sessions_list(client.workspace_id)
+    except ImportError:
+        route = "sessions:list"
+    session_id = getattr(manager, "_sanitize_id", lambda value: value)(session_key)
+    data = client._http.post(
+        route,
+        body={"filters": {"id": session_id}},
+        query={"page": 1, "size": 1},
+    )
+    items = data.get("items") if isinstance(data, Mapping) else None
+    if not isinstance(items, list):
+        raise ValueError("malformed sessions lookup")
+    for item in items:
+        item_id = item.get("id") if isinstance(item, Mapping) else getattr(item, "id", None)
+        if item_id == session_id:
+            return SimpleNamespace(honcho_session_id=session_id)
+    return None
+
+
+def _load_honcho_runtime_env(
+    agent_root: Path,
+    env_loader: Optional[Callable[..., Any]],
+) -> None:
+    """Load canonical and bound-project dotenv before resolving Honcho config."""
+    if agent_root.exists() and str(agent_root) not in sys.path:
+        sys.path.insert(0, str(agent_root))
+    if env_loader is None:
+        from hermes_cli.env_loader import load_hermes_dotenv
+
+        env_loader = load_hermes_dotenv
+    assert env_loader is not None
+    env_loader(project_env=DEFAULT_PROJECT_ENV)
 
 
 def _runtime_factories(
@@ -70,36 +129,90 @@ def _runtime_factories(
     )
 
 
-def _available_binding(manager: Any, session_key: str, session: Any, config: Any) -> AdvisoryReaderBinding:
+def _available_binding(client: Any, manager: Any, session_key: str, session: Any, config: Any) -> AdvisoryReaderBinding:
     session_id = _identity_part(getattr(session, "honcho_session_id", None), session_key)
     producer_ref = "honcho-sdk:{0}:{1}".format(
         _identity_part(getattr(config, "workspace_id", None), "unknown-workspace"),
         _identity_part(getattr(config, "host", None), "unknown-host"),
     )
-    source_identity = "honcho-sdk-session:{0}".format(session_id)
+    user_peer = _identity_part(getattr(config, "peer_name", None), "user")
+    source_identity = "honcho-sdk-semantic-peer:{0}".format(user_peer)
 
     def read(request: AdvisoryReadRequest) -> Mapping[str, Any]:
         try:
-            context = manager.get_session_context(session_key, peer="user")
-            search = manager.search_context(
-                session_key, query=request.query, max_tokens=SEARCH_TOKEN_LIMIT, peer="user"
+            search = _semantic_search(client, request.query, user_peer)
+            payload = {"search": search}
+            candidate = _candidate(search, request.query, source_identity)
+            source_receipt = (
+                candidate["source_receipt"] if candidate is not None
+                else "semantic-query-session={0};peer={1}".format(session_id, user_peer)
             )
-            payload = {"context": context, "search": search}
             return {
-                "state": "available",
+                "state": "available" if search else "no_match",
                 "producer_ref": producer_ref,
                 "source_identity": source_identity,
                 "evidence": {
-                    "record_count": _record_count(context, search),
+                    "record_count": len(search),
                     "content_digest": _digest(payload),
-                    "source_receipt": _receipt(session),
+                    "source_receipt": source_receipt,
                 },
                 "reader_context": dict(request.reader_context),
+                "candidate": candidate,
             }
         except Exception:
             return _unavailable_response(producer_ref, source_identity, request, "read_failure")
 
     return AdvisoryReaderBinding(producer_ref, source_identity, read)
+
+
+def _semantic_search(client: Any, query: str, peer: str) -> list[Mapping[str, str]]:
+    messages = client.search(query[:4000], filters={"peer_perspective": peer}, limit=3)
+    return [
+        {
+            "content": getattr(message, "content", "") or "",
+            "session_id": getattr(message, "session_id", "") or "",
+            "message_id": getattr(message, "id", "") or "",
+        }
+        for message in messages or []
+    ]
+
+
+def _candidate(
+    search: list[Mapping[str, str]],
+    query: str = "",
+    source_ref: str = "",
+) -> Mapping[str, str] | None:
+    query_terms = _terms(query)
+    for hit in search:
+        session_id = hit.get("session_id", "").strip()
+        if not session_id:
+            continue
+        for sentence in _sentences(hit.get("content", "")):
+            if len(sentence) <= 256 and query_terms & _terms(sentence):
+                message_id = hit.get("message_id", "").strip()
+                receipt = "semantic-session={0}".format(session_id)
+                if message_id:
+                    receipt += ";message={0}".format(message_id)
+                return {
+                    "clue": sentence,
+                    "source_ref": source_ref[:256],
+                    "source_receipt": receipt[:256],
+                    "lifecycle": "candidate",
+                    "observed_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+                }
+    return None
+
+
+def _terms(value: str) -> set[str]:
+    return {
+        token for token in re.findall(r"[\w-]+", value.casefold())
+        if len(token) > 2 and token not in {"the", "and", "for", "with", "from", "this", "that"}
+    }
+
+
+def _sentences(value: str) -> list[str]:
+    text = " ".join(value.split())
+    return [sentence.strip() for sentence in re.split(r"(?<=[.!?])\s+", text) if sentence.strip()]
 
 
 def _unavailable_binding(reason: str, session_key: Optional[str] = None) -> AdvisoryReaderBinding:
@@ -128,29 +241,6 @@ def _unavailable_response(
 def _identity_part(value: Any, fallback: str) -> str:
     text = str(value).strip() if value is not None else ""
     return text or fallback
-
-
-def _receipt(session: Any) -> str:
-    parts = [
-        "session={0}".format(_identity_part(getattr(session, "honcho_session_id", None), "unknown")),
-        "user_peer={0}".format(_identity_part(getattr(session, "user_peer_id", None), "unknown")),
-        "assistant_peer={0}".format(_identity_part(getattr(session, "assistant_peer_id", None), "unknown")),
-    ]
-    return ";".join(parts)[:256]
-
-
-def _record_count(context: Any, search: Any) -> int:
-    count = 0
-    if isinstance(context, Mapping):
-        recent = context.get("recent_messages")
-        if isinstance(recent, list):
-            count += len(recent)
-        count += sum(1 for key, value in context.items() if key != "recent_messages" and value not in (None, "", [], {}))
-    elif context not in (None, "", [], {}):
-        count += 1
-    if search not in (None, "", [], {}):
-        count += 1
-    return count
 
 
 def _digest(value: Any) -> str:

@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 from typing import Any, Callable, Mapping
@@ -38,13 +39,14 @@ _C_SHAPE_DOMAINS = {
     "cardinality_hint": {"single", "multiple", "uncertain"},
     "source_current_state_need": {"required", "not_required", "uncertain"},
 }
-_CANDIDATE_METADATA = ("score", "summary", "source", "current_state")
+_CANDIDATE_METADATA = ("score", "summary", "source", "current_state", "source_receipt")
 SOURCE_KINDS = ("honcho", "gbrain", "harness_brain")
 _MAX_DIGEST_BYTES = 65536
 _GBRAIN_PRODUCER = "adapter:gbrain-search-reader:v1"
 _GBRAIN_SOURCE_IDENTITY = "gbrain-cli:search"
 _HARNESS_BRAIN_PRODUCER = "adapter:harness-brain-source-reader:v1"
 _HARNESS_BRAIN_UNAVAILABLE_REASONS = {"invalid", "unavailable", "absent", "unreadable", "out_of_bound"}
+_CANONICAL_CPS_SOURCE_REF = "projects/harness-starter/decisions/cps-equation-ssot.md"
 
 
 def _timestamp(value: str | None) -> str:
@@ -271,6 +273,7 @@ def retrieve_harness_brain_source(
     state = "query_error"
     source_identity = source_ref if isinstance(source_ref, str) and source_ref else "harness_brain:unresolved"
     evidence: dict[str, Any] = {"record_count": 0, "source_receipt": "malformed_reader_result"}
+    candidate = None
     if isinstance(receipt, dict) and receipt.get("source_ref") == source_ref:
         identity = receipt.get("source_identity")
         if isinstance(identity, str) and identity:
@@ -292,7 +295,12 @@ def retrieve_harness_brain_source(
             evidence = {
                 "record_count": 1,
                 "content_digest": hashlib.sha256(source_readback["content"]).hexdigest(),
+                "source_receipt": "harness-brain-source:" + source_ref,
             }
+            if _is_canonical_cps_source({"ref": source_ref, "source": "harness_brain"}):
+                candidate = _source_candidate(
+                    source_readback["content"], query, source_identity, evidence["source_receipt"]
+                )
         elif (
             set(receipt) == {"status", "source_ref", "source_identity", "readback", "reason"}
             and receipt["status"] == "unavailable"
@@ -329,7 +337,49 @@ def retrieve_harness_brain_source(
             "source_revision": readback.source_revision,
             "reader_context": readback.reader_context,
         },
+        **({"candidate": candidate} if candidate is not None else {}),
     }
+
+
+def _source_candidate(content: bytes, query: str, source_ref: str, source_receipt: str) -> dict[str, str] | None:
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+    text = re.sub(r"\A---\s*\n.*?\n---\s*(?:\n|\Z)", "", text, count=1, flags=re.DOTALL)
+    query_terms = _semantic_terms(query)
+    in_fence = False
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if line.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence or not line or line.startswith("#"):
+            continue
+        line = re.sub(r"^[-*+]\s+", "", line)
+        if re.match(r"^[\w-]+\s*:", line):
+            continue
+        for finding in re.split(r"(?<=[.!?])\s+", line):
+            finding = finding.strip()
+            folded = finding.casefold()
+            if (
+                0 < len(finding) <= 256
+                and query_terms & _semantic_terms(finding)
+                and re.search(r"\bcps\b", folded)
+                and re.search(r"\b(?:c-?boundary|focus boundary)\b", folded)
+                and re.search(
+                    r"\b(?:is|are|uses|retains|maps|decides|adjudicates|keeps|belongs|closes|requires|limits|applies|fixes)\b",
+                    folded,
+                )
+            ):
+                return {
+                    "clue": finding,
+                    "source_ref": source_ref[:256],
+                    "source_receipt": source_receipt[:256],
+                    "lifecycle": "candidate",
+                    "observed_at": _timestamp(None),
+                }
+    return None
 
 
 def retrieve_honcho_session_source(
@@ -352,6 +402,7 @@ def retrieve_honcho_session_source(
             "source_identity": readback.source_identity,
             "source_revision": readback.source_revision,
         },
+        **({"candidate": readback.candidate} if readback.candidate is not None else {}),
     }
 
 
@@ -384,6 +435,51 @@ def _candidate(value: Any, source_kind: str) -> dict[str, Any]:
     return candidate
 
 
+def _semantic_terms(value: Any) -> set[str]:
+    if not isinstance(value, str):
+        return set()
+    return {
+        token.strip(".,:;!?()[]{}").casefold()
+        for token in value.split()
+        if len(token.strip(".,:;!?()[]{}")) > 2
+    }
+
+
+def _relevant_candidate(
+    value: Mapping[str, Any], c_shape: Mapping[str, Any], *, canonical_fallback: bool = False
+) -> bool:
+    finding = value.get("summary")
+    receipt = value.get("source_receipt")
+    source = value.get("source")
+    if (
+        not isinstance(finding, str) or not finding.strip()
+        or not isinstance(receipt, str) or not receipt.strip() or len(receipt) > 256
+        or canonical_fallback and not _is_canonical_cps_source(value)
+        or not canonical_fallback and source in {"gbrain", "harness_brain"}
+    ):
+        return False
+    intent_terms = _semantic_terms(c_shape["intent"])
+    finding_terms = _semantic_terms(finding)
+    return bool(intent_terms & finding_terms)
+
+
+def _is_canonical_cps_source(value: Mapping[str, Any]) -> bool:
+    ref = value.get("ref")
+    if value.get("source") != "harness_brain" or not isinstance(ref, str):
+        return False
+    normalized = ref.replace("\\", "/")
+    return "fixture" not in normalized.casefold() and (
+        normalized == _CANONICAL_CPS_SOURCE_REF
+        or normalized.endswith("/" + _CANONICAL_CPS_SOURCE_REF)
+    )
+
+
+def _vector_clue(value: Mapping[str, Any]) -> str | None:
+    finding = " ".join(value["summary"].split()).strip()
+    sentences = [part.strip() for part in re.split(r"(?<=[.!?])\s+", finding) if part.strip()]
+    return sentences[0] if sentences and len(sentences[0]) <= 256 else None
+
+
 def retrieve(
     compact_c: dict[str, Any],
     advisory_source: Callable[[dict[str, Any]], dict[str, Any]],
@@ -392,23 +488,51 @@ def retrieve(
 ) -> dict[str, Any]:
     validate_compact_c(compact_c)
     candidates = []
-    for ref in compact_c["direct_source_refs"]:
+    direct_finding = None
+    if compact_c["direct_source_refs"]:
+        ref = compact_c["direct_source_refs"][0]
         value = direct_reader(ref) if direct_reader else {"ref": ref}
         if not isinstance(value, dict):
             raise RetrievalError("direct reader must return an object")
-        candidates.append(_candidate({**value, "ref": ref}, "direct"))
+        candidate = _candidate({**value, "ref": ref}, "direct")
+        candidates.append(candidate)
+        if _relevant_candidate(candidate, compact_c["C_shape"]):
+            vector_clue = _vector_clue(candidate)
+            if vector_clue is not None:
+                candidate["vector_clue"] = vector_clue
+                direct_finding = candidate
+            else:
+                candidates.remove(candidate)
 
     metadata: dict[str, Any] = {"direct_source_refs": list(compact_c["direct_source_refs"])}
-    try:
-        raw = advisory_source(dict(compact_c["C_shape"]))
-    except (OSError, ConnectionError, TimeoutError) as exc:
-        metadata["advisory_error"] = f"{type(exc).__name__}: {exc}"
-        status = "unavailable"
+    if direct_finding is not None:
+        status = "match"
     else:
-        if not isinstance(raw, dict) or not isinstance(raw.get("matches", []), list):
-            raise RetrievalError("advisory source must return matches array")
-        candidates.extend(_candidate(match, "advisory_recall") for match in raw.get("matches", []))
-        status = "match" if candidates else "no_match"
+        try:
+            raw = advisory_source(dict(compact_c["C_shape"]))
+        except (OSError, ConnectionError, TimeoutError) as exc:
+            metadata["advisory_error"] = f"{type(exc).__name__}: {exc}"
+            status = "unavailable"
+        else:
+            if not isinstance(raw, dict) or not isinstance(raw.get("matches", []), list):
+                raise RetrievalError("advisory source must return matches array")
+            fallback = [
+                candidate for match in raw.get("matches", [])
+                if _is_canonical_cps_source(candidate := _candidate(match, "advisory_recall"))
+            ]
+            candidates.extend(fallback)
+            fallback_finding = next(
+                (
+                    item for item in fallback
+                    if _relevant_candidate(item, compact_c["C_shape"], canonical_fallback=True)
+                ),
+                None,
+            )
+            if fallback_finding is not None:
+                vector_clue = _vector_clue(fallback_finding)
+                if vector_clue is not None:
+                    fallback_finding["vector_clue"] = vector_clue
+            status = "match" if fallback else "no_match"
 
     return {
         "family": "c1_advisory_observation",

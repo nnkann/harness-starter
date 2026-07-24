@@ -30,11 +30,18 @@ class C1RetrievalAdapterTests(unittest.TestCase):
     def test_direct_candidates_outrank_advisory_recall(self):
         result = adapter.retrieve(
             self.compact_c(),
-            lambda c_shape: {"matches": [{"ref": "recall:1", "score": 0.9}]},
+            lambda c_shape: {"matches": [{
+                "ref": adapter._CANONICAL_CPS_SOURCE_REF,
+                "source": "harness_brain",
+                "score": 0.9,
+            }]},
             direct_reader=lambda ref: {"ref": ref, "current_state": "loaded"},
         )
         self.assertEqual(result["status"], "match")
-        self.assertEqual([item["ref"] for item in result["source_candidates"]], ["direct:1", "recall:1"])
+        self.assertEqual(
+            [item["ref"] for item in result["source_candidates"]],
+            ["direct:1", adapter._CANONICAL_CPS_SOURCE_REF],
+        )
         self.assertEqual(result["source_candidates"][0]["source_kind"], "direct")
         self.assertEqual(result["source_candidates"][0]["current_state"], "loaded")
         self.assertEqual(result["source_candidates"][1]["source_kind"], "advisory_recall")
@@ -64,6 +71,199 @@ class C1RetrievalAdapterTests(unittest.TestCase):
         self.assertEqual([candidate["ref"] for candidate in result["source_candidates"]], ["direct:1"])
         self.assertEqual(result["source_candidates"][0]["source_kind"], "direct")
         self.assertEqual(result["ref_metadata"]["advisory_error"], "TimeoutError: offline")
+
+    def test_relevant_concrete_finding_short_circuits_fallback_with_one_clue(self):
+        calls = []
+        result = adapter.retrieve(
+            self.compact_c(),
+            lambda c_shape: calls.append(c_shape) or {"matches": []},
+            direct_reader=lambda ref: {
+                "ref": ref,
+                "summary": "Prior CPS runtime route uses the project source boundary. Extra sentence is excluded.",
+                "source_receipt": "receipt:direct:1",
+            },
+        )
+
+        self.assertEqual(calls, [])
+        clues = [item["vector_clue"] for item in result["source_candidates"] if "vector_clue" in item]
+        self.assertEqual(clues, [
+            "Prior CPS runtime route uses the project source boundary."
+        ])
+
+    def test_direct_phase_reads_only_first_explicit_source_before_fallback(self):
+        compact_c = self.compact_c()
+        compact_c["direct_source_refs"] = ["direct:1", "direct:2"]
+        reads = []
+        fallback_calls = []
+
+        result = adapter.retrieve(
+            compact_c,
+            lambda c_shape: fallback_calls.append(c_shape) or {"matches": []},
+            direct_reader=lambda ref: reads.append(ref) or {
+                "ref": ref,
+                "summary": "A recent message discusses lunch plans.",
+                "source_receipt": "receipt:" + ref,
+            },
+        )
+
+        self.assertEqual(reads, ["direct:1"])
+        self.assertEqual(len(fallback_calls), 1)
+        self.assertEqual([item["ref"] for item in result["source_candidates"]], ["direct:1"])
+
+    def test_relevant_direct_without_valid_vector_clue_is_omitted_and_falls_back_once(self):
+        fallback_calls = []
+        overlong_finding = "CPS runtime route " + "x" * 260
+
+        result = adapter.retrieve(
+            self.compact_c(),
+            lambda c_shape: fallback_calls.append(c_shape) or {"matches": [{
+                "ref": adapter._CANONICAL_CPS_SOURCE_REF,
+                "source": "harness_brain",
+                "summary": "The CPS runtime route retains the canonical project boundary.",
+                "source_receipt": "receipt:cps:canonical",
+            }]},
+            direct_reader=lambda ref: {
+                "ref": ref,
+                "summary": overlong_finding,
+                "source_receipt": "receipt:" + ref,
+            },
+        )
+
+        self.assertEqual(len(fallback_calls), 1)
+        self.assertEqual(
+            [item["ref"] for item in result["source_candidates"]],
+            [adapter._CANONICAL_CPS_SOURCE_REF],
+        )
+        self.assertEqual(
+            result["source_candidates"][0]["vector_clue"],
+            "The CPS runtime route retains the canonical project boundary.",
+        )
+
+    def test_irrelevant_concrete_finding_calls_fallback_once_and_clues_never_coexist(self):
+        calls = []
+        result = adapter.retrieve(
+            self.compact_c(),
+            lambda c_shape: calls.append(c_shape) or {"matches": [{
+                "ref": adapter._CANONICAL_CPS_SOURCE_REF,
+                "source": "harness_brain",
+                "summary": "The CPS runtime route retains the project scope boundary.",
+                "source_receipt": "receipt:cps:canonical",
+            }]},
+            direct_reader=lambda ref: {
+                "ref": ref,
+                "summary": "A recent message discusses lunch plans.",
+                "source_receipt": "receipt:direct:1",
+            },
+        )
+
+        self.assertEqual(len(calls), 1)
+        clues = [item["vector_clue"] for item in result["source_candidates"] if "vector_clue" in item]
+        self.assertEqual(clues, [
+            "The CPS runtime route retains the project scope boundary."
+        ])
+
+    def test_c_shape_overlap_without_intent_overlap_emits_no_clue(self):
+        result = adapter.retrieve(
+            self.compact_c(),
+            lambda c_shape: {"matches": []},
+            direct_reader=lambda ref: {
+                "ref": ref,
+                "summary": "Linked multiple records provide required current state.",
+                "source_receipt": "receipt:direct:1",
+            },
+        )
+
+        self.assertFalse(any("vector_clue" in item for item in result["source_candidates"]))
+
+    def test_fallback_accepts_only_the_canonical_cps_source(self):
+        matches = [
+            {
+                "ref": "honcho:memory",
+                "source": "honcho",
+                "summary": "The CPS runtime route is remembered.",
+                "source_receipt": "receipt:honcho",
+            },
+            {
+                "ref": "fixture/projects/harness-starter/decisions/cps-equation-ssot.md",
+                "source": "harness_brain",
+                "summary": "The CPS runtime route is in a fixture.",
+                "source_receipt": "receipt:fixture",
+            },
+            {
+                "ref": "projects/harness-starter/memory/runtime.md",
+                "source": "harness_brain",
+                "summary": "The CPS runtime route is in noncanonical memory.",
+                "source_receipt": "receipt:memory",
+            },
+            {
+                "ref": adapter._CANONICAL_CPS_SOURCE_REF,
+                "source": "harness_brain",
+                "summary": "The CPS runtime route is in the canonical packet.",
+                "source_receipt": "receipt:canonical",
+            },
+        ]
+
+        result = adapter.retrieve(
+            {**self.compact_c(), "direct_source_refs": []},
+            lambda c_shape: {"matches": matches},
+        )
+
+        self.assertEqual(
+            [candidate["ref"] for candidate in result["source_candidates"]],
+            [adapter._CANONICAL_CPS_SOURCE_REF],
+        )
+        self.assertEqual(
+            result["source_candidates"][0]["vector_clue"],
+            "The CPS runtime route is in the canonical packet.",
+        )
+
+    def test_no_relevant_direct_or_fallback_finding_emits_no_clue(self):
+        calls = []
+        result = adapter.retrieve(
+            self.compact_c(),
+            lambda c_shape: calls.append(c_shape) or {"matches": []},
+            direct_reader=lambda ref: {
+                "ref": ref,
+                "summary": "A recent message discusses lunch plans.",
+                "source_receipt": "receipt:direct:1",
+            },
+        )
+
+        self.assertEqual(len(calls), 1)
+        self.assertFalse(any("vector_clue" in item for item in result["source_candidates"]))
+
+    def test_direct_hit_stops_remaining_reads_and_metadata_sources_cannot_emit_clues(self):
+        compact_c = self.compact_c()
+        compact_c["direct_source_refs"] = ["direct:1", "direct:2"]
+        reads = []
+
+        result = adapter.retrieve(
+            compact_c,
+            lambda c_shape: self.fail("relevant first direct read must suppress fallback"),
+            direct_reader=lambda ref: reads.append(ref) or {
+                "ref": ref,
+                "summary": "The CPS runtime route retains the project boundary.",
+                "source_receipt": "receipt:" + ref,
+            },
+        )
+        self.assertEqual(reads, ["direct:1"])
+        self.assertEqual(sum("vector_clue" in item for item in result["source_candidates"]), 1)
+
+        for source in ("harness_brain", "gbrain"):
+            with self.subTest(source=source):
+                fallback_calls = []
+                result = adapter.retrieve(
+                    self.compact_c(),
+                    lambda c_shape: fallback_calls.append(c_shape) or {"matches": []},
+                    direct_reader=lambda ref, source=source: {
+                        "ref": ref,
+                        "source": source,
+                        "summary": "The CPS runtime route retains the project boundary.",
+                        "source_receipt": "receipt:" + source,
+                    },
+                )
+                self.assertEqual(len(fallback_calls), 1)
+                self.assertFalse(any("vector_clue" in item for item in result["source_candidates"]))
 
     def test_result_cannot_create_semantic_judgment(self):
         result = adapter.retrieve(self.compact_c(), lambda c_shape: {"matches": []})
@@ -427,6 +627,49 @@ class C1RetrievalAdapterTests(unittest.TestCase):
             self.assertNotIn("bounded advisory source", json.dumps(result))
             self.assertEqual(source.read_bytes(), before)
 
+    def test_canonical_cps_candidate_rejects_metadata_and_accepts_source_finding_sentence(self):
+        metadata = b"""---
+purpose: CPS runtime C-boundary uses the project focus boundary.
+---
+# CPS runtime C-boundary uses the project focus boundary.
+- purpose: CPS runtime C-boundary uses the project focus boundary.
+"""
+        finding = b"""---
+purpose: metadata only
+---
+# Decision
+- CPS retrieval uses the bound-project C-boundary for gateway ingress.
+"""
+
+        def readback(content):
+            return lambda *args, **kwargs: {
+                "status": "available",
+                "source_ref": adapter._CANONICAL_CPS_SOURCE_REF,
+                "source_identity": "harness-brain:canonical-cps",
+                "readback": {"content": content, "byte_count": len(content)},
+            }
+
+        rejected = adapter.retrieve_harness_brain_source(
+            adapter._CANONICAL_CPS_SOURCE_REF,
+            Path("/not-read-by-test"),
+            query="CPS retrieval gateway C-boundary",
+            reader_context={"request_ref": "C:metadata-rejected"},
+            source_reader=readback(metadata),
+        )
+        accepted = adapter.retrieve_harness_brain_source(
+            adapter._CANONICAL_CPS_SOURCE_REF,
+            Path("/not-read-by-test"),
+            query="CPS retrieval gateway C-boundary",
+            reader_context={"request_ref": "C:decision-finding"},
+            source_reader=readback(finding),
+        )
+
+        self.assertNotIn("candidate", rejected)
+        self.assertEqual(
+            accepted["candidate"]["clue"],
+            "CPS retrieval uses the bound-project C-boundary for gateway ingress.",
+        )
+
     def test_harness_brain_unavailable_and_malformed_results_are_non_pass_diagnostics(self):
         cases = (
             (
@@ -483,42 +726,52 @@ class C1RetrievalAdapterTests(unittest.TestCase):
         self.assertNotIn("route: forbidden", json.dumps(result))
 
     def test_configured_honcho_session_flows_through_advisory_contract_without_raw_reads(self):
+        calls = []
+
         class Config:
             enabled = True
             workspace_id = "workspace-7"
             host = "hermes"
 
-            def resolve_session_name(self):
-                return "resolved-session"
+            def resolve_session_name(self, gateway_session_key=None):
+                calls.append(("resolve_session_name", gateway_session_key))
+                return "packet-session"
 
-        class Session:
-            honcho_session_id = "sdk-session-8"
-            user_peer_id = "user-9"
-            assistant_peer_id = "assistant-10"
+        class HTTP:
+            def post(self, route, *, body, query):
+                calls.append(("lookup_session", body, query))
+                return {"items": [{"id": "packet-session"}]}
+
+        class Client:
+            workspace_id = "workspace-7"
+            _http = HTTP()
+
+            def search(self, query, **kwargs):
+                calls.append(("semantic_search", query, kwargs))
+                return [SimpleNamespace(
+                    content="C1 prior context uses bounded semantic search.",
+                    session_id="source-session",
+                    id="message-1",
+                )]
+
+            def __getattr__(self, name):
+                if name in {"session", "peer", "add", "create", "upsert", "save", "flush"}:
+                    raise AssertionError("write-capable SDK path must not run")
+                raise AttributeError(name)
 
         class Manager:
-            def __init__(self):
-                self.calls = []
+            def _sanitize_id(self, key):
+                return key
 
-            def get_or_create(self, key):
-                self.calls.append(("get_or_create", key))
-                return Session()
-
-            def get_session_context(self, key, peer):
-                self.calls.append(("get_session_context", key, peer))
-                return {"summary": "raw configured context"}
-
-            def search_context(self, key, query, max_tokens, peer):
-                self.calls.append(("search_context", key, query, max_tokens, peer))
-                return "raw semantic search"
 
         manager = Manager()
+        client = Client()
 
         def binding_factory(session_key):
             return adapter.configured_honcho_session_binding(
                 session_key,
                 config_loader=Config,
-                client_factory=lambda config: object(),
+                client_factory=lambda config: client,
                 manager_factory=lambda **kwargs: manager,
             )
 
@@ -530,26 +783,62 @@ class C1RetrievalAdapterTests(unittest.TestCase):
         )
 
         self.assertEqual(result["status"], "available")
-        self.assertEqual(result["evidence"]["record_count"], 2)
+        self.assertEqual(result["evidence"]["record_count"], 1)
         self.assertEqual(len(result["evidence"]["content_digest"]), 64)
+        self.assertEqual(result["candidate"]["clue"], "C1 prior context uses bounded semantic search.")
+        self.assertEqual(result["candidate"]["source_ref"], "honcho-sdk-semantic-peer:user")
+        self.assertEqual(result["candidate"]["source_receipt"], result["evidence"]["source_receipt"])
+        self.assertEqual(result["candidate"]["lifecycle"], "candidate")
+        self.assertRegex(result["candidate"]["observed_at"], r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+        self.assertLessEqual(len(result["candidate"]["clue"]), 256)
         self.assertEqual(
             result["readback_metadata"],
             {
                 "producer_ref": "honcho-sdk:workspace-7:hermes",
-                "source_identity": "honcho-sdk-session:sdk-session-8",
+                "source_identity": "honcho-sdk-semantic-peer:user",
                 "source_revision": None,
             },
         )
         self.assertEqual(
-            manager.calls,
+            calls,
             [
-                ("get_or_create", "packet-session"),
-                ("get_session_context", "packet-session", "user"),
-                ("search_context", "packet-session", "C1 prior context", 256, "user"),
+                ("resolve_session_name", "packet-session"),
+                ("lookup_session", {"filters": {"id": "packet-session"}}, {"page": 1, "size": 1}),
+                ("semantic_search", "C1 prior context", {"filters": {"peer_perspective": "user"}, "limit": 3}),
             ],
         )
-        self.assertNotIn("raw configured context", json.dumps(result))
-        self.assertNotIn("raw semantic search", json.dumps(result))
+        self.assertEqual(
+            sum(call[0] in {"get_or_create", "create", "upsert", "add", "save", "flush"} for call in calls),
+            0,
+        )
+        self.assertEqual(json.dumps(result).count("C1 prior context uses bounded semantic search."), 1)
+
+    def test_honcho_dotenv_load_precedes_config_resolution(self):
+        calls = []
+        config = SimpleNamespace(enabled=False, resolve_session_name=lambda **_: "dotenv-session")
+
+        def env_loader(**kwargs):
+            calls.append(("dotenv", kwargs))
+
+        def config_loader():
+            calls.append(("config", {}))
+            self.assertEqual(calls[0][0], "dotenv")
+            return config
+
+        binding = adapter.configured_honcho_session_binding(
+            "dotenv-session",
+            config_loader=config_loader,
+            client_factory=lambda _: self.fail("disabled config must not construct a client"),
+            manager_factory=lambda **_: self.fail("disabled config must not construct a manager"),
+            env_loader=env_loader,
+        )
+        result = binding.reader(SimpleNamespace(query="q", reader_context={"request_ref": "dotenv-order"}))
+
+        self.assertEqual(result["state"], "unavailable")
+        self.assertEqual(result["evidence"]["source_receipt"], "honcho-session-reader:config_disabled")
+        self.assertEqual(calls[0][0], "dotenv")
+        self.assertEqual(calls[1][0], "config")
+        self.assertEqual(calls[0][1]["project_env"].name, ".env")
 
     def test_honcho_disabled_unresolved_and_sdk_failures_are_unavailable(self):
         cases = (
@@ -594,27 +883,26 @@ class C1RetrievalAdapterTests(unittest.TestCase):
             workspace_id = "workspace"
             host = "hermes"
 
-            def resolve_session_name(self):
+            def resolve_session_name(self, gateway_session_key=None):
                 return "read-session"
 
         class Manager:
-            def get_or_create(self, key):
-                return type("Session", (), {"honcho_session_id": "session-1"})()
-
-            def get_session_context(self, key, peer):
-                raise RuntimeError("route: forbidden raw failure")
-
-            def search_context(self, *args, **kwargs):
-                raise AssertionError("search must not run after context failure")
+            def _sanitize_id(self, key):
+                return key
 
         manager = Manager()
+        client = SimpleNamespace(
+            workspace_id="workspace",
+            _http=SimpleNamespace(post=lambda *args, **kwargs: {"items": [{"id": "read-session"}]}),
+            search=lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("route: forbidden raw failure")),
+        )
         result = adapter.retrieve_honcho_session_source(
             query="C1 prior context",
             reader_context={"request_ref": "C:honcho-read-failure"},
             binding_factory=lambda session_key: adapter.configured_honcho_session_binding(
                 session_key,
                 config_loader=Config,
-                client_factory=lambda config: object(),
+                client_factory=lambda config: client,
                 manager_factory=lambda **kwargs: manager,
             ),
         )
@@ -638,6 +926,54 @@ class C1RetrievalAdapterTests(unittest.TestCase):
         self.assertEqual(set(result), {"family", "source_kind", "status", "evidence", "readback_metadata"})
         self.assertFalse(keys(result) & prohibited)
         self.assertNotIn("route: forbidden raw failure", json.dumps(result))
+
+    def test_honcho_session_absent_is_unavailable_without_write_calls(self):
+        calls = []
+        config = SimpleNamespace(
+            enabled=True,
+            workspace_id="workspace",
+            host="hermes",
+            resolve_session_name=lambda: "absent-session",
+        )
+
+        class HTTP:
+            def post(self, route, *, body, query):
+                calls.append(("lookup_session", body, query))
+                return {"items": []}
+
+        class Manager:
+            def _sanitize_id(self, key):
+                return key
+
+            def __getattr__(self, name):
+                if name in {"get_or_create", "create", "upsert", "add", "save", "flush"}:
+                    raise AssertionError("write-capable manager path must not run")
+                raise AttributeError(name)
+
+        client = SimpleNamespace(workspace_id="workspace", _http=HTTP())
+        result = adapter.retrieve_honcho_session_source(
+            query="C1 prior context",
+            reader_context={"request_ref": "C:honcho-absent"},
+            binding_factory=lambda session_key: adapter.configured_honcho_session_binding(
+                session_key,
+                config_loader=lambda: config,
+                client_factory=lambda loaded: client,
+                manager_factory=lambda **kwargs: Manager(),
+            ),
+        )
+
+        self.assertEqual(result["status"], "unavailable")
+        self.assertEqual(
+            result["evidence"],
+            {"record_count": 0, "source_receipt": "honcho-session-reader:session_absent"},
+        )
+        self.assertEqual(calls, [
+            ("lookup_session", {"filters": {"id": "absent-session"}}, {"page": 1, "size": 1})
+        ])
+        self.assertEqual(
+            sum(call[0] in {"get_or_create", "create", "upsert", "add", "save", "flush"} for call in calls),
+            0,
+        )
 
 
 if __name__ == "__main__":

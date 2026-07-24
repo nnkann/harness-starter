@@ -6,6 +6,7 @@ source bindings or interpret advisory content as CPS semantics.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Callable, Dict, Mapping, Optional, Tuple
 
 
@@ -65,6 +66,7 @@ class AdvisoryReadback:
     source_revision: Optional[str]
     evidence: Dict[str, Any]
     reader_context: Dict[str, Any]
+    candidate: Optional[Dict[str, str]] = None
 
 
 def retrieve_advisory(
@@ -107,7 +109,7 @@ def _normalize_response(
     binding: AdvisoryReaderBinding, raw: Mapping[str, Any], context: Dict[str, Any]
 ) -> AdvisoryReadback:
     required = {"state", "producer_ref", "source_identity", "evidence", "reader_context"}
-    unknown = set(raw) - (required | {"source_revision"})
+    unknown = set(raw) - (required | {"source_revision", "candidate"})
     if unknown or not required.issubset(raw):
         raise AdvisoryContractError("response must be a complete readback, not a status-only command")
     state = raw["state"]
@@ -128,7 +130,11 @@ def _normalize_response(
         raise AdvisoryContractError("match requires bounded producer evidence")
     if state == "no_match" and evidence.get("record_count") != 0:
         raise AdvisoryContractError("no_match must have zero producer records")
-    return AdvisoryReadback(state, binding.producer_ref, binding.source_identity, source_revision, evidence, readback_context)
+    candidate = _validated_candidate(raw.get("candidate"), state, evidence, binding.source_identity)
+    return AdvisoryReadback(
+        state, binding.producer_ref, binding.source_identity, source_revision,
+        evidence, readback_context, candidate,
+    )
 
 
 def _validated_context(value: Mapping[str, Any]) -> Dict[str, Any]:
@@ -158,4 +164,33 @@ def _validated_evidence(value: Any) -> Dict[str, Any]:
     receipt = value.get("source_receipt")
     if receipt is not None and (not isinstance(receipt, str) or not receipt or len(receipt) > _MAX_CONTEXT_TEXT):
         raise AdvisoryContractError("evidence source_receipt must be bounded text")
+    return dict(value)
+
+
+def _validated_candidate(
+    value: Any, state: str, evidence: Mapping[str, Any], source_identity: str
+) -> Optional[Dict[str, str]]:
+    if value is None:
+        return None
+    required = {"clue", "source_ref", "source_receipt", "lifecycle", "observed_at"}
+    if not isinstance(value, Mapping) or set(value) != required:
+        raise AdvisoryContractError("candidate must have the bounded semantic readback shape")
+    for key in ("clue", "source_ref", "source_receipt", "observed_at"):
+        item = value[key]
+        if not isinstance(item, str) or not item or len(item) > _MAX_CONTEXT_TEXT:
+            raise AdvisoryContractError(f"candidate {key} must be bounded text")
+    if value["lifecycle"] != "candidate":
+        raise AdvisoryContractError("advisory semantic delivery must remain a candidate")
+    if state not in {"available", "match"} or evidence.get("record_count", 0) == 0:
+        raise AdvisoryContractError("candidate requires direct producer readback")
+    if value["source_receipt"] != evidence.get("source_receipt"):
+        raise AdvisoryContractError("candidate source_receipt must match producer evidence")
+    if value["source_ref"] != source_identity:
+        raise AdvisoryContractError("candidate source_ref must match the direct producer binding")
+    try:
+        observed_at = datetime.fromisoformat(value["observed_at"].replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise AdvisoryContractError("candidate observed_at must be an ISO-8601 timestamp") from exc
+    if observed_at.tzinfo is None:
+        raise AdvisoryContractError("candidate observed_at must include a timezone")
     return dict(value)

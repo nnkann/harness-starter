@@ -60,6 +60,36 @@ class CpsAdvisoryReaderContractTests(unittest.TestCase):
         no_match = self.retrieve(lambda request: self.response("no_match", {"record_count": 0}))
         self.assertNotEqual(unavailable.state, no_match.state)
 
+    def test_bounded_direct_readback_candidate_preserves_candidate_lifecycle(self):
+        receipt = "session=source-neutral-memory"
+        candidate = {
+            "clue": "bounded semantic clue",
+            "source_ref": "source-neutral-memory",
+            "source_receipt": receipt,
+            "lifecycle": "candidate",
+            "observed_at": "2026-07-24T03:00:00Z",
+        }
+        result = self.retrieve(lambda request: self.response(
+            "available",
+            {"record_count": 1, "content_digest": DIGEST, "source_receipt": receipt},
+            candidate=candidate,
+        ))
+        self.assertEqual(result.candidate, candidate)
+
+        for invalid in (
+            {**candidate, "clue": "x" * 257},
+            {**candidate, "lifecycle": "accepted"},
+            {**candidate, "source_receipt": "other"},
+            {**candidate, "source_ref": "other"},
+            {**candidate, "observed_at": "not-a-time"},
+        ):
+            with self.subTest(invalid=invalid), self.assertRaises(contract.AdvisoryContractError):
+                self.retrieve(lambda request, invalid=invalid: self.response(
+                    "available",
+                    {"record_count": 1, "content_digest": DIGEST, "source_receipt": receipt},
+                    candidate=invalid,
+                ))
+
     def test_rejects_missing_binding_fixture_status_command_and_none_placeholder(self):
         with self.assertRaises(contract.AdvisoryContractError):
             contract.retrieve_advisory(None, "q", {})
