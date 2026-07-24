@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 REPO = Path(__file__).resolve().parents[1]
@@ -17,6 +18,165 @@ spec.loader.exec_module(lifecycle)
 
 
 class TestLifecycleRunner(unittest.TestCase):
+    def test_named_runtime_dispatch_preserves_body_and_calls_existing_dispatch_once(self):
+        body = "approved immutable body\n한글".encode()
+        identity = {
+            "work_id": "incident-i2", "graph_ref": "graph:incident-i2", "graph_revision": 1,
+            "graph_digest": "a" * 64, "stage_ref": "I2", "owner_ref": "ptah",
+            "parent_edge_ref": "incident/I2", "return_to_node_ref": "anubis",
+            "run_handle": "run-i2", "attempt": 1,
+            "immutable_body_digest": hashlib.sha256(body).hexdigest(),
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            body_path = root / "body.bin"
+            identity_path = root / "identity.json"
+            body_path.write_bytes(body)
+            identity_path.write_text(json.dumps(identity), encoding="utf-8")
+            args = SimpleNamespace(
+                runtime_operation="dispatch", body_artifact=str(body_path),
+                identity_artifact=str(identity_path), consumer_ref="ptah",
+                record_root=str(root / "receipts"),
+            )
+            observed = {**identity, "status": "observed", "facts": {"event": "poll"}}
+
+            with patch.object(lifecycle, "dispatch_external_body", return_value=observed) as dispatch:
+                result = lifecycle.run_named_runtime(args)
+
+            self.assertEqual(result, observed)
+            dispatch.assert_called_once_with(
+                "ptah", body, root / "receipts", identity=identity,
+            )
+
+    def test_named_runtime_dispatch_rejects_identity_digest_and_owner_mismatch_without_launch(self):
+        body = b"approved immutable body"
+        valid = {
+            "work_id": "incident-i2", "graph_ref": "graph:incident-i2", "graph_revision": 1,
+            "graph_digest": "a" * 64, "stage_ref": "I2", "owner_ref": "ptah",
+            "parent_edge_ref": "incident/I2", "return_to_node_ref": "anubis",
+            "run_handle": "run-i2", "attempt": 1,
+            "immutable_body_digest": hashlib.sha256(body).hexdigest(),
+        }
+        cases = (
+            (dict(valid, run_handle=None), "receipt identity"),
+            (dict(valid, immutable_body_digest="0" * 64), "immutable_body_digest"),
+            (dict(valid, owner_ref="anubis"), "consumer_ref"),
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            body_path = root / "body.bin"
+            identity_path = root / "identity.json"
+            body_path.write_bytes(body)
+            args = SimpleNamespace(
+                runtime_operation="dispatch", body_artifact=str(body_path),
+                identity_artifact=str(identity_path), consumer_ref="ptah",
+                record_root=str(root / "receipts"),
+            )
+            with patch.object(lifecycle, "dispatch_external_body") as dispatch:
+                for identity, message in cases:
+                    with self.subTest(message=message):
+                        identity_path.write_text(json.dumps(identity), encoding="utf-8")
+                        with self.assertRaisesRegex((TypeError, ValueError), message):
+                            lifecycle.run_named_runtime(args)
+                dispatch.assert_not_called()
+
+    def test_named_runtime_status_ignores_empty_stdout_until_terminal_receipt(self):
+        import external_runtime_dispatcher as dispatcher
+
+        body = b"approved final-only body"
+        identity = {
+            "work_id": "incident-i2", "graph_ref": "graph:incident-i2", "graph_revision": 1,
+            "graph_digest": "a" * 64, "stage_ref": "I2", "owner_ref": "ptah",
+            "parent_edge_ref": "incident/I2", "return_to_node_ref": "anubis",
+            "run_handle": "run-i2", "attempt": 1,
+            "immutable_body_digest": hashlib.sha256(body).hexdigest(),
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            record_root = root / "receipts"
+            identity_path = root / "identity.json"
+            identity_path.write_text(json.dumps(identity), encoding="utf-8")
+            (root / "sessions.db").write_bytes(b"")
+            lifecycle.dispatch_external_body(
+                "ptah", body,
+                record_root, identity=identity, process_runner=lambda argv: 4242,
+            )
+            args = SimpleNamespace(
+                runtime_operation="status", identity_artifact=str(identity_path),
+                record_root=str(record_root), body_artifact=None, consumer_ref=None, runtime_argv=None,
+            )
+            _, current_path, _ = dispatcher._paths(identity, record_root)
+            current = json.loads(current_path.read_text(encoding="utf-8"))
+            stdout_path = current_path.parent / current["facts"]["stdout_artifact_ref"]
+            self.assertEqual(stdout_path.read_bytes(), b"")
+
+            with patch.object(lifecycle.os, "kill") as kill:
+                observed = lifecycle.run_named_runtime(args)
+            self.assertEqual(observed["status"], "observed")
+            self.assertEqual(observed["facts"]["event"], "poll")
+            kill.assert_not_called()
+
+            process = Mock()
+            process.wait.return_value = 0
+            def native(profile, body_value, correlation, exit_status):
+                return {
+                    "profile": profile, "correlation_id": correlation,
+                    "session_ref": f"state.db:sessions:{profile}", "session_digest": "a" * 64,
+                    "exit_status": exit_status, "output_digest": "b" * 64,
+                    "gate_status": "pass", "tool_evidence": [],
+                }
+            with patch.object(dispatcher.subprocess, "Popen", return_value=process), \
+                 patch.object(dispatcher, "_native_run_evidence", side_effect=native):
+                terminal = dispatcher.run_job(current_path)
+            chain_before_readback = dispatcher.load_receipt_chain(identity, record_root)
+            readback = lifecycle.run_named_runtime(args)
+            chain_after_readback = dispatcher.load_receipt_chain(identity, record_root)
+
+            self.assertEqual(readback, terminal)
+            self.assertEqual(chain_after_readback, chain_before_readback)
+            self.assertEqual(sum(item["facts"]["event"] == "terminal" for item in chain_after_readback), 1)
+            self.assertEqual(stdout_path.read_bytes(), b"")
+            for receipt in chain_after_readback:
+                for key in ("run_handle", "parent_edge_ref", "return_to_node_ref", "immutable_body_digest"):
+                    self.assertEqual(receipt[key], identity[key])
+
+    def test_named_runtime_action_accepts_artifacts_identity_and_consumer_without_argv(self):
+        args = lifecycle.build_parser().parse_args([
+            "named-runtime", "--runtime-operation", "dispatch",
+            "--identity-artifact", "identity.json", "--body-artifact", "body.bin",
+            "--consumer-ref", "ptah", "--record-root", "runtime",
+        ])
+        self.assertEqual(args.action, "named-runtime")
+        self.assertEqual(args.runtime_operation, "dispatch")
+        self.assertEqual(args.identity_artifact, "identity.json")
+        self.assertEqual(args.body_artifact, "body.bin")
+        self.assertEqual(args.consumer_ref, "ptah")
+        self.assertEqual(args.record_root, "runtime")
+        self.assertFalse(hasattr(args, "runtime_argv"))
+
+    def test_named_runtime_reconcile_uses_existing_receipt_boundary(self):
+        identity = {
+            "work_id": "incident-i2", "graph_ref": "graph:incident-i2", "graph_revision": 1,
+            "graph_digest": "a" * 64, "stage_ref": "I2", "owner_ref": "ptah",
+            "parent_edge_ref": "incident/I2", "return_to_node_ref": "anubis",
+            "run_handle": "run-i2", "attempt": 1, "immutable_body_digest": "b" * 64,
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            identity_path = root / "identity.json"
+            identity_path.write_text(json.dumps(identity), encoding="utf-8")
+            args = SimpleNamespace(
+                runtime_operation="reconcile", identity_artifact=str(identity_path),
+                record_root=str(root / "receipts"), body_artifact=None,
+                consumer_ref=None, runtime_argv=None,
+            )
+            observed = {**identity, "status": "observed", "facts": {"event": "blocker"}}
+            with patch.object(lifecycle, "reconcile_external_body", return_value=observed) as reconcile:
+                result = lifecycle.run_named_runtime(args)
+
+            self.assertEqual(result, observed)
+            reconcile.assert_called_once_with(identity, root / "receipts")
+
     def test_T30_T31_final_audit_adapter_reloads_both_lanes_and_never_closes_goal(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -97,7 +257,7 @@ class TestLifecycleRunner(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             receipt = lifecycle.dispatch_external_body(
-                "ptah", body, [sys.executable, "worker.py"], root,
+                "ptah", body, root,
                 identity=identity,
                 process_runner=lambda argv: 987654321,
             )
@@ -112,7 +272,7 @@ class TestLifecycleRunner(unittest.TestCase):
 
             with self.assertRaisesRegex(TypeError, "explicit receipt identity required"):
                 lifecycle.dispatch_external_body(
-                    "ptah", body, [sys.executable, "worker.py"], root,
+                    "ptah", body, root,
                     process_runner=lambda argv: 1,
                 )
 
@@ -156,7 +316,7 @@ class TestLifecycleRunner(unittest.TestCase):
 
             with patch.object(lifecycle.PreAuthorizedTransitionProductionAdapter, "materialize") as automatic:
                 lifecycle.dispatch_external_body(
-                    "ptah", b"terminal receipt", [sys.executable, "worker.py"], root / "runtime",
+                    "ptah", b"terminal receipt", root / "runtime",
                     identity={
                         "work_id": "work-1", "graph_ref": "graph:work-1", "graph_revision": 1,
                         "graph_digest": "a" * 64, "stage_ref": "S1", "owner_ref": "ptah",
@@ -191,7 +351,7 @@ class TestR2ReceiptBackedStateProjection(unittest.TestCase):
 
     def dispatch(self, root):
         lifecycle.dispatch_external_body(
-            "ptah", self.body, [sys.executable, "worker.py"], root,
+            "ptah", self.body, root,
             identity=self.identity, process_runner=lambda argv: 123456789,
         )
 
@@ -235,11 +395,11 @@ class TestR2ReceiptBackedStateProjection(unittest.TestCase):
         self.assertEqual(projection["execution_event"], "dispatch")
         self.assertIsNone(projection["execution_status"])
 
-    def test_R2_04_heartbeat_poll_and_blocker_receipts_project_running(self):
+    def test_R2_04_poll_and_blocker_receipts_project_running(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             self.dispatch(root)
-            for event in ("heartbeat", "poll", "blocker"):
+            for event in ("poll", "blocker"):
                 if event == "poll":
                     lifecycle.poll_external_body(self.identity, root)
                 elif event == "blocker":

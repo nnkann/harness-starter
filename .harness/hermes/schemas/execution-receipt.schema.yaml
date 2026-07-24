@@ -47,7 +47,8 @@
         "event", "argv", "pid", "exit_code",
         "body_artifact_ref", "body_digest", "body_byte_count",
         "stdout_artifact_ref", "stdout_digest", "stdout_byte_count",
-        "stderr_artifact_ref", "stderr_digest", "stderr_byte_count"
+        "stderr_artifact_ref", "stderr_digest", "stderr_byte_count",
+        "native_profile_ref", "native_correlation_id", "native_runs"
       ],
       "properties": {
         "event": {"enum": ["dispatch", "heartbeat", "poll", "blocker", "terminal"]},
@@ -66,7 +67,41 @@
         "stdout_byte_count": {"type": "integer", "minimum": 0},
         "stderr_artifact_ref": {"type": "string", "minLength": 1},
         "stderr_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-        "stderr_byte_count": {"type": "integer", "minimum": 0}
+        "stderr_byte_count": {"type": "integer", "minimum": 0},
+        "native_profile_ref": {"type": "string", "minLength": 1},
+        "native_correlation_id": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "native_runs": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "required": ["profile", "correlation_id", "session_ref", "session_digest", "exit_status", "output_digest", "gate_status", "tool_evidence"],
+            "properties": {
+              "profile": {"enum": ["ptah", "anubis", "maat"]},
+              "correlation_id": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "session_ref": {"type": "string", "minLength": 1},
+              "session_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "exit_status": {"type": "integer"},
+              "output_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "gate_status": {"enum": ["pass", "hold", "fail", null]},
+              "tool_evidence": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["tool_name", "canonical_input_digest", "exit_status", "output_digest"],
+                  "properties": {
+                    "tool_name": {"type": "string", "minLength": 1},
+                    "canonical_input_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                    "exit_status": {"type": "integer"},
+                    "output_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        }
       },
       "additionalProperties": false
     },

@@ -1,5 +1,6 @@
 import hashlib
 import importlib.util
+import inspect
 import json
 import sys
 import tempfile
@@ -34,7 +35,7 @@ class ExternalRuntimeDispatcherTests(unittest.TestCase):
         }
 
     def test_dispatch_appends_durable_observed_before_launch_and_uses_identity(self):
-        body = b"\x00maat-body\xff"
+        body = "maat immutable body\n정확".encode()
         identity = self.identity(body)
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -50,7 +51,7 @@ class ExternalRuntimeDispatcherTests(unittest.TestCase):
                 return 4321
 
             receipt = dispatcher.dispatch_external_runtime(
-                "ptah", body, [sys.executable, "worker.py"], root,
+                "ptah", body, root,
                 identity=identity, process_runner=launch,
             )
 
@@ -62,6 +63,15 @@ class ExternalRuntimeDispatcherTests(unittest.TestCase):
             _, current_path, _ = dispatcher._paths(identity, root)
             self.assertEqual(seen["runner_argv"], dispatcher._runner_argv(current_path))
             facts = seen["chain"][0]["facts"]
+            expected_argv = [
+                "hermes", "-p", "ptah", "chat", "-Q", "--pass-session-id", "--source",
+                f"harness:{facts['native_correlation_id']}", "--max-turns", "8",
+                "-t", "file", "-q", body.decode(),
+            ]
+            self.assertEqual(facts["argv"], expected_argv)
+            self.assertEqual(facts["argv"][-1].encode(), body)
+            self.assertNotIn("-z", facts["argv"])
+            self.assertNotIn("HERMES_HOME", json.dumps(facts))
             self.assertEqual(facts["body_artifact_ref"], "artifacts/body.bin")
             self.assertEqual(facts["body_digest"], hashlib.sha256(body).hexdigest())
             self.assertEqual(facts["body_byte_count"], len(body))
@@ -84,12 +94,18 @@ class ExternalRuntimeDispatcherTests(unittest.TestCase):
             for key in dispatcher.SEMANTIC_KEYS:
                 self.assertNotIn(key, receipt["facts"])
 
+    def test_legacy_caller_argv_overload_is_removed(self):
+        parameters = inspect.signature(dispatcher.dispatch_external_runtime).parameters
+        self.assertEqual(list(parameters)[:3], ["consumer_ref", "body", "record_root"])
+        self.assertNotIn("argv", parameters)
+        self.assertNotIn("legacy_record_root", parameters)
+
     def test_poll_and_lost_blocker_append_observed_until_terminal_then_only_reload(self):
         identity = self.identity()
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             receipt = dispatcher.dispatch_external_runtime(
-                "ptah", b"bounded body", [sys.executable, "worker.py"], root,
+                "ptah", b"bounded body", root,
                 identity=identity, process_runner=lambda argv: 987654321,
             )
             polled = dispatcher.poll_external_runtime(identity, root)
@@ -135,7 +151,7 @@ class ExternalRuntimeDispatcherTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             dispatcher.dispatch_external_runtime(
-                "ptah", b"bounded body", [sys.executable, "worker.py"], root,
+                "ptah", b"bounded body", root,
                 identity=identity, process_runner=lambda argv: 1234,
             )
             chain_path, current_path, _ = dispatcher._paths(identity, root)
@@ -175,7 +191,7 @@ class ExternalRuntimeDispatcherTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             dispatcher.dispatch_external_runtime(
-                "ptah", b"bounded body", [sys.executable, "worker.py"], root,
+                "ptah", b"bounded body", root,
                 identity=identity, process_runner=lambda argv: 1234,
             )
             chain_path, current_path, _ = dispatcher._paths(identity, root)
@@ -193,7 +209,7 @@ class ExternalRuntimeDispatcherTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             dispatcher.dispatch_external_runtime(
-                "ptah", b"bounded body", [sys.executable, "worker.py"], root,
+                "ptah", b"bounded body", root,
                 identity=identity, process_runner=lambda argv: 1234,
             )
             chain_path, current_path, _ = dispatcher._paths(identity, root)
@@ -211,7 +227,7 @@ class ExternalRuntimeDispatcherTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             dispatcher.dispatch_external_runtime(
-                "ptah", b"bounded body", [sys.executable, "worker.py"], root,
+                "ptah", b"bounded body", root,
                 identity=identity, process_runner=lambda argv: 1234,
             )
 
@@ -231,51 +247,79 @@ class ExternalRuntimeDispatcherTests(unittest.TestCase):
             terminals = [item for item in dispatcher.load_receipt_chain(identity, root) if item["status"] in dispatcher.TERMINAL_STATUSES]
             self.assertEqual(terminals, winners)
 
-    def test_run_job_keeps_raw_stdio_out_of_receipts(self):
-        body = b"\x00raw-body-marker\xff"
-        stderr_bytes = b"raw-stderr-marker"
+    def test_run_job_executes_closed_native_argv_and_correlates_native_records(self):
+        body = b"approved native body"
         identity = self.identity(body)
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            receipt = dispatcher.dispatch_external_runtime(
-                "ptah", body,
-                [sys.executable, "-c", "import sys; data=sys.stdin.buffer.read(); sys.stdout.buffer.write(data); sys.stderr.buffer.write(bytes([114,97,119,45,115,116,100,101,114,114,45,109,97,114,107,101,114]))"],
-                root, identity=identity, process_runner=lambda argv: 999,
+            dispatcher.dispatch_external_runtime(
+                "ptah", body, root, identity=identity, process_runner=lambda argv: 999,
             )
             _, current_path, _ = dispatcher._paths(identity, root)
-            final = dispatcher.run_job(current_path)
+            process = mock.Mock()
+            process.wait.return_value = 0
+            def native(profile, body_value, correlation, exit_status):
+                self.assertEqual(body_value, body)
+                return {
+                    "profile": profile, "correlation_id": correlation,
+                    "session_ref": f"state.db:sessions:{profile}", "session_digest": "c" * 64,
+                    "exit_status": exit_status, "output_digest": "d" * 64,
+                    "gate_status": "pass", "tool_evidence": [{
+                        "tool_name": "terminal", "canonical_input_digest": "e" * 64,
+                        "exit_status": 0, "output_digest": "f" * 64,
+                    }],
+                }
+            with mock.patch.object(dispatcher.subprocess, "Popen", return_value=process) as popen, \
+                 mock.patch.object(dispatcher, "_native_run_evidence", side_effect=native):
+                final = dispatcher.run_job(current_path)
+            self.assertEqual(popen.call_count, 3)
+            self.assertEqual([call.args[0][2] for call in popen.call_args_list], ["ptah", "anubis", "maat"])
             self.assertEqual(final["status"], "pass")
-            self.assertEqual((current_path.parent / final["facts"]["stdout_artifact_ref"]).read_bytes(), body)
-            self.assertEqual((current_path.parent / final["facts"]["stderr_artifact_ref"]).read_bytes(), stderr_bytes)
             self.assertEqual(final["facts"]["exit_code"], 0)
             self.assertEqual(final["receipt_ref"], f"{identity['run_handle']}:3")
-            self.assertEqual(final["transition_from_ref"], receipt["receipt_ref"])
             self.assertEqual(final["facts"]["body_digest"], hashlib.sha256(body).hexdigest())
-            self.assertEqual(final["facts"]["body_byte_count"], len(body))
-            self.assertEqual(final["facts"]["stdout_digest"], hashlib.sha256(body).hexdigest())
-            self.assertEqual(final["facts"]["stdout_byte_count"], len(body))
-            self.assertEqual(final["facts"]["stderr_digest"], hashlib.sha256(stderr_bytes).hexdigest())
-            self.assertEqual(final["facts"]["stderr_byte_count"], len(stderr_bytes))
-            self.assertFalse(any(key.endswith("_path") for key in final["facts"]))
-            serialized = json.dumps(dispatcher.load_receipt_chain(identity, root))
-            self.assertNotIn("raw-body-marker", serialized)
-            self.assertNotIn("raw-stderr-marker", serialized)
+            self.assertEqual([run["profile"] for run in final["facts"]["native_runs"]], ["ptah", "anubis", "maat"])
+            self.assertTrue(all(run["correlation_id"] == final["facts"]["native_correlation_id"] for run in final["facts"]["native_runs"]))
 
-    def test_run_job_waits_for_terminal_signal_without_heartbeat_receipts(self):
-        identity = self.identity()
+    def test_native_session_absence_mismatch_and_duplicate_correlation_close_as_hold(self):
+        body = b"native hold body"
+        identity = self.identity(body)
+        for error in (
+            "native session store absent",
+            "native session body mismatch",
+            "native correlation absent or duplicated",
+        ):
+            with self.subTest(error=error), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                dispatcher.dispatch_external_runtime(
+                    "ptah", body, root, identity=identity, process_runner=lambda argv: 999,
+                )
+                _, current_path, _ = dispatcher._paths(identity, root)
+                process = mock.Mock()
+                process.wait.return_value = 0
+                with mock.patch.object(dispatcher.subprocess, "Popen", return_value=process), \
+                     mock.patch.object(dispatcher, "_native_run_evidence", side_effect=RuntimeError(error)):
+                    terminal = dispatcher.run_job(current_path)
+                self.assertEqual(terminal["status"], "blocked")
+                self.assertNotEqual(terminal["status"], "pass")
+                self.assertIn(error, terminal["errors"][0])
+                self.assertEqual(terminal["facts"]["native_runs"], [])
+
+    def test_rejects_non_text_and_owner_profile_mismatch_before_launch(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            dispatcher.dispatch_external_runtime(
-                "ptah", b"bounded body",
-                [sys.executable, "-c", "import time; time.sleep(0.05)"],
-                root, identity=identity, process_runner=lambda argv: 999,
-            )
-            _, current_path, _ = dispatcher._paths(identity, root)
-            final = dispatcher.run_job(current_path)
-            chain = dispatcher.load_receipt_chain(identity, root)
-            self.assertEqual(final["status"], "pass")
-            self.assertEqual([item["facts"]["event"] for item in chain], ["dispatch", "poll", "terminal"])
-            self.assertEqual(chain[-1], final)
+            launch = mock.Mock(return_value=1)
+            binary = b"\xff"
+            with self.assertRaisesRegex(ValueError, "UTF-8 text"):
+                dispatcher.dispatch_external_runtime(
+                    "ptah", binary, root, identity=self.identity(binary), process_runner=launch,
+                )
+            with self.assertRaisesRegex(ValueError, "owner_ref"):
+                dispatcher.dispatch_external_runtime(
+                    "anubis", b"bounded body", root, identity=self.identity(), process_runner=launch,
+                )
+            launch.assert_not_called()
+            self.assertEqual(list(root.rglob("*")), [])
 
     def test_execution_receipt_schema_carries_exact_runtime_artifact_metadata(self):
         schema_path = REPO / ".harness" / "hermes" / "schemas" / "execution-receipt.schema.yaml"
@@ -297,11 +341,11 @@ class ExternalRuntimeDispatcherTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             with self.assertRaises(TypeError):
-                dispatcher.dispatch_external_runtime("ptah", b"body", ["worker"], root)
+                dispatcher.dispatch_external_runtime("ptah", b"body", root)
             identity = self.identity(b"other")
             with self.assertRaisesRegex(ValueError, "immutable_body_digest"):
                 dispatcher.dispatch_external_runtime(
-                    "ptah", b"body", ["worker"], root,
+                    "ptah", b"body", root,
                     identity=identity, process_runner=lambda argv: 1,
                 )
             self.assertEqual(list(root.rglob("*")), [])

@@ -91,14 +91,12 @@ class ExternalRuntimeProductionAdapter:
         identity: dict[str, Any],
         consumer_ref: str,
         body: bytes,
-        argv: list[str],
         *,
         process_runner=None,
     ) -> dict[str, Any]:
         return _dispatch_external_runtime(
             consumer_ref,
             body,
-            argv,
             self.record_root,
             identity=identity,
             process_runner=process_runner,
@@ -291,7 +289,6 @@ class FinalAuditProductionAdapter:
 def dispatch_external_body(
     agent: str,
     body: bytes,
-    argv: list[str],
     record_root: Path,
     *,
     identity: dict[str, Any] | None = None,
@@ -300,7 +297,7 @@ def dispatch_external_body(
     if identity is None:
         raise TypeError("explicit receipt identity required; direct runtime bypass rejected")
     return ExternalRuntimeProductionAdapter(record_root).dispatch(
-        identity, agent, body, argv, process_runner=process_runner,
+        identity, agent, body, process_runner=process_runner,
     )
 
 
@@ -320,6 +317,29 @@ def reconcile_external_body(
         pid_is_alive=pid_is_alive,
         stale_after_seconds=stale_after_seconds,
     )
+
+
+def run_named_runtime(args: argparse.Namespace) -> dict[str, Any] | None:
+    identity = _validate_external_runtime_identity(
+        json.loads(Path(args.identity_artifact).read_text(encoding="utf-8"))
+    )
+    if args.runtime_operation == "dispatch":
+        body = Path(args.body_artifact).read_bytes()
+        if hashlib.sha256(body).hexdigest() != identity.get("immutable_body_digest"):
+            raise ValueError("immutable_body_digest does not match body artifact")
+        if args.consumer_ref != identity.get("owner_ref"):
+            raise ValueError("consumer_ref must match identity.owner_ref")
+        return dispatch_external_body(
+            args.consumer_ref,
+            body,
+            Path(args.record_root),
+            identity=identity,
+        )
+    if args.runtime_operation == "status":
+        return poll_external_body(identity, Path(args.record_root))
+    if args.runtime_operation == "reconcile":
+        return reconcile_external_body(identity, Path(args.record_root))
+    raise ValueError("unsupported named runtime operation")
 
 def log_audit(action: str, exit_code: int, message: str) -> None:
     """Write structured audit log to keep compatibility with bash runner."""
@@ -1154,12 +1174,19 @@ class _LifecycleArgumentParser(argparse.ArgumentParser):
                 self.error("c2-memory requires " + ", ".join("--" + name.replace("_", "-") for name in missing))
             if parsed.lifecycle == "initialization" and parsed.prior_ref:
                 self.error("initialization cannot be paired with --prior-ref")
+        if parsed.action == "named-runtime":
+            required = ("runtime_operation", "identity_artifact", "record_root")
+            if parsed.runtime_operation == "dispatch":
+                required += ("body_artifact", "consumer_ref")
+            missing = [name for name in required if not getattr(parsed, name)]
+            if missing:
+                self.error("named-runtime requires " + ", ".join("--" + name.replace("_", "-") for name in missing))
         return parsed, unknown
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = _LifecycleArgumentParser(description="Harness Lifecycle Orchestrator & Delegation Runner")
-    parser.add_argument("action", choices=["init", "check", "close", "all", "delegate", "c2-memory"], help="Lifecycle phase or delegation action")
+    parser.add_argument("action", choices=["init", "check", "close", "all", "delegate", "c2-memory", "named-runtime"], help="Lifecycle phase or delegation action")
     parser.add_argument("--session-id", help="Honcho session key or ID")
     parser.add_argument("--packet", help="Path to the task packet (required for 'delegate')")
     parser.add_argument("--manifest", help="Custom path to Honcho ingest manifest")
@@ -1174,6 +1201,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--budget-source-ref", default="lifecycle-runner:c2-memory-cli")
     parser.add_argument("--budget-age-seconds", type=_budget_measurement)
     parser.add_argument("--actual-token-usage", type=_budget_measurement)
+    parser.add_argument("--runtime-operation", choices=("dispatch", "status", "reconcile"))
+    parser.add_argument("--identity-artifact")
+    parser.add_argument("--body-artifact")
+    parser.add_argument("--consumer-ref")
+    parser.add_argument("--record-root")
     return parser
 
 
@@ -1378,6 +1410,12 @@ def main() -> int:
         code, evidence = run_c2_memory(args)
         print(json.dumps(evidence, sort_keys=True))
         return code
+    if args.action == "named-runtime":
+        if unknown:
+            parser.error("unrecognized arguments: " + " ".join(unknown))
+        receipt = run_named_runtime(args)
+        print(json.dumps(receipt, sort_keys=True))
+        return 0
     if args.action == "init":
         return do_init(session_id, args.manifest)
     elif args.action == "check":

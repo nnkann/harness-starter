@@ -6,6 +6,7 @@ import json
 import os
 import re
 import shutil
+import sqlite3
 import subprocess
 import sys
 from contextlib import contextmanager
@@ -30,6 +31,9 @@ RUNTIME_FACT_KEYS = {
     "stderr_artifact_ref",
     "stderr_digest",
     "stderr_byte_count",
+    "native_profile_ref",
+    "native_correlation_id",
+    "native_runs",
 }
 IDENTITY_KEYS = (
     "work_id",
@@ -45,6 +49,8 @@ IDENTITY_KEYS = (
     "immutable_body_digest",
 )
 PRODUCER_REF = "external_runtime_dispatcher"
+HERMES_MAX_TURNS = 8
+HERMES_TOOLSET = "file"
 TERMINAL_RETENTION_SECONDS = 7 * 24 * 60 * 60
 _last_prune_at: dict[Path, float] = {}
 PRUNE_INTERVAL_SECONDS = 5 * 60
@@ -155,6 +161,11 @@ def _validate_event_status(event: Any, status: Any) -> None:
         raise ValueError(f"unsupported runtime event/status combination: {event}/{status}")
 
 
+def _canonical_digest(value: Any) -> str:
+    encoded = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def _validate_runtime_facts(facts: Any) -> dict[str, Any]:
     if not isinstance(facts, dict) or set(facts) != RUNTIME_FACT_KEYS:
         raise ValueError("runtime facts must contain only the closed allowlist")
@@ -177,7 +188,158 @@ def _validate_runtime_facts(facts: Any) -> dict[str, Any]:
             raise ValueError(f"invalid runtime facts: {stream}_digest")
         if isinstance(byte_count, bool) or not isinstance(byte_count, int) or byte_count < 0:
             raise ValueError(f"invalid runtime facts: {stream}_byte_count")
+    if not isinstance(facts["native_profile_ref"], str) or not facts["native_profile_ref"]:
+        raise ValueError("invalid runtime facts: native_profile_ref")
+    correlation = facts["native_correlation_id"]
+    if not isinstance(correlation, str) or re.fullmatch(r"[0-9a-f]{64}", correlation) is None:
+        raise ValueError("invalid runtime facts: native_correlation_id")
+    runs = facts["native_runs"]
+    if not isinstance(runs, list):
+        raise ValueError("invalid runtime facts: native_runs")
+    expected_profiles = (facts["native_profile_ref"], "anubis", "maat")
+    for index, run in enumerate(runs):
+        if not isinstance(run, dict) or set(run) != {
+            "profile", "correlation_id", "session_ref", "session_digest",
+            "exit_status", "output_digest", "gate_status", "tool_evidence",
+        }:
+            raise ValueError("invalid runtime facts: native_runs")
+        if index >= len(expected_profiles) or run["profile"] != expected_profiles[index] or run["correlation_id"] != correlation:
+            raise ValueError("invalid runtime facts: native run correlation")
+        if not isinstance(run["session_ref"], str) or not run["session_ref"]:
+            raise ValueError("invalid runtime facts: native run session_ref")
+        for key in ("session_digest", "output_digest"):
+            if not isinstance(run[key], str) or re.fullmatch(r"[0-9a-f]{64}", run[key]) is None:
+                raise ValueError(f"invalid runtime facts: native run {key}")
+        if isinstance(run["exit_status"], bool) or not isinstance(run["exit_status"], int):
+            raise ValueError("invalid runtime facts: native run exit_status")
+        if run["gate_status"] not in (None, "pass", "hold", "fail"):
+            raise ValueError("invalid runtime facts: native run gate_status")
+        if not isinstance(run["tool_evidence"], list):
+            raise ValueError("invalid runtime facts: native run tool_evidence")
+        for tool in run["tool_evidence"]:
+            if not isinstance(tool, dict) or set(tool) != {"tool_name", "canonical_input_digest", "exit_status", "output_digest"}:
+                raise ValueError("invalid runtime facts: native tool evidence")
+            if not isinstance(tool["tool_name"], str) or not tool["tool_name"]:
+                raise ValueError("invalid runtime facts: native tool_name")
+            if any(not isinstance(tool[key], str) or re.fullmatch(r"[0-9a-f]{64}", tool[key]) is None for key in ("canonical_input_digest", "output_digest")):
+                raise ValueError("invalid runtime facts: native tool digest")
+            if isinstance(tool["exit_status"], bool) or not isinstance(tool["exit_status"], int):
+                raise ValueError("invalid runtime facts: native tool exit_status")
     return dict(facts)
+
+
+def _native_argv(consumer_ref: str, body: bytes, correlation_id: str) -> list[str]:
+    try:
+        query = body.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError("immutable body must be UTF-8 text") from exc
+    return [
+        "hermes", "-p", consumer_ref, "chat", "-Q", "--pass-session-id",
+        "--source", f"harness:{correlation_id}", "--max-turns",
+        str(HERMES_MAX_TURNS), "-t", HERMES_TOOLSET, "-q", query,
+    ]
+
+
+def _tool_exit_status(content: str) -> int:
+    try:
+        value = json.loads(content)
+    except (TypeError, json.JSONDecodeError):
+        return 0
+    if isinstance(value, dict):
+        exit_code = value.get("exit_code")
+        if isinstance(exit_code, int) and not isinstance(exit_code, bool):
+            return exit_code
+        if value.get("error") not in (None, ""):
+            return 1
+    return 0
+
+
+def _native_verdict(profile: str, output: str) -> str | None:
+    try:
+        value = json.loads(output)
+    except (TypeError, json.JSONDecodeError):
+        return None
+    if not isinstance(value, dict):
+        return None
+    status = str(value.get("status", "")).lower()
+    if profile == "anubis":
+        verdict = str(value.get("verdict", status)).lower()
+        return verdict if verdict in {"pass", "hold", "fail"} else None
+    if profile == "maat":
+        closure = value.get("Goal_closure")
+        if status == "pass" and isinstance(closure, dict) and closure.get("status") == "pass":
+            return "pass"
+        return status if status in {"hold", "fail"} else None
+    return "pass" if status == "pass" else None
+
+
+def _native_run_evidence(profile: str, body: bytes, correlation_id: str, exit_status: int) -> dict[str, Any]:
+    state_path = Path.home() / ".hermes" / "profiles" / profile / "state.db"
+    if not state_path.is_file():
+        raise RuntimeError("native session store absent")
+    try:
+        query = body.decode("utf-8")
+        uri = f"file:{state_path.as_posix()}?mode=ro"
+        with sqlite3.connect(uri, uri=True, timeout=2.0) as connection:
+            connection.row_factory = sqlite3.Row
+            sessions = connection.execute(
+                "SELECT * FROM sessions WHERE source = ? ORDER BY started_at",
+                (f"harness:{correlation_id}",),
+            ).fetchall()
+            if len(sessions) != 1:
+                raise RuntimeError("native correlation absent or duplicated")
+            session = sessions[0]
+            messages = connection.execute(
+                "SELECT id, role, content, tool_call_id, tool_calls, tool_name FROM messages "
+                "WHERE session_id = ? ORDER BY id", (session["id"],),
+            ).fetchall()
+        users = [row for row in messages if row["role"] == "user" and row["content"] == query]
+        if len(users) != 1:
+            raise RuntimeError("native session body mismatch")
+        results = {row["tool_call_id"]: row for row in messages if row["role"] == "tool" and row["tool_call_id"]}
+        tool_evidence: list[dict[str, Any]] = []
+        for row in messages:
+            if row["role"] != "assistant" or not row["tool_calls"]:
+                continue
+            calls = json.loads(row["tool_calls"])
+            if not isinstance(calls, list):
+                raise RuntimeError("malformed native tool calls")
+            for call in calls:
+                function = call.get("function", {}) if isinstance(call, dict) else {}
+                call_id = call.get("id") or call.get("call_id") if isinstance(call, dict) else None
+                result = results.get(call_id)
+                if not isinstance(function, dict) or not function.get("name") or result is None:
+                    raise RuntimeError("native tool evidence incomplete")
+                try:
+                    arguments = json.loads(function.get("arguments") or "{}")
+                except json.JSONDecodeError as exc:
+                    raise RuntimeError("native tool input malformed") from exc
+                content = result["content"] or ""
+                if result["tool_name"] != function["name"]:
+                    raise RuntimeError("native tool name mismatch")
+                tool_evidence.append({
+                    "tool_name": function["name"],
+                    "canonical_input_digest": _canonical_digest(arguments),
+                    "exit_status": _tool_exit_status(content),
+                    "output_digest": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+                })
+        outputs = [row["content"] for row in messages if row["role"] == "assistant" and row["content"]]
+        if not outputs:
+            raise RuntimeError("native session output absent")
+        output = outputs[-1]
+        session_value = dict(session)
+        return {
+            "profile": profile,
+            "correlation_id": correlation_id,
+            "session_ref": f"{state_path}:sessions:{session['id']}",
+            "session_digest": _canonical_digest(session_value),
+            "exit_status": exit_status,
+            "output_digest": hashlib.sha256(output.encode("utf-8")).hexdigest(),
+            "gate_status": _native_verdict(profile, output),
+            "tool_evidence": tool_evidence,
+        }
+    except (OSError, sqlite3.Error, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError("native evidence read failed") from exc
 
 
 def _read_chain_unlocked(identity: dict[str, Any], record_root: Path) -> list[dict[str, Any]]:
@@ -368,18 +530,20 @@ def _background_runner(argv: list[str]) -> int:
 def dispatch_external_runtime(
     consumer_ref: str,
     body: bytes,
-    argv: list[str],
     record_root: Path,
     *,
     identity: dict[str, Any],
     process_runner: Callable[[list[str]], int] | None = None,
 ) -> dict[str, Any]:
+    record_root = Path(record_root)
     if not isinstance(body, bytes):
         raise TypeError("body must be bytes")
     _prune_terminal_cases_if_due(record_root)
     identity = _validate_identity(identity, body)
-    if not consumer_ref or not isinstance(argv, list) or not argv or any(not isinstance(item, str) or not item for item in argv):
-        raise ValueError("consumer_ref and argv are required")
+    if not isinstance(consumer_ref, str) or not consumer_ref or consumer_ref != identity["owner_ref"]:
+        raise ValueError("consumer_ref must match identity.owner_ref")
+    correlation_id = _canonical_digest(identity)
+    argv = _native_argv(consumer_ref, body, correlation_id)
     case_dir = _case_dir(identity, record_root)
     body_path = case_dir / "artifacts" / "body.bin"
     stdout_path = case_dir / "artifacts" / "stdout.bin"
@@ -395,6 +559,11 @@ def dispatch_external_runtime(
         facts.update(_artifact_facts("body", body_path, case_dir))
         facts.update(_artifact_facts("stdout", stdout_path, case_dir))
         facts.update(_artifact_facts("stderr", stderr_path, case_dir))
+        facts.update({
+            "native_profile_ref": consumer_ref,
+            "native_correlation_id": correlation_id,
+            "native_runs": [],
+        })
         _append_locked(identity, record_root, consumer_ref, "observed", facts)
     try:
         pid = (process_runner or _background_runner)(_runner_argv(current_path))
@@ -457,21 +626,30 @@ def run_job(job_path: Path) -> dict[str, Any]:
             key: facts[key] for key in ("body_artifact_ref", "body_digest", "body_byte_count")
         }:
             raise RuntimeError("body artifact metadata mismatch")
-        with body_path.open("rb") as body, stdout_path.open("wb") as stdout, stderr_path.open("wb") as stderr:
-            process = subprocess.Popen(facts["argv"], stdin=body, stdout=stdout, stderr=stderr)
-            exit_code = process.wait()
+        native_runs = []
+        body_bytes = body_path.read_bytes()
+        profiles = (current["external_runtime_receipt"]["consumer_ref"], "anubis", "maat")
+        with stdout_path.open("wb") as stdout, stderr_path.open("wb") as stderr:
+            for profile in profiles:
+                argv = _native_argv(profile, body_bytes, facts["native_correlation_id"])
+                with body_path.open("rb") as body:
+                    process = subprocess.Popen(argv, stdin=body, stdout=stdout, stderr=stderr)
+                    exit_code = process.wait()
+                run = _native_run_evidence(profile, body_bytes, facts["native_correlation_id"], exit_code)
+                native_runs.append(run)
+                facts["native_runs"] = list(native_runs)
+                facts["exit_code"] = exit_code
+                if exit_code != 0 or (profile in {"anubis", "maat"} and run["gate_status"] != "pass"):
+                    raise RuntimeError(f"native {profile} verification hold")
             for output in (stdout, stderr):
                 output.flush()
                 os.fsync(output.fileno())
-        facts["exit_code"] = exit_code
-        facts.update(_artifact_facts("stdout", stdout_path, case_dir))
-        facts.update(_artifact_facts("stderr", stderr_path, case_dir))
-        status = "pass" if exit_code == 0 else "fail"
-        if exit_code:
-            errors.append(f"runtime:exit_code:{exit_code}")
+        status = "pass"
     except Exception as exc:
         status = "blocked"
         errors.append(f"runtime:{type(exc).__name__}:{exc}")
+    facts.update(_artifact_facts("stdout", stdout_path, case_dir))
+    facts.update(_artifact_facts("stderr", stderr_path, case_dir))
     return append_terminal_receipt(identity, record_root, status, facts=facts, errors=errors)
 
 
