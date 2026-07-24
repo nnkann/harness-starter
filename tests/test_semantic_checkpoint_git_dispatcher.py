@@ -26,11 +26,17 @@ class DispatcherTests(unittest.TestCase):
             "repository": {"root": "/tmp/repo", "branch": "feature", "upstream": "origin/feature"},
             "scoped_paths": ["graphs/work-1/current.json"],
             "excluded_dirty_paths": ["unrelated.txt"],
+            "lifecycle_declaration": {
+                "baseline": {"change.txt": "absent"},
+                "source_mutations": ["change.txt"],
+                "ephemeral_generated_paths": [],
+                "persistent_evidence_paths": [],
+            },
             "closure_AC_ref": "AC:closure",
             "CPS_refs": {"C": "C:work-1", "P": ["P:write"], "S": "S:git", "AC": "AC:closure", "packet": "packet:work-1@r2"},
             "prohibited_actions": ["git add -A", "stash", "main push"],
             "owner_approval": True,
-            "execution_instruction": "Perform only the scoped Git closure described by this packet: run verification_command if present; stage only scoped_paths; create the exact commit_message; push only repository.branch to repository.upstream; then report facts.",
+            "execution_instruction": dispatcher.EXECUTION_INSTRUCTION,
             "commit_message": "Close semantic checkpoint\n\nCPS-Packet: packet:work-1@r2",
             "verification_command": None,
         }
@@ -127,6 +133,169 @@ class DispatcherTests(unittest.TestCase):
         self._git(repo, "config", "user.email", "test@example.invalid")
         self._git(repo, "remote", "add", "origin", str(remote))
         return repo
+
+    def _seed_repo(self, root, *, ignored_pattern=None):
+        repo = self._repo_with_remote(root)
+        (repo / "README.md").write_text("baseline\n")
+        if ignored_pattern:
+            (repo / ".gitignore").write_text(f"{ignored_pattern}\n")
+        self._git(repo, "add", ".")
+        self._git(repo, "commit", "-m", "baseline")
+        self._git(repo, "push", "-u", "origin", "feature")
+        return repo
+
+    def _closure_packet(self, repo, *, ephemeral=(), persistent=()):
+        packet = self.packet()
+        packet["repository"]["root"] = str(repo)
+        packet["lifecycle_declaration"] = {
+            "baseline": {
+                **{"change.txt": "absent"},
+                **{path: "absent" for path in ephemeral},
+                **{path: "absent" for path in persistent},
+            },
+            "source_mutations": ["change.txt"],
+            "ephemeral_generated_paths": list(ephemeral),
+            "persistent_evidence_paths": list(persistent),
+        }
+        return packet
+
+    def _commit_push_worker(self, repo, packet, *, remove=(), persistent=()):
+        def worker(argv, stdout_path, stderr_path):
+            for path in remove:
+                (repo / path).unlink()
+            (repo / "change.txt").write_text("done\n")
+            for path in persistent:
+                self._git(repo, "add", path)
+            self._git(repo, "add", "change.txt")
+            self._git(repo, "commit", "-m", packet["commit_message"])
+            self._git(repo, "push", "origin", "feature")
+            return 0
+        return worker
+
+    def test_declared_ephemeral_is_removed_and_read_back_absent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = self._seed_repo(root)
+            (repo / "generated.tmp").write_text("temporary\n")
+            packet = self._closure_packet(repo, ephemeral=["generated.tmp"])
+            receipt = dispatcher.dispatch_checkpoint(packet, root / "records", process_runner=lambda argv: 7)
+            final = dispatcher.run_job(Path(receipt["job_path"]), worker_runner=self._commit_push_worker(repo, packet, remove=["generated.tmp"]))
+            self.assertEqual(final["status"], "git_pushed")
+            self.assertFalse((repo / "generated.tmp").exists())
+            self.assertEqual(final["cleanup_observations"]["ephemeral"][0]["kind"], "absent")
+
+    def test_ignored_declared_ephemeral_is_removed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = self._seed_repo(root, ignored_pattern="*.cache")
+            (repo / "generated.cache").write_text("temporary\n")
+            packet = self._closure_packet(repo, ephemeral=["generated.cache"])
+            receipt = dispatcher.dispatch_checkpoint(packet, root / "records", process_runner=lambda argv: 7)
+            final = dispatcher.run_job(Path(receipt["job_path"]), worker_runner=self._commit_push_worker(repo, packet, remove=["generated.cache"]))
+            self.assertEqual(final["status"], "git_pushed")
+            observation = final["cleanup_observations"]["ephemeral"][0]
+            self.assertFalse(observation["exists"])
+            self.assertTrue(observation["ignored"])
+
+    def test_persistent_evidence_is_retained(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = self._seed_repo(root)
+            (repo / "evidence.json").write_text("{}\n")
+            packet = self._closure_packet(repo, persistent=["evidence.json"])
+            receipt = dispatcher.dispatch_checkpoint(packet, root / "records", process_runner=lambda argv: 7)
+            final = dispatcher.run_job(Path(receipt["job_path"]), worker_runner=self._commit_push_worker(repo, packet, persistent=["evidence.json"]))
+            self.assertEqual(final["status"], "git_pushed")
+            self.assertTrue((repo / "evidence.json").is_file())
+            self.assertTrue(final["cleanup_observations"]["persistent"][0]["exists"])
+
+    def test_preexisting_path_is_preserved_instead_of_cleaned(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = self._seed_repo(root)
+            (repo / "README.md").write_text("pre-existing change\n")
+            packet = self._closure_packet(repo)
+            packet["lifecycle_declaration"] = {
+                "baseline": {"README.md": "present"},
+                "source_mutations": [],
+                "ephemeral_generated_paths": ["README.md"],
+                "persistent_evidence_paths": [],
+            }
+            receipt = dispatcher.dispatch_checkpoint(packet, root / "records", process_runner=lambda argv: self.fail("must not launch"))
+            self.assertEqual(receipt["status"], "git_failed")
+            self.assertEqual((repo / "README.md").read_text(), "pre-existing change\n")
+
+    def test_symlink_ambiguity_holds_without_cleanup(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = self._seed_repo(root)
+            (repo / "target.tmp").write_text("keep\n")
+            (repo / "ambiguous.tmp").symlink_to("target.tmp")
+            packet = self._closure_packet(repo, ephemeral=["ambiguous.tmp"])
+            receipt = dispatcher.dispatch_checkpoint(packet, root / "records", process_runner=lambda argv: self.fail("must not launch"))
+            self.assertEqual(receipt["status"], "git_failed")
+            self.assertTrue((repo / "ambiguous.tmp").is_symlink())
+            self.assertTrue(any("path_ambiguous" in error for error in receipt["errors"]))
+
+    def test_directory_cleanup_target_is_blocked_and_preserved(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = self._seed_repo(root)
+            (repo / "generated-dir").mkdir()
+            (repo / "generated-dir" / "keep.txt").write_text("keep\n")
+            packet = self._closure_packet(repo, ephemeral=["generated-dir"])
+            receipt = dispatcher.dispatch_checkpoint(packet, root / "records", process_runner=lambda argv: self.fail("must not launch"))
+            self.assertEqual(receipt["status"], "git_failed")
+            self.assertTrue((repo / "generated-dir" / "keep.txt").is_file())
+
+    def test_nonexact_duplicate_and_cross_class_paths_are_blocked(self):
+        invalid_declarations = [
+            ({"/absolute": "absent"}, ["/absolute"], [], []),
+            ({"a/../escape": "absent"}, ["a/../escape"], [], []),
+            ({"*.tmp": "absent"}, ["*.tmp"], [], []),
+            ({"e\u0301.txt": "absent"}, ["e\u0301.txt"], [], []),
+            ({"duplicate": "absent"}, ["duplicate", "duplicate"], [], []),
+            ({"shared": "absent"}, ["shared"], [], ["shared"]),
+        ]
+        for baseline, source, ephemeral, persistent in invalid_declarations:
+            with self.subTest(source=source, persistent=persistent), tempfile.TemporaryDirectory() as tmp:
+                packet = self.packet()
+                packet["repository"]["root"] = tmp
+                packet["lifecycle_declaration"] = {
+                    "baseline": baseline,
+                    "source_mutations": source,
+                    "ephemeral_generated_paths": ephemeral,
+                    "persistent_evidence_paths": persistent,
+                }
+                receipt = dispatcher.dispatch_checkpoint(packet, Path(tmp) / "records", process_runner=lambda argv: self.fail("must not launch"))
+                self.assertEqual(receipt["status"], "git_failed")
+
+    def test_unrelated_ignored_and_untracked_paths_are_preserved(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = self._seed_repo(root, ignored_pattern="unrelated.cache")
+            (repo / "generated.tmp").write_text("temporary\n")
+            (repo / "unrelated.cache").write_text("ignored\n")
+            (repo / "unrelated.txt").write_text("untracked\n")
+            packet = self._closure_packet(repo, ephemeral=["generated.tmp"])
+            receipt = dispatcher.dispatch_checkpoint(packet, root / "records", process_runner=lambda argv: 7)
+            final = dispatcher.run_job(Path(receipt["job_path"]), worker_runner=self._commit_push_worker(repo, packet, remove=["generated.tmp"]))
+            self.assertEqual(final["status"], "git_pushed")
+            self.assertTrue((repo / "unrelated.cache").is_file())
+            self.assertTrue((repo / "unrelated.txt").is_file())
+
+    def test_cleanup_readback_failure_prevents_git_pushed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = self._seed_repo(root)
+            (repo / "generated.tmp").write_text("temporary\n")
+            packet = self._closure_packet(repo, ephemeral=["generated.tmp"])
+            receipt = dispatcher.dispatch_checkpoint(packet, root / "records", process_runner=lambda argv: 7)
+            worker = self._commit_push_worker(repo, packet, remove=["generated.tmp"])
+            with mock.patch.object(dispatcher, "_path_readback", side_effect=RuntimeError("readback failed")):
+                final = dispatcher.run_job(Path(receipt["job_path"]), worker_runner=worker)
+            self.assertEqual(final["status"], "git_failed")
+            self.assertTrue(any("readback failed" in error for error in final["errors"]))
 
     def test_runner_transitions_success_to_git_pushed_after_independent_postcheck(self):
         with tempfile.TemporaryDirectory() as tmp:

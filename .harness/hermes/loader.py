@@ -603,6 +603,22 @@ def _validate() -> dict[str, Any]:
             errors.append("task packet workspace_env_classification must anchor filesystem on HERMES_KANBAN_WORKSPACE")
         if "permission grants" not in str(classification.get("permission_rule", "")):
             errors.append("task packet workspace_env_classification must say env values are not permission grants")
+        cleanup = task_packet.get("lifecycle_declaration")
+        cleanup_fields = set(_list(task_schema.get("required_lifecycle_declaration_fields")))
+        expected_cleanup_fields = {"baseline", "source_mutations", "ephemeral_generated_paths", "persistent_evidence_paths"}
+        if not isinstance(cleanup, dict) or set(cleanup) != expected_cleanup_fields:
+            errors.append("task packet lifecycle_declaration must contain exactly the four lifecycle fields")
+        else:
+            if not isinstance(cleanup["baseline"], dict):
+                errors.append("task packet lifecycle_declaration.baseline must be a map")
+            for field in expected_cleanup_fields - {"baseline"}:
+                if not isinstance(cleanup[field], list):
+                    errors.append(f"task packet lifecycle_declaration.{field} must be a list")
+        if cleanup_fields != expected_cleanup_fields:
+            errors.append("agent-task schema must require exactly the four cleanup lifecycle fields")
+        path_policy = task_schema.get("lifecycle_declaration_path_policy") or {}
+        if path_policy.get("empty_maps_and_lists_allowed") is not True or set(_list(path_policy.get("baseline_states"))) != {"present", "absent"}:
+            errors.append("agent-task schema cleanup lifecycle policy must allow explicit empty values and present/absent baseline states")
     if ROUTES.exists() and GATEWAY.exists() and TASK_TEMPLATE.exists():
         routes = _load_yaml(ROUTES)
         gateway = _load_yaml(GATEWAY)

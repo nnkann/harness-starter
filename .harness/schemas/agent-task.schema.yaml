@@ -24,6 +24,7 @@ required_fields:
   - task_AC
   - source_refs
   - artifact_refs
+  - lifecycle_declaration
   - owner_approval_boundary
   - prohibited_actions
   - evidence_acquisition
@@ -111,6 +112,16 @@ required_evidence_acquisition_fields:
   - C
   - P
   - S
+required_lifecycle_declaration_fields:
+  - baseline
+  - source_mutations
+  - ephemeral_generated_paths
+  - persistent_evidence_paths
+lifecycle_declaration_path_policy:
+  format: exact repo-relative paths only
+  forbidden: [absolute paths, parent traversal, symlinks, normalization ambiguity, globs, duplicates, cross-class paths]
+  baseline_states: [present, absent]
+  empty_maps_and_lists_allowed: true
 required_doc_ops_fields:
   - required_docs
   - doc_ops_needed

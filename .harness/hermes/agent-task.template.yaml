@@ -41,6 +41,11 @@ frontmatter:
 task_AC: ${NODE_TASK_AC}
 source_refs: ${SOURCE_REFS}
 artifact_refs: ${ARTIFACT_REFS}
+lifecycle_declaration:
+  baseline: {}
+  source_mutations: []
+  ephemeral_generated_paths: []
+  persistent_evidence_paths: []
 c: Hermes reference export를 기준으로 executor 실행 경계를 고정한다.
 problem: [P3, P5, P7, P8, P11]
 s: [S3, S5, S7, S8, S11]

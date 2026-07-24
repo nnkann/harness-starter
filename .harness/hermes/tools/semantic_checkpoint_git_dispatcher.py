@@ -5,8 +5,10 @@ import hashlib
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
+import unicodedata
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,11 +19,14 @@ RUNTIME_RECEIPT_STATUSES = {"observed", "pass", "fail", "blocked"}
 SEMANTIC_RECEIPT_KEYS = {"verdict", "C", "P", "S", "AC", "task_AC", "closure"}
 MAX_RECEIPT_ERRORS = 8
 SCHEMA = "harness.cps.semantic-checkpoint-git-closure.v1"
-EXECUTION_INSTRUCTION = "Perform only the scoped Git closure described by this packet: run verification_command if present; stage only scoped_paths; create the exact commit_message; push only repository.branch to repository.upstream; then report facts."
+EXECUTION_INSTRUCTION = "Perform only the scoped Git closure described by this packet: remove only exact lifecycle_declaration.ephemeral_generated_paths that baseline marks absent, never directories or recursive sweeps; preserve source_mutations, persistent_evidence_paths, pre-existing, ambiguous, and unrelated paths; run verification_command if present; stage only scoped_paths; create the exact commit_message; push only repository.branch to repository.upstream; then report bounded cleanup facts."
+LIFECYCLE_KEYS = {"baseline", "source_mutations", "ephemeral_generated_paths", "persistent_evidence_paths"}
+MAX_LIFECYCLE_PATHS = 128
 TOP_KEYS = {
     "schema", "checkpoint_id", "work_id", "graph_source", "repository",
     "scoped_paths", "excluded_dirty_paths", "closure_AC_ref", "CPS_refs",
     "prohibited_actions", "owner_approval", "execution_instruction", "commit_message", "verification_command",
+    "lifecycle_declaration",
 }
 PROVIDER = "agy-router"
 MODEL = "Gemini 3.5 Flash (High)"
@@ -144,10 +149,76 @@ def _exact_mapping(packet: dict[str, Any], key: str, keys: set[str], errors: lis
     return value
 
 
+def _valid_repo_relative_path(value: Any) -> bool:
+    if not isinstance(value, str) or not value or "\\" in value or value.startswith("/"):
+        return False
+    if any(character in value for character in "*?[]") or unicodedata.normalize("NFC", value) != value:
+        return False
+    parts = value.split("/")
+    return all(part not in {"", ".", ".."} for part in parts) and Path(value).as_posix() == value
+
+
+def _path_has_symlink(repo: Path, relative_path: str) -> bool:
+    current = repo
+    for part in relative_path.split("/"):
+        current = current / part
+        try:
+            if stat.S_ISLNK(current.lstat().st_mode):
+                return True
+        except FileNotFoundError:
+            return False
+    return False
+
+
+def _validate_lifecycle(packet: dict[str, Any], errors: list[str]) -> None:
+    declaration = _exact_mapping(packet, "lifecycle_declaration", LIFECYCLE_KEYS, errors)
+    if declaration is None:
+        return
+    baseline = declaration["baseline"]
+    if not isinstance(baseline, dict) or any(state not in {"present", "absent"} for state in baseline.values()):
+        errors.append("lifecycle_declaration.baseline:invalid")
+        return
+    classes: list[list[str]] = []
+    for key in ("source_mutations", "ephemeral_generated_paths", "persistent_evidence_paths"):
+        paths = declaration[key]
+        if not isinstance(paths, list) or any(not _valid_repo_relative_path(path) for path in paths):
+            errors.append(f"lifecycle_declaration.{key}:invalid")
+            return
+        if len(paths) != len(set(paths)):
+            errors.append(f"lifecycle_declaration.{key}:duplicate")
+        classes.append(paths)
+    all_paths = [path for paths in classes for path in paths]
+    if len(all_paths) > MAX_LIFECYCLE_PATHS:
+        errors.append("lifecycle_declaration:too_many_paths")
+    if len(all_paths) != len(set(all_paths)):
+        errors.append("lifecycle_declaration:cross_class_path")
+    if any(not _valid_repo_relative_path(path) for path in baseline) or set(baseline) != set(all_paths):
+        errors.append("lifecycle_declaration.baseline:path_set_mismatch")
+    ephemeral = declaration["ephemeral_generated_paths"]
+    if any(baseline.get(path) != "absent" for path in ephemeral):
+        errors.append("lifecycle_declaration.ephemeral_generated_paths:not_proven_absent")
+    repository = packet.get("repository")
+    if not isinstance(repository, dict) or not isinstance(repository.get("root"), str):
+        return
+    repo = Path(repository["root"])
+    for path in all_paths:
+        if _path_has_symlink(repo, path):
+            errors.append(f"lifecycle_declaration:path_ambiguous:{path}")
+    for path in ephemeral:
+        target = repo / path
+        try:
+            if stat.S_ISDIR(target.lstat().st_mode):
+                errors.append(f"lifecycle_declaration:ephemeral_directory:{path}")
+        except FileNotFoundError:
+            pass
+
+
 def validate_checkpoint_packet(packet: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     if not isinstance(packet, dict) or set(packet) != TOP_KEYS:
         errors.append("packet:invalid_shape")
+        if isinstance(packet, dict) and "lifecycle_declaration" not in packet:
+            errors.append("lifecycle_declaration:required")
         return errors
     if packet["schema"] != SCHEMA:
         errors.append("schema:invalid")
@@ -170,6 +241,7 @@ def validate_checkpoint_packet(packet: dict[str, Any]) -> list[str]:
     repository = _exact_mapping(packet, "repository", {"root", "branch", "upstream"}, errors)
     if repository and any(not isinstance(repository[key], str) or not repository[key] for key in repository):
         errors.append("repository:invalid_value")
+    _validate_lifecycle(packet, errors)
 
     refs = _exact_mapping(packet, "CPS_refs", {"C", "P", "S", "AC", "packet"}, errors)
     if refs:
@@ -185,7 +257,7 @@ def validate_checkpoint_packet(packet: dict[str, Any]) -> list[str]:
         errors.append("closure_AC_ref:invalid")
     if packet["owner_approval"] is not True:
         errors.append("owner_approval:required")
-    if not isinstance(packet["execution_instruction"], str) or not packet["execution_instruction"]:
+    if packet["execution_instruction"] != EXECUTION_INSTRUCTION:
         errors.append("execution_instruction:invalid")
     if not isinstance(packet["commit_message"], str) or not packet["commit_message"]:
         errors.append("commit_message:invalid")
@@ -233,6 +305,25 @@ def _git(repo: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
+def _path_readback(repo: Path, relative_path: str) -> dict[str, Any]:
+    target = repo / relative_path
+    try:
+        mode = target.lstat().st_mode
+        exists = True
+        kind = "symlink" if stat.S_ISLNK(mode) else "directory" if stat.S_ISDIR(mode) else "file"
+    except FileNotFoundError:
+        exists = False
+        kind = "absent"
+    ignored = subprocess.run(
+        ["git", "check-ignore", "-q", "--", relative_path], cwd=repo,
+        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, check=False,
+    )
+    if ignored.returncode not in {0, 1}:
+        reason = ignored.stderr.strip().replace("\n", " ")[:300]
+        raise RuntimeError(f"git check-ignore {relative_path}: {reason or 'failed'}")
+    return {"path": relative_path, "exists": exists, "kind": kind, "ignored": ignored.returncode == 0}
+
+
 def _postcheck(packet: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     repo = Path(packet["repository"]["root"])
     observations: dict[str, Any] = {}
@@ -253,6 +344,16 @@ def _postcheck(packet: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
         trailer = f"CPS-Packet: {packet['CPS_refs']['packet']}"
         if trailer not in message.splitlines():
             errors.append("postcheck:cps_packet_trailer_missing")
+        declaration = packet["lifecycle_declaration"]
+        ephemeral = [_path_readback(repo, path) for path in declaration["ephemeral_generated_paths"]]
+        persistent = [_path_readback(repo, path) for path in declaration["persistent_evidence_paths"]]
+        observations["cleanup_observations"] = {"ephemeral": ephemeral, "persistent": persistent}
+        for item in ephemeral:
+            if item["exists"]:
+                errors.append(f"postcheck:ephemeral_survived:{item['path']}")
+        for item in persistent:
+            if not item["exists"] or item["kind"] != "file":
+                errors.append(f"postcheck:persistent_missing_or_ambiguous:{item['path']}")
     except Exception as exc:
         errors.append(f"postcheck:{type(exc).__name__}:{exc}")
     return observations, [error[:500] for error in errors[:MAX_RECEIPT_ERRORS]]
@@ -331,7 +432,8 @@ def reconcile_checkpoint(checkpoint_id: str, record_root: Path) -> dict[str, Any
 def dispatch_checkpoint(packet: dict[str, Any], record_root: Path, *, process_runner: Callable[[list[str]], int] | None = None) -> dict[str, Any]:
     errors = validate_checkpoint_packet(packet)
     if errors:
-        return build_git_worker_receipt(packet, "rejected_dispatch", errors=errors)
+        status = "git_failed" if any(error.startswith("lifecycle_declaration") for error in errors) else "rejected_dispatch"
+        return build_git_worker_receipt(packet, status, errors=errors)
     record_root = Path(record_root)
     checkpoint_id = packet["checkpoint_id"]
     job_path = record_root / "jobs" / f"{checkpoint_id}.json"
@@ -348,7 +450,8 @@ def dispatch_checkpoint(packet: dict[str, Any], record_root: Path, *, process_ru
     stdout_path.touch()
     stderr_path.touch()
     _write_json(packet_path, packet)
-    pending = build_git_worker_receipt(packet, "git_pending", pid=None, packet_path=str(packet_path.resolve()), job_path=str(job_path.resolve()), provider=PROVIDER, model=MODEL, stdout_log_path=str(stdout_path.resolve()), stderr_log_path=str(stderr_path.resolve()), idempotency_key=key)
+    evidence_artifact_paths = [str(path.resolve()) for path in (packet_path, job_path, stdout_path, stderr_path)]
+    pending = build_git_worker_receipt(packet, "git_pending", pid=None, packet_path=str(packet_path.resolve()), job_path=str(job_path.resolve()), provider=PROVIDER, model=MODEL, stdout_log_path=str(stdout_path.resolve()), stderr_log_path=str(stderr_path.resolve()), idempotency_key=key, evidence_artifact_paths=evidence_artifact_paths)
     _write_json(job_path, pending)
     runner = process_runner or _background_runner
     try:

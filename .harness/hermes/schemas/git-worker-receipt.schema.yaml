@@ -24,7 +24,38 @@
     "idempotency_key": {"type": "string"},
     "worker_exit_code": {"type": ["integer", "null"]},
     "head_sha": {"type": "string"},
-    "upstream_sha": {"type": "string"}
+    "upstream_sha": {"type": "string"},
+    "evidence_artifact_paths": {
+      "type": "array",
+      "maxItems": 4,
+      "items": {"type": "string"}
+    },
+    "cleanup_observations": {
+      "type": "object",
+      "required": ["ephemeral", "persistent"],
+      "properties": {
+        "ephemeral": {"$ref": "#/$defs/path_observations"},
+        "persistent": {"$ref": "#/$defs/path_observations"}
+      },
+      "additionalProperties": false
+    }
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "$defs": {
+    "path_observations": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {
+        "type": "object",
+        "required": ["path", "exists", "kind", "ignored"],
+        "properties": {
+          "path": {"type": "string"},
+          "exists": {"type": "boolean"},
+          "kind": {"enum": ["absent", "file", "directory", "symlink"]},
+          "ignored": {"type": "boolean"}
+        },
+        "additionalProperties": false
+      }
+    }
+  }
 }
