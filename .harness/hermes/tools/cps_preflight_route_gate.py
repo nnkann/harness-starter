@@ -15,9 +15,9 @@ for offline diagnostics. It enforces the frontmatter-first protocol:
 from __future__ import annotations
 
 import argparse
-import base64
 from copy import deepcopy
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -49,6 +49,10 @@ PROFILES = {
 CONTRACT_PATH = Path("/Users/kann/projects/harness-brain/projects/harness-starter/contracts/cp_cps_preflight_route_gate.md")
 DEFAULT_REPO = Path("/Users/kann/projects/harness-starter")
 DEFAULT_MAX_REENTRY_ITERATIONS = 1
+C1_LAYER_ORDER = ("honcho", "gbrain", "harness-brain")
+C1_MAX_TOKENS = 320
+C1_MAX_MATCHES = 4
+C1_HONCHO_READER = Path("/Users/kann/projects/harness-brain/.harness/hermes/tools/cps_honcho_advisory_reader.py")
 REENTRY_INPUT_KEYS = (
     "revised_C",
     "revised_P",
@@ -64,8 +68,6 @@ C2_RUNTIME_DEPENDENCIES = (
     "C-ROUTE-PROJECTION",
     "C-PHYSICAL-DOCOPS-VALIDATOR",
 )
-NODE_LOCAL_REF_KEYS = {"C", "P", "S", "AC", "E"}
-HANDOFF_INTEGRITY_FAILURE = "HOLD_HANDOFF_TRANSPORT_INTEGRITY"
 DERIVED_C_PARENT_BINDING_FIELDS = {
     "parent_work_id", "parent_graph_ref", "parent_graph_revision", "parent_graph_digest",
     "blocked_receipt_ref", "parent_edge_ref", "return_to_node_ref",
@@ -144,185 +146,35 @@ def project_execution_state(packet: dict[str, Any]) -> dict[str, Any]:
         return issued
 
 
-def search_handoff_body(*_args: Any, **_kwargs: Any) -> None:
-    """Handoff consumers must never reconstruct a missing body by search."""
-    raise RuntimeError("handoff body search is prohibited")
-
-
-def build_handoff_envelope(maat_body: bytes, metadata: dict[str, Any]) -> dict[str, Any]:
-    """Wrap opaque Maat bytes without parsing or mixing metadata into the body."""
-    if not isinstance(maat_body, bytes):
-        raise TypeError("maat_body must be bytes")
-    if not isinstance(metadata, dict):
-        raise TypeError("metadata must be a dict")
-    return {
-        "schema": "harness.cps_preflight.handoff_envelope.v1",
-        "body_transport": {
-            "encoding": "base64",
-            "length": len(maat_body),
-            "sha256": hashlib.sha256(maat_body).hexdigest(),
-            "payload": base64.b64encode(maat_body).decode("ascii"),
-        },
-        "metadata": deepcopy(metadata),
-    }
-
-
-def build_handoff_prompt(envelope: dict[str, Any]) -> str:
-    """Serialize the envelope as a distinct prompt field without rewriting its body."""
-    return json.dumps(
-        {"handoff_envelope": envelope},
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    )
-
-
-def _decode_handoff_envelope(envelope: Any) -> tuple[bytes | None, str | None]:
-    if not isinstance(envelope, dict):
-        return None, HANDOFF_INTEGRITY_FAILURE
-    transport = envelope.get("body_transport")
-    if not isinstance(transport, dict) or transport.get("encoding") != "base64":
-        return None, HANDOFF_INTEGRITY_FAILURE
-    try:
-        body = base64.b64decode(transport.get("payload", ""), validate=True)
-    except (TypeError, ValueError):
-        return None, HANDOFF_INTEGRITY_FAILURE
-    if transport.get("length") != len(body) or transport.get("sha256") != hashlib.sha256(body).hexdigest():
-        return None, HANDOFF_INTEGRITY_FAILURE
-    return body, None
-
-
-def consume_handoff_prompt(prompt: str) -> dict[str, Any]:
-    """Consume only an exact transport body; incomplete or ambiguous bodies never trigger search."""
-    try:
-        payload = json.loads(prompt)
-    except (TypeError, json.JSONDecodeError):
-        return {"status": "hold", "failure_code": HANDOFF_INTEGRITY_FAILURE, "search_count": 0}
-    envelope = payload.get("handoff_envelope") if isinstance(payload, dict) else None
-    metadata = envelope.get("metadata") if isinstance(envelope, dict) else None
-    state = metadata.get("local_body_state") if isinstance(metadata, dict) else None
-    if state == "incomplete":
-        return {"status": "need_local_body", "search_count": 0}
-    if state != "complete":
-        return {"status": "hold", "failure_code": HANDOFF_INTEGRITY_FAILURE, "search_count": 0}
-    body, failure = _decode_handoff_envelope(envelope)
-    if failure:
-        return {"status": "hold", "failure_code": failure, "search_count": 0}
-    assert body is not None
-    return {
-        "status": "accept",
-        "body": body,
-        "body_sha256": hashlib.sha256(body).hexdigest(),
-        "search_count": 0,
-    }
-
-
-def dispatch_handoff_transport(
-    original_body: bytes,
-    envelope: dict[str, Any],
-    prompt: str,
-    consumer_result: Any,
-    runner: Any,
-) -> dict[str, Any]:
-    """Block before runner unless original, envelope, prompt and consumer bytes are identical."""
-    envelope_body, envelope_failure = _decode_handoff_envelope(envelope)
-    try:
-        prompt_payload = json.loads(prompt)
-    except (TypeError, json.JSONDecodeError):
-        prompt_payload = None
-    prompt_envelope = prompt_payload.get("handoff_envelope") if isinstance(prompt_payload, dict) else None
-    prompt_body, prompt_failure = _decode_handoff_envelope(prompt_envelope)
-    consumer_body = consumer_result.get("body") if isinstance(consumer_result, dict) else None
-    envelope_metadata = envelope.get("metadata") if isinstance(envelope, dict) else None
-    prompt_metadata = prompt_envelope.get("metadata") if isinstance(prompt_envelope, dict) else None
-    bodies = (original_body, envelope_body, prompt_body, consumer_body)
-    identities = {
-        name: hashlib.sha256(body).hexdigest() if isinstance(body, bytes) else None
-        for name, body in zip(("original", "envelope", "prompt", "consumer"), bodies)
-    }
-    integrity_ok = (
-        isinstance(original_body, bytes)
-        and envelope_failure is None
-        and prompt_failure is None
-        and isinstance(envelope_metadata, dict)
-        and envelope_metadata.get("local_body_state") == "complete"
-        and isinstance(prompt_metadata, dict)
-        and prompt_metadata.get("local_body_state") == "complete"
-        and isinstance(consumer_result, dict)
-        and consumer_result.get("status") == "accept"
-        and consumer_result.get("body_sha256") == identities["consumer"]
-        and consumer_result.get("search_count") == 0
-        and all(body == original_body for body in bodies)
-    )
-    if not integrity_ok:
-        return {
-            "status": "hold",
-            "failure_code": HANDOFF_INTEGRITY_FAILURE,
-            "identity": identities,
-            "dispatch_count": 0,
-            "search_count": 0,
-        }
-    runner(original_body)
-    return {
-        "status": "dispatched",
-        "identity": identities,
-        "dispatch_count": 1,
-        "search_count": 0,
-    }
-
-
 def validate_node_projection(projection: Any, *, expected_revision: Any = None, expected_changed_paths: Any = None) -> dict[str, Any]:
-    """Validate the reference-only projection required for node dispatch."""
-    gaps: list[str] = []
-
-    def gap(name: str) -> None:
-        if name not in gaps:
-            gaps.append(name)
-
-    if not isinstance(projection, dict):
-        return {"schema": "harness.cps_preflight.node_projection_gate.v1", "status": "hold", "gap_classes": ["node_projection.missing"]}
-    for field in (
-        "graph_ref", "canonical_source_ref", "local_refs", "local_body_ref",
-        "node_local_AC", "evidence", "prohibitions", "source_revision", "changed_path_manifest",
-    ):
-        if not _present(projection.get(field)):
-            gap(f"node_projection.{field}")
-    revision = projection.get("source_revision")
-    for field in ("graph_ref", "canonical_source_ref"):
-        ref = projection.get(field)
-        if not isinstance(ref, dict) or not _present(ref.get("ref")) or not _present(ref.get("revision")):
-            gap(f"node_projection.{field}")
-        elif _present(revision) and ref.get("revision") != revision:
-            gap("node_projection.source_revision_mismatch")
-    if _present(expected_revision) and revision != expected_revision:
-        gap("node_projection.source_revision_mismatch")
-    local_refs = projection.get("local_refs")
-    if not isinstance(local_refs, dict) or set(local_refs) != NODE_LOCAL_REF_KEYS:
-        gap("node_projection.local_refs_exact_map")
-    elif any(not isinstance(value, str) or not value.strip() for value in local_refs.values()):
-        gap("node_projection.local_refs_ref_only")
-    manifest = projection.get("changed_path_manifest")
-    if not isinstance(manifest, list) or not manifest or any(not isinstance(path, str) or not path.strip() for path in manifest):
-        gap("node_projection.changed_path_manifest")
-    elif len(manifest) != len(set(manifest)):
-        gap("node_projection.changed_path_manifest_not_exact")
-    if expected_changed_paths is not None:
-        expected = list(expected_changed_paths) if isinstance(expected_changed_paths, (list, tuple)) else []
-        if manifest != expected:
-            gap("node_projection.changed_path_manifest_not_exact")
-    next_c = projection.get("next_C")
-    terminal = projection.get("terminal")
-    if bool(_present(next_c)) == bool(terminal is True):
-        gap("node_projection.next_C_or_terminal")
-    elif _present(next_c) and (
-        not isinstance(next_c, dict) or not _present(next_c.get("ref")) or not isinstance(next_c.get("order"), int)
-    ):
-        gap("node_projection.next_C_order")
+    """Gate only the stable handoff semantics required before node dispatch."""
+    del expected_revision, expected_changed_paths
+    required = ("boundary", "owner", "P_to_S", "node_AC")
+    gaps = [f"node_projection.{field}" for field in required if not isinstance(projection, dict) or not _present(projection.get(field))]
+    if isinstance(projection, dict):
+        edges = projection.get("P_to_S")
+        if not isinstance(edges, list) or any(
+            not isinstance(edge, dict) or set(edge) != {"P", "S"}
+            or not _present(edge.get("P")) or not _present(edge.get("S"))
+            for edge in edges
+        ):
+            if "node_projection.P_to_S" not in gaps:
+                gaps.append("node_projection.P_to_S")
     return {
         "schema": "harness.cps_preflight.node_projection_gate.v1",
         "status": "hold" if gaps else "pass",
         "gap_classes": gaps,
     }
+
+
+def _local_p_to_s(spec: dict[str, Any], edges: Any) -> list[dict[str, str]]:
+    local_p = {str(value).rstrip("?") for value in spec.get("P", [])}
+    local_s = {str(value).rstrip("?") for value in spec.get("S", [])}
+    return [
+        {"P": p_ref, "S": s_ref}
+        for p_ref, s_ref in _edge_set(edges if isinstance(edges, list) else [])
+        if p_ref in local_p and s_ref in local_s
+    ]
 
 
 def apply_node_projection_gate(route: dict[str, Any], reducer_result: dict[str, Any], packet: dict[str, Any]) -> dict[str, Any]:
@@ -334,18 +186,24 @@ def apply_node_projection_gate(route: dict[str, Any], reducer_result: dict[str, 
         gate = {"schema": "harness.cps_preflight.node_projection_gate.v1", "status": "not_required", "gap_classes": []}
         reducer_result["node_projection_gate"] = gate
         return gate
-    expected_revision = packet.get("source_revision")
-    expected_paths = packet.get("changed_path_manifest")
-    if expected_paths is None and isinstance(packet.get("mutation_manifest"), list):
-        expected_paths = [
-            item.get("path") for item in packet["mutation_manifest"]
-            if isinstance(item, dict) and _present(item.get("path"))
-        ]
-    gate = validate_node_projection(
-        packet.get("node_projection"),
-        expected_revision=expected_revision if _present(expected_revision) else None,
-        expected_changed_paths=expected_paths,
-    )
+    selected = normalize_selected_agents(route, reducer_result)
+    boundaries = packet.get("boundary") or packet.get("allowed_paths") or packet.get("mutation_scope")
+    cps = packet.get("CPS") if isinstance(packet.get("CPS"), dict) else {}
+    node_ac = packet.get("task_AC") or cps.get("AC")
+    legacy_raw = packet.get("node_projection")
+    legacy: dict[str, Any] = legacy_raw if isinstance(legacy_raw, dict) else {}
+    boundaries = boundaries or legacy.get("changed_path_manifest")
+    node_ac = node_ac or legacy.get("node_local_AC")
+    gaps: list[str] = []
+    for agent, spec in selected.items():
+        gate = validate_node_projection({
+            "boundary": boundaries,
+            "owner": agent,
+            "P_to_S": _local_p_to_s(spec, reducer_result.get("revised_E") or route.get("E", [])),
+            "node_AC": node_ac,
+        })
+        gaps.extend(item for item in gate["gap_classes"] if item not in gaps)
+    gate = {"schema": "harness.cps_preflight.node_projection_gate.v1", "status": "hold" if gaps else "pass", "gap_classes": gaps}
     reducer_result["node_projection_gate"] = gate
     if gate["status"] != "pass":
         reducer_result["status"] = "hold"
@@ -1201,7 +1059,9 @@ def _readable_current_source(record: dict[str, Any]) -> tuple[str | None, bool]:
         actual_hash = hashlib.sha256(path.read_bytes()).hexdigest()
     except (OSError, ValueError):
         return source_ref, False
-    return source_ref, actual_hash == content_hash
+    revision = record.get("source_revision")
+    current_revision = record.get("current_source_revision", revision)
+    return source_ref, actual_hash == content_hash and revision == current_revision
 
 
 def _memory_records(raw: Any) -> tuple[list[dict[str, Any]], str]:
@@ -1369,52 +1229,69 @@ def build_continuation_receipt(
     }
 
 
-def retrieve_c1_foreground(packet: dict[str, Any], candidate_ref: str, trace_ref: str) -> dict[str, Any]:
-    """Read the packet-referenced harness-brain source before candidate enrichment."""
-    producer_ref = "adapter:harness-brain:file:v1"
-    consumer_ref = "build_candidate"
-    source = packet.get("harness_brain_source")
-    matches: list[dict[str, Any]] = []
-    status = "unavailable"
-    outcome = "source_unavailable"
-    if isinstance(source, dict):
-        path = Path(str(source.get("source_ref") or "").removeprefix("file://"))
-        stat = None
-        try:
-            content = path.read_bytes()
-            stat = path.stat()
-        except OSError:
-            content = None
-        if content is not None and stat is not None:
-            digest = hashlib.sha256(content).hexdigest()
-            admissible = str(source.get("lifecycle") or "").lower() in {"validated", "promoted"}
-            expected_hash = str(source.get("content_hash") or "").removeprefix("sha256:")
-            current = not expected_hash or expected_hash == digest
-            if admissible and current and _present(source.get("source_revision")):
-                matches.append({
-                    "layer": "harness-brain",
-                    "source_ref": str(path),
-                    "source_revision": source["source_revision"],
-                    "content_hash": digest,
-                    "freshness": {"mtime_ns": stat.st_mtime_ns, "size": stat.st_size},
-                    "lifecycle": source["lifecycle"],
-                    "supersedes": source.get("supersedes"),
-                })
-                status, outcome = "match", "match"
-            else:
-                status, outcome = "no_match", "inadmissible_or_stale"
-    normalized = {
-        "lookup_ref": f"foreground:{packet.get('graph_ref') or 'unbound'}",
-        "status": status,
-        "active_only": True,
-        "matches": matches,
-        "layers": [
-            {"layer": "honcho", "status": "unavailable"},
-            {"layer": "gbrain", "status": "unavailable"},
-            {"layer": "harness-brain", "status": status},
-        ],
-        "excluded_count": 0 if matches else int(isinstance(source, dict)),
+def _read_c1_file_source(source: Any) -> dict[str, Any]:
+    if not isinstance(source, dict):
+        return {"status": "unavailable", "matches": []}
+    path = Path(str(source.get("source_ref") or "").removeprefix("file://"))
+    try:
+        content = path.read_bytes()
+        stat = path.stat()
+    except (OSError, ValueError):
+        return {"status": "unavailable", "matches": []}
+    digest = hashlib.sha256(content).hexdigest()
+    expected_hash = str(source.get("content_hash") or digest).removeprefix("sha256:")
+    record = {
+        "source_ref": str(path),
+        "source_revision": source.get("source_revision"),
+        "current_source_revision": source.get("current_source_revision", source.get("source_revision")),
+        "content_hash": expected_hash,
+        "freshness": source.get("freshness") or {"mtime_ns": stat.st_mtime_ns, "size": stat.st_size},
+        "lifecycle": source.get("lifecycle"),
+        "supersedes": source.get("supersedes"),
+        "clue": content.decode("utf-8", errors="replace"),
     }
+    return {"status": "match", "matches": [record]}
+
+
+def _read_c1_honcho(packet: dict[str, Any], query: str) -> dict[str, Any]:
+    config = packet.get("honcho_memory_reader")
+    if not isinstance(config, dict) or config.get("sdk") is None:
+        return {"status": "unavailable", "matches": []}
+    try:
+        spec = importlib.util.spec_from_file_location("cps_honcho_advisory_reader", C1_HONCHO_READER)
+        if spec is None or spec.loader is None:
+            raise ImportError("Honcho advisory reader is unavailable")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        result = module.read_honcho_advisory(
+            config["sdk"],
+            session_key=config.get("session_key"),
+            query=query,
+            max_tokens=C1_MAX_TOKENS,
+            peer=config.get("peer"),
+            max_matches=C1_MAX_MATCHES,
+        )
+    except Exception as error:
+        return {"status": "unavailable", "matches": [], "error": type(error).__name__}
+    if result.get("available") is not True:
+        return {"status": "unavailable", "matches": []}
+    matches = result.get("matches") if isinstance(result.get("matches"), list) else []
+    return {"status": "match" if matches else "no_match", "matches": matches}
+
+
+def retrieve_c1_foreground(packet: dict[str, Any], candidate_ref: str, trace_ref: str) -> dict[str, Any]:
+    """Invoke the ordered read-only foreground readers before candidate enrichment."""
+    producer_ref = "orchestrator:foreground-memory:v1"
+    consumer_ref = "build_candidate"
+    query = _text_values(packet.get("root_goal") or packet.get("goal") or packet.get("task") or packet.get("CPS") or "current C1 context")[:500]
+    readbacks = {
+        "lookup_ref": f"foreground:{packet.get('graph_ref') or 'unbound'}",
+        "honcho": _read_c1_honcho(packet, query),
+        "gbrain": _read_c1_file_source(packet.get("gbrain_source")),
+        "harness-brain": _read_c1_file_source(packet.get("harness_brain_source")),
+    }
+    normalized = normalize_memory_lookup_result(readbacks)
+    outcome = normalized["status"]
     receipt = {
         "schema": "harness.cps_preflight.c1_runtime_receipt.v1",
         "producer_ref": producer_ref,
@@ -1451,7 +1328,7 @@ def validate_c1_runtime_evidence(value: dict[str, Any]) -> dict[str, Any]:
 def normalize_memory_lookup_result(readbacks: Any) -> dict[str, Any]:
     """Normalize foreground reader outputs without inferring lifecycle or matches."""
     lookup = readbacks if isinstance(readbacks, dict) else {}
-    layer_names = ("honcho", "gbrain", "harness-brain")
+    layer_names = C1_LAYER_ORDER
     supplied = [(layer, lookup[layer]) for layer in layer_names if layer in lookup]
     if not supplied and isinstance(readbacks, (str, list)):
         supplied = [("unknown", readbacks)]
@@ -1470,7 +1347,7 @@ def normalize_memory_lookup_result(readbacks: Any) -> dict[str, Any]:
             if str(record.get("lifecycle") or "").lower() not in {"validated", "promoted"} or not required or not current:
                 excluded_count += 1
                 continue
-            matches.append({
+            match = {
                 "layer": layer,
                 "source_ref": source_ref,
                 "source_revision": record["source_revision"],
@@ -1478,11 +1355,36 @@ def normalize_memory_lookup_result(readbacks: Any) -> dict[str, Any]:
                 "freshness": record["freshness"],
                 "lifecycle": record["lifecycle"],
                 "supersedes": record.get("supersedes"),
-            })
+            }
+            clue = record.get("clue") or record.get("text") or record.get("content")
+            if isinstance(clue, bytes):
+                clue = clue.decode("utf-8", errors="replace")
+            if isinstance(clue, str) and clue.strip():
+                match["clue"] = clue.strip()
+            matches.append(match)
             layer_matches += 1
         layer_status = "match" if layer_matches else "no_match" if reader_status == "no_match" or records else "unavailable"
         layers.append({"layer": layer, "status": layer_status})
 
+    canonical_matches = [match for match in matches if match["layer"] == "harness-brain"]
+    matches = matches[:C1_MAX_MATCHES]
+    remaining_bytes = C1_MAX_TOKENS * 4
+    context_parts: list[str] = []
+    for match in matches:
+        clue = match.pop("clue", "")
+        if not clue or remaining_bytes <= 0:
+            continue
+        if context_parts:
+            remaining_bytes -= 1
+        if remaining_bytes <= 0:
+            break
+        prefix = f"[{match['layer']}:{match['source_ref']}] "
+        encoded = (prefix + clue).encode("utf-8")[:remaining_bytes]
+        part = encoded.decode("utf-8", errors="ignore").strip()
+        if part:
+            context_parts.append(part)
+            remaining_bytes -= len(part.encode("utf-8"))
+    advisory_text = "\n".join(context_parts)
     if matches:
         status = "match"
     elif layers and all(item["status"] == "no_match" for item in layers):
@@ -1496,6 +1398,17 @@ def normalize_memory_lookup_result(readbacks: Any) -> dict[str, Any]:
         "matches": matches,
         "layers": layers,
         "excluded_count": excluded_count,
+        "advisory_context": {
+            "authority": "advisory_only",
+            "text": advisory_text,
+            "token_estimate": (len(advisory_text.encode("utf-8")) + 3) // 4,
+            "max_tokens": C1_MAX_TOKENS,
+            "max_matches": C1_MAX_MATCHES,
+        },
+        "canonical_readback": [
+            {key: match[key] for key in ("source_ref", "source_revision", "content_hash")}
+            for match in canonical_matches
+        ],
     }
 
 
@@ -1576,7 +1489,7 @@ def _c1_trace_context(packet: dict[str, Any], c1_retrieval: dict[str, Any]) -> d
         "seeds": {"C1": {"ssot_hint": first_match.get("source_ref", "unknown")}},
         "seed_relations": [],
         "route_seed": {},
-        "memory_enrichment": {**normalized, "lookup_attempted": "memory_lookup_result" in packet},
+        "memory_enrichment": {**normalized, "lookup_attempted": True},
     }
 
 
@@ -1647,9 +1560,7 @@ def build_candidate(packet: dict[str, Any], packet_path: Path, repo: Path) -> di
     raw_verification = packet.get("verification")
     verification: dict[str, Any] = raw_verification if isinstance(raw_verification, dict) else {}
     c1_retrieval = retrieve_c1_foreground(packet, "c_candidate_packet.json", "cps_trace_events.json")
-    if "memory_lookup_result" in packet:
-        c1_retrieval["normalized_result"] = normalize_memory_lookup_result(packet["memory_lookup_result"])
-        c1_retrieval["runtime_receipt"]["normalized_result_hash"] = canonical_hash(c1_retrieval["normalized_result"])
+
     runtime_graph_gate = validate_runtime_graph(packet) if packet.get("runtime_packet") is True else {"status": "not_required", "gaps": []}
     dispatch_plan = build_dispatch_plan(runtime_graph_gate["graph"]) if runtime_graph_gate["status"] == "pass" else None
     runtime_evidence_required = packet.get("runtime_packet") is True or verification.get("execution_kind") in {"runtime", "external"}
@@ -2460,21 +2371,28 @@ def build_probe(agent: str, route: dict[str, Any], spec: dict[str, Any] | None =
 
 
 def build_local_body(agent: str, probe: dict[str, Any], packet: dict[str, Any], packet_path: Path) -> dict[str, Any]:
-    return {
-        "schema": "harness.cps_preflight.local_task_body.v1",
-        "agent": agent,
-        "packet_ref": str(packet_path),
-        "local_P": probe["local_P"],
-        "local_S": probe["local_S"],
-        "local_E": probe["local_E"],
-        "verification_gate": probe.get("verification_gate", {}),
-        "physical_docops_gate": probe.get("physical_docops_gate", {}),
-        "task_AC": packet.get("task_AC") or (packet.get("CPS", {}) if isinstance(packet.get("CPS"), dict) else {}).get("AC"),
-        "owner_approval_boundary": packet.get("owner_approval_boundary"),
-        "prohibited_actions": packet.get("prohibited_actions", ["git add", "git commit", "git push"]),
+    cps = packet.get("CPS") if isinstance(packet.get("CPS"), dict) else {}
+    legacy_raw = packet.get("node_projection")
+    legacy: dict[str, Any] = legacy_raw if isinstance(legacy_raw, dict) else {}
+    body = {
+        "C_ref": packet.get("C_ref") or packet.get("cps_receipt_id") or packet.get("graph_ref") or str(packet_path),
         "source_refs": packet.get("source_refs", []),
-        "artifact_refs": packet.get("artifact_refs", []),
+        "boundary": packet.get("boundary") or packet.get("allowed_paths") or packet.get("mutation_scope") or legacy.get("changed_path_manifest"),
+        "owner": agent,
+        "P_to_S": _local_p_to_s(
+            {"P": list(probe["local_P"]), "S": list(probe["local_S"])},
+            probe["local_E"],
+        ),
+        "node_AC": packet.get("task_AC") or cps.get("AC") or legacy.get("node_local_AC"),
     }
+    attachments = {
+        key: packet[key]
+        for key in ("artifact_refs", "prohibited_actions", "owner_approval_boundary")
+        if _present(packet.get(key))
+    }
+    if attachments:
+        body["attachments"] = attachments
+    return body
 
 
 def build_agent_body_map(selected: dict[str, Any], route: dict[str, Any], reducer_result: dict[str, Any], packet: dict[str, Any], packet_path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -2494,7 +2412,6 @@ def dispatch_external_local_bodies(
     record_root: Path,
     *,
     identities: dict[str, dict[str, Any]],
-    argv_builder: Any,
     process_runner: Any = None,
 ) -> dict[str, Any]:
     receipts: dict[str, Any] = {}
@@ -2507,7 +2424,6 @@ def dispatch_external_local_bodies(
         receipts[agent] = dispatch_external_runtime(
             agent,
             encoded,
-            argv_builder(agent),
             record_root,
             identity=identities[agent],
             process_runner=process_runner,
@@ -3041,62 +2957,22 @@ def execute_preflight_chain(
     final_selected_agents = normalize_selected_agents(route, reducer_result)
     selected_manifest = {agent: body_manifest[agent] for agent in final_selected_agents if agent in body_manifest}
     probes, local_bodies = build_agent_body_map(final_selected_agents, route, reducer_result, packet, packet_path)
-    handoff_transport: dict[str, Any] = {
-        "status": "not_required", "dispatch_count": 0, "search_count": 0, "agents": {},
-    }
+    handoff_transport: dict[str, Any] = {"status": "not_required", "dispatch_count": 0, "agents": {}}
     if selected_agent_runner is not None and local_bodies:
-        verified_dispatches: list[tuple[str, bytes]] = []
         transport_results: dict[str, Any] = {}
         for agent, body in local_bodies.items():
-            original_body = json.dumps(
+            instruction = json.dumps(
                 body, sort_keys=True, ensure_ascii=False, separators=(",", ":"),
             ).encode("utf-8")
-            envelope = build_handoff_envelope(original_body, {"local_body_state": "complete", "agent": agent})
-            prompt = build_handoff_prompt(envelope)
-            consumed = consume_handoff_prompt(prompt)
-            result = dispatch_handoff_transport(
-                original_body,
-                envelope,
-                prompt,
-                consumed,
-                lambda verified_body, selected=agent: verified_dispatches.append((selected, verified_body)),
-            )
-            transport_results[agent] = result
-            if result["status"] != "dispatched":
-                handoff_transport = {**result, "agents": transport_results}
-                break
-        else:
-            for agent, verified_body in verified_dispatches:
-                selected_agent_runner(agent, verified_body)
-            handoff_transport = {
+            selected_agent_runner(agent, instruction)
+            transport_results[agent] = {
                 "status": "dispatched",
-                "dispatch_count": len(verified_dispatches),
-                "search_count": 0,
-                "agents": transport_results,
+                "instruction_sha256": hashlib.sha256(instruction).hexdigest(),
             }
-        if handoff_transport["status"] == "hold":
-            reducer_result["status"] = "hold"
-            reducer_result["C_boundary"] = "HOLD"
-            reducer_result["final_selected_agents"] = {}
-            reducer_result["local_body_scope"] = {}
-            reducer_result.setdefault("failure_codes", []).append(HANDOFF_INTEGRITY_FAILURE)
-            reducer_result.setdefault("hold_reasons", []).append(HANDOFF_INTEGRITY_FAILURE)
-            final_selected_agents = {}
-            local_bodies = {}
+        handoff_transport = {"status": "dispatched", "dispatch_count": len(transport_results), "agents": transport_results}
     local_body_dispatch = build_local_body_dispatch(route, reducer_result, local_bodies, final_selected_agents, selected_manifest)
     contribute_cps = build_contribute_cps(packet, candidate, route, probe_responses, reducer_result, local_body_dispatch)
-    if handoff_transport.get("status") == "hold":
-        final_judgment = {
-            "schema": "harness.cps_preflight.final_maat_judgment.v1",
-            "source": "local_handoff_transport_gate",
-            "status": "hold",
-            "AC_verdicts": {},
-            "Goal_closure": {"status": "hold", "reason": "handoff transport integrity mismatch"},
-            "missing_evidence": [HANDOFF_INTEGRITY_FAILURE],
-            "failure_codes": [HANDOFF_INTEGRITY_FAILURE],
-            "notes": ["Selected-agent runner dispatch was blocked before execution."],
-        }
-    elif materialization_failure is not None:
+    if materialization_failure is not None:
         final_judgment = {
             "schema": "harness.cps_preflight.final_maat_judgment.v1",
             "source": "local_materialization_gate",

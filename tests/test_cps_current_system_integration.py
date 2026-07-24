@@ -152,10 +152,32 @@ class CpsCurrentSystemIntegrationTests(unittest.TestCase):
                 "changed_path_manifest": ["tests/test_cps_current_system_integration.py"],
                 "next_C": {"ref": "C:2", "order": 2},
             }
+            honcho_source = source_paths["honcho"]
+            honcho_matches = [{
+                "source_ref": str(honcho_source),
+                "source_revision": "source-r1",
+                "content_hash": hashlib.sha256(honcho_source.read_bytes()).hexdigest(),
+                "freshness": "2026-07-15T00:00:00Z",
+                "lifecycle": "validated",
+                "supersedes": None,
+            }]
             packet = {
                 "root_goal": "exercise the bounded current CPS chain",
                 "runtime_packet": True,
                 "memory_lookup_result": memory_lookup_result,
+                "honcho_memory_reader": {
+                    "sdk": type("ReadOnlyHoncho", (), {
+                        "search_context": lambda self, session_key, query, max_tokens, peer: honcho_matches,
+                    })(),
+                    "session_key": "current-system",
+                    "peer": "harness-starter",
+                },
+                "gbrain_source": {
+                    "source_ref": str(source_paths["gbrain"]), "source_revision": "source-r1", "lifecycle": "validated",
+                },
+                "harness_brain_source": {
+                    "source_ref": str(source_paths["harness_brain"]), "source_revision": "source-r1", "lifecycle": "validated",
+                },
                 "cps_flow_graph": runtime_graph,
                 "graph_ref": "graph:current-system",
                 "graph_revision": "graph-r1",
@@ -286,7 +308,6 @@ class CpsCurrentSystemIntegrationTests(unittest.TestCase):
                 complete_chain["local_bodies"],
                 external_root,
                 identities={"ptah": identity},
-                argv_builder=lambda agent: [sys.executable, f"{agent}-worker.py"],
                 process_runner=observed_launch,
             )
             ptah_receipt = external_receipts["ptah"]
@@ -298,8 +319,8 @@ class CpsCurrentSystemIntegrationTests(unittest.TestCase):
             )
 
             incomplete_packet = copy.deepcopy(packet)
-            incomplete_packet["node_projection"]["source_revision"] = "source-r0"
-            incomplete_packet["node_projection"]["changed_path_manifest"] = ["unexpected.py"]
+            incomplete_packet.pop("task_AC")
+            incomplete_packet["node_projection"].pop("node_local_AC")
             route["final_audit_needed"] = False
             hold_final = Mock(return_value={
                 "status": "hold",
@@ -316,8 +337,7 @@ class CpsCurrentSystemIntegrationTests(unittest.TestCase):
 
             hold_gate = hold_chain["reducer_result"]["node_projection_gate"]
             self.assertEqual(hold_gate["status"], "hold")
-            self.assertIn("node_projection.source_revision_mismatch", hold_gate["gap_classes"])
-            self.assertIn("node_projection.changed_path_manifest_not_exact", hold_gate["gap_classes"])
+            self.assertEqual(hold_gate["gap_classes"], ["node_projection.node_AC"])
             self.assertEqual(hold_chain["final_selected_agents"], {})
             self.assertEqual(hold_chain["local_bodies"], {})
             self.assertEqual(hold_chain["local_body_dispatch"]["aggregate"]["selected_count"], 0)

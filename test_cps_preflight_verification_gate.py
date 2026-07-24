@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import hashlib
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -335,64 +336,41 @@ class TestCpsPreflightVerificationGate(TestCase):
         self.assertEqual(bodies, {})
     def node_projection(self):
         return {
-            "graph_ref": {"ref": "graph:AC8", "revision": "rev-8"},
-            "canonical_source_ref": {"ref": "source:AC8", "revision": "rev-8"},
-            "local_refs": {
-                "C": "C:AC8", "P": "P:AC8", "S": "S:AC8",
-                "AC": "AC:AC8", "E": "E:AC8",
-            },
-            "local_body_ref": "body:ptah:AC8",
-            "node_local_AC": ["AC8"],
-            "evidence": ["test:AC8"],
-            "prohibitions": ["no unrelated mutation"],
-            "source_revision": "rev-8",
-            "changed_path_manifest": ["test_cps_preflight_verification_gate.py"],
-            "next_C": {"ref": "C:AC9", "order": 9},
+            "boundary": ["test_cps_preflight_verification_gate.py"],
+            "owner": "ptah",
+            "P_to_S": [{"P": "P1", "S": "S1"}],
+            "node_AC": ["AC8"],
         }
 
     def test_node_projection_complete_reference_projection_passes(self):
         gate = preflight.validate_node_projection(
             self.node_projection(),
-            expected_revision="rev-8",
-            expected_changed_paths=["test_cps_preflight_verification_gate.py"],
         )
         self.assertEqual(gate["status"], "pass")
         self.assertEqual(gate["gap_classes"], [])
 
     def test_node_projection_missing_required_field_holds(self):
         projection = self.node_projection()
-        projection.pop("local_body_ref")
+        projection.pop("node_AC")
         gate = preflight.validate_node_projection(projection)
         self.assertEqual(gate["status"], "hold")
-        self.assertIn("node_projection.local_body_ref", gate["gap_classes"])
+        self.assertIn("node_projection.node_AC", gate["gap_classes"])
 
-    def test_node_projection_rejects_nonexact_local_refs(self):
+    def test_node_projection_rejects_malformed_p_to_s(self):
         projection = self.node_projection()
-        projection["local_refs"]["Goal"] = "Goal:AC8"
+        projection["P_to_S"] = [{"P": "P1"}]
         gate = preflight.validate_node_projection(projection)
         self.assertEqual(gate["status"], "hold")
-        self.assertIn("node_projection.local_refs_exact_map", gate["gap_classes"])
+        self.assertIn("node_projection.P_to_S", gate["gap_classes"])
 
-    def test_node_projection_rejects_revision_mismatch(self):
+    def test_node_projection_non_core_attachments_are_removable(self):
         projection = self.node_projection()
-        projection["canonical_source_ref"]["revision"] = "rev-7"
-        gate = preflight.validate_node_projection(projection, expected_revision="rev-8")
-        self.assertEqual(gate["status"], "hold")
-        self.assertIn("node_projection.source_revision_mismatch", gate["gap_classes"])
-
-    def test_node_projection_rejects_changed_path_manifest_mismatch(self):
-        gate = preflight.validate_node_projection(
-            self.node_projection(), expected_changed_paths=["different.py"],
-        )
-        self.assertEqual(gate["status"], "hold")
-        self.assertIn("node_projection.changed_path_manifest_not_exact", gate["gap_classes"])
-
-    def test_node_projection_requires_next_c_or_terminal(self):
-        projection = self.node_projection()
-        projection.pop("next_C")
-        gate = preflight.validate_node_projection(projection)
-        self.assertEqual(gate["status"], "hold")
-        self.assertIn("node_projection.next_C_or_terminal", gate["gap_classes"])
+        projection["receipt"] = {"diagnostic": True}
+        projection["artifact_refs"] = ["optional:1"]
+        self.assertEqual(preflight.validate_node_projection(projection)["status"], "pass")
+        projection.pop("receipt")
+        projection.pop("artifact_refs")
+        self.assertEqual(preflight.validate_node_projection(projection)["status"], "pass")
 
     def test_failed_node_projection_dispatch_clears_agent_and_body_scope(self):
         route = {"selected_agents": {"ptah": {"P": ["P1"], "S": ["S1"]}}}
@@ -401,7 +379,9 @@ class TestCpsPreflightVerificationGate(TestCase):
             "final_selected_agents": {"ptah": {"P": ["P1"], "S": ["S1"]}},
             "local_body_scope": {"ptah": True},
         }
-        gate = preflight.apply_node_projection_gate(route, reducer, {})
+        gate = preflight.apply_node_projection_gate(route, reducer, {
+            "mutation_scope": ["runtime"], "task_AC": ["AC1"],
+        })
         self.assertEqual(gate["status"], "hold")
         self.assertEqual(reducer["final_selected_agents"], {})
         self.assertEqual(reducer["local_body_scope"], {})
@@ -416,7 +396,9 @@ class TestCpsPreflightVerificationGate(TestCase):
             "local_body_scope": {"ptah": True},
         }
 
-        preflight.apply_node_projection_gate(route, reducer, {})
+        preflight.apply_node_projection_gate(route, reducer, {
+            "mutation_scope": ["runtime"], "task_AC": ["AC1"],
+        })
         selected = preflight.normalize_selected_agents(route, reducer)
         dispatch = preflight.build_local_body_dispatch(route, reducer, {"ptah": {"schema": "body"}})
 
@@ -501,9 +483,10 @@ class TestCpsPreflightVerificationGate(TestCase):
     def test_trace_has_no_false_memory_lookup_and_uses_delta_payloads(self):
         candidate = preflight.build_candidate({"root_goal": "implement code"}, Path("packet.json"), REPO)
         events = candidate["cps_trace_events"]
-        self.assertEqual([event["event_type"] for event in events].count("seed_created"), 1)
-        self.assertNotIn("memory_lookup_started", [event["event_type"] for event in events])
-        self.assertNotIn("memory_match_attached", [event["event_type"] for event in events])
+        event_types = [event["event_type"] for event in events]
+        self.assertEqual(event_types.count("seed_created"), 1)
+        self.assertIn("memory_lookup_started", event_types)
+        self.assertNotIn("memory_match_attached", event_types)
         self.assertNotIn("current_state", events[0])
         self.assertIn("seed_delta", events[0]["event_payload"])
 
@@ -528,7 +511,7 @@ class TestCpsPreflightVerificationGate(TestCase):
         self.assertEqual(candidate["runtime_graph_gate"]["status"], "pass")
         self.assertEqual(candidate["dispatch_plan"]["ready_nodes"], ["P1"])
         self.assertEqual(candidate["c1_runtime_evidence_gate"]["status"], "pass")
-        self.assertEqual(candidate["producer_ref"], "adapter:harness-brain:file:v1")
+        self.assertEqual(candidate["producer_ref"], "orchestrator:foreground-memory:v1")
 
     def test_foreground_harness_brain_adapter_reads_current_source_and_links_receipt(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -558,6 +541,91 @@ class TestCpsPreflightVerificationGate(TestCase):
         self.assertEqual(receipt["normalized_result_hash"], preflight.canonical_hash(result["normalized_result"]))
         self.assertEqual(receipt["candidate_artifact_ref"], "candidate.json")
         self.assertEqual(receipt["trace_artifact_ref"], "trace.json")
+
+    def test_production_entry_invokes_ordered_readers_and_bounds_advisory_context(self):
+        calls = []
+
+        class ReadOnlyHoncho:
+            def __init__(self, response):
+                self.response = response
+                self.write_count = 0
+
+            def search_context(self, session_key, query, max_tokens, peer):
+                calls.append("honcho")
+                self.assertions = (session_key, max_tokens, peer)
+                return self.response
+
+            def add_messages(self, *args, **kwargs):
+                self.write_count += 1
+                raise AssertionError("write prohibited")
+
+            def conclude(self, *args, **kwargs):
+                self.write_count += 1
+                raise AssertionError("write prohibited")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sources = {}
+            for layer in ("honcho", "gbrain", "harness-brain"):
+                source = root / f"{layer}.md"
+                source.write_text((layer + " advisory clue ") * 200, encoding="utf-8")
+                sources[layer] = source
+            honcho_record = {
+                "source_ref": str(sources["honcho"]),
+                "source_revision": "honcho-r1",
+                "content_hash": hashlib.sha256(sources["honcho"].read_bytes()).hexdigest(),
+                "freshness": "current",
+                "lifecycle": "promoted",
+                "text": sources["honcho"].read_text(encoding="utf-8"),
+            }
+            sdk = ReadOnlyHoncho([honcho_record])
+            packet = {
+                "root_goal": "use current project memory",
+                "memory_lookup_result": {"honcho": {"status": "match", "matches": [{"lifecycle": "validated"}]}},
+                "honcho_memory_reader": {"sdk": sdk, "session_key": "s1", "peer": "p1"},
+                "gbrain_source": {"source_ref": str(sources["gbrain"]), "source_revision": "g-r1", "lifecycle": "validated"},
+                "harness_brain_source": {"source_ref": str(sources["harness-brain"]), "source_revision": "b-r1", "lifecycle": "validated"},
+            }
+            real_file_reader = preflight._read_c1_file_source
+
+            def observed_file_reader(source):
+                calls.append("gbrain" if source is packet["gbrain_source"] else "harness-brain")
+                return real_file_reader(source)
+
+            with patch.object(preflight, "_read_c1_file_source", side_effect=observed_file_reader):
+                candidate = preflight.build_candidate(packet, Path("packet.json"), REPO)
+
+        memory = candidate["route_enrichment"]["memory"]
+        self.assertEqual(calls, ["honcho", "gbrain", "harness-brain"])
+        self.assertEqual([match["layer"] for match in memory["matches"]], calls)
+        self.assertEqual(memory["advisory_context"]["authority"], "advisory_only")
+        self.assertLessEqual(memory["advisory_context"]["token_estimate"], 320)
+        self.assertLessEqual(len(memory["matches"]), 4)
+        self.assertEqual(memory["canonical_readback"][0]["source_ref"], str(sources["harness-brain"]))
+        self.assertEqual(sdk.assertions, ("s1", 320, "p1"))
+        self.assertEqual(sdk.write_count, 0)
+        self.assertEqual(candidate["c1_runtime_evidence_gate"]["status"], "not_required")
+
+    def test_revision_mismatch_is_excluded_and_injected_result_cannot_replace_readback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "brain.md"
+            source.write_text("current", encoding="utf-8")
+            packet = {
+                "memory_lookup_result": {"harness-brain": {"matches": [{
+                    "source_ref": str(source), "source_revision": "injected", "lifecycle": "validated",
+                    "content_hash": hashlib.sha256(source.read_bytes()).hexdigest(), "freshness": "current",
+                }]}},
+                "harness_brain_source": {
+                    "source_ref": str(source), "source_revision": "r1", "current_source_revision": "r2",
+                    "lifecycle": "validated",
+                },
+            }
+            candidate = preflight.build_candidate(packet, Path("packet.json"), REPO)
+
+        memory = candidate["route_enrichment"]["memory"]
+        self.assertNotEqual(memory["status"], "match")
+        self.assertEqual(memory["matches"], [])
+        self.assertEqual(memory["excluded_count"], 1)
 
     def test_runtime_evidence_gate_rejects_fixture_only_and_mismatched_links(self):
         fixture_only = {"memory_lookup_result": {"harness-brain": {"status": "match", "matches": [{}]}}}
@@ -741,145 +809,64 @@ class TestCpsPreflightVerificationGate(TestCase):
         self.assertGreater(aggregate["token_estimate"], 0)
         self.assertTrue(trace["dispatch"]["ptah"]["body_hash"])
 
-    def test_handoff_transport_preserves_opaque_maat_body_bytes_end_to_end(self):
-        original = b"Maat body:\x00\xff\n  exact spacing\r\n"
-        envelope = preflight.build_handoff_envelope(original, {"local_body_state": "complete", "agent": "ptah"})
-        prompt = preflight.build_handoff_prompt(envelope)
-        consumed = preflight.consume_handoff_prompt(prompt)
-        runner_calls = []
+    def test_stable_handoff_reuses_c_and_source_refs_without_body_transport(self):
+        probe = {
+            "local_P": {"P1": "problem"},
+            "local_S": {"S1": "solution"},
+            "local_E": ["P1 -> S1"],
+        }
+        packet = {
+            "C_ref": "cps:stable-C",
+            "source_refs": ["source:existing"],
+            "mutation_scope": ["runtime"],
+            "task_AC": ["AC1"],
+        }
 
-        result = preflight.dispatch_handoff_transport(
-            original, envelope, prompt, consumed, lambda body: runner_calls.append(body),
+        body = preflight.build_local_body("ptah", probe, packet, Path("packet.json"))
+
+        self.assertEqual(body, {
+            "C_ref": "cps:stable-C",
+            "source_refs": ["source:existing"],
+            "boundary": ["runtime"],
+            "owner": "ptah",
+            "P_to_S": [{"P": "P1", "S": "S1"}],
+            "node_AC": ["AC1"],
+        })
+        self.assertNotIn("schema", body)
+        self.assertNotIn("body_transport", body)
+
+    def test_stable_handoff_attachments_are_optional_and_removable(self):
+        probe = {"local_P": {"P1": "p"}, "local_S": {"S1": "s"}, "local_E": ["P1 -> S1"]}
+        packet = {
+            "C_ref": "C:1", "mutation_scope": ["runtime"], "task_AC": ["AC1"],
+            "artifact_refs": ["receipt:diagnostic"],
+        }
+        attached = preflight.build_local_body("ptah", probe, packet, Path("packet.json"))
+        packet.pop("artifact_refs")
+        detached = preflight.build_local_body("ptah", probe, packet, Path("packet.json"))
+
+        self.assertEqual(attached["attachments"], {"artifact_refs": ["receipt:diagnostic"]})
+        self.assertNotIn("attachments", detached)
+        self.assertEqual(
+            preflight.validate_node_projection({key: detached[key] for key in ("boundary", "owner", "P_to_S", "node_AC")})["status"],
+            "pass",
         )
 
-        self.assertEqual(envelope["metadata"]["agent"], "ptah")
-        self.assertNotIn("agent", envelope["body_transport"])
-        self.assertEqual(consumed["body"], original)
-        self.assertEqual(runner_calls, [original])
-        self.assertEqual(result["status"], "dispatched")
-        self.assertEqual(result["identity"]["original"], result["identity"]["consumer"])
-        self.assertEqual(result["dispatch_count"], 1)
-        self.assertEqual(result["search_count"], 0)
-
-    def test_handoff_producer_snapshots_separable_metadata_without_touching_body(self):
-        metadata = {"local_body_state": "complete", "labels": {"agent": "ptah"}}
-        original = b"immutable body"
-
-        envelope = preflight.build_handoff_envelope(original, metadata)
-        metadata["labels"]["agent"] = "changed-after-production"
-        consumed = preflight.consume_handoff_prompt(preflight.build_handoff_prompt(envelope))
-
-        self.assertEqual(envelope["metadata"]["labels"], {"agent": "ptah"})
-        self.assertNotIn("payload", envelope["metadata"])
-        self.assertEqual(consumed["body"], original)
-
-    def test_handoff_dispatcher_holds_every_negative_identity_case_before_runner(self):
-        original = b"source body"
-
-        def valid_chain(body=original):
-            envelope = preflight.build_handoff_envelope(body, {"local_body_state": "complete"})
-            prompt = preflight.build_handoff_prompt(envelope)
-            return envelope, prompt, preflight.consume_handoff_prompt(prompt)
-
-        cases = {}
-        envelope, prompt, consumed = valid_chain(b"different envelope body")
-        cases["source_to_envelope"] = (envelope, prompt, consumed)
-
-        envelope, _, _ = valid_chain()
-        other_envelope, prompt, consumed = valid_chain(b"different prompt body")
-        self.assertNotEqual(envelope, other_envelope)
-        cases["envelope_to_prompt"] = (envelope, prompt, consumed)
-
-        envelope, prompt, _ = valid_chain()
-        _, other_prompt, consumed = valid_chain(b"different consumer body")
-        self.assertNotEqual(prompt, other_prompt)
-        cases["prompt_to_consumer"] = (envelope, prompt, consumed)
-
-        envelope, prompt, consumed = valid_chain()
-        consumed["body_sha256"] = "0" * 64
-        cases["consumer_digest"] = (envelope, prompt, consumed)
-
-        envelope, prompt, consumed = valid_chain()
-        consumed["search_count"] = 1
-        cases["consumer_search"] = (envelope, prompt, consumed)
-
-        for state in ("incomplete", "ambiguous"):
-            envelope = preflight.build_handoff_envelope(original, {"local_body_state": state})
-            prompt = preflight.build_handoff_prompt(envelope)
-            cases[f"consumer_{state}"] = (envelope, prompt, preflight.consume_handoff_prompt(prompt))
-
-        envelope, _, _ = valid_chain()
-        malformed_prompt = "{not-json"
-        cases["malformed_prompt"] = (
-            envelope, malformed_prompt, preflight.consume_handoff_prompt(malformed_prompt),
-        )
-
-        envelope, prompt, consumed = valid_chain()
-        envelope["body_transport"]["sha256"] = "0" * 64
-        cases["malformed_envelope"] = (envelope, prompt, consumed)
-
-        envelope, prompt, _ = valid_chain()
-        cases["malformed_consumer"] = (envelope, prompt, None)
-
-        for name, (envelope, prompt, consumed) in cases.items():
-            runner_calls = []
-            with self.subTest(name=name):
-                result = preflight.dispatch_handoff_transport(
-                    original, envelope, prompt, consumed, lambda body: runner_calls.append(body),
-                )
-                self.assertEqual(result["status"], "hold")
-                self.assertEqual(result["failure_code"], "HOLD_HANDOFF_TRANSPORT_INTEGRITY")
-                self.assertEqual(result["dispatch_count"], 0)
-                self.assertEqual(result["search_count"], 0)
-                self.assertEqual(runner_calls, [])
-
-    def test_handoff_consumer_never_reconstructs_incomplete_or_ambiguous_body(self):
-        for state, expected in (("incomplete", "need_local_body"), ("ambiguous", "hold")):
-            envelope = preflight.build_handoff_envelope(b"partial", {"local_body_state": state})
-            with self.subTest(state=state), patch.object(preflight, "search_handoff_body") as search:
-                consumed = preflight.consume_handoff_prompt(preflight.build_handoff_prompt(envelope))
-            self.assertEqual(consumed["status"], expected)
-            self.assertEqual(consumed["search_count"], 0)
-            self.assertNotIn("body", consumed)
-            search.assert_not_called()
-
-    def test_handoff_dispatcher_blocks_mismatch_before_runner_with_zero_dispatch_and_search(self):
-        original = b"exact Maat body"
-        envelope = preflight.build_handoff_envelope(original, {"local_body_state": "complete"})
-        prompt = preflight.build_handoff_prompt(envelope)
-        consumed = preflight.consume_handoff_prompt(prompt)
-        consumed["body"] += b" tampered"
-        runner_calls = []
-
-        result = preflight.dispatch_handoff_transport(
-            original, envelope, prompt, consumed, lambda body: runner_calls.append(body),
-        )
-
-        self.assertEqual(result["status"], "hold")
-        self.assertEqual(result["failure_code"], "HOLD_HANDOFF_TRANSPORT_INTEGRITY")
-        self.assertEqual(result["dispatch_count"], 0)
-        self.assertEqual(result["search_count"], 0)
-        self.assertEqual(runner_calls, [])
-
-    def test_handoff_consumer_holds_malformed_transport_without_search(self):
-        envelope = preflight.build_handoff_envelope(b"body", {"local_body_state": "complete"})
-        prompt = preflight.build_handoff_prompt(envelope)
-        payload = json.loads(prompt)
-        payload["handoff_envelope"]["body_transport"]["sha256"] = "0" * 64
-
-        with patch.object(preflight, "search_handoff_body") as search:
-            consumed = preflight.consume_handoff_prompt(json.dumps(payload))
-
-        self.assertEqual(consumed["status"], "hold")
-        self.assertEqual(consumed["failure_code"], "HOLD_HANDOFF_TRANSPORT_INTEGRITY")
-        self.assertEqual(consumed["search_count"], 0)
-        search.assert_not_called()
-
-    def production_handoff_chain(self, runner, consumer=None):
-        packet = {"root_goal": "bounded handoff", "mutation_scope": ["runtime"], "route_candidates": ["ptah"]}
+    def production_handoff_chain(self, runner):
+        packet = {
+            "root_goal": "bounded handoff", "C_ref": "C:stable",
+            "source_refs": ["source:stable"], "mutation_scope": ["runtime"],
+            "task_AC": ["AC1"], "route_candidates": ["ptah"],
+        }
         candidate = preflight.build_candidate(packet, Path("packet.json"), REPO)
         route = preflight.adjudicate(candidate)
-        route.update({"status": "pass", "selected_agents": {"ptah": {"P": ["P1"], "S": ["S1"]}}})
+        route.update({
+            "status": "pass",
+            "accepted_P": {"P1": "bounded problem"},
+            "accepted_S": {"S1": "bounded solution"},
+            "E": ["P1 -> S1"],
+            "selected_agents": {"ptah": {"P": ["P1"], "S": ["S1"]}},
+        })
         reducer = {
             "status": "pass",
             "final_selected_agents": route["selected_agents"],
@@ -891,21 +878,13 @@ class TestCpsPreflightVerificationGate(TestCase):
             patch.object(preflight, "invoke_maat_reducer", return_value=reducer),
             patch.object(preflight, "apply_node_projection_gate", return_value={"status": "pass"}),
         ]
-        if consumer is not None:
-            patches.append(patch.object(preflight, "consume_handoff_prompt", side_effect=consumer))
         with patches[0], patches[1], patches[2], patches[3]:
-            if consumer is None:
-                return preflight.execute_preflight_chain(
-                    packet, Path("packet.json"), REPO, "live-maat", candidate,
-                    selected_agent_runner=runner,
-                )
-            with patches[4]:
-                return preflight.execute_preflight_chain(
-                    packet, Path("packet.json"), REPO, "live-maat", candidate,
-                    selected_agent_runner=runner,
-                )
+            return preflight.execute_preflight_chain(
+                packet, Path("packet.json"), REPO, "live-maat", candidate,
+                selected_agent_runner=runner,
+            )
 
-    def test_execute_preflight_chain_runs_selected_agent_with_verified_original_bytes(self):
+    def test_execute_preflight_chain_dispatches_minimal_stable_instruction(self):
         runner_calls = []
 
         chain = self.production_handoff_chain(lambda agent, body: runner_calls.append((agent, body)))
@@ -916,34 +895,10 @@ class TestCpsPreflightVerificationGate(TestCase):
         self.assertEqual(runner_calls, [("ptah", expected)])
         self.assertEqual(chain["handoff_transport"]["status"], "dispatched")
         self.assertEqual(chain["handoff_transport"]["dispatch_count"], 1)
-        self.assertEqual(chain["handoff_transport"]["search_count"], 0)
-
-    def test_execute_preflight_chain_one_byte_mismatch_holds_before_selected_agent_runner(self):
-        runner_calls = []
-        real_consumer = preflight.consume_handoff_prompt
-
-        def one_byte_mismatch(prompt):
-            consumed = real_consumer(prompt)
-            consumed["body"] = bytes([consumed["body"][0] ^ 1]) + consumed["body"][1:]
-            return consumed
-
-        with patch.object(preflight, "search_handoff_body") as search:
-            chain = self.production_handoff_chain(
-                lambda agent, body: runner_calls.append((agent, body)), one_byte_mismatch,
-            )
-
-        self.assertEqual(chain["handoff_transport"]["status"], "hold")
-        self.assertEqual(chain["handoff_transport"]["failure_code"], "HOLD_HANDOFF_TRANSPORT_INTEGRITY")
-        self.assertEqual(chain["handoff_transport"]["dispatch_count"], 0)
-        self.assertEqual(chain["handoff_transport"]["search_count"], 0)
-        self.assertEqual(runner_calls, [])
-        search.assert_not_called()
-        self.assertEqual(chain["final_selected_agents"], {})
-        self.assertEqual(chain["reducer_result"]["final_selected_agents"], {})
-        self.assertEqual(chain["reducer_result"]["local_body_scope"], {})
-        self.assertEqual(chain["local_body_dispatch"]["aggregate"]["selected_count"], 0)
-        self.assertEqual(chain["local_body_dispatch"]["aggregate"]["direct_dispatch_count"], 0)
-        self.assertEqual(chain["final_judgment"]["failure_codes"], ["HOLD_HANDOFF_TRANSPORT_INTEGRITY"])
+        self.assertEqual(set(chain["local_bodies"]["ptah"]), {
+            "C_ref", "source_refs", "boundary", "owner", "P_to_S", "node_AC",
+        })
+        self.assertNotIn("handoff_envelope", expected.decode())
 
     def test_selective_maat_escalation_uses_explicit_signals(self):
         short = preflight.build_candidate({"root_goal": "rewrite this sentence"}, Path("packet.json"), REPO)
@@ -1203,6 +1158,64 @@ class TestCpsPreflightVerificationGate(TestCase):
             "immutable_body_digest": hashlib.sha256(body).hexdigest(),
         }
 
+    def run_r2c_native_job(self, dispatcher, current_path, body, *, duplicate_profile=None):
+        current = json.loads(current_path.read_text(encoding="utf-8"))
+        correlation = current["facts"]["native_correlation_id"]
+        with tempfile.TemporaryDirectory() as home_tmp:
+            home = Path(home_tmp)
+            for profile in ("ptah", "anubis", "maat"):
+                state_path = home / ".hermes" / "profiles" / profile / "state.db"
+                state_path.parent.mkdir(parents=True)
+                with sqlite3.connect(state_path) as connection:
+                    connection.executescript("""
+                        CREATE TABLE sessions (id TEXT PRIMARY KEY, source TEXT NOT NULL, started_at REAL NOT NULL);
+                        CREATE TABLE messages (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL, role TEXT NOT NULL,
+                            content TEXT, tool_call_id TEXT, tool_calls TEXT, tool_name TEXT
+                        );
+                    """)
+
+            class Process:
+                def wait(self):
+                    return 0
+
+            def launch(argv, **kwargs):
+                del kwargs
+                profile = argv[2]
+                state_path = home / ".hermes" / "profiles" / profile / "state.db"
+                final = {
+                    "ptah": {"status": "pass"},
+                    "anubis": {"status": "pass", "verdict": "pass"},
+                    "maat": {"status": "pass", "Goal_closure": {"status": "pass"}},
+                }[profile]
+                count = 2 if profile == duplicate_profile else 1
+                with sqlite3.connect(state_path) as connection:
+                    for index in range(count):
+                        session_id = f"{profile}-{index}"
+                        connection.execute(
+                            "INSERT INTO sessions VALUES (?, ?, ?)",
+                            (session_id, f"harness:{correlation}", index + 1),
+                        )
+                        call_id = f"call-{profile}-{index}"
+                        tool_calls = json.dumps([{
+                            "id": call_id,
+                            "function": {"name": "read_file", "arguments": json.dumps({"path": "scope.txt"})},
+                        }])
+                        connection.executemany(
+                            "INSERT INTO messages(session_id, role, content, tool_call_id, tool_calls, tool_name) VALUES (?, ?, ?, ?, ?, ?)",
+                            [
+                                (session_id, "user", body.decode(), None, None, None),
+                                (session_id, "assistant", "", None, tool_calls, None),
+                                (session_id, "tool", json.dumps({"content": "bounded"}), call_id, None, "read_file"),
+                                (session_id, "assistant", json.dumps(final), None, None, None),
+                            ],
+                        )
+                return Process()
+
+            with patch.object(dispatcher.Path, "home", return_value=home), \
+                 patch.object(dispatcher.subprocess, "Popen", side_effect=launch):
+                return dispatcher.run_job(current_path)
+
     def r2c_chain(self):
         goal_closure = {"status": "pass", "reason": "Maat judgment remains authoritative"}
         return {
@@ -1254,53 +1267,33 @@ class TestCpsPreflightVerificationGate(TestCase):
             self.assertIsNone(state["execution_status"])
             self.assertIsNone(state["audit_verdict"])
 
-    def test_R2C_02_reloaded_observed_and_terminal_receipts_project_runtime_only(self):
+    def test_R2C_02_reloaded_observed_and_native_terminal_receipts_project_runtime_only(self):
         import external_runtime_dispatcher as dispatcher
         body, identity = self.r2c_identity()
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             runtime = root / "runtime"
             lifecycle.dispatch_external_body(
-                "ptah", body, [sys.executable, "worker.py"], runtime,
+                "ptah", body, runtime,
                 identity=identity, process_runner=lambda argv: 123456789,
             )
             chain_path, current_path, _ = dispatcher._paths(identity, runtime)
             records = [json.loads(line) for line in chain_path.read_text(encoding="utf-8").splitlines()]
-            for event, selected in (("dispatch", records[:1]), ("heartbeat", records)):
-                chain_path.write_text("".join(json.dumps(item) + "\n" for item in selected), encoding="utf-8")
-                current_path.write_text(json.dumps(selected[-1]), encoding="utf-8")
-                with self.subTest(event=event):
-                    result, _ = self.run_r2c(root, identity)
-                    state = result["final_output"]["execution_state"]
-                    self.assertEqual(state["runtime_state"], "RUNNING")
-                    self.assertEqual(state["execution_event"], event)
-                    self.assertIsNone(state["execution_status"])
-                    self.assertIsNone(state["audit_verdict"])
+            chain_path.write_text(json.dumps(records[0]) + "\n", encoding="utf-8")
+            current_path.write_text(json.dumps(records[0]), encoding="utf-8")
+            running, _ = self.run_r2c(root, identity)
+            self.assertEqual(running["final_output"]["execution_state"]["runtime_state"], "RUNNING")
             chain_path.write_text("".join(json.dumps(item) + "\n" for item in records), encoding="utf-8")
             current_path.write_text(json.dumps(records[-1]), encoding="utf-8")
-            lifecycle.poll_external_body(identity, runtime)
-            for event in ("poll", "blocker"):
-                if event == "blocker":
-                    lifecycle.reconcile_external_body(identity, runtime, pid_is_alive=lambda pid: False)
-                with self.subTest(event=event):
-                    result, _ = self.run_r2c(root, identity)
-                    state = result["final_output"]["execution_state"]
-                    self.assertEqual(state["runtime_state"], "RUNNING")
-                    self.assertEqual(state["execution_event"], event)
-                    self.assertIsNone(state["execution_status"])
-                    self.assertIsNone(state["audit_verdict"])
-            for status in ("pass", "fail", "blocked"):
-                chain_path.write_text("".join(json.dumps(item) + "\n" for item in records), encoding="utf-8")
-                current_path.write_text(json.dumps(records[-1]), encoding="utf-8")
-                dispatcher.append_terminal_receipt(identity, runtime, status)
-                with self.subTest(status=status):
-                    result, _ = self.run_r2c(root, identity)
-                    state = result["final_output"]["execution_state"]
-                    self.assertEqual(state["runtime_state"], "TERMINAL")
-                    self.assertEqual(state["execution_status"], status)
-                    self.assertIsNone(state["audit_verdict"])
-                    self.assertEqual(result["final_output"]["status"], "pass")
-                    self.assertEqual(result["final_maat_judgment"]["marker"], "unchanged")
+            terminal = self.run_r2c_native_job(dispatcher, current_path, body)
+            self.assertEqual(terminal["status"], "pass")
+            self.assertEqual([run["profile"] for run in terminal["facts"]["native_runs"]], ["ptah", "anubis", "maat"])
+            self.assertTrue(all(run["tool_evidence"] for run in terminal["facts"]["native_runs"]))
+            result, _ = self.run_r2c(root, identity)
+            state = result["final_output"]["execution_state"]
+            self.assertEqual(state["runtime_state"], "TERMINAL")
+            self.assertEqual(state["execution_status"], "pass")
+            self.assertIsNone(state["audit_verdict"])
 
     def test_R2C_03_malformed_identity_tail_and_postterminal_fail_closed(self):
         import external_runtime_dispatcher as dispatcher
@@ -1311,7 +1304,7 @@ class TestCpsPreflightVerificationGate(TestCase):
             self.assertIsNone(malformed["final_output"]["execution_state"]["runtime_state"])
             runtime = root / "runtime"
             lifecycle.dispatch_external_body(
-                "ptah", body, [sys.executable, "worker.py"], runtime,
+                "ptah", body, runtime,
                 identity=identity, process_runner=lambda argv: 123456789,
             )
             chain_path, current_path, _ = dispatcher._paths(identity, runtime)
@@ -1330,7 +1323,9 @@ class TestCpsPreflightVerificationGate(TestCase):
             mismatch, _ = self.run_r2c(root, identity)
             self.assertIsNone(mismatch["final_output"]["execution_state"]["runtime_state"])
             current_path.write_text(json.dumps(records[-1]), encoding="utf-8")
-            dispatcher.append_terminal_receipt(identity, runtime, "pass")
+            terminal = self.run_r2c_native_job(dispatcher, current_path, body, duplicate_profile="ptah")
+            self.assertEqual(terminal["status"], "blocked")
+            self.assertIn("native correlation absent or duplicated", terminal["errors"][0])
             records = [json.loads(line) for line in chain_path.read_text(encoding="utf-8").splitlines()]
             postterminal = dict(records[-2])
             postterminal["receipt_ref"] = f"{identity['run_handle']}:{len(records) + 1}"
@@ -1344,14 +1339,18 @@ class TestCpsPreflightVerificationGate(TestCase):
             self.assertIsNone(held["final_output"]["execution_state"]["execution_status"])
 
     def test_R2C_04_projection_is_read_only_and_does_not_rejudge_closure(self):
+        import external_runtime_dispatcher as dispatcher
         body, identity = self.r2c_identity()
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             runtime = root / "runtime"
             lifecycle.dispatch_external_body(
-                "ptah", body, [sys.executable, "worker.py"], runtime,
+                "ptah", body, runtime,
                 identity=identity, process_runner=lambda argv: 123456789,
             )
+            _, current_path, _ = dispatcher._paths(identity, runtime)
+            terminal = self.run_r2c_native_job(dispatcher, current_path, body)
+            self.assertEqual(terminal["status"], "pass")
             before = {path: path.read_bytes() for path in runtime.rglob("*") if path.is_file()}
             result, artifact = self.run_r2c(root, identity)
             after = {path: path.read_bytes() for path in runtime.rglob("*") if path.is_file()}
