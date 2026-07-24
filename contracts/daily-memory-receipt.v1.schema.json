@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://harness.local/contracts/daily-memory-receipt.v1.schema.json",
+  "title": "Harness deterministic daily memory receipt",
+  "type": "object",
+  "required": ["schema", "state", "comparison", "consumer"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "harness.memory.daily-receipt.v1"},
+    "state": {
+      "type": "object",
+      "required": ["collection_ref", "layers"],
+      "additionalProperties": false,
+      "properties": {
+        "collection_ref": {"type": "string", "minLength": 1, "maxLength": 256},
+        "layers": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"$ref": "#/$defs/layer"}}
+      }
+    },
+    "comparison": {
+      "type": "object",
+      "required": ["baseline", "meaningful_delta", "delta_classes", "disposition"],
+      "additionalProperties": false,
+      "properties": {
+        "baseline": {"type": "boolean"},
+        "meaningful_delta": {"type": "boolean"},
+        "delta_classes": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/deltaClass"}},
+        "disposition": {"enum": ["clean", "delta"]}
+      }
+    },
+    "consumer": {
+      "type": "object",
+      "required": ["intent", "invocation_count", "packet"],
+      "additionalProperties": false,
+      "properties": {
+        "intent": {"type": ["string", "null"], "enum": ["bounded_sia_daily_memory_delta_review", null]},
+        "invocation_count": {"type": "integer", "minimum": 0, "maximum": 1},
+        "packet": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "required": ["intent", "collection_ref", "changes", "packet_digest"],
+              "additionalProperties": false,
+              "properties": {
+                "intent": {"const": "bounded_sia_daily_memory_delta_review"},
+                "collection_ref": {"type": "string", "minLength": 1, "maxLength": 256},
+                "changes": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 64,
+                  "items": {
+                    "type": "object",
+                    "required": ["layer_id", "classes"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "layer_id": {"type": "string", "minLength": 1, "maxLength": 256},
+                      "classes": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/deltaClass"}}
+                    }
+                  }
+                },
+                "packet_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"comparison": {"properties": {"baseline": {"const": true}}}}},
+      "then": {"properties": {"comparison": {"properties": {"meaningful_delta": {"const": false}}}}}
+    },
+    {
+      "if": {"properties": {"comparison": {"properties": {"meaningful_delta": {"const": false}}}}},
+      "then": {
+        "properties": {
+          "comparison": {"properties": {"delta_classes": {"maxItems": 0}, "disposition": {"const": "clean"}}},
+          "consumer": {"properties": {"intent": {"const": null}, "invocation_count": {"const": 0}, "packet": {"const": null}}}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"comparison": {"properties": {"meaningful_delta": {"const": true}}}}},
+      "then": {
+        "properties": {
+          "comparison": {"properties": {"delta_classes": {"minItems": 1}, "disposition": {"const": "delta"}}},
+          "consumer": {
+            "properties": {
+              "intent": {"const": "bounded_sia_daily_memory_delta_review"},
+              "invocation_count": {"const": 1},
+              "packet": {"type": "object"}
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "deltaClass": {
+      "enum": [
+        "canonical_source_change",
+        "pointer_integrity_transition",
+        "canonical_index_alignment_change",
+        "verified_outcome_eligibility",
+        "layer_availability_transition",
+        "new_source_backed_conflict",
+        "resolved_source_backed_conflict"
+      ]
+    },
+    "conflict": {
+      "type": "object",
+      "required": ["conflict_ref", "source_digest"],
+      "additionalProperties": false,
+      "properties": {
+        "conflict_ref": {"type": "string", "minLength": 1, "maxLength": 256},
+        "source_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "layer": {
+      "type": "object",
+      "required": ["layer_id", "availability", "canonical_source_ref", "canonical_revision", "pointer_ref", "pointer_digest", "pointer_integrity", "canonical_index_ref", "canonical_index_revision", "canonical_index_aligned", "verified_outcome_eligible", "source_backed_conflicts"],
+      "additionalProperties": false,
+      "properties": {
+        "layer_id": {"type": "string", "minLength": 1, "maxLength": 256},
+        "availability": {"enum": ["available", "unavailable"]},
+        "canonical_source_ref": {"type": ["string", "null"], "maxLength": 256},
+        "canonical_revision": {"type": ["string", "null"], "maxLength": 256},
+        "pointer_ref": {"type": ["string", "null"], "maxLength": 256},
+        "pointer_digest": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "pointer_integrity": {"type": ["string", "null"], "enum": ["valid", "invalid", "unknown", null]},
+        "canonical_index_ref": {"type": ["string", "null"], "maxLength": 256},
+        "canonical_index_revision": {"type": ["string", "null"], "maxLength": 256},
+        "canonical_index_aligned": {"type": ["boolean", "null"]},
+        "verified_outcome_eligible": {"type": ["boolean", "null"]},
+        "source_backed_conflicts": {"type": "array", "maxItems": 128, "items": {"$ref": "#/$defs/conflict"}}
+      }
+    }
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://harness.local/contracts/daily-memory-declaration.v1.schema.json",
+  "title": "Harness bounded daily memory materialization",
+  "type": "object",
+  "required": ["schema", "collection_ref", "materialized_date", "layers"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "harness.memory.daily-declaration.v1"},
+    "collection_ref": {"type": "string", "pattern": "^daily:[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+    "materialized_date": {"type": "string", "format": "date"},
+    "layers": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {"$ref": "#/$defs/layer"},
+      "allOf": [
+        {"contains": {"type": "object", "required": ["layer_id"], "properties": {"layer_id": {"const": "harness_brain"}}}, "minContains": 1, "maxContains": 1},
+        {"contains": {"type": "object", "required": ["layer_id"], "properties": {"layer_id": {"const": "honcho"}}}, "minContains": 1, "maxContains": 1},
+        {"contains": {"type": "object", "required": ["layer_id"], "properties": {"layer_id": {"const": "gbrain"}}}, "minContains": 1, "maxContains": 1}
+      ]
+    }
+  },
+  "$defs": {
+    "layer": {
+      "type": "object",
+      "required": ["layer_id", "availability", "canonical_source_ref", "canonical_revision", "pointer_ref", "pointer_digest", "pointer_integrity", "canonical_index_ref", "canonical_index_revision", "canonical_index_aligned", "verified_outcome_eligible", "conflicts"],
+      "additionalProperties": false,
+      "properties": {
+        "layer_id": {"enum": ["harness_brain", "honcho", "gbrain"]},
+        "availability": {"enum": ["available", "unavailable"]},
+        "canonical_source_ref": {"type": ["string", "null"], "maxLength": 256},
+        "canonical_revision": {"type": ["string", "null"], "pattern": "^sha256:[0-9a-f]{64}$"},
+        "pointer_ref": {"type": ["string", "null"], "maxLength": 256},
+        "pointer_digest": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "pointer_integrity": {"enum": ["valid", "invalid", "unknown"]},
+        "canonical_index_ref": {"type": ["string", "null"], "maxLength": 256},
+        "canonical_index_revision": {"type": ["string", "null"], "pattern": "^sha256:[0-9a-f]{64}$"},
+        "canonical_index_aligned": {"type": ["boolean", "null"]},
+        "verified_outcome_eligible": {"type": ["boolean", "null"]},
+        "conflicts": {"type": "array", "maxItems": 0}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"availability": {"const": "available"}}, "required": ["availability"]},
+          "then": {
+            "properties": {
+              "canonical_source_ref": {"type": "string"},
+              "canonical_revision": {"type": "string"},
+              "pointer_ref": {"type": "string"},
+              "pointer_digest": {"type": "string"},
+              "pointer_integrity": {"enum": ["valid", "invalid"]},
+              "canonical_index_ref": {"type": "string"},
+              "canonical_index_revision": {"type": "string"},
+              "canonical_index_aligned": {"type": "boolean"},
+              "verified_outcome_eligible": {"type": "boolean"}
+            }
+          },
+          "else": {
+            "properties": {
+              "canonical_source_ref": {"type": "null"},
+              "canonical_revision": {"type": "null"},
+              "pointer_ref": {"type": "null"},
+              "pointer_digest": {"type": "null"},
+              "pointer_integrity": {"const": "unknown"},
+              "canonical_index_ref": {"type": "null"},
+              "canonical_index_revision": {"type": "null"},
+              "canonical_index_aligned": {"type": "null"},
+              "verified_outcome_eligible": {"type": "null"}
+            }
+          }
+        }
+      ]
+    }
+  }
+}

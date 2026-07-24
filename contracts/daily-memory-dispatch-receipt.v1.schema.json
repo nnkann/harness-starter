@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://harness.local/contracts/daily-memory-dispatch-receipt.v1.schema.json",
+  "title": "Harness bounded daily memory dispatch receipt",
+  "type": "object",
+  "required": ["schema", "input_receipt_digest", "packet_digest", "actor", "selector", "argv", "terminal_status", "exit_code"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "harness.memory.daily-dispatch-receipt.v1"},
+    "input_receipt_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "packet_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "actor": {"const": "hermes"},
+    "selector": {"const": "sia"},
+    "argv": {
+      "type": "array",
+      "prefixItems": [{"const": "hermes"}, {"const": "-p"}, {"const": "sia"}],
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "terminal_status": {"type": "string", "enum": ["pending", "succeeded", "failed", "unknown"]},
+    "exit_code": {"type": ["integer", "null"]}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"terminal_status": {"const": "succeeded"}}},
+      "then": {"properties": {"exit_code": {"const": 0}}}
+    },
+    {
+      "if": {"properties": {"terminal_status": {"const": "pending"}}},
+      "then": {"properties": {"exit_code": {"const": null}}}
+    },
+    {
+      "if": {"properties": {"terminal_status": {"const": "unknown"}}},
+      "then": {"properties": {"exit_code": {"const": null}}}
+    },
+    {
+      "if": {"properties": {"terminal_status": {"const": "failed"}}},
+      "then": {"properties": {"exit_code": {"anyOf": [{"const": null}, {"type": "integer", "minimum": 1, "maximum": 255}]}}}
+    }
+  ]
+}
