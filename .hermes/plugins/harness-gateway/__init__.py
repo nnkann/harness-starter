@@ -4,6 +4,7 @@ import hashlib
 import importlib
 import json
 import logging
+import re
 import sys
 import time
 from contextvars import ContextVar
@@ -111,18 +112,33 @@ def _retrieval_adapter():
     return importlib.import_module("cps_c1_retrieval_adapter")
 
 
-def _read_honcho(*, query, session_key, reader_context):
+def _read_honcho(*, query, session_key, reader_context, source_ref=None):
+    del source_ref
     return _retrieval_adapter().retrieve_honcho_session_source(
         query=query, reader_context=reader_context, session_key=session_key
     )
 
 
-def _read_harness_brain(*, query, session_key, reader_context):
+def _read_harness_brain(*, query, session_key, reader_context, source_ref=None):
     del session_key
     project_root = Path(__file__).resolve().parents[3]
+    harness_brain_root = project_root.parent / "harness-brain"
+    if source_ref is None:
+        source_ref = f"projects/{project_root.name}/decisions/cps-equation-ssot.md"
+    else:
+        path = Path(source_ref)
+        if path.is_absolute():
+            try:
+                source_ref = path.relative_to(harness_brain_root).as_posix()
+            except ValueError:
+                return {
+                    "source_kind": "harness_brain",
+                    "status": "unavailable",
+                    "evidence": {"record_count": 0, "source_receipt": "out_of_bound"},
+                }
     return _retrieval_adapter().retrieve_harness_brain_source(
-        f"projects/{project_root.name}/decisions/cps-equation-ssot.md",
-        project_root.parent / "harness-brain",
+        source_ref,
+        harness_brain_root,
         query=query,
         reader_context=reader_context,
     )
@@ -132,6 +148,46 @@ _SOURCE_READERS = {
     "honcho": _read_honcho,
     "harness_brain": _read_harness_brain,
 }
+
+
+def _source_binding(source_ref):
+    if not isinstance(source_ref, str):
+        return None
+    source_ref = source_ref.strip()
+    if not source_ref:
+        return None
+    if source_ref.startswith("honcho:"):
+        return "honcho", source_ref
+    if source_ref.startswith("harness_brain:"):
+        source_ref = source_ref.split(":", 1)[1]
+    if source_ref.startswith("projects/") or Path(source_ref).is_absolute():
+        return "harness_brain", source_ref
+    return None
+
+
+def _declared_direct_sources(message):
+    match = re.search(r"(?mi)^direct_source_refs\s*[:=]\s*(.+)$", message)
+    values = []
+    if match:
+        raw = match.group(1).strip()
+        try:
+            parsed = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            parsed = [item.strip() for item in raw.strip("[]").split(",")]
+        values = parsed if isinstance(parsed, list) else []
+    else:
+        authority = re.search(r"(?mi)^source authority\s*:\s*(.+)$", message)
+        if authority:
+            values = [authority.group(1).strip()]
+    bindings = []
+    for value in values[:8]:
+        if not isinstance(value, str):
+            continue
+        value = re.sub(r":\d+(?:-\d+)?(?:,\d+(?:-\d+)?)?\.?$", "", value.strip())
+        binding = _source_binding(value)
+        if binding is not None and binding not in bindings:
+            bindings.append(binding)
+    return bindings
 
 
 def _unavailable_observation(source_kind, receipt="reader_unavailable"):
@@ -206,12 +262,13 @@ def _normalize_observation(source_kind, result):
     source_ref = result.get("source_ref")
     if isinstance(source_ref, str) and 0 < len(source_ref) <= 256:
         observation["source_ref"] = source_ref
-    candidate = _bounded_candidate(
-        result.get("candidate"), bounded_evidence,
-        observation.get("readback", {}).get("source_identity"),
-    )
-    if candidate is not None:
-        observation["candidate"] = candidate
+    if status in {"available", "match"}:
+        candidate = _bounded_candidate(
+            result.get("candidate"), bounded_evidence,
+            observation.get("readback", {}).get("source_identity"),
+        )
+        if candidate is not None:
+            observation["candidate"] = candidate
     return observation
 
 
@@ -225,13 +282,15 @@ def _gateway_ingress_retrieval_provider(
     reader_context = {
         "request_ref": "gateway-ingress:" + hashlib.sha256(message_bytes).hexdigest()[:16]
     }
-    def read_once(source_kind):
+    def read_once(source_kind, source_ref=None):
         started = time.perf_counter()
+        result = None
         try:
             result = _SOURCE_READERS[source_kind](
                 query=original_user_message,
                 session_key=session_key,
                 reader_context=reader_context,
+                source_ref=source_ref,
             )
         except Exception:
             observation = _unavailable_observation(source_kind)
@@ -247,12 +306,30 @@ def _gateway_ingress_retrieval_provider(
             observation.get("evidence", {}).get("record_count"),
             elapsed_ms,
         )
-        return observation
+        return observation, result
 
-    direct = read_once("honcho")
-    observations = [direct]
-    if "candidate" not in direct:
-        observations.append(read_once("harness_brain"))
+    direct_sources = _declared_direct_sources(original_user_message)
+    if not direct_sources:
+        direct_sources = [("honcho", None)]
+    observations = []
+    direct_finding = False
+    for source_kind, source_ref in direct_sources:
+        observation, raw = read_once(source_kind, source_ref)
+        if source_kind == "honcho":
+            observation.pop("candidate", None)
+            pointer = raw.get("candidate", {}).get("source_ref") if isinstance(raw, dict) else None
+            pointer_binding = _source_binding(pointer)
+            if pointer_binding is not None and pointer_binding[0] == "harness_brain":
+                observations.append(observation)
+                observation, _ = read_once(*pointer_binding)
+        if "candidate" in observation and not direct_finding:
+            direct_finding = True
+        else:
+            observation.pop("candidate", None)
+        observations.append(observation)
+    if not direct_finding:
+        fallback, _ = read_once("harness_brain")
+        observations.append(fallback)
     return {
         "C": {
             "boundary": "bound_project_ingress",
@@ -297,9 +374,12 @@ def _validated_compact_c(value):
     }
     if not isinstance(value["C"], dict) or set(value["C"]) != expected_c:
         return None
-    if not isinstance(value["E"], list) or not 1 <= len(value["E"]) <= len(_SOURCE_KINDS):
+    if not isinstance(value["E"], list) or not 1 <= len(value["E"]) <= 10:
         return None
-    if [item.get("source") for item in value["E"] if isinstance(item, dict)] != list(_SOURCE_KINDS[:len(value["E"])]):
+    if any(
+        not isinstance(item, dict) or item.get("source") not in _SOURCE_KINDS
+        for item in value["E"]
+    ):
         return None
     if any(
         not isinstance(item, dict)

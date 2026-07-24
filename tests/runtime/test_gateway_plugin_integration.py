@@ -370,16 +370,11 @@ def test_actual_gateway_handler_injects_byte_exact_canonical_packet_once(
     assert set(compact_c) == {"C", "E", "uncertainty"}
     assert [(item["source"], item["status"]) for item in compact_c["E"]] == [
         ("honcho", "match"),
+        ("harness_brain", "unavailable"),
     ]
-    assert compact_c["E"][0]["candidate"] == {
-        "clue": "matching preference within the active project",
-        "source_ref": "honcho:test-session",
-        "source_receipt": "session=test-session",
-        "lifecycle": "candidate",
-        "observed_at": "2026-07-24T03:00:00Z",
-    }
+    assert all("candidate" not in item for item in compact_c["E"])
     assert "gbrain" not in json.dumps(compact_c)
-    assert loaded.reader_calls == ["honcho"]
+    assert loaded.reader_calls == ["honcho", "harness_brain"]
     prohibited = {
         "P", "S", "owner", "selected_agents", "actor_binding", "route", "verdict",
         "hold", "HOLD", "task_AC", "graph", "transition", "mutation", "closure",
@@ -641,6 +636,106 @@ def test_harness_brain_fallback_uses_canonical_cps_decision_ref(
     assert captured["root"] == loaded.project.parent / "harness-brain"
 
 
+def test_declared_concrete_source_reaches_reader_once_and_suppresses_fallback(
+    loaded_project_plugin,
+):
+    loaded = loaded_project_plugin()
+    module = loaded.manager._plugins["harness-gateway"].module
+    calls = []
+
+    def canonical(**kwargs):
+        calls.append(kwargs.get("source_ref"))
+        return {
+            "source_kind": "harness_brain",
+            "status": "match",
+            "source_ref": kwargs["source_ref"],
+            "evidence": {
+                "record_count": 1,
+                "content_digest": "d" * 64,
+                "source_receipt": "direct-policy-readback",
+            },
+            "readback_metadata": {"source_identity": kwargs["source_ref"]},
+            "candidate": {
+                "clue": "Gateway retrieval retains the declared project source boundary.",
+                "source_ref": kwargs["source_ref"],
+                "source_receipt": "direct-policy-readback",
+                "lifecycle": "candidate",
+                "observed_at": "2026-07-24T03:00:00Z",
+            },
+        }
+
+    module._SOURCE_READERS = {"honcho": pytest.fail, "harness_brain": canonical}
+    source_ref = "projects/project/decisions/current-policy.md"
+    result = module._gateway_ingress_retrieval_provider(
+        original_user_message=(
+            "request_class: settled_project_policy\n"
+            f'direct_source_refs: ["{source_ref}"]\n'
+            "gateway retrieval project source boundary"
+        ),
+        session_id="session",
+        session_key="discord:bound-parent",
+        platform="discord",
+        sender_id="owner",
+    )
+
+    assert calls == [source_ref]
+    assert [(item["source"], item["source_ref"]) for item in result["E"]] == [
+        ("harness_brain", source_ref)
+    ]
+    assert sum("candidate" in item for item in result["E"]) == 1
+
+
+def test_honcho_candidate_requires_durable_pointer_readback_and_never_suppresses_canonical(
+    loaded_project_plugin,
+):
+    loaded = loaded_project_plugin()
+    module = loaded.manager._plugins["harness-gateway"].module
+    calls = []
+    pointer = "projects/project/decisions/current-policy.md"
+
+    def honcho(**kwargs):
+        calls.append("honcho")
+        return {
+            "source_kind": "honcho",
+            "status": "match",
+            "evidence": {
+                "record_count": 1,
+                "content_digest": "e" * 64,
+                "source_receipt": "honcho-hit",
+            },
+            "readback_metadata": {"source_identity": "honcho:derived"},
+            "candidate": {
+                "clue": "Gateway retrieval retains the project source boundary.",
+                "source_ref": pointer,
+                "source_receipt": "honcho-hit",
+                "lifecycle": "candidate",
+                "observed_at": "2026-07-24T03:00:00Z",
+            },
+        }
+
+    def canonical(**kwargs):
+        calls.append(kwargs.get("source_ref") or "fallback")
+        return {
+            "source_kind": "harness_brain",
+            "status": "no_match",
+            "source_ref": kwargs.get("source_ref"),
+            "evidence": {"record_count": 0, "source_receipt": "none"},
+        }
+
+    module._SOURCE_READERS = {"honcho": honcho, "harness_brain": canonical}
+    result = module._gateway_ingress_retrieval_provider(
+        original_user_message="recent session continuity",
+        session_id="session",
+        session_key="discord:bound-parent",
+        platform="discord",
+        sender_id="owner",
+    )
+
+    assert calls == ["honcho", pointer, "fallback"]
+    assert all("candidate" not in item for item in result["E"])
+    assert "gbrain" not in json.dumps(result)
+
+
 def test_no_verified_finding_returns_no_clue_without_retry_or_other_source(
     loaded_project_plugin,
 ):
@@ -648,21 +743,45 @@ def test_no_verified_finding_returns_no_clue_without_retry_or_other_source(
     module = loaded.manager._plugins["harness-gateway"].module
     calls = []
 
-    def no_finding(source_kind, status):
+    def adversarial_observation(source_kind, status):
+        source_ref = f"{source_kind}:adversarial"
+        return {
+            "source_kind": source_kind,
+            "status": status,
+            "evidence": {
+                "record_count": 1,
+                "content_digest": "f" * 64,
+                "source_receipt": "adversarial",
+            },
+            "readback_metadata": {"source_identity": source_ref},
+            "candidate": {
+                "clue": "Adversarial non-finding must not become a direct finding.",
+                "source_ref": source_ref,
+                "source_receipt": "adversarial",
+                "lifecycle": "candidate",
+                "observed_at": "2026-07-24T03:00:00Z",
+            },
+        }
+
+    observations = {
+        "honcho": adversarial_observation("honcho", "no_match"),
+        "harness_brain": adversarial_observation("harness_brain", "unavailable"),
+    }
+
+    def no_finding(source_kind):
         def read(**kwargs):
             calls.append(source_kind)
-            return {
-                "source_kind": source_kind,
-                "status": status,
-                "evidence": {"record_count": 0, "source_receipt": "none"},
-            }
+            return observations[source_kind]
 
         return read
 
     module._SOURCE_READERS = {
-        "honcho": no_finding("honcho", "no_match"),
-        "harness_brain": no_finding("harness_brain", "unavailable"),
+        source_kind: no_finding(source_kind) for source_kind in observations
     }
+    assert all(
+        "candidate" not in module._normalize_observation(source_kind, observation)
+        for source_kind, observation in observations.items()
+    )
     result = module._gateway_ingress_retrieval_provider(
         original_user_message="no finding variation",
         session_id="session",
