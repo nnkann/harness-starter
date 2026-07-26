@@ -91,6 +91,7 @@ class _IngressEnvelope:
     receipt_id: str
     canonical_json: str
     receipt_dir: Path
+    project_cwd: str
     state: str = "ready"
     session_id: str = ""
     turn_id: str = ""
@@ -467,6 +468,7 @@ def _pre_gateway_dispatch(*, event, gateway, session_store, **kwargs):
                 receipt_id=result["cps_receipt_id"],
                 canonical_json=result["canonical_packet"],
                 receipt_dir=receipt_dir,
+                project_cwd=binding.cwd,
             )
         )
         return {"action": "allow"}
@@ -538,6 +540,7 @@ def _pre_llm_call(
             receipt_id=envelope.receipt_id,
             canonical_json=envelope.canonical_json,
             receipt_dir=envelope.receipt_dir,
+            project_cwd=envelope.project_cwd,
             state="running",
             session_id=session_id,
             turn_id=turn_id,
@@ -548,6 +551,29 @@ def _pre_llm_call(
     packet["compact_C"] = compact_c
     context = json.dumps(packet, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     return {"context": context}
+
+
+def _llm_request_middleware(*, request, provider="", session_id="", **kwargs):
+    """Attach the validated ingress workspace only to AGY provider requests."""
+    envelope = _INGRESS.get()
+    if (
+        not isinstance(request, dict)
+        or provider != "agy-router"
+        or envelope is None
+        or envelope.state != "running"
+        or not envelope.project_cwd
+        or (envelope.session_id and str(session_id or "") != envelope.session_id)
+    ):
+        return None
+    effective_request = dict(request)
+    headers = dict(effective_request.get("extra_headers") or {})
+    headers["X-Hermes-Project-Root"] = envelope.project_cwd
+    effective_request["extra_headers"] = headers
+    return {
+        "request": effective_request,
+        "source": "harness-gateway",
+        "reason": "trusted-bound-project-root",
+    }
 
 
 def _post_llm_call(*, session_id, turn_id, assistant_response, **kwargs):
@@ -585,3 +611,4 @@ def register(ctx):
     ctx.register_hook("pre_gateway_dispatch", _pre_gateway_dispatch)
     ctx.register_hook("pre_llm_call", _pre_llm_call)
     ctx.register_hook("post_llm_call", _post_llm_call)
+    ctx.register_middleware("llm_request", _llm_request_middleware)

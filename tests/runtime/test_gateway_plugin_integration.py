@@ -27,6 +27,7 @@ from gateway.run import GatewayRunner, _bind_gateway_ingress_retrieval
 from gateway.session import SessionSource
 from agent.turn_finalizer import finalize_turn
 from hermes_cli import plugins as hermes_plugins
+from hermes_cli.middleware import apply_llm_request_middleware
 from hermes_cli import projects_db
 from hermes_constants import reset_hermes_home_override, set_hermes_home_override
 
@@ -102,6 +103,7 @@ def loaded_project_plugin(tmp_path, monkeypatch, request):
         assert manager.has_hook("pre_gateway_dispatch")
         assert manager.has_hook("pre_llm_call")
         assert manager.has_hook("post_llm_call")
+        assert manager.has_middleware("llm_request")
         assert manager._gateway_ingress_retrieval_provider is not None
         module = loaded.module
         reader_calls = []
@@ -515,6 +517,46 @@ def test_pre_llm_uses_task_local_packet_despite_transformed_runtime_projections(
         "post_llm_call",
         session_id="another-session",
         turn_id="another-turn",
+        assistant_response="done",
+    )
+
+
+def test_bound_ingress_injects_project_root_only_into_agy_request(loaded_project_plugin):
+    loaded = loaded_project_plugin()
+    runner = _hook_runner(loaded.config)
+    event = _event("agy-cwd")
+    assert loaded.manager.invoke_hook(
+        "pre_gateway_dispatch", event=event, gateway=runner, session_store=runner.session_store
+    ) == [{"action": "allow"}]
+    loaded.manager.invoke_hook(
+        "pre_llm_call",
+        session_id="agy-cwd-session",
+        turn_id="agy-cwd-turn",
+        user_message=event.text,
+        platform="discord",
+        sender_id="owner",
+    )
+
+    agy_request = apply_llm_request_middleware(
+        {"messages": [{"role": "user", "content": event.text}]},
+        provider="agy-router",
+        session_id="agy-cwd-session",
+    )
+    assert agy_request.payload["extra_headers"] == {
+        "X-Hermes-Project-Root": str(loaded.project)
+    }
+    assert agy_request.trace == [{
+        "source": "harness-gateway", "reason": "trusted-bound-project-root"
+    }]
+    other_request = apply_llm_request_middleware(
+        {"messages": []}, provider="openai-codex", session_id="agy-cwd-session"
+    )
+    assert "extra_headers" not in other_request.payload
+
+    loaded.manager.invoke_hook(
+        "post_llm_call",
+        session_id="agy-cwd-session",
+        turn_id="agy-cwd-turn",
         assistant_response="done",
     )
 
