@@ -22,7 +22,6 @@ from external_runtime_dispatcher import (
     _read_chain_unlocked as _load_external_runtime_chain_read_only,
     _read_current_unlocked as _load_external_runtime_current_read_only,
     _validate_identity as _validate_external_runtime_identity,
-    _validate_execution_transport as _validate_external_execution_transport,
     _validate_runtime_facts as _validate_external_runtime_facts,
     dispatch_external_runtime as _dispatch_external_runtime,
     load_receipt_chain as _load_external_runtime_chain,
@@ -94,7 +93,6 @@ class ExternalRuntimeProductionAdapter:
         body: bytes,
         *,
         process_runner=None,
-        execution_transport: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         return _dispatch_external_runtime(
             consumer_ref,
@@ -102,7 +100,6 @@ class ExternalRuntimeProductionAdapter:
             self.record_root,
             identity=identity,
             process_runner=process_runner,
-            execution_transport=execution_transport,
         )
 
     def poll(self, identity: dict[str, Any]) -> dict[str, Any] | None:
@@ -151,7 +148,7 @@ class ExternalRuntimeStateProjectionAdapter:
         return _validate_external_runtime_identity(identity)
 
     @staticmethod
-    def _valid_chain(chain: list[dict[str, Any]], identity: dict[str, Any]) -> bool:
+    def _valid_chain(chain: list[dict[str, Any]]) -> bool:
         terminal_seen = False
         for index, receipt in enumerate(chain):
             event = receipt.get("facts", {}).get("event")
@@ -164,7 +161,7 @@ class ExternalRuntimeStateProjectionAdapter:
             if not isinstance(external, dict) or not all(external.get(key) for key in ("producer_ref", "runtime_receipt", "consumer_ref")):
                 return False
             try:
-                _validate_external_runtime_facts(receipt.get("facts"), identity)
+                _validate_external_runtime_facts(receipt.get("facts"))
             except ValueError:
                 return False
             if event == "terminal":
@@ -184,7 +181,7 @@ class ExternalRuntimeStateProjectionAdapter:
                 return issued
             chain = _load_external_runtime_chain_read_only(identity, self.record_root)
             current = _load_external_runtime_current_read_only(identity, self.record_root)
-            if not chain or not isinstance(current, dict) or current != chain[-1] or not self._valid_chain(chain, identity):
+            if not chain or not isinstance(current, dict) or current != chain[-1] or not self._valid_chain(chain):
                 return issued
             chain_after = _load_external_runtime_chain_read_only(identity, self.record_root)
             current_after = _load_external_runtime_current_read_only(identity, self.record_root)
@@ -296,13 +293,11 @@ def dispatch_external_body(
     *,
     identity: dict[str, Any] | None = None,
     process_runner=None,
-    execution_transport: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if identity is None:
         raise TypeError("explicit receipt identity required; direct runtime bypass rejected")
     return ExternalRuntimeProductionAdapter(record_root).dispatch(
         identity, agent, body, process_runner=process_runner,
-        execution_transport=execution_transport,
     )
 
 
@@ -334,21 +329,11 @@ def run_named_runtime(args: argparse.Namespace) -> dict[str, Any] | None:
             raise ValueError("immutable_body_digest does not match body artifact")
         if args.consumer_ref != identity.get("owner_ref"):
             raise ValueError("consumer_ref must match identity.owner_ref")
-        execution_transport = None
-        execution_transport_artifact = getattr(args, "execution_transport_artifact", None)
-        if execution_transport_artifact is not None:
-            execution_transport = json.loads(
-                Path(execution_transport_artifact).read_text(encoding="utf-8")
-            )
-            _validate_external_execution_transport(
-                execution_transport, identity, args.consumer_ref,
-            )
         return dispatch_external_body(
             args.consumer_ref,
             body,
             Path(args.record_root),
             identity=identity,
-            execution_transport=execution_transport,
         )
     if args.runtime_operation == "status":
         return poll_external_body(identity, Path(args.record_root))
@@ -1219,7 +1204,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--runtime-operation", choices=("dispatch", "status", "reconcile"))
     parser.add_argument("--identity-artifact")
     parser.add_argument("--body-artifact")
-    parser.add_argument("--execution-transport-artifact")
     parser.add_argument("--consumer-ref")
     parser.add_argument("--record-root")
     return parser

@@ -18,22 +18,6 @@ spec.loader.exec_module(lifecycle)
 
 
 class TestLifecycleRunner(unittest.TestCase):
-    @staticmethod
-    def execution_transport(identity):
-        import external_runtime_dispatcher as dispatcher
-
-        attachment = {
-            "issuer": "maat",
-            "issuer_ref": "receipt:maat:producer",
-            "binding": {**identity, "project_root": str(REPO)},
-            "provider": "packet-provider",
-            "model": "packet-model",
-            "toolsets": ["file", "terminal"],
-            "cwd_binding": "project_root",
-        }
-        attachment["attachment_digest"] = dispatcher._canonical_digest(attachment)
-        return attachment
-
     def test_named_runtime_dispatch_preserves_body_and_calls_existing_dispatch_once(self):
         body = "approved immutable body\n한글".encode()
         identity = {
@@ -62,131 +46,7 @@ class TestLifecycleRunner(unittest.TestCase):
             self.assertEqual(result, observed)
             dispatch.assert_called_once_with(
                 "ptah", body, root / "receipts", identity=identity,
-                execution_transport=None,
             )
-
-    def test_named_runtime_dispatch_propagates_exact_packet_transport(self):
-        body = b"approved immutable body"
-        identity = {
-            "work_id": "incident-i2", "graph_ref": "graph:incident-i2", "graph_revision": 1,
-            "graph_digest": "a" * 64, "stage_ref": "I2", "owner_ref": "ptah",
-            "parent_edge_ref": "incident/I2", "return_to_node_ref": "anubis",
-            "run_handle": "run-i2", "attempt": 1,
-            "immutable_body_digest": hashlib.sha256(body).hexdigest(),
-        }
-        transport = self.execution_transport(identity)
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            body_path = root / "body.bin"
-            identity_path = root / "identity.json"
-            transport_path = root / "transport.json"
-            body_path.write_bytes(body)
-            identity_path.write_text(json.dumps(identity), encoding="utf-8")
-            transport_path.write_text(json.dumps(transport), encoding="utf-8")
-            args = SimpleNamespace(
-                runtime_operation="dispatch", body_artifact=str(body_path),
-                identity_artifact=str(identity_path), consumer_ref="ptah",
-                record_root=str(root / "receipts"),
-                execution_transport_artifact=str(transport_path),
-            )
-
-            validated = []
-            consumer_validate = lifecycle._validate_external_execution_transport
-
-            def validate(transport_value, identity_value, consumer_ref):
-                validated.append(transport_value)
-                return consumer_validate(transport_value, identity_value, consumer_ref)
-
-            def observe(agent, body_value, record_root, **kwargs):
-                self.assertEqual((agent, body_value, record_root), ("ptah", body, root / "receipts"))
-                self.assertIs(kwargs["execution_transport"], validated[0])
-                return {"status": "observed"}
-
-            with patch.object(lifecycle, "_validate_external_execution_transport", side_effect=validate), \
-                 patch.object(lifecycle, "dispatch_external_body", side_effect=observe) as dispatch:
-                result = lifecycle.run_named_runtime(args)
-
-            self.assertEqual(result, {"status": "observed"})
-            self.assertEqual(validated, [transport])
-            dispatch.assert_called_once()
-
-    def test_named_runtime_transport_rejects_before_launch_or_receipt(self):
-        body = b"approved immutable body"
-        identity = {
-            "work_id": "incident-i2", "graph_ref": "graph:incident-i2", "graph_revision": 1,
-            "graph_digest": "a" * 64, "stage_ref": "I2", "owner_ref": "ptah",
-            "parent_edge_ref": "incident/I2", "return_to_node_ref": "anubis",
-            "run_handle": "run-i2", "attempt": 1,
-            "immutable_body_digest": hashlib.sha256(body).hexdigest(),
-        }
-        valid = self.execution_transport(identity)
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            body_path = root / "body.bin"
-            identity_path = root / "identity.json"
-            transport_path = root / "transport.json"
-            receipt_root = root / "receipts"
-            body_path.write_bytes(body)
-            identity_path.write_text(json.dumps(identity), encoding="utf-8")
-            args = SimpleNamespace(
-                runtime_operation="dispatch", body_artifact=str(body_path),
-                identity_artifact=str(identity_path), consumer_ref="ptah",
-                record_root=str(receipt_root),
-                execution_transport_artifact=str(transport_path),
-            )
-            cases = (
-                ("missing", None),
-                ("malformed-json", "{"),
-                ("non-object", "[]"),
-                ("digest", json.dumps(dict(valid, attachment_digest="0" * 64))),
-                ("binding", json.dumps(dict(valid, binding=dict(valid["binding"], owner_ref="other")))),
-            )
-            launch = Mock(return_value=1)
-            with patch("external_runtime_dispatcher._background_runner", launch):
-                for name, content in cases:
-                    with self.subTest(name=name):
-                        transport_path.unlink(missing_ok=True)
-                        if content is not None:
-                            transport_path.write_text(content, encoding="utf-8")
-                        with self.assertRaises((OSError, TypeError, ValueError, json.JSONDecodeError)):
-                            lifecycle.run_named_runtime(args)
-                        self.assertFalse(receipt_root.exists())
-            launch.assert_not_called()
-
-    def test_real_named_runtime_chain_records_transport_and_digest(self):
-        import external_runtime_dispatcher as dispatcher
-
-        body = b"approved packet-local transport"
-        identity = {
-            "work_id": "incident-i2", "graph_ref": "graph:incident-i2", "graph_revision": 1,
-            "graph_digest": "a" * 64, "stage_ref": "I2", "owner_ref": "ptah",
-            "parent_edge_ref": "incident/I2", "return_to_node_ref": "anubis",
-            "run_handle": "run-i2", "attempt": 1,
-            "immutable_body_digest": hashlib.sha256(body).hexdigest(),
-        }
-        transport = self.execution_transport(identity)
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            body_path = root / "body.bin"
-            identity_path = root / "identity.json"
-            transport_path = root / "transport.json"
-            record_root = root / "receipts"
-            body_path.write_bytes(body)
-            identity_path.write_text(json.dumps(identity), encoding="utf-8")
-            transport_path.write_text(json.dumps(transport), encoding="utf-8")
-            args = SimpleNamespace(
-                runtime_operation="dispatch", body_artifact=str(body_path),
-                identity_artifact=str(identity_path), consumer_ref="ptah",
-                record_root=str(record_root), execution_transport_artifact=str(transport_path),
-            )
-            with patch.object(dispatcher, "_background_runner", return_value=4242) as launch:
-                lifecycle.run_named_runtime(args)
-
-            chain = dispatcher.load_receipt_chain(identity, record_root)
-            facts = chain[0]["facts"]
-            self.assertEqual(facts["execution_transport"], transport)
-            self.assertEqual(facts["execution_transport_digest"], transport["attachment_digest"])
-            launch.assert_called_once()
 
     def test_named_runtime_dispatch_rejects_identity_digest_and_owner_mismatch_without_launch(self):
         body = b"approved immutable body"
@@ -285,7 +145,6 @@ class TestLifecycleRunner(unittest.TestCase):
             "named-runtime", "--runtime-operation", "dispatch",
             "--identity-artifact", "identity.json", "--body-artifact", "body.bin",
             "--consumer-ref", "ptah", "--record-root", "runtime",
-            "--execution-transport-artifact", "transport.json",
         ])
         self.assertEqual(args.action, "named-runtime")
         self.assertEqual(args.runtime_operation, "dispatch")
@@ -293,7 +152,6 @@ class TestLifecycleRunner(unittest.TestCase):
         self.assertEqual(args.body_artifact, "body.bin")
         self.assertEqual(args.consumer_ref, "ptah")
         self.assertEqual(args.record_root, "runtime")
-        self.assertEqual(args.execution_transport_artifact, "transport.json")
         self.assertFalse(hasattr(args, "runtime_argv"))
 
     def test_named_runtime_reconcile_uses_existing_receipt_boundary(self):
