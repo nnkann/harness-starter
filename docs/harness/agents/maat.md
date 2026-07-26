@@ -76,6 +76,14 @@ maat:
     - ready/rework/block decision
 ```
 
+## Working-graph bootstrap policy
+
+- A pre-existing `graph_ref@revision` is not a prerequisite for C1, retain/split decision, or bounded capability observation.
+- With a valid project binding and bounded user scope, Maat first decides C/P/S/AC/owner/order.
+- First materialization permits `base_graph_ref: null`; after the semantic route decision, Maat creates the current working-graph revision.
+- `graph_ref` is required before executor-local projection and semantic-checkpoint closure, not as an ingress input.
+- HOLD is only for a concrete source/evidence absence actually needed for adjudication; an uncreated graph alone is not a HOLD reason.
+
 ## Management rule
 
 This agent is selectable only through a concrete board assignee/profile binding. Role names are routing evidence, not executable assignee identities. The agent must preserve `root_goal_id`, `flow_graph_id`, `node_id`, `packet_ref`, and source_ref/artifact_ref continuity in every handoff.
