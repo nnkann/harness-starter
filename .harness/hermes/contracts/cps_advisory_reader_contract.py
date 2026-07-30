@@ -173,7 +173,8 @@ def _validated_candidate(
     if value is None:
         return None
     required = {"clue", "source_ref", "source_receipt", "lifecycle", "observed_at"}
-    if not isinstance(value, Mapping) or set(value) != required:
+    allowed = required | {"canonical_ref"}
+    if not isinstance(value, Mapping) or not required.issubset(value) or set(value) - allowed:
         raise AdvisoryContractError("candidate must have the bounded semantic readback shape")
     for key in ("clue", "source_ref", "source_receipt", "observed_at"):
         item = value[key]
@@ -187,6 +188,13 @@ def _validated_candidate(
         raise AdvisoryContractError("candidate source_receipt must match producer evidence")
     if value["source_ref"] != source_identity:
         raise AdvisoryContractError("candidate source_ref must match the direct producer binding")
+    canonical_ref = value.get("canonical_ref")
+    if canonical_ref is not None and (
+        not isinstance(canonical_ref, str)
+        or not canonical_ref
+        or len(canonical_ref) > _MAX_CONTEXT_TEXT
+    ):
+        raise AdvisoryContractError("candidate canonical_ref must be omitted or bounded text")
     try:
         observed_at = datetime.fromisoformat(value["observed_at"].replace("Z", "+00:00"))
     except ValueError as exc:

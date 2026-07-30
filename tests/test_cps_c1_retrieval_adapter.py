@@ -749,7 +749,10 @@ purpose: metadata only
             def search(self, query, **kwargs):
                 calls.append(("semantic_search", query, kwargs))
                 return [SimpleNamespace(
-                    content="C1 prior context uses bounded semantic search.",
+                    content=(
+                        "source_refs: [projects/harness-starter/decisions/cps-equation-ssot.md]\n"
+                        "C1 prior context uses bounded semantic search."
+                    ),
                     session_id="source-session",
                     id="message-1",
                 )]
@@ -777,7 +780,7 @@ purpose: metadata only
 
         result = adapter.retrieve_honcho_session_source(
             query="C1 prior context",
-            reader_context={"request_ref": "C:honcho-adapter"},
+            reader_context={"request_ref": "C:honcho-adapter", "project_id": "harness-starter"},
             session_key="packet-session",
             binding_factory=binding_factory,
         )
@@ -787,6 +790,10 @@ purpose: metadata only
         self.assertEqual(len(result["evidence"]["content_digest"]), 64)
         self.assertEqual(result["candidate"]["clue"], "C1 prior context uses bounded semantic search.")
         self.assertEqual(result["candidate"]["source_ref"], "honcho-sdk-semantic-peer:user")
+        self.assertEqual(
+            result["candidate"]["canonical_ref"],
+            "projects/harness-starter/decisions/cps-equation-ssot.md",
+        )
         self.assertEqual(result["candidate"]["source_receipt"], result["evidence"]["source_receipt"])
         self.assertEqual(result["candidate"]["lifecycle"], "candidate")
         self.assertRegex(result["candidate"]["observed_at"], r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
@@ -812,6 +819,30 @@ purpose: metadata only
             0,
         )
         self.assertEqual(json.dumps(result).count("C1 prior context uses bounded semantic search."), 1)
+
+    def test_honcho_hit_without_canonical_ref_remains_an_advisory_clue(self):
+        readers = TOOLS.parent / "readers"
+        sys.path.insert(0, str(readers))
+        try:
+            import honcho_session_reader  # type: ignore[import-not-found]
+
+            candidate = honcho_session_reader._candidate(
+                [{
+                    "content": "Prior discussion: preserve the existing handoff boundary.",
+                    "session_id": "prior-session",
+                    "message_id": "prior-message",
+                }],
+                query="preserve handoff boundary",
+                source_ref="honcho-sdk-semantic-peer:user",
+                project_id="harness-starter",
+            )
+        finally:
+            sys.path.remove(str(readers))
+        self.assertIsNotNone(candidate)
+        assert candidate is not None
+        self.assertEqual(candidate["clue"], "Prior discussion: preserve the existing handoff boundary.")
+        self.assertNotIn("canonical_ref", candidate)
+        self.assertEqual(candidate["lifecycle"], "candidate")
 
     def test_honcho_dotenv_load_precedes_config_resolution(self):
         calls = []
