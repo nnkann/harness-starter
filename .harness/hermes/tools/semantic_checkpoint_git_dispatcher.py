@@ -28,8 +28,8 @@ TOP_KEYS = {
     "prohibited_actions", "owner_approval", "execution_instruction", "commit_message", "verification_command",
     "lifecycle_declaration",
 }
-PROVIDER = "agy-router"
-MODEL = "Gemini 3.5 Flash (High)"
+PROVIDER = "openai-codex"
+MODEL = "gpt-5.3-codex-spark"
 
 
 def _now() -> str:
@@ -56,9 +56,10 @@ def _job_lock(job_path: Path):
 
 
 def build_worker_argv(packet_path: Path) -> list[str]:
+    """Use the contract-pinned native Hermes executor."""
     return [
-        "agy", "--model", MODEL, "--dangerously-skip-permissions", "--print",
-        f"Read and execute only the Git closure packet at {packet_path}.",
+        "hermes", "chat", "--provider", PROVIDER, "-m", MODEL,
+        "-t", "terminal,file", "-Q", "-q", f"@{packet_path}",
     ]
 
 
