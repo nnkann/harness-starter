@@ -19,7 +19,7 @@ from cps_advisory_reader_contract import AdvisoryReadRequest, AdvisoryReaderBind
 
 
 DEFAULT_HERMES_AGENT_ROOT = Path.home() / ".hermes" / "hermes-agent"
-DEFAULT_PROJECT_ENV = Path(__file__).resolve().parents[3] / ".env"
+DEFAULT_HERMES_ENV = Path.home() / ".hermes" / ".env"
 def configured_honcho_session_binding(
     session_key: Optional[str] = None,
     *,
@@ -98,7 +98,7 @@ def _load_honcho_runtime_env(
     agent_root: Path,
     env_loader: Optional[Callable[..., Any]],
 ) -> None:
-    """Load canonical and bound-project dotenv before resolving Honcho config."""
+    """Load the one canonical Hermes dotenv before resolving Honcho config."""
     if agent_root.exists() and str(agent_root) not in sys.path:
         sys.path.insert(0, str(agent_root))
     if env_loader is None:
@@ -106,7 +106,7 @@ def _load_honcho_runtime_env(
 
         env_loader = load_hermes_dotenv
     assert env_loader is not None
-    env_loader(project_env=DEFAULT_PROJECT_ENV)
+    env_loader(project_env=DEFAULT_HERMES_ENV)
 
 
 def _runtime_factories(
@@ -142,7 +142,12 @@ def _available_binding(client: Any, manager: Any, session_key: str, session: Any
         try:
             search = _semantic_search(client, request.query, user_peer)
             payload = {"search": search}
-            candidate = _candidate(search, request.query, source_identity)
+            candidate = _candidate(
+                search,
+                request.query,
+                source_identity,
+                request.reader_context.get("project_id"),
+            )
             source_receipt = (
                 candidate["source_receipt"] if candidate is not None
                 else "semantic-query-session={0};peer={1}".format(session_id, user_peer)
@@ -181,25 +186,72 @@ def _candidate(
     search: list[Mapping[str, str]],
     query: str = "",
     source_ref: str = "",
+    project_id: Any = None,
 ) -> Mapping[str, str] | None:
+    """Return a bounded advisory observation from a real semantic hit.
+
+    A canonical reference enriches an observation; it is not a prerequisite for
+    showing continuity context.  Downstream code may dereference
+    ``canonical_ref`` when present, but must never infer one from the clue.
+    """
     query_terms = _terms(query)
     for hit in search:
         session_id = hit.get("session_id", "").strip()
         if not session_id:
             continue
-        for sentence in _sentences(hit.get("content", "")):
-            if len(sentence) <= 256 and query_terms & _terms(sentence):
-                message_id = hit.get("message_id", "").strip()
-                receipt = "semantic-session={0}".format(session_id)
-                if message_id:
-                    receipt += ";message={0}".format(message_id)
-                return {
-                    "clue": sentence,
-                    "source_ref": source_ref[:256],
-                    "source_receipt": receipt[:256],
-                    "lifecycle": "candidate",
-                    "observed_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
-                }
+        sentences = _sentences(hit.get("content", ""))
+        sentence = next(
+            (
+                item for item in sentences
+                if len(item) <= 256 and (not query_terms or query_terms & _terms(item))
+            ),
+            None,
+        )
+        if sentence is None:
+            continue
+        message_id = hit.get("message_id", "").strip()
+        receipt = "semantic-session={0}".format(session_id)
+        if message_id:
+            receipt += ";message={0}".format(message_id)
+        candidate = {
+            "clue": sentence,
+            "source_ref": source_ref[:256],
+            "source_receipt": receipt[:256],
+            "lifecycle": "candidate",
+            "observed_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        }
+        canonical_ref = _canonical_ref(hit.get("content", ""), project_id)
+        if canonical_ref is not None:
+            candidate["canonical_ref"] = canonical_ref
+        return candidate
+    return None
+
+
+def _canonical_ref(content: Any, project_id: Any) -> str | None:
+    """Return one explicit project-bound durable pointer from a compact anchor."""
+    if not isinstance(content, str) or not isinstance(project_id, str):
+        return None
+    project_id = project_id.strip()
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}", project_id):
+        return None
+    prefix = "projects/{0}/".format(project_id)
+    patterns = (
+        r'(?mi)^\s*(?:canonical_)?source_ref\s*:\s*["\']?(' + re.escape(prefix) + r'[^\s"\'\],}]+)',
+        r'(?mi)^\s*(?:canonical_)?source_refs\s*:\s*\[\s*["\']?(' + re.escape(prefix) + r'[^\s"\'\],}]+)',
+        r'(?mi)["\'](?:canonical_)?source_ref["\']\s*:\s*["\'](' + re.escape(prefix) + r'[^"\']+)["\']',
+        r'(?mi)["\'](?:canonical_)?source_refs["\']\s*:\s*\[\s*["\'](' + re.escape(prefix) + r'[^"\']+)["\']',
+    )
+    for pattern in patterns:
+        match = re.search(pattern, content)
+        if match is None:
+            continue
+        ref = match.group(1).strip()
+        if (
+            ref.endswith(".md")
+            and ".." not in ref.split("/")
+            and all(ord(character) >= 32 for character in ref)
+        ):
+            return ref
     return None
 
 
@@ -211,8 +263,12 @@ def _terms(value: str) -> set[str]:
 
 
 def _sentences(value: str) -> list[str]:
-    text = " ".join(value.split())
-    return [sentence.strip() for sentence in re.split(r"(?<=[.!?])\s+", text) if sentence.strip()]
+    return [
+        sentence.strip()
+        for line in value.splitlines()
+        for sentence in re.split(r"(?<=[.!?])\s+", " ".join(line.split()))
+        if sentence.strip()
+    ]
 
 
 def _unavailable_binding(reason: str, session_key: Optional[str] = None) -> AdvisoryReaderBinding:

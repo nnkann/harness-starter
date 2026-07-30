@@ -5,6 +5,7 @@ import copy
 import hashlib
 import json
 import shutil
+import site
 import subprocess
 import sys
 from pathlib import Path
@@ -13,10 +14,23 @@ from types import MethodType, SimpleNamespace
 import pytest
 
 CORE = Path("/Users/kann/.hermes/hermes-agent")
+CORE_SITE_PACKAGES = (
+    CORE
+    / "venv"
+    / "lib"
+    / f"python{sys.version_info.major}.{sys.version_info.minor}"
+    / "site-packages"
+)
 REPO = Path(__file__).resolve().parents[2]
 RUNTIME = REPO / "runtime"
 PLUGIN = REPO / ".hermes" / "plugins" / "harness-gateway"
-for module_root in (CORE, RUNTIME):
+for module_root in (CORE_SITE_PACKAGES, CORE, RUNTIME):
+    assert module_root.is_dir(), f"required integration-test module root is absent: {module_root}"
+    if module_root == CORE_SITE_PACKAGES:
+        # The test exercises the checked-out Hermes core. Resolve its exact
+        # installed runtime dependencies from the same core venv instead of
+        # duplicating Hermes dependencies in the harness test extra.
+        site.addsitedir(str(module_root))
     if str(module_root) not in sys.path:
         sys.path.insert(0, str(module_root))
 
@@ -285,7 +299,11 @@ def _runner_reaching_agent(config, captured: list[dict]) -> GatewayRunner:
             sender_id=source.user_id,
             gateway_ingress_retrieve=retrieval,
         )
-        context = "\n\n".join(result["context"] for result in results)
+        context = "\n\n".join(
+            result["context"]
+            for result in results
+            if isinstance(result, dict) and isinstance(result.get("context"), str)
+        )
         captured.append({
             "message": message,
             "context": context,
@@ -339,11 +357,15 @@ def _receipt(receipt_dir: Path) -> dict:
     return json.loads(paths[0].read_text(encoding="ascii"))
 
 
+def _stage_evidence(receipt: dict, stage: str) -> dict:
+    return next(entry["evidence"] for entry in receipt["entries"] if entry["stage"] == stage)
+
+
 @pytest.mark.parametrize(
     ("channel_id", "parent_channel_id"),
     [("bound-parent", None), ("thread-ready", "bound-parent")],
 )
-def test_actual_gateway_handler_injects_byte_exact_canonical_packet_once(
+def test_actual_gateway_handler_keeps_ingress_packet_out_of_user_message(
     loaded_project_plugin,
     channel_id,
     parent_channel_id,
@@ -359,48 +381,30 @@ def test_actual_gateway_handler_injects_byte_exact_canonical_packet_once(
     )
 
     assert result == {"final_response": "generic"}
-    assert len(captured) == 1
-    packet = captured[0]["context"]
-    assert captured[0]["api_input"] == f"intent:ready\n\n{packet}"
-    assert captured[0]["api_input"].encode("ascii").endswith(packet.encode("ascii"))
-    decoded = json.loads(packet)
-    assert decoded["schema"] == "harness.gateway.ingress-packet.v1"
-    assert decoded["event_ref"]["event_id"] == "ready"
-    assert decoded["intent"] == "intent:ready"
-    assert json.dumps(decoded, sort_keys=True, separators=(",", ":"), ensure_ascii=True) == packet
-    compact_c = decoded["compact_C"]
-    assert set(compact_c) == {"C", "E", "uncertainty"}
+    assert captured == [{
+        "message": "intent:ready",
+        "context": "",
+        "api_input": "intent:ready",
+        "session_id": f"session:{channel_id}",
+        "history": [],
+        "cached_system_prompt": "SYSTEM PROMPT BYTES",
+    }]
+    assert loaded.reader_calls == ["honcho", "harness_brain"]
+    receipt = _receipt(loaded.receipt_dir)
+    assert [entry["stage"] for entry in receipt["entries"]] == [
+        "received", "intake-ready", "route", "running", "terminal",
+    ]
+    route = receipt["entries"][2]["evidence"]
+    assert route["schema"] == "harness.gateway.ingress-packet.v1"
+    assert route["target_profile"] == "default"
+    assert len(route["packet_sha256"]) == 64
+    compact_c = route["compact_C"]
     assert [(item["source"], item["status"]) for item in compact_c["E"]] == [
         ("honcho", "match"),
         ("harness_brain", "unavailable"),
     ]
     assert all("candidate" not in item for item in compact_c["E"])
     assert "gbrain" not in json.dumps(compact_c)
-    assert loaded.reader_calls == ["honcho", "harness_brain"]
-    prohibited = {
-        "P", "S", "owner", "selected_agents", "actor_binding", "route", "verdict",
-        "hold", "HOLD", "task_AC", "graph", "transition", "mutation", "closure",
-        "learning", "promotion",
-    }
-
-    def keys(value):
-        if isinstance(value, dict):
-            return set(value).union(*(keys(item) for item in value.values()))
-        if isinstance(value, list):
-            return set().union(*(keys(item) for item in value))
-        return set()
-
-    assert not keys(compact_c) & prohibited
-    assert captured[0]["history"] == []
-    assert captured[0]["cached_system_prompt"] == "SYSTEM PROMPT BYTES"
-    receipt = _receipt(loaded.receipt_dir)
-    assert [entry["stage"] for entry in receipt["entries"]] == [
-        "received",
-        "intake-ready",
-        "route",
-        "running",
-        "terminal",
-    ]
     terminal = receipt["entries"][-1]["evidence"]
     assert terminal == {
         "response_length": len("generic"),
@@ -442,7 +446,9 @@ def test_resolved_binding_bootstraps_absent_manifest(loaded_project_plugin):
     manifest = loaded.project / "manifest.yml"
     assert result == {"final_response": "generic"}
     assert manifest.read_bytes() == b"schema: harness.project.v1\n"
-    assert json.loads(captured[0]["context"])["binding_evidence"]["manifest_created"] is True
+    assert _stage_evidence(
+        _receipt(loaded.receipt_dir), "intake-ready"
+    )["binding_evidence"]["manifest_created"] is True
 
 
 def test_held_binding_does_not_bootstrap_manifest(loaded_project_plugin):
@@ -509,10 +515,12 @@ def test_pre_llm_uses_task_local_packet_despite_transformed_runtime_projections(
         sender_id="transformed-sender",
     )
 
-    assert len(result) == 1
-    packet = json.loads(result[0]["context"])
-    assert packet["event_ref"]["event_id"] == "transformed"
-    assert packet["intent"] == "original ingress"
+    assert result == []
+    receipt = _receipt(loaded.receipt_dir)
+    assert _stage_evidence(receipt, "received")["event_id"] == "transformed"
+    assert _stage_evidence(receipt, "route")["compact_C"]["C"]["intent_sha256"] == hashlib.sha256(
+        b"original ingress"
+    ).hexdigest()
     loaded.manager.invoke_hook(
         "post_llm_call",
         session_id="another-session",
@@ -589,7 +597,10 @@ def test_reader_exception_is_layer_local_and_turn_continues(loaded_project_plugi
     result = asyncio.run(GatewayRunner._handle_message(runner, _event("reader-error")))
 
     assert result == {"final_response": "generic"}
-    observations = json.loads(captured[0]["context"])["compact_C"]["E"]
+    assert captured[0]["context"] == ""
+    observations = _stage_evidence(
+        _receipt(loaded.receipt_dir), "route"
+    )["compact_C"]["E"]
     assert [(item["source"], item["status"]) for item in observations] == [
         ("honcho", "unavailable"),
         ("harness_brain", "unavailable"),
@@ -748,7 +759,8 @@ def test_honcho_candidate_requires_durable_pointer_readback_and_never_suppresses
             "readback_metadata": {"source_identity": "honcho:derived"},
             "candidate": {
                 "clue": "Gateway retrieval retains the project source boundary.",
-                "source_ref": pointer,
+                "source_ref": "honcho:derived",
+                "canonical_ref": pointer,
                 "source_receipt": "honcho-hit",
                 "lifecycle": "candidate",
                 "observed_at": "2026-07-24T03:00:00Z",
@@ -775,6 +787,9 @@ def test_honcho_candidate_requires_durable_pointer_readback_and_never_suppresses
 
     assert calls == ["honcho", pointer, "fallback"]
     assert all("candidate" not in item for item in result["E"])
+    assert module._HONCHO_ADVISORY.get() == (
+        "Gateway retrieval retains the project source boundary.",
+    )
     assert "gbrain" not in json.dumps(result)
 
 
@@ -925,11 +940,12 @@ def test_provider_failure_preserves_bound_packet_and_ordinary_turn(
         gateway_ingress_retrieve=retrieval,
     )
 
-    packet = json.loads(result[0]["context"])
-    assert packet["intent"] == event.text
-    assert packet["event_ref"]["event_id"] == event.message_id
-    assert packet["compact_C"]["E"] == []
-    assert packet["compact_C"]["uncertainty"] == [
+    assert result == []
+    compact_c = _stage_evidence(
+        _receipt(loaded.receipt_dir), "route"
+    )["compact_C"]
+    assert compact_c["E"] == []
+    assert compact_c["uncertainty"] == [
         {"source": "provider", "status": expected_status}
     ]
     loaded.manager.invoke_hook(
@@ -995,14 +1011,14 @@ def test_post_llm_finalization_error_still_clears_task_local_packet(
         gateway=runner,
         session_store=runner.session_store,
     )
-    assert len(loaded.manager.invoke_hook(
+    assert loaded.manager.invoke_hook(
         "pre_llm_call",
         session_id="running",
         turn_id="running",
         user_message=event.text,
         platform="discord",
         sender_id="owner",
-    )) == 1
+    ) == []
 
     def fail_transition(*args, **kwargs):
         raise RuntimeError("write failed")
@@ -1064,7 +1080,7 @@ def test_finalize_turn_terminalizes_and_cleans_ingress_for_all_terminal_paths(
         gateway=runner,
         session_store=runner.session_store,
     ) == [{"action": "allow"}]
-    assert len(loaded.manager.invoke_hook(
+    assert loaded.manager.invoke_hook(
         "pre_llm_call",
         session_id=session_id,
         task_id=f"task:{case}",
@@ -1075,7 +1091,7 @@ def test_finalize_turn_terminalizes_and_cleans_ingress_for_all_terminal_paths(
         model="test-model",
         platform="discord",
         sender_id="owner",
-    )) == 1
+    ) == []
 
     agent = _FinalizerAgent(session_id, cached_system_prompt)
     result = finalize_turn(
@@ -1128,8 +1144,10 @@ def test_pre_llm_runtime_identity_does_not_replace_event_source_identity(loaded_
         user_message="intent:runtime-identity", platform="agent-runtime", sender_id="runtime-agent",
     )
 
-    assert len(result) == 1
-    assert json.loads(result[0]["context"])["event_ref"]["event_id"] == "runtime-identity"
+    assert result == []
+    assert _stage_evidence(
+        _receipt(loaded.receipt_dir), "received"
+    )["event_id"] == "runtime-identity"
 
 
 def test_pre_llm_matches_original_message_without_session_identity(loaded_project_plugin):
@@ -1144,8 +1162,10 @@ def test_pre_llm_matches_original_message_without_session_identity(loaded_projec
         user_message="intent:matched", platform="discord", sender_id="owner",
     )
 
-    assert len(result) == 1
-    assert json.loads(result[0]["context"])["event_ref"]["event_id"] == "matched"
+    assert result == []
+    assert _stage_evidence(
+        _receipt(loaded.receipt_dir), "received"
+    )["event_id"] == "matched"
 
 
 def test_sequential_calls_do_not_reuse_a_terminalized_packet(loaded_project_plugin):
@@ -1165,8 +1185,11 @@ def test_sequential_calls_do_not_reuse_a_terminalized_packet(loaded_project_plug
         {"final_response": "generic"},
         {"final_response": "generic"},
     )
-    assert json.loads(captured[0]["context"])["event_ref"]["event_id"] == "once"
+    assert captured[0]["context"] == ""
     assert captured[1]["context"] == ""
+    assert _stage_evidence(
+        _receipt(loaded.receipt_dir), "received"
+    )["event_id"] == "once"
     assert loaded.manager.invoke_hook(
         "pre_llm_call", session_id="session:bound-parent", turn_id="replay",
         user_message="intent:once", platform="discord", sender_id="owner",
@@ -1199,7 +1222,7 @@ def test_concurrent_asyncio_tasks_keep_ingress_envelopes_isolated(loaded_project
             platform="transformed",
             sender_id="transformed",
         )
-        packet = result[0]["context"]
+        assert result == []
         await asyncio.sleep(0)
         loaded.manager.invoke_hook(
             "post_llm_call",
@@ -1207,7 +1230,7 @@ def test_concurrent_asyncio_tasks_keep_ingress_envelopes_isolated(loaded_project
             turn_id="post-projection",
             assistant_response=response,
         )
-        return packet
+        return event.message_id
 
     async def run_concurrently():
         return await asyncio.gather(
@@ -1215,11 +1238,8 @@ def test_concurrent_asyncio_tasks_keep_ingress_envelopes_isolated(loaded_project
             handle(second, "session:second", "two", "second result"),
         )
 
-    packets = asyncio.run(run_concurrently())
-    assert [json.loads(packet)["event_ref"]["event_id"] for packet in packets] == [
-        "first",
-        "second",
-    ]
+    event_ids = asyncio.run(run_concurrently())
+    assert event_ids == ["first", "second"]
 
     receipts = {
         receipt["entries"][0]["evidence"]["event_id"]: receipt
@@ -1240,3 +1260,34 @@ def test_concurrent_asyncio_tasks_keep_ingress_envelopes_isolated(loaded_project
     assert receipts["second"]["entries"][-1]["evidence"]["response_sha256"] == hashlib.sha256(
         b"second result"
     ).hexdigest()
+
+
+def test_agy_request_injects_bounded_honcho_advisory_only(loaded_project_plugin):
+    loaded = loaded_project_plugin()
+    module = loaded.manager._plugins["harness-gateway"].module
+    module._INGRESS.set(module._IngressEnvelope(
+        receipt_id="receipt",
+        canonical_json='{"intent":"test"}',
+        receipt_dir=loaded.receipt_dir,
+        project_cwd=str(loaded.project),
+        state="running",
+        session_id="session",
+        honcho_advisory=module._format_honcho_advisory(("Prior continuity clue.",)),
+    ))
+    try:
+        result = module._llm_request_middleware(
+            request={"messages": [{"role": "user", "content": "current request"}]},
+            provider="agy-router",
+            session_id="session",
+        )
+    finally:
+        module._INGRESS.set(None)
+
+    messages = result["request"]["messages"]
+    assert messages[0]["role"] == "system"
+    assert messages[1] == {"role": "user", "content": "current request"}
+    assert "advisory only" in messages[0]["content"]
+    assert "Prior continuity clue." in messages[0]["content"]
+    assert result["request"]["extra_headers"] == {
+        "X-Hermes-Project-Root": str(loaded.project)
+    }
