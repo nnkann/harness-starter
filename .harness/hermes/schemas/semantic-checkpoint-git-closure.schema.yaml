@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Semantic checkpoint Git closure packet",
   "type": "object",
-  "required": ["schema", "checkpoint_id", "work_id", "graph_source", "repository", "scoped_paths", "excluded_dirty_paths", "closure_AC_ref", "CPS_refs", "prohibited_actions", "owner_approval", "execution_instruction", "commit_message", "verification_command", "lifecycle_declaration"],
+  "required": ["schema", "checkpoint_id", "work_id", "graph_source", "repository", "scoped_paths", "excluded_dirty_paths", "prohibited_actions", "owner_approval", "execution_instruction", "commit_message", "verification_command", "lifecycle_declaration"],
   "properties": {
     "schema": {"const": "harness.cps.semantic-checkpoint-git-closure.v1"},
     "checkpoint_id": {"type": "string", "pattern": "^[^/@]+@r[1-9][0-9]*$"},

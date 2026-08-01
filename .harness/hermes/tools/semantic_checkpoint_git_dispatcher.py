@@ -24,9 +24,8 @@ LIFECYCLE_KEYS = {"baseline", "source_mutations", "ephemeral_generated_paths", "
 MAX_LIFECYCLE_PATHS = 128
 TOP_KEYS = {
     "schema", "checkpoint_id", "work_id", "graph_source", "repository",
-    "scoped_paths", "excluded_dirty_paths", "closure_AC_ref", "CPS_refs",
-    "prohibited_actions", "owner_approval", "execution_instruction", "commit_message", "verification_command",
-    "lifecycle_declaration",
+    "scoped_paths", "excluded_dirty_paths", "prohibited_actions", "owner_approval", "execution_instruction", "commit_message",
+    "verification_command", "lifecycle_declaration", "closure_AC_ref", "CPS_refs",
 }
 PROVIDER = "openai-codex"
 MODEL = "gpt-5.3-codex-spark"
@@ -216,7 +215,8 @@ def _validate_lifecycle(packet: dict[str, Any], errors: list[str]) -> None:
 
 def validate_checkpoint_packet(packet: dict[str, Any]) -> list[str]:
     errors: list[str] = []
-    if not isinstance(packet, dict) or set(packet) != TOP_KEYS:
+    required_keys = TOP_KEYS - {"closure_AC_ref", "CPS_refs"}
+    if not isinstance(packet, dict) or not required_keys <= set(packet) or not set(packet) <= TOP_KEYS:
         errors.append("packet:invalid_shape")
         if isinstance(packet, dict) and "lifecycle_declaration" not in packet:
             errors.append("lifecycle_declaration:required")
@@ -244,18 +244,19 @@ def validate_checkpoint_packet(packet: dict[str, Any]) -> list[str]:
         errors.append("repository:invalid_value")
     _validate_lifecycle(packet, errors)
 
-    refs = _exact_mapping(packet, "CPS_refs", {"C", "P", "S", "AC", "packet"}, errors)
-    if refs:
-        if not isinstance(refs["P"], list) or any(not isinstance(item, str) for item in refs["P"]):
-            errors.append("CPS_refs.P:invalid")
-        if any(not isinstance(refs[key], str) or not refs[key] for key in {"C", "S", "AC", "packet"}):
-            errors.append("CPS_refs:invalid_value")
-
+    refs = None
+    if "CPS_refs" in packet:
+        refs = _exact_mapping(packet, "CPS_refs", {"C", "P", "S", "AC", "packet"}, errors)
+        if refs:
+            if not isinstance(refs["P"], list) or any(not isinstance(item, str) for item in refs["P"]):
+                errors.append("CPS_refs.P:invalid")
+            if any(not isinstance(refs[key], str) or not refs[key] for key in {"C", "S", "AC", "packet"}):
+                errors.append("CPS_refs:invalid_value")
+    if "closure_AC_ref" in packet and (not isinstance(packet["closure_AC_ref"], str) or not packet["closure_AC_ref"]):
+        errors.append("closure_AC_ref:invalid")
     for key in ("scoped_paths", "excluded_dirty_paths", "prohibited_actions"):
         if not isinstance(packet[key], list) or any(not isinstance(item, str) or not item for item in packet[key]):
             errors.append(f"{key}:invalid")
-    if not isinstance(packet["closure_AC_ref"], str) or not packet["closure_AC_ref"]:
-        errors.append("closure_AC_ref:invalid")
     if packet["owner_approval"] is not True:
         errors.append("owner_approval:required")
     if packet["execution_instruction"] != EXECUTION_INSTRUCTION:
@@ -342,9 +343,11 @@ def _postcheck(packet: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
         message = _git(repo, "log", "-1", "--format=%B")
         if message != packet["commit_message"]:
             errors.append("postcheck:commit_message_mismatch")
-        trailer = f"CPS-Packet: {packet['CPS_refs']['packet']}"
-        if trailer not in message.splitlines():
-            errors.append("postcheck:cps_packet_trailer_missing")
+        refs = packet.get("CPS_refs")
+        if refs:
+            trailer = f"CPS-Packet: {refs['packet']}"
+            if trailer not in message.splitlines():
+                errors.append("postcheck:cps_packet_trailer_missing")
         declaration = packet["lifecycle_declaration"]
         ephemeral = [_path_readback(repo, path) for path in declaration["ephemeral_generated_paths"]]
         persistent = [_path_readback(repo, path) for path in declaration["persistent_evidence_paths"]]

@@ -47,6 +47,17 @@ class DispatcherTests(unittest.TestCase):
             ["hermes", "chat", "--provider", "openai-codex", "-m", "gpt-5.3-codex-spark", "-t", "terminal,file", "-Q", "-q", "@/tmp/packet.json"],
         )
 
+    def test_dispatch_without_cps_refs_or_closure_ac_is_owner_approved(self):
+        packet = self.packet()
+        packet.pop("CPS_refs")
+        packet.pop("closure_AC_ref")
+        packet["commit_message"] = "Close semantic checkpoint"
+        launches = []
+        with tempfile.TemporaryDirectory() as tmp:
+            receipt = dispatcher.dispatch_checkpoint(packet, Path(tmp), process_runner=lambda argv: launches.append(argv) or 4321)
+        self.assertEqual(receipt["status"], "git_pending")
+        self.assertEqual(len(launches), 1)
+
     def test_dispatch_validates_nested_packet_and_exact_key_is_idempotent(self):
         launches = []
         with tempfile.TemporaryDirectory() as tmp:
@@ -75,7 +86,7 @@ class DispatcherTests(unittest.TestCase):
 
     def test_rejects_nested_contract_negative_cases_without_launch(self):
         invalid_packets = []
-        for path in ("schema", "graph_source", "repository", "CPS_refs", "prohibited_actions"):
+        for path in ("schema", "graph_source", "repository", "prohibited_actions"):
             packet = self.packet()
             del packet[path]
             invalid_packets.append(packet)
@@ -459,7 +470,7 @@ class DispatcherTests(unittest.TestCase):
     def test_schema_documents_preserve_checkpoint_and_projection_contracts(self):
         checkpoint_schema = json.loads((SCHEMAS / "semantic-checkpoint-git-closure.schema.yaml").read_text())
         executor_schema = json.loads((SCHEMAS / "executor-local-packet.schema.yaml").read_text())
-        self.assertEqual(set(checkpoint_schema["required"]), dispatcher.TOP_KEYS)
+        self.assertEqual(set(checkpoint_schema["required"]), dispatcher.TOP_KEYS - {"closure_AC_ref", "CPS_refs"})
         self.assertFalse(checkpoint_schema["additionalProperties"])
         self.assertEqual(checkpoint_schema["properties"]["schema"]["const"], dispatcher.SCHEMA)
         self.assertEqual(set(executor_schema["required"]), {"family", "work_id", "graph_ref", "local_nodes", "local_edges", "source_refs", "task_AC", "evidence_requirements"})
