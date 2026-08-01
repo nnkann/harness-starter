@@ -4,7 +4,10 @@ import hashlib
 import importlib
 import json
 import logging
+import os
 import re
+import signal
+import subprocess
 import sys
 import time
 from contextvars import ContextVar
@@ -92,6 +95,7 @@ class _IngressEnvelope:
     canonical_json: str
     receipt_dir: Path
     project_cwd: str
+    session_key: str = ""
     state: str = "ready"
     session_id: str = ""
     turn_id: str = ""
@@ -466,12 +470,339 @@ def _receipt_dir() -> Path:
     return get_hermes_home() / "harness-gateway" / "receipts"
 
 
+def _route_runtime_enabled() -> bool:
+    config = load_config()
+    entry = cfg_get(config, "plugins", "entries", "harness-gateway", default={})
+    return not isinstance(entry, dict) or entry.get("route_runtime_enabled", True) is not False
+
+
+def _tools_module(name):
+    tools = Path(__file__).resolve().parents[3] / ".harness" / "hermes" / "tools"
+    if not tools.is_dir():
+        raise RuntimeError("harness tool root unavailable")
+    if str(tools) not in sys.path:
+        sys.path.insert(0, str(tools))
+    return importlib.import_module(name)
+
+
+def _parse_last_json(stdout: str) -> dict:
+    decoder = json.JSONDecoder()
+    parsed = None
+    for index, character in enumerate(stdout):
+        if character != "{":
+            continue
+        try:
+            value, _ = decoder.raw_decode(stdout[index:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            parsed = value
+    if parsed is None:
+        raise RuntimeError("Maat route response contains no JSON object")
+    return parsed
+
+
+def _issue_ptah_transport(envelope, compact_c):
+    """Obtain the only active owner route from Maat, then launch Ptah by immutable transport."""
+    dispatcher = _tools_module("external_runtime_dispatcher")
+    packet = {
+        "schema": "harness.gateway.ptah-body.v1",
+        "cps_receipt_id": envelope.receipt_id,
+        "canonical_packet_sha256": hashlib.sha256(envelope.canonical_json.encode("ascii")).hexdigest(),
+        "compact_C": compact_c,
+        "owner": "ptah",
+        "instruction": json.loads(envelope.canonical_json)["intent"],
+        "response_contract": {
+            "ptah": {"status": "pass|hold|fail"},
+            "requirement": "Ptah must return exactly one JSON object after scoped work; do not report prose-only completion.",
+        },
+    }
+    body = json.dumps(packet, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    graph_digest = hashlib.sha256(envelope.canonical_json.encode("ascii")).hexdigest()
+    identity = {
+        "work_id": envelope.receipt_id,
+        "graph_ref": f"gateway:{envelope.receipt_id}",
+        "graph_revision": 1,
+        "graph_digest": graph_digest,
+        "stage_ref": "P1",
+        "owner_ref": "ptah",
+        "parent_edge_ref": f"{envelope.receipt_id}/P1",
+        "return_to_node_ref": envelope.receipt_id,
+        "run_handle": f"gateway:{envelope.receipt_id}:ptah",
+        "attempt": 1,
+        "immutable_body_digest": hashlib.sha256(body).hexdigest(),
+    }
+    maat_source = f"harness-gateway:{envelope.receipt_id}:maat"
+    authorization = {
+        "schema": "harness.gateway.maat_ptah_authorization.v1",
+        "required": {"status": "issued", "consumer_ref": "ptah"},
+        "identity": identity,
+        "immutable_body": packet,
+        "body_sha256": identity["immutable_body_digest"],
+        "allowed_toolsets": ["file", "terminal"],
+        "response_contract": {
+            "status": "issued|hold",
+            "consumer_ref": "ptah",
+            "provider": "non-empty string when issued",
+            "model": "non-empty string when issued",
+            "toolsets": "non-empty unique subset of allowed_toolsets when issued",
+        },
+    }
+    prompt = (
+        "Issue a single immutable Ptah execution transport for this valid bound Discord ingress. "
+        "The ingress itself is the executable diagnostic/conversation scope: do not require a repository mutation, "
+        "an explicit acceptance criterion, or separately supplied current-state evidence from the user. "
+        "Return hold only for malformed immutable input or invalid identity/binding. "
+        "Do not select Anubis, Thoth, or any other owner. Return exactly one JSON object and no markdown.\n"
+        + json.dumps(authorization, ensure_ascii=False, sort_keys=True)
+    )
+    result = subprocess.run(
+        ["hermes", "-p", "maat", "chat", "-Q", "--pass-session-id", "--source", maat_source,
+         "--max-turns", "1", "-t", "file", "-q", prompt],
+        cwd=envelope.project_cwd,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=180,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"Maat route invocation failed: exit={result.returncode}")
+    issued = _parse_last_json(result.stdout)
+    if issued.get("status") != "issued" or issued.get("consumer_ref") != "ptah":
+        raise RuntimeError("Maat did not issue the Ptah-only route")
+    provider, model, toolsets = issued.get("provider"), issued.get("model"), issued.get("toolsets")
+    if (
+        not isinstance(provider, str) or not provider
+        or not isinstance(model, str) or not model
+        or not isinstance(toolsets, list) or not toolsets
+        or any(not isinstance(item, str) or item not in {"file", "terminal"} for item in toolsets)
+        or len(toolsets) != len(set(toolsets))
+    ):
+        raise RuntimeError("Maat issued malformed Ptah transport")
+    transport = {
+        "issuer": "maat",
+        "issuer_ref": maat_source + ":" + hashlib.sha256(result.stdout.encode("utf-8")).hexdigest(),
+        "binding": {**identity, "project_root": str(Path(__file__).resolve().parents[3])},
+        "provider": provider,
+        "model": model,
+        "toolsets": toolsets,
+        "cwd_binding": "project_root",
+    }
+    transport["attachment_digest"] = dispatcher._canonical_digest(transport)
+    runtime = dispatcher.dispatch_external_runtime(
+        "ptah", body, envelope.receipt_dir, identity=identity, execution_transport=transport,
+        verification_profiles=(),
+    )
+    return {"identity": identity, "transport": transport, "runtime_receipt": runtime}
+
+
+def _discord_target(source) -> str:
+    thread_id = getattr(source, "thread_id", None)
+    parent_id = getattr(source, "parent_chat_id", None)
+    if thread_id and parent_id:
+        return f"discord:{parent_id}:{thread_id}"
+    return f"discord:{source.chat_id}"
+
+
+def _write_route_job(envelope, source) -> Path:
+    directory = envelope.receipt_dir / "route-jobs"
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / f"{hashlib.sha256(envelope.receipt_id.encode()).hexdigest()}.json"
+    temporary = path.with_suffix(".tmp")
+    payload = {
+        "schema": "harness.gateway.background-route.v1",
+        "receipt_id": envelope.receipt_id,
+        "canonical_json": envelope.canonical_json,
+        "receipt_dir": str(envelope.receipt_dir),
+        "project_cwd": envelope.project_cwd,
+        "session_key": f"discord:{source.parent_chat_id or source.chat_id}",
+        "sender_id": str(getattr(source, "user_id", "")),
+        "delivery_target": _discord_target(source),
+    }
+    with temporary.open("w", encoding="utf-8") as stream:
+        json.dump(payload, stream, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        stream.write("\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+    temporary.replace(path)
+    return path
+
+
+def _update_route_job(path: Path, **updates) -> dict:
+    """Atomically persist route-worker state so /stop can cancel the real process."""
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload.update(updates)
+    temporary = path.with_suffix(".tmp")
+    with temporary.open("w", encoding="utf-8") as stream:
+        json.dump(payload, stream, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        stream.write("\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+    temporary.replace(path)
+    return payload
+
+
+def _launch_route_job(path: Path) -> int:
+    pid = subprocess.Popen(
+        [sys.executable, str(Path(__file__).resolve()), "--route-job", str(path.resolve())],
+        cwd=Path(__file__).resolve().parents[3],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    ).pid
+    _update_route_job(path, worker_pid=pid)
+    return pid
+
+
+def _stop_route_jobs(source) -> int:
+    """Stop detached CPS workers for this exact Discord session before core /stop."""
+    directory = _receipt_dir() / "route-jobs"
+    if not directory.is_dir():
+        return 0
+    session_key = f"discord:{source.parent_chat_id or source.chat_id}"
+    stopped = 0
+    for path in directory.glob("*.json"):
+        try:
+            job = json.loads(path.read_text(encoding="utf-8"))
+            if job.get("session_key") != session_key:
+                continue
+            _update_route_job(path, cancelled=True)
+            for key in ("runtime_pid", "worker_pid"):
+                pid = job.get(key)
+                if isinstance(pid, int) and pid > 0:
+                    try:
+                        os.killpg(pid, signal.SIGTERM)
+                    except ProcessLookupError:
+                        pass
+            stopped += 1
+        except (OSError, ValueError, json.JSONDecodeError):
+            continue
+    return stopped
+
+
+def _deliver_route_result(target: str, content: str) -> dict:
+    result = subprocess.run(
+        ["hermes", "send", "--json", "--to", target, content],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    return {
+        "target": target,
+        "status": "delivered" if result.returncode == 0 else "failed",
+        "exit_code": result.returncode,
+    }
+
+
+def _terminal_runtime_response(dispatcher, issued, receipt_dir: Path) -> tuple[dict, str]:
+    identity = issued["identity"]
+    while True:
+        chain = dispatcher.load_receipt_chain(identity, receipt_dir)
+        if chain and chain[-1]["status"] in dispatcher.TERMINAL_STATUSES:
+            terminal = chain[-1]
+            break
+        time.sleep(2)
+    facts = terminal["facts"]
+    case_dir = dispatcher._case_dir(identity, receipt_dir)
+    stdout_path = dispatcher._artifact_path(case_dir, facts["stdout_artifact_ref"])
+    try:
+        response = _parse_last_json(stdout_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, RuntimeError):
+        response = {"status": terminal["status"]}
+    return terminal, json.dumps(response, ensure_ascii=False, sort_keys=True)
+
+
+def _run_route_job(path: Path) -> None:
+    job = json.loads(path.read_text(encoding="utf-8"))
+    if job.get("schema") != "harness.gateway.background-route.v1":
+        raise RuntimeError("invalid background route job")
+    receipt_dir = Path(job["receipt_dir"])
+    envelope = _IngressEnvelope(
+        receipt_id=job["receipt_id"],
+        canonical_json=job["canonical_json"],
+        receipt_dir=receipt_dir,
+        project_cwd=job["project_cwd"],
+    )
+    receipts = ExecutionReceipts(receipt_dir)
+    try:
+        intent = json.loads(envelope.canonical_json)["intent"]
+        retrieved = _gateway_ingress_retrieval_provider(
+            original_user_message=intent,
+            session_id="",
+            session_key=job["session_key"],
+            platform="discord",
+            sender_id=job["sender_id"],
+        )
+        compact_c = _validated_compact_c(retrieved) or _base_compact_c(envelope, "malformed_result")
+    except Exception:
+        compact_c = _base_compact_c(envelope, "provider_error")
+    try:
+        issued = _issue_ptah_transport(envelope, compact_c)
+        runtime_pid = issued["runtime_receipt"].get("facts", {}).get("pid")
+        if isinstance(runtime_pid, int) and runtime_pid > 0:
+            _update_route_job(path, runtime_pid=runtime_pid)
+        receipts.transition(
+            envelope.receipt_id,
+            "running",
+            {
+                "profile": "ptah",
+                "external_runtime_receipt": issued["runtime_receipt"]["receipt_ref"],
+                "execution_transport_digest": issued["transport"]["attachment_digest"],
+            },
+        )
+        dispatcher = _tools_module("external_runtime_dispatcher")
+        terminal, response = _terminal_runtime_response(dispatcher, issued, receipt_dir)
+        message = f"Harness route {envelope.receipt_id}: {terminal['status']}\n{response}"
+        delivery = _deliver_route_result(job["delivery_target"], message[:1900])
+        receipts.transition(
+            envelope.receipt_id,
+            "terminal",
+            {
+                "status": terminal["status"],
+                "external_runtime_receipt": terminal["receipt_ref"],
+                "response_sha256": hashlib.sha256(response.encode("utf-8")).hexdigest(),
+                "delivery": delivery,
+            },
+        )
+    except Exception as exc:
+        receipts.transition(
+            envelope.receipt_id,
+            "running",
+            {"profile": "ptah", "status": "hold", "reason": f"maat-transport:{type(exc).__name__}"},
+        )
+        delivery = _deliver_route_result(
+            job["delivery_target"], f"Harness route {envelope.receipt_id}: hold (readback available)",
+        )
+        receipts.transition(
+            envelope.receipt_id,
+            "terminal",
+            {"status": "hold", "reason": f"maat-transport:{type(exc).__name__}", "delivery": delivery},
+        )
+    finally:
+        path.unlink(missing_ok=True)
+
+
 def _pre_gateway_dispatch(*, event, gateway, session_store, **kwargs):
     _INGRESS.set(None)
+    # Core control commands must reach the native command dispatcher before
+    # any bound-project ingress work. In particular, /stop is the user's
+    # emergency interrupt and must never be converted into a CPS route job.
+    if event.is_command():
+        if event.get_command() == "stop":
+            _stop_route_jobs(event.source)
+        return {"action": "allow"}
     try:
         binding = _resolve_project_binding(event.source, gateway.config)
     except _ProjectBindingHold:
-        return {"action": "skip", "reason": "harness-project-binding-hold"}
+        # Binding context is advisory for this turn. A bad or unavailable
+        # binding must not suppress the native conversation path.
+        return {"action": "allow"}
     if binding is None:
         return {"action": "allow"}
 
@@ -494,23 +825,24 @@ def _pre_gateway_dispatch(*, event, gateway, session_store, **kwargs):
             receipt_dir=receipt_dir,
             intake=_INTAKE,
         )
-    except IngressValidationError as exc:
-        return {"action": "skip", "reason": f"harness-ingress-rejected:{exc}"}
-    if result["status"] == "READY":
-        _INGRESS.set(
-            _IngressEnvelope(
-                receipt_id=result["cps_receipt_id"],
-                canonical_json=result["canonical_packet"],
-                receipt_dir=receipt_dir,
-                project_cwd=binding.cwd,
-            )
-        )
+    except IngressValidationError:
+        # Intake is contextual evidence, not admission control for a user turn.
         return {"action": "allow"}
-    return {
-        "action": "skip",
-        "reason": f"harness-ingress-{result['status'].lower()}",
-        "cps_receipt_id": result["cps_receipt_id"],
-    }
+    if result["status"] == "READY":
+        envelope = _IngressEnvelope(
+            receipt_id=result["cps_receipt_id"],
+            canonical_json=result["canonical_packet"],
+            receipt_dir=receipt_dir,
+            project_cwd=binding.cwd,
+            session_key=(
+                f"{event.source.platform.value}:{event.source.parent_chat_id or event.source.chat_id}"
+            ),
+        )
+        _INGRESS.set(envelope)
+    # A READY receipt supplies trusted context to native handling. Neither it
+    # nor an intake hold selects an owner, creates executable CPS work, or
+    # blocks the ordinary conversation path.
+    return {"action": "allow"}
 
 
 def _pre_llm_call(
@@ -526,24 +858,20 @@ def _pre_llm_call(
         return None
     session_id = str(session_id or "")
     turn_id = str(kwargs.get("turn_id") or "")
-    retrieve = kwargs.get("gateway_ingress_retrieve")
-    if callable(retrieve):
-        try:
-            retrieval = retrieve(original_user_message=user_message)
-        except Exception:
-            compact_c = _base_compact_c(envelope, "provider_error")
-        else:
-            status = getattr(retrieval, "status", None)
-            if status == "available":
-                compact_c = _validated_compact_c(getattr(retrieval, "results", None))
-                if compact_c is None:
-                    compact_c = _base_compact_c(envelope, "malformed_result")
-            elif status in {"unavailable", "provider_error"}:
-                compact_c = _base_compact_c(envelope, status)
-            else:
-                compact_c = _base_compact_c(envelope, "malformed_result")
+    try:
+        retrieval = _gateway_ingress_retrieval_provider(
+            original_user_message=json.loads(envelope.canonical_json)["intent"],
+            session_id=session_id,
+            session_key=envelope.session_key,
+            platform=platform,
+            sender_id=sender_id,
+        )
+    except Exception:
+        compact_c = _base_compact_c(envelope, "provider_error")
     else:
-        compact_c = _base_compact_c(envelope, "unavailable")
+        compact_c = _validated_compact_c(retrieval)
+        if compact_c is None:
+            compact_c = _base_compact_c(envelope, "malformed_result")
     receipts = ExecutionReceipts(envelope.receipt_dir)
     try:
         receipts.transition(
@@ -579,6 +907,7 @@ def _pre_llm_call(
             canonical_json=envelope.canonical_json,
             receipt_dir=envelope.receipt_dir,
             project_cwd=envelope.project_cwd,
+            session_key=envelope.session_key,
             state="running",
             session_id=session_id,
             turn_id=turn_id,
@@ -647,11 +976,11 @@ def _post_llm_call(*, session_id, turn_id, assistant_response, **kwargs):
 
 
 def register(ctx):
-    if not ctx.register_gateway_ingress_retrieval_provider(
-        _gateway_ingress_retrieval_provider
-    ):
-        raise RuntimeError("gateway ingress retrieval provider registration conflict")
     ctx.register_hook("pre_gateway_dispatch", _pre_gateway_dispatch)
     ctx.register_hook("pre_llm_call", _pre_llm_call)
     ctx.register_hook("post_llm_call", _post_llm_call)
     ctx.register_middleware("llm_request", _llm_request_middleware)
+
+
+if __name__ == "__main__" and len(sys.argv) == 3 and sys.argv[1] == "--route-job":
+    _run_route_job(Path(sys.argv[2]))

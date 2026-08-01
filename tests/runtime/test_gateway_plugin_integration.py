@@ -35,9 +35,8 @@ for module_root in (CORE_SITE_PACKAGES, CORE, RUNTIME):
         sys.path.insert(0, str(module_root))
 
 from gateway.config import Platform, load_gateway_config
-from gateway.ingress_retrieval import GatewayIngressRetrievalAdapter
 from gateway.platforms.base import MessageEvent
-from gateway.run import GatewayRunner, _bind_gateway_ingress_retrieval
+from gateway.run import GatewayRunner
 from gateway.session import SessionSource
 from agent.turn_finalizer import finalize_turn
 from hermes_cli import plugins as hermes_plugins
@@ -78,6 +77,7 @@ def loaded_project_plugin(tmp_path, monkeypatch, request):
         manifest: str | None = "schema: harness.project.v1\n",
         *,
         binding_slug: str = "project-test",
+        route_runtime_enabled: bool = False,
     ):
         project = _project(tmp_path / "project", manifest)
         hermes_home = tmp_path / "hermes-home"
@@ -90,6 +90,7 @@ def loaded_project_plugin(tmp_path, monkeypatch, request):
             "  entries:\n"
             "    harness-gateway:\n"
             f"      receipt_dir: {receipt_dir}\n"
+            f"      route_runtime_enabled: {str(route_runtime_enabled).lower()}\n"
             "platforms:\n"
             "  discord:\n"
             "    extra:\n"
@@ -118,7 +119,6 @@ def loaded_project_plugin(tmp_path, monkeypatch, request):
         assert manager.has_hook("pre_llm_call")
         assert manager.has_hook("post_llm_call")
         assert manager.has_middleware("llm_request")
-        assert manager._gateway_ingress_retrieval_provider is not None
         module = loaded.module
         reader_calls = []
 
@@ -277,15 +277,6 @@ def _runner_reaching_agent(config, captured: list[dict]) -> GatewayRunner:
         turn_id = f"turn:{session_id}"
         history = []
         cached_system_prompt = "SYSTEM PROMPT BYTES"
-        agent = SimpleNamespace(session_id=session_id, _cached_system_prompt=cached_system_prompt)
-        _bind_gateway_ingress_retrieval(
-            agent,
-            session_id=session_id,
-            session_key=f"discord:{source.chat_id}",
-            platform=source.platform.value,
-            sender_id=source.user_id,
-        )
-        retrieval = agent._gateway_ingress_retrieve
         results = hermes_plugins.invoke_hook(
             "pre_llm_call",
             session_id=session_id,
@@ -297,7 +288,6 @@ def _runner_reaching_agent(config, captured: list[dict]) -> GatewayRunner:
             model="test-model",
             platform=source.platform.value,
             sender_id=source.user_id,
-            gateway_ingress_retrieve=retrieval,
         )
         context = "\n\n".join(
             result["context"]
@@ -362,15 +352,21 @@ def _stage_evidence(receipt: dict, stage: str) -> dict:
 
 
 @pytest.mark.parametrize(
-    ("channel_id", "parent_channel_id"),
-    [("bound-parent", None), ("thread-ready", "bound-parent")],
+    ("channel_id", "parent_channel_id", "route_runtime_enabled"),
+    [
+        ("bound-parent", None, False),
+        ("thread-ready", "bound-parent", False),
+        ("bound-parent", None, True),
+        ("thread-ready", "bound-parent", True),
+    ],
 )
 def test_actual_gateway_handler_keeps_ingress_packet_out_of_user_message(
     loaded_project_plugin,
     channel_id,
     parent_channel_id,
+    route_runtime_enabled,
 ):
-    loaded = loaded_project_plugin()
+    loaded = loaded_project_plugin(route_runtime_enabled=route_runtime_enabled)
     captured: list[dict] = []
     runner = _runner_reaching_agent(loaded.config, captured)
     result = asyncio.run(
@@ -417,20 +413,20 @@ def test_actual_gateway_handler_keeps_ingress_packet_out_of_user_message(
     assert "generic" not in json.dumps(receipt)
 
 
-def test_actual_gateway_hook_hold_skips_generic_agent(loaded_project_plugin):
-    loaded = loaded_project_plugin(manifest="")
-    runner = _hook_runner(loaded.config)
-    generic_calls: list[str] = []
+@pytest.mark.parametrize("route_runtime_enabled", [False, True])
+def test_actual_gateway_hook_hold_allows_generic_agent(
+    loaded_project_plugin, route_runtime_enabled
+):
+    loaded = loaded_project_plugin(
+        manifest="", route_runtime_enabled=route_runtime_enabled
+    )
+    captured: list[dict] = []
+    runner = _runner_reaching_agent(loaded.config, captured)
 
-    async def generic(*args, **kwargs):
-        generic_calls.append("called")
-        return "generic"
-
-    runner._run_agent = generic
     result = asyncio.run(GatewayRunner._handle_message(runner, _event("held")))
 
-    assert result is None
-    assert generic_calls == []
+    assert result == {"final_response": "generic"}
+    assert captured[0]["message"] == "intent:held"
     receipt = _receipt(loaded.receipt_dir)
     assert [entry["stage"] for entry in receipt["entries"]] == ["received", "intake-hold", "terminal"]
     assert receipt["entries"][-1]["evidence"]["status"] == "HOLD"
@@ -451,13 +447,22 @@ def test_resolved_binding_bootstraps_absent_manifest(loaded_project_plugin):
     )["binding_evidence"]["manifest_created"] is True
 
 
-def test_held_binding_does_not_bootstrap_manifest(loaded_project_plugin):
-    loaded = loaded_project_plugin(manifest=None, binding_slug="missing-project")
-    runner = _hook_runner(loaded.config)
+@pytest.mark.parametrize("route_runtime_enabled", [False, True])
+def test_held_binding_keeps_native_conversation_and_does_not_bootstrap_manifest(
+    loaded_project_plugin, route_runtime_enabled
+):
+    loaded = loaded_project_plugin(
+        manifest=None,
+        binding_slug="missing-project",
+        route_runtime_enabled=route_runtime_enabled,
+    )
+    captured: list[dict] = []
+    runner = _runner_reaching_agent(loaded.config, captured)
 
     result = asyncio.run(GatewayRunner._handle_message(runner, _event("binding-held")))
 
-    assert result is None
+    assert result == {"final_response": "generic"}
+    assert captured[0]["message"] == "intent:binding-held"
     assert not (loaded.project / "manifest.yml").exists()
 
 
@@ -914,21 +919,21 @@ def test_non_vector_candidate_is_not_a_finding_and_cannot_suppress_cps(
 @pytest.mark.parametrize(
     ("provider", "expected_status"),
     [
-        (None, "unavailable"),
         (lambda **kwargs: (_ for _ in ()).throw(RuntimeError("secret")), "provider_error"),
         (lambda **kwargs: {"unexpected": "route"}, "malformed_result"),
     ],
 )
 def test_provider_failure_preserves_bound_packet_and_ordinary_turn(
-    loaded_project_plugin, provider, expected_status
+    loaded_project_plugin, monkeypatch, provider, expected_status
 ):
     loaded = loaded_project_plugin()
+    module = loaded.manager._plugins["harness-gateway"].module
     runner = _hook_runner(loaded.config)
     event = _event(f"provider-{expected_status}")
     loaded.manager.invoke_hook(
         "pre_gateway_dispatch", event=event, gateway=runner, session_store=runner.session_store
     )
-    retrieval = GatewayIngressRetrievalAdapter(provider)
+    monkeypatch.setattr(module, "_gateway_ingress_retrieval_provider", provider)
 
     result = loaded.manager.invoke_hook(
         "pre_llm_call",
@@ -937,7 +942,6 @@ def test_provider_failure_preserves_bound_packet_and_ordinary_turn(
         user_message=event.text,
         platform="discord",
         sender_id="owner",
-        gateway_ingress_retrieve=retrieval,
     )
 
     assert result == []
@@ -1045,20 +1049,21 @@ def test_post_llm_finalization_error_still_clears_task_local_packet(
 
 
 @pytest.mark.parametrize(
-    ("case", "final_response", "interrupted", "expected_completed", "turn_exit_reason"),
+    ("case", "final_response", "interrupted", "expected_completed", "turn_exit_reason", "expected_terminal_entries"),
     [
-        ("normal", "done", False, True, "text_response(finish_reason=stop)"),
-        ("empty_response", None, False, False, "empty_response"),
-        ("interrupted", "partial", True, True, "interrupted_by_user"),
+        ("normal", "done", False, True, "text_response(finish_reason=stop)", 1),
+        ("empty_response", None, False, False, "empty_response", 0),
+        ("interrupted", "partial", True, True, "interrupted_by_user", 0),
     ],
 )
-def test_finalize_turn_terminalizes_and_cleans_ingress_for_all_terminal_paths(
+def test_finalize_turn_observes_current_core_post_llm_contract(
     loaded_project_plugin,
     case,
     final_response,
     interrupted,
     expected_completed,
     turn_exit_reason,
+    expected_terminal_entries,
 ):
     loaded = loaded_project_plugin()
     runner = _hook_runner(loaded.config)
@@ -1112,7 +1117,7 @@ def test_finalize_turn_terminalizes_and_cleans_ingress_for_all_terminal_paths(
 
     receipt = _receipt(loaded.receipt_dir)
     terminal_entries = [entry for entry in receipt["entries"] if entry["stage"] == "terminal"]
-    assert len(terminal_entries) == 1
+    assert len(terminal_entries) == expected_terminal_entries
     assert result["final_response"] == final_response
     assert result["interrupted"] is interrupted
     assert result["completed"] is expected_completed
@@ -1260,6 +1265,104 @@ def test_concurrent_asyncio_tasks_keep_ingress_envelopes_isolated(loaded_project
     assert receipts["second"]["entries"][-1]["evidence"]["response_sha256"] == hashlib.sha256(
         b"second result"
     ).hexdigest()
+
+
+def test_maat_issues_an_immutable_ptah_only_transport(loaded_project_plugin, monkeypatch):
+    loaded = loaded_project_plugin()
+    module = loaded.manager._plugins["harness-gateway"].module
+    dispatched = {}
+
+    class Dispatcher:
+        @staticmethod
+        def _canonical_digest(value):
+            return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+        @staticmethod
+        def dispatch_external_runtime(
+            consumer, body, receipt_dir, *, identity, execution_transport, verification_profiles
+        ):
+            dispatched.update({
+                "consumer": consumer,
+                "body": body,
+                "receipt_dir": receipt_dir,
+                "identity": identity,
+                "transport": execution_transport,
+                "verification_profiles": verification_profiles,
+            })
+            return {"receipt_ref": "ptah-run:2"}
+
+    response = json.dumps({
+        "status": "issued", "consumer_ref": "ptah", "provider": "test-provider",
+        "model": "test-model", "toolsets": ["file", "terminal"],
+    })
+    monkeypatch.setattr(module, "_tools_module", lambda name: Dispatcher)
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout=response, stderr=""),
+    )
+    envelope = module._IngressEnvelope(
+        receipt_id="cps-route", canonical_json=json.dumps({"intent": "apply bounded change"}),
+        receipt_dir=loaded.receipt_dir, project_cwd=str(loaded.project),
+    )
+    issued = module._issue_ptah_transport(envelope, module._base_compact_c(envelope, "not_requested"))
+
+    assert dispatched["consumer"] == "ptah"
+    assert dispatched["verification_profiles"] == ()
+    assert dispatched["identity"]["owner_ref"] == "ptah"
+    assert dispatched["transport"]["issuer"] == "maat"
+    assert dispatched["transport"]["binding"] == {**dispatched["identity"], "project_root": str(loaded.project)}
+    assert dispatched["transport"]["attachment_digest"] == Dispatcher._canonical_digest(
+        {key: value for key, value in dispatched["transport"].items() if key != "attachment_digest"}
+    )
+    assert issued["runtime_receipt"]["receipt_ref"] == "ptah-run:2"
+
+
+def test_gateway_hook_enabled_runtime_keeps_native_handling_without_route_job(
+    loaded_project_plugin, monkeypatch
+):
+    loaded = loaded_project_plugin(route_runtime_enabled=True)
+    module = loaded.manager._plugins["harness-gateway"].module
+    captured: list[dict] = []
+    runner = _runner_reaching_agent(loaded.config, captured)
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("bound ingress created an external route job")
+
+    monkeypatch.setattr(module, "_write_route_job", forbidden)
+    monkeypatch.setattr(module, "_launch_route_job", forbidden)
+    monkeypatch.setattr(module, "_issue_ptah_transport", forbidden)
+
+    result = asyncio.run(GatewayRunner._handle_message(runner, _event("native-enabled")))
+
+    assert result == {"final_response": "generic"}
+    assert captured[0]["message"] == "intent:native-enabled"
+    assert not (loaded.receipt_dir / "route-jobs").exists()
+    receipt = _receipt(loaded.receipt_dir)
+    route = _stage_evidence(receipt, "route")
+    assert route["schema"] == "harness.gateway.ingress-packet.v1"
+    assert route["target_profile"] == "default"
+    assert "job_ref" not in route
+    assert "ptah" not in json.dumps(receipt)
+
+
+def test_gateway_hook_allows_native_stop_command_without_creating_route_job(
+    loaded_project_plugin, monkeypatch
+):
+    loaded = loaded_project_plugin(route_runtime_enabled=True)
+    module = loaded.manager._plugins["harness-gateway"].module
+    runner = _hook_runner(loaded.config)
+    launched = []
+    monkeypatch.setattr(module, "_launch_route_job", lambda path: launched.append(path) or 4321)
+    event = _event("/stop")
+
+    result = loaded.manager.invoke_hook(
+        "pre_gateway_dispatch", event=event, gateway=runner, session_store=runner.session_store
+    )
+
+    assert result == [{"action": "allow"}]
+    assert launched == []
+    assert list(loaded.receipt_dir.glob("cps-*/current.json")) == []
 
 
 def test_agy_request_injects_bounded_honcho_advisory_only(loaded_project_plugin):
