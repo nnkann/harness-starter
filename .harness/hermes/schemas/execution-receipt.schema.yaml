@@ -44,19 +44,29 @@
     "external_runtime_facts": {
       "type": "object",
       "required": [
-        "event", "argv", "pid", "exit_code",
+        "event", "argv", "execution_transport", "execution_transport_digest",
+        "provider", "model", "toolsets", "cwd", "terminal_cwd", "pid", "exit_code",
         "body_artifact_ref", "body_digest", "body_byte_count",
         "stdout_artifact_ref", "stdout_digest", "stdout_byte_count",
         "stderr_artifact_ref", "stderr_digest", "stderr_byte_count",
-        "native_profile_ref", "native_correlation_id", "native_runs"
+        "native_profile_ref", "native_correlation_id", "verification_profiles", "native_runs"
       ],
       "properties": {
-        "event": {"enum": ["dispatch", "heartbeat", "poll", "blocker", "terminal"]},
+        "event": {"enum": ["dispatch", "poll", "blocker", "terminal"]},
         "argv": {
           "type": "array",
           "minItems": 1,
           "items": {"type": "string", "minLength": 1}
         },
+        "provider": {"type": ["string", "null"]},
+        "model": {"type": ["string", "null"]},
+        "toolsets": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "cwd": {"type": "string", "minLength": 1},
+        "terminal_cwd": {"type": "string", "minLength": 1},
         "pid": {"type": ["integer", "null"], "minimum": 1},
         "exit_code": {"type": ["integer", "null"]},
         "body_artifact_ref": {"type": "string", "minLength": 1},
@@ -70,14 +80,80 @@
         "stderr_byte_count": {"type": "integer", "minimum": 0},
         "native_profile_ref": {"type": "string", "minLength": 1},
         "native_correlation_id": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "verification_profiles": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"enum": ["anubis", "maat"]}
+        },
+        "execution_transport_digest": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "execution_transport": {
+          "anyOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "required": ["issuer", "issuer_ref", "binding", "provider", "model", "toolsets", "cwd_binding", "attachment_digest"],
+              "properties": {
+                "issuer": {"const": "maat"},
+                "issuer_ref": {"type": "string", "minLength": 1},
+                "binding": {
+                  "type": "object",
+                  "required": ["work_id", "graph_ref", "graph_revision", "graph_digest", "stage_ref", "owner_ref", "parent_edge_ref", "return_to_node_ref", "run_handle", "attempt", "immutable_body_digest", "project_root"],
+                  "properties": {
+                    "work_id": {"type": "string", "minLength": 1},
+                    "graph_ref": {"type": "string", "minLength": 1},
+                    "graph_revision": {"type": "integer", "minimum": 1},
+                    "graph_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                    "stage_ref": {"type": "string", "minLength": 1},
+                    "owner_ref": {"type": "string", "minLength": 1},
+                    "parent_edge_ref": {"type": "string", "minLength": 1},
+                    "return_to_node_ref": {"type": "string", "minLength": 1},
+                    "run_handle": {"type": "string", "minLength": 1},
+                    "attempt": {"type": "integer", "minimum": 1},
+                    "immutable_body_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                    "project_root": {"type": "string", "minLength": 1}
+                  },
+                  "additionalProperties": false
+                },
+                "provider": {"type": "string", "minLength": 1},
+                "model": {"type": "string", "minLength": 1},
+                "toolsets": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {"type": "string", "minLength": 1}
+                },
+                "cwd_binding": {"const": "project_root"},
+                "attachment_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
         "native_runs": {
           "type": "array",
           "maxItems": 3,
           "items": {
             "type": "object",
-            "required": ["profile", "correlation_id", "session_ref", "session_digest", "exit_status", "output_digest", "gate_status", "tool_evidence"],
+            "required": ["profile", "provider", "model", "toolsets", "argv", "cwd", "terminal_cwd", "correlation_id", "session_ref", "session_digest", "exit_status", "output_digest", "gate_status", "tool_evidence"],
             "properties": {
               "profile": {"enum": ["ptah", "anubis", "maat"]},
+              "provider": {"type": ["string", "null"]},
+              "model": {"type": ["string", "null"]},
+              "toolsets": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": {"type": "string", "minLength": 1}
+              },
+              "argv": {
+                "type": "array",
+                "minItems": 1,
+                "items": {"type": "string", "minLength": 1}
+              },
+              "cwd": {"type": "string", "minLength": 1},
+              "terminal_cwd": {"type": "string", "minLength": 1},
               "correlation_id": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
               "session_ref": {"type": "string", "minLength": 1},
               "session_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
@@ -146,7 +222,12 @@
           },
           "additionalProperties": false
         },
-        "facts": {"$ref": "#/$defs/facts_without_identity"}
+        "facts": {
+          "anyOf": [
+            {"$ref": "#/$defs/facts_without_identity"},
+            {"$ref": "#/$defs/external_runtime_facts"}
+          ]
+        }
       },
       "allOf": [
         {
@@ -218,7 +299,7 @@
             "properties": {
               "facts": {
                 "required": ["event"],
-                "properties": {"event": {"enum": ["dispatch", "heartbeat", "poll", "blocker"]}}
+                "properties": {"event": {"enum": ["dispatch", "poll", "blocker"]}}
               }
             }
           },

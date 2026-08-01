@@ -20,6 +20,11 @@ SEMANTIC_KEYS = {"verdict", "C", "P", "S", "AC", "task_AC", "closure"}
 RUNTIME_FACT_KEYS = {
     "event",
     "argv",
+    "provider",
+    "model",
+    "toolsets",
+    "cwd",
+    "terminal_cwd",
     "pid",
     "exit_code",
     "body_artifact_ref",
@@ -33,7 +38,10 @@ RUNTIME_FACT_KEYS = {
     "stderr_byte_count",
     "native_profile_ref",
     "native_correlation_id",
+    "verification_profiles",
     "native_runs",
+    "execution_transport",
+    "execution_transport_digest",
 }
 IDENTITY_KEYS = (
     "work_id",
@@ -50,7 +58,12 @@ IDENTITY_KEYS = (
 )
 PRODUCER_REF = "external_runtime_dispatcher"
 HERMES_MAX_TURNS = 8
-HERMES_TOOLSET = "file"
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+EXECUTION_TRANSPORT_KEYS = {
+    "issuer", "issuer_ref", "binding", "provider", "model", "toolsets",
+    "cwd_binding", "attachment_digest",
+}
+TRANSPORT_BINDING_KEYS = {*IDENTITY_KEYS, "project_root"}
 TERMINAL_RETENTION_SECONDS = 7 * 24 * 60 * 60
 _last_prune_at: dict[Path, float] = {}
 PRUNE_INTERVAL_SECONDS = 5 * 60
@@ -166,12 +179,23 @@ def _canonical_digest(value: Any) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _validate_runtime_facts(facts: Any) -> dict[str, Any]:
+def _validate_runtime_facts(facts: Any, identity: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(facts, dict) or set(facts) != RUNTIME_FACT_KEYS:
         raise ValueError("runtime facts must contain only the closed allowlist")
     argv = facts["argv"]
     if not isinstance(argv, list) or not argv or any(not isinstance(item, str) or not item for item in argv):
         raise ValueError("invalid runtime facts: argv")
+    transport = _validate_execution_transport(facts["execution_transport"], identity, facts["native_profile_ref"])
+    provider, model, toolsets = _resolved_transport(transport)
+    if facts["provider"] != provider or facts["model"] != model or facts["toolsets"] != toolsets:
+        raise ValueError("invalid runtime facts: selected transport")
+    expected_digest = transport["attachment_digest"] if transport is not None else None
+    if facts["execution_transport_digest"] != expected_digest:
+        raise ValueError("invalid runtime facts: execution transport digest")
+    project_root = str(PROJECT_ROOT)
+    if facts["cwd"] != project_root or facts["terminal_cwd"] != project_root:
+        raise ValueError("invalid runtime facts: project cwd contract")
+    _validate_native_argv(argv, facts["native_profile_ref"], provider, model, toolsets)
     pid = facts["pid"]
     if pid is not None and (isinstance(pid, bool) or not isinstance(pid, int) or pid < 1):
         raise ValueError("invalid runtime facts: pid")
@@ -196,15 +220,30 @@ def _validate_runtime_facts(facts: Any) -> dict[str, Any]:
     runs = facts["native_runs"]
     if not isinstance(runs, list):
         raise ValueError("invalid runtime facts: native_runs")
-    expected_profiles = (facts["native_profile_ref"], "anubis", "maat")
+    verification_profiles = facts["verification_profiles"]
+    if (
+        not isinstance(verification_profiles, list)
+        or any(profile not in {"anubis", "maat"} for profile in verification_profiles)
+        or len(verification_profiles) != len(set(verification_profiles))
+    ):
+        raise ValueError("invalid runtime facts: verification_profiles")
+    expected_profiles = (facts["native_profile_ref"], *verification_profiles)
     for index, run in enumerate(runs):
         if not isinstance(run, dict) or set(run) != {
             "profile", "correlation_id", "session_ref", "session_digest",
             "exit_status", "output_digest", "gate_status", "tool_evidence",
+            "provider", "model", "toolsets", "argv", "cwd", "terminal_cwd",
         }:
             raise ValueError("invalid runtime facts: native_runs")
         if index >= len(expected_profiles) or run["profile"] != expected_profiles[index] or run["correlation_id"] != correlation:
             raise ValueError("invalid runtime facts: native run correlation")
+        run_transport = transport if run["profile"] == facts["native_profile_ref"] else None
+        run_provider, run_model, run_toolsets = _resolved_transport(run_transport)
+        if run["provider"] != run_provider or run["model"] != run_model or run["toolsets"] != run_toolsets:
+            raise ValueError("invalid runtime facts: native run selected transport")
+        if run["cwd"] != project_root or run["terminal_cwd"] != project_root:
+            raise ValueError("invalid runtime facts: native run project cwd contract")
+        _validate_native_argv(run["argv"], run["profile"], run_provider, run_model, run_toolsets)
         if not isinstance(run["session_ref"], str) or not run["session_ref"]:
             raise ValueError("invalid runtime facts: native run session_ref")
         for key in ("session_digest", "output_digest"):
@@ -228,16 +267,97 @@ def _validate_runtime_facts(facts: Any) -> dict[str, Any]:
     return dict(facts)
 
 
-def _native_argv(consumer_ref: str, body: bytes, correlation_id: str) -> list[str]:
+def _transport_binding(identity: dict[str, Any], consumer_ref: str) -> dict[str, Any]:
+    if identity["owner_ref"] != consumer_ref:
+        raise ValueError("execution_transport owner binding mismatch")
+    return {**identity, "project_root": str(PROJECT_ROOT)}
+
+
+def _validate_execution_transport(
+    transport: Any,
+    identity: dict[str, Any],
+    consumer_ref: str,
+) -> dict[str, Any] | None:
+    if transport is None:
+        return None
+    if not isinstance(transport, dict) or set(transport) != EXECUTION_TRANSPORT_KEYS:
+        raise ValueError("malformed execution_transport attachment")
+    if transport["issuer"] != "maat" or not isinstance(transport["issuer_ref"], str) or not transport["issuer_ref"]:
+        raise ValueError("invalid execution_transport provenance")
+    binding = transport["binding"]
+    if not isinstance(binding, dict) or set(binding) != TRANSPORT_BINDING_KEYS:
+        raise ValueError("malformed execution_transport binding")
+    if binding != _transport_binding(identity, consumer_ref) or transport["cwd_binding"] != "project_root":
+        raise ValueError("execution_transport binding mismatch")
+    for key in ("provider", "model"):
+        if not isinstance(transport[key], str) or not transport[key]:
+            raise ValueError(f"malformed execution_transport {key}")
+    toolsets = transport["toolsets"]
+    if (
+        not isinstance(toolsets, list) or not toolsets
+        or any(not isinstance(item, str) or not item for item in toolsets)
+        or len(toolsets) != len(set(toolsets))
+    ):
+        raise ValueError("malformed execution_transport toolsets")
+    digest = transport["attachment_digest"]
+    unsigned = {key: value for key, value in transport.items() if key != "attachment_digest"}
+    if not isinstance(digest, str) or digest != _canonical_digest(unsigned):
+        raise ValueError("execution_transport digest mismatch")
+    return json.loads(json.dumps(transport))
+
+
+def _resolved_transport(transport: dict[str, Any] | None) -> tuple[str | None, str | None, list[str]]:
+    if transport is None:
+        return None, None, []
+    return transport["provider"], transport["model"], list(transport["toolsets"])
+
+
+def _validate_native_argv(
+    argv: Any,
+    profile: str,
+    provider: str | None,
+    model: str | None,
+    toolsets: list[str],
+) -> None:
+    if not isinstance(argv, list):
+        raise ValueError("invalid native argv contract")
+    expected = ["hermes", "-p", profile, "chat", "-Q", "--pass-session-id"]
+    if provider is not None and model is not None:
+        expected.extend(["--provider", provider, "-m", model])
+    if toolsets:
+        expected.extend(["-t", ",".join(toolsets)])
+    if argv[:len(expected)] != expected:
+        raise ValueError("invalid native argv selected transport")
+    tail = argv[len(expected):]
+    if (
+        len(tail) != 6 or tail[0] != "--source" or not tail[1].startswith("harness:")
+        or tail[2:5] != ["--max-turns", str(HERMES_MAX_TURNS), "-q"]
+        or "--provider" in tail or "-m" in tail or "-t" in tail
+    ):
+        raise ValueError("invalid native argv selected transport")
+
+
+def _native_argv(
+    consumer_ref: str,
+    body: bytes,
+    correlation_id: str,
+    execution_transport: dict[str, Any] | None = None,
+) -> list[str]:
     try:
         query = body.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise ValueError("immutable body must be UTF-8 text") from exc
-    return [
-        "hermes", "-p", consumer_ref, "chat", "-Q", "--pass-session-id",
+    provider, model, toolsets = _resolved_transport(execution_transport)
+    argv = ["hermes", "-p", consumer_ref, "chat", "-Q", "--pass-session-id"]
+    if provider is not None and model is not None:
+        argv.extend(["--provider", provider, "-m", model])
+    if toolsets:
+        argv.extend(["-t", ",".join(toolsets)])
+    argv.extend([
         "--source", f"harness:{correlation_id}", "--max-turns",
-        str(HERMES_MAX_TURNS), "-t", HERMES_TOOLSET, "-q", query,
-    ]
+        str(HERMES_MAX_TURNS), "-q", query,
+    ])
+    return argv
 
 
 def _tool_exit_status(content: str) -> int:
@@ -254,12 +374,28 @@ def _tool_exit_status(content: str) -> int:
     return 0
 
 
+def _json_object_from_output(output: str) -> dict[str, Any] | None:
+    decoder = json.JSONDecoder()
+    parsed: dict[str, Any] | None = None
+    for index, character in enumerate(output):
+        if character != "{":
+            continue
+        try:
+            value, _ = decoder.raw_decode(output[index:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict) and (
+            isinstance(value.get("status"), str)
+            or isinstance(value.get("verdict"), str)
+            or isinstance(value.get("Goal_closure"), dict)
+        ):
+            parsed = value
+    return parsed
+
+
 def _native_verdict(profile: str, output: str) -> str | None:
-    try:
-        value = json.loads(output)
-    except (TypeError, json.JSONDecodeError):
-        return None
-    if not isinstance(value, dict):
+    value = _json_object_from_output(output)
+    if value is None:
         return None
     status = str(value.get("status", "")).lower()
     if profile == "anubis":
@@ -464,7 +600,7 @@ def _append_locked(
     errors: list[str] | None = None,
 ) -> dict[str, Any]:
     _validate_event_status(facts.get("event") if isinstance(facts, dict) else None, status)
-    facts = _validate_runtime_facts(facts)
+    facts = _validate_runtime_facts(facts, identity)
     chain_path, current_path, _ = _paths(identity, record_root)
     chain = _read_chain_unlocked(identity, record_root)
     current = _read_current_unlocked(identity, record_root)
@@ -518,12 +654,16 @@ def _runner_argv(job_path: Path) -> list[str]:
 
 
 def _background_runner(argv: list[str]) -> int:
+    env = os.environ.copy()
+    env["TERMINAL_CWD"] = str(PROJECT_ROOT)
     return subprocess.Popen(
         argv,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         start_new_session=True,
+        cwd=PROJECT_ROOT,
+        env=env,
     ).pid
 
 
@@ -534,16 +674,25 @@ def dispatch_external_runtime(
     *,
     identity: dict[str, Any],
     process_runner: Callable[[list[str]], int] | None = None,
+    execution_transport: dict[str, Any] | None = None,
+    verification_profiles: tuple[str, ...] = ("anubis", "maat"),
 ) -> dict[str, Any]:
     record_root = Path(record_root)
     if not isinstance(body, bytes):
         raise TypeError("body must be bytes")
-    _prune_terminal_cases_if_due(record_root)
     identity = _validate_identity(identity, body)
     if not isinstance(consumer_ref, str) or not consumer_ref or consumer_ref != identity["owner_ref"]:
         raise ValueError("consumer_ref must match identity.owner_ref")
+    transport = _validate_execution_transport(execution_transport, identity, consumer_ref)
+    if (
+        any(profile not in {"anubis", "maat"} for profile in verification_profiles)
+        or len(verification_profiles) != len(set(verification_profiles))
+    ):
+        raise ValueError("verification_profiles must be a unique Anubis/Maat subset")
     correlation_id = _canonical_digest(identity)
-    argv = _native_argv(consumer_ref, body, correlation_id)
+    argv = _native_argv(consumer_ref, body, correlation_id, transport)
+    provider, model, toolsets = _resolved_transport(transport)
+    _prune_terminal_cases_if_due(record_root)
     case_dir = _case_dir(identity, record_root)
     body_path = case_dir / "artifacts" / "body.bin"
     stdout_path = case_dir / "artifacts" / "stdout.bin"
@@ -555,14 +704,27 @@ def dispatch_external_runtime(
         _write_artifact(body_path, body)
         _write_artifact(stdout_path, b"")
         _write_artifact(stderr_path, b"")
-        facts = {"event": "dispatch", "argv": list(argv), "pid": None, "exit_code": None}
+        facts = {
+            "event": "dispatch",
+            "argv": list(argv),
+            "provider": provider,
+            "model": model,
+            "toolsets": toolsets,
+            "cwd": str(PROJECT_ROOT),
+            "terminal_cwd": str(PROJECT_ROOT),
+            "pid": None,
+            "exit_code": None,
+        }
         facts.update(_artifact_facts("body", body_path, case_dir))
         facts.update(_artifact_facts("stdout", stdout_path, case_dir))
         facts.update(_artifact_facts("stderr", stderr_path, case_dir))
         facts.update({
             "native_profile_ref": consumer_ref,
             "native_correlation_id": correlation_id,
+            "verification_profiles": list(verification_profiles),
             "native_runs": [],
+            "execution_transport": transport,
+            "execution_transport_digest": transport["attachment_digest"] if transport is not None else None,
         })
         _append_locked(identity, record_root, consumer_ref, "observed", facts)
     try:
@@ -628,18 +790,42 @@ def run_job(job_path: Path) -> dict[str, Any]:
             raise RuntimeError("body artifact metadata mismatch")
         native_runs = []
         body_bytes = body_path.read_bytes()
-        profiles = (current["external_runtime_receipt"]["consumer_ref"], "anubis", "maat")
+        profiles = (
+            current["external_runtime_receipt"]["consumer_ref"],
+            *facts["verification_profiles"],
+        )
+        child_env = os.environ.copy()
+        child_env["TERMINAL_CWD"] = str(PROJECT_ROOT)
         with stdout_path.open("wb") as stdout, stderr_path.open("wb") as stderr:
             for profile in profiles:
-                argv = _native_argv(profile, body_bytes, facts["native_correlation_id"])
+                transport = facts["execution_transport"] if profile == facts["native_profile_ref"] else None
+                argv = _native_argv(profile, body_bytes, facts["native_correlation_id"], transport)
+                provider, model, toolsets = _resolved_transport(transport)
                 with body_path.open("rb") as body:
-                    process = subprocess.Popen(argv, stdin=body, stdout=stdout, stderr=stderr)
+                    process = subprocess.Popen(
+                        argv, stdin=body, stdout=stdout, stderr=stderr,
+                        cwd=PROJECT_ROOT, env=child_env,
+                    )
                     exit_code = process.wait()
+                facts["exit_code"] = exit_code
                 run = _native_run_evidence(profile, body_bytes, facts["native_correlation_id"], exit_code)
+                run.update({
+                    "provider": provider,
+                    "model": model,
+                    "toolsets": toolsets,
+                    "argv": list(argv),
+                    "cwd": str(PROJECT_ROOT),
+                    "terminal_cwd": child_env["TERMINAL_CWD"],
+                })
+                candidate_facts = dict(facts)
+                candidate_facts["native_runs"] = [*native_runs, run]
+                try:
+                    _validate_runtime_facts(candidate_facts, identity)
+                except ValueError as exc:
+                    raise RuntimeError("native evidence incomplete") from exc
                 native_runs.append(run)
                 facts["native_runs"] = list(native_runs)
-                facts["exit_code"] = exit_code
-                if exit_code != 0 or (profile in {"anubis", "maat"} and run["gate_status"] != "pass"):
+                if exit_code != 0 or run["gate_status"] != "pass":
                     raise RuntimeError(f"native {profile} verification hold")
             for output in (stdout, stderr):
                 output.flush()
