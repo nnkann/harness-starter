@@ -58,6 +58,17 @@ class DispatcherTests(unittest.TestCase):
         self.assertEqual(receipt["status"], "git_pending")
         self.assertEqual(len(launches), 1)
 
+    def test_dispatch_rejects_partial_cps_binding_without_launch(self):
+        for omitted in ("CPS_refs", "closure_AC_ref"):
+            with self.subTest(omitted=omitted), tempfile.TemporaryDirectory() as tmp:
+                packet = self.packet()
+                del packet[omitted]
+                launches = []
+                receipt = dispatcher.dispatch_checkpoint(packet, Path(tmp), process_runner=launches.append)
+                self.assertEqual(receipt["status"], "rejected_dispatch")
+                self.assertIn("CPS_binding:partial", receipt["errors"])
+                self.assertFalse(launches)
+
     def test_dispatch_validates_nested_packet_and_exact_key_is_idempotent(self):
         launches = []
         with tempfile.TemporaryDirectory() as tmp:

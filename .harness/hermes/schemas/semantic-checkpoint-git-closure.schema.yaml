@@ -64,6 +64,13 @@
     "commit_message": {"type": "string", "minLength": 1},
     "verification_command": {"type": ["string", "null"]}
   },
+  "allOf": [
+    {
+      "if": {"required": ["CPS_refs"]},
+      "then": {"required": ["closure_AC_ref"]},
+      "else": {"not": {"required": ["closure_AC_ref"]}}
+    }
+  ],
   "additionalProperties": false,
   "$defs": {
     "exact_paths": {

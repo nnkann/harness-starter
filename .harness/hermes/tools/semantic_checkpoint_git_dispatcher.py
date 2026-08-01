@@ -244,15 +244,19 @@ def validate_checkpoint_packet(packet: dict[str, Any]) -> list[str]:
         errors.append("repository:invalid_value")
     _validate_lifecycle(packet, errors)
 
+    has_cps_binding = "CPS_refs" in packet
+    has_closure_binding = "closure_AC_ref" in packet
+    if has_cps_binding != has_closure_binding:
+        errors.append("CPS_binding:partial")
     refs = None
-    if "CPS_refs" in packet:
+    if has_cps_binding:
         refs = _exact_mapping(packet, "CPS_refs", {"C", "P", "S", "AC", "packet"}, errors)
         if refs:
             if not isinstance(refs["P"], list) or any(not isinstance(item, str) for item in refs["P"]):
                 errors.append("CPS_refs.P:invalid")
             if any(not isinstance(refs[key], str) or not refs[key] for key in {"C", "S", "AC", "packet"}):
                 errors.append("CPS_refs:invalid_value")
-    if "closure_AC_ref" in packet and (not isinstance(packet["closure_AC_ref"], str) or not packet["closure_AC_ref"]):
+    if has_closure_binding and (not isinstance(packet["closure_AC_ref"], str) or not packet["closure_AC_ref"]):
         errors.append("closure_AC_ref:invalid")
     for key in ("scoped_paths", "excluded_dirty_paths", "prohibited_actions"):
         if not isinstance(packet[key], list) or any(not isinstance(item, str) or not item for item in packet[key]):

@@ -1267,71 +1267,24 @@ def test_concurrent_asyncio_tasks_keep_ingress_envelopes_isolated(loaded_project
     ).hexdigest()
 
 
-def test_maat_issues_an_immutable_ptah_only_transport(loaded_project_plugin, monkeypatch):
+def test_gateway_plugin_has_no_background_route_execution_surface(loaded_project_plugin):
     loaded = loaded_project_plugin()
     module = loaded.manager._plugins["harness-gateway"].module
-    dispatched = {}
 
-    class Dispatcher:
-        @staticmethod
-        def _canonical_digest(value):
-            return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-
-        @staticmethod
-        def dispatch_external_runtime(
-            consumer, body, receipt_dir, *, identity, execution_transport, verification_profiles
-        ):
-            dispatched.update({
-                "consumer": consumer,
-                "body": body,
-                "receipt_dir": receipt_dir,
-                "identity": identity,
-                "transport": execution_transport,
-                "verification_profiles": verification_profiles,
-            })
-            return {"receipt_ref": "ptah-run:2"}
-
-    response = json.dumps({
-        "status": "issued", "consumer_ref": "ptah", "provider": "test-provider",
-        "model": "test-model", "toolsets": ["file", "terminal"],
-    })
-    monkeypatch.setattr(module, "_tools_module", lambda name: Dispatcher)
-    monkeypatch.setattr(
-        module.subprocess,
-        "run",
-        lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout=response, stderr=""),
-    )
-    envelope = module._IngressEnvelope(
-        receipt_id="cps-route", canonical_json=json.dumps({"intent": "apply bounded change"}),
-        receipt_dir=loaded.receipt_dir, project_cwd=str(loaded.project),
-    )
-    issued = module._issue_ptah_transport(envelope, module._base_compact_c(envelope, "not_requested"))
-
-    assert dispatched["consumer"] == "ptah"
-    assert dispatched["verification_profiles"] == ()
-    assert dispatched["identity"]["owner_ref"] == "ptah"
-    assert dispatched["transport"]["issuer"] == "maat"
-    assert dispatched["transport"]["binding"] == {**dispatched["identity"], "project_root": str(loaded.project)}
-    assert dispatched["transport"]["attachment_digest"] == Dispatcher._canonical_digest(
-        {key: value for key, value in dispatched["transport"].items() if key != "attachment_digest"}
-    )
-    assert issued["runtime_receipt"]["receipt_ref"] == "ptah-run:2"
+    for name in (
+        "_issue_ptah_transport", "_write_route_job", "_launch_route_job", "_stop_route_jobs",
+        "_deliver_route_result", "_terminal_runtime_response", "_run_route_job",
+    ):
+        assert not hasattr(module, name)
 
 
 def test_gateway_hook_enabled_runtime_keeps_native_handling_without_route_job(
-    loaded_project_plugin, monkeypatch
+    loaded_project_plugin
 ):
     loaded = loaded_project_plugin(route_runtime_enabled=True)
     module = loaded.manager._plugins["harness-gateway"].module
     captured: list[dict] = []
     runner = _runner_reaching_agent(loaded.config, captured)
-
-    def forbidden(*args, **kwargs):
-        pytest.fail("bound ingress created an external route job")
-
-    monkeypatch.setattr(module, "_write_route_job", forbidden)
-    monkeypatch.setattr(module, "_launch_route_job", forbidden)
-    monkeypatch.setattr(module, "_issue_ptah_transport", forbidden)
 
     result = asyncio.run(GatewayRunner._handle_message(runner, _event("native-enabled")))
 
@@ -1347,13 +1300,10 @@ def test_gateway_hook_enabled_runtime_keeps_native_handling_without_route_job(
 
 
 def test_gateway_hook_allows_native_stop_command_without_creating_route_job(
-    loaded_project_plugin, monkeypatch
+    loaded_project_plugin
 ):
     loaded = loaded_project_plugin(route_runtime_enabled=True)
-    module = loaded.manager._plugins["harness-gateway"].module
     runner = _hook_runner(loaded.config)
-    launched = []
-    monkeypatch.setattr(module, "_launch_route_job", lambda path: launched.append(path) or 4321)
     event = _event("/stop")
 
     result = loaded.manager.invoke_hook(
@@ -1361,7 +1311,6 @@ def test_gateway_hook_allows_native_stop_command_without_creating_route_job(
     )
 
     assert result == [{"action": "allow"}]
-    assert launched == []
     assert list(loaded.receipt_dir.glob("cps-*/current.json")) == []
 
 
