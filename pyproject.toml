@@ -30,3 +30,6 @@ contracts = ["*.json"]
 [tool.pytest.ini_options]
 testpaths = ["tests/runtime"]
 addopts = "-q"
+filterwarnings = [
+  "ignore:'audioop' is deprecated and slated for removal in Python 3\\.13:DeprecationWarning:discord\\.player",
+]
