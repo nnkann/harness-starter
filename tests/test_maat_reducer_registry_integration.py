@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 TOOLS = Path(__file__).resolve().parents[1] / ".harness" / "hermes" / "tools"
+CANONICAL_PROJECT_SLUG = "harness-starter"
 sys.path.insert(0, str(TOOLS))
 
 import cps_preflight_route_gate as preflight
@@ -36,7 +37,7 @@ class MaatReducerRegistryIntegrationTests(unittest.TestCase):
     def provenance(self, root):
         del root
         repo = TOOLS.parents[2]
-        source = repo.parent / "harness-brain" / "projects" / repo.name / "decisions" / "cps-memory-lifecycle-and-honcho-anchor.md"
+        source = repo.parent / "harness-brain" / "projects" / CANONICAL_PROJECT_SLUG / "decisions" / "cps-memory-lifecycle-and-honcho-anchor.md"
         line_count = len(source.read_text(encoding="utf-8").splitlines())
         return {
             "canonical_source_locator": str(source), "canonical_source_readback": f"{source}:1-{line_count}",

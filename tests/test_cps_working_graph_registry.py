@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 TOOLS = Path(__file__).resolve().parents[1] / ".harness" / "hermes" / "tools"
 SCHEMAS = TOOLS.parent / "schemas"
+CANONICAL_PROJECT_SLUG = "harness-starter"
 sys.path.insert(0, str(TOOLS))
 
 import cps_working_graph_registry as registry
@@ -18,7 +19,7 @@ class WorkingGraphRegistryTests(unittest.TestCase):
     def provenance(self, root: Path):
         del root
         repo = TOOLS.parents[2]
-        source = repo.parent / "harness-brain" / "projects" / repo.name / "decisions" / "cps-memory-lifecycle-and-honcho-anchor.md"
+        source = repo.parent / "harness-brain" / "projects" / CANONICAL_PROJECT_SLUG / "decisions" / "cps-memory-lifecycle-and-honcho-anchor.md"
         line_count = len(source.read_text(encoding="utf-8").splitlines())
         return {
             "canonical_source_locator": str(source),
@@ -721,7 +722,15 @@ class WorkingGraphRegistryTests(unittest.TestCase):
             self.assertEqual(properties[field], {"type": "integer", "minimum": 1})
         for field in ("graph_digest", "immutable_body_digest"):
             self.assertEqual(properties[field], {"type": "string", "pattern": "^[0-9a-f]{64}$"})
-        self.assertEqual(properties["facts"], {"$ref": "#/$defs/facts_without_identity"})
+        self.assertEqual(
+            properties["facts"],
+            {
+                "anyOf": [
+                    {"$ref": "#/$defs/facts_without_identity"},
+                    {"$ref": "#/$defs/external_runtime_facts"},
+                ]
+            },
+        )
 
     def test_execution_receipt_schema_defines_exact_continuation_record(self):
         receipt_schema = json.loads((SCHEMAS / "execution-receipt.schema.yaml").read_text())

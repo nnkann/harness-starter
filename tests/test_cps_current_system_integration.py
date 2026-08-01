@@ -10,6 +10,7 @@ from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS = ROOT / ".harness" / "hermes" / "tools"
+CANONICAL_PROJECT_SLUG = "harness-starter"
 sys.path.insert(0, str(TOOLS))
 
 import cps_c1_retrieval_adapter as adapter
@@ -86,7 +87,7 @@ class CpsCurrentSystemIntegrationTests(unittest.TestCase):
 
             graph_root = temp_root / "working-graphs"
             maat_body = {"schema": "harness.honcho.cps_cluster.v1", "C": {"shape": "bounded"}}
-            canonical_source = ROOT.parent / "harness-brain" / "projects" / ROOT.name / "decisions" / "cps-memory-lifecycle-and-honcho-anchor.md"
+            canonical_source = ROOT.parent / "harness-brain" / "projects" / CANONICAL_PROJECT_SLUG / "decisions" / "cps-memory-lifecycle-and-honcho-anchor.md"
             source_text = canonical_source.read_text(encoding="utf-8")
             section_ref, definition_refs = navigation._anchor_definition_refs(canonical_source, source_text)
             provenance = {
