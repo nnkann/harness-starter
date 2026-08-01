@@ -18,6 +18,10 @@ def test_maat_allows_adjudication_before_working_graph_materialization() -> None
     assert "after the semantic route decision" in policy
     assert "creates the current working-graph revision" in policy
     assert "before executor-local projection and semantic-checkpoint closure" in policy
+    assert "A bounded direct source/test observation is guidance, not execution" in policy
+    assert "creates no graph, document write, executor packet, execution receipt, or closure claim" in policy
+    assert "Maat may recommend it when the user asks only to inspect" in policy
+    assert "graph materialization begins only if a later route selects execution" in policy
     assert "not as an ingress input" in policy
     assert "concrete source/evidence absence actually needed for adjudication" in policy
     assert "an uncreated graph alone is not a HOLD reason" in policy

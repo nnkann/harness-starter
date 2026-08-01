@@ -82,6 +82,7 @@ maat:
 - With a valid project binding and bounded user scope, Maat first decides C/P/S/AC/owner/order.
 - First materialization permits `base_graph_ref: null`; after the semantic route decision, Maat creates the current working-graph revision.
 - `graph_ref` is required before executor-local projection and semantic-checkpoint closure, not as an ingress input.
+- A bounded direct source/test observation is guidance, not execution: it creates no graph, document write, executor packet, execution receipt, or closure claim. Maat may recommend it when the user asks only to inspect; graph materialization begins only if a later route selects execution, mutation, an external side effect, or final CPS outcome.
 - HOLD is only for a concrete source/evidence absence actually needed for adjudication; an uncreated graph alone is not a HOLD reason.
 
 ## Management rule
