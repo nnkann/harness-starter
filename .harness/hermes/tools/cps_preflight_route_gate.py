@@ -74,6 +74,162 @@ DERIVED_C_PARENT_BINDING_FIELDS = {
 }
 
 
+def validate_guard_admission(packet: Any) -> dict[str, Any]:
+    trigger_present = isinstance(packet, dict) and "guard_admission_trigger" in packet
+    trigger = packet.get("guard_admission_trigger") if isinstance(packet, dict) else None
+    projection_present = isinstance(packet, dict) and "guard_admission" in packet
+    projection = packet.get("guard_admission") if isinstance(packet, dict) else None
+    base = {
+        "schema": "harness.cps_preflight.guard_admission.v1",
+        "authority": "structural_invariant_only",
+    }
+    if not trigger_present and not projection_present:
+        return {
+            **base,
+            "status": "not_required",
+            "verdict": "NOT_REQUIRED",
+            "gap_classes": [],
+            "maat_semantic_judgment_required": False,
+        }
+    if not trigger_present:
+        return {
+            **base,
+            "status": "hold",
+            "verdict": "HOLD",
+            "gap_classes": ["guard_admission_trigger.missing"],
+            "maat_semantic_judgment_required": False,
+        }
+    if (
+        not isinstance(trigger, dict)
+        or not _present(trigger.get("proposed_S_ref"))
+        or trigger.get("applicability") not in {"preventive_guard", "blocking_guard"}
+    ):
+        return {
+            **base,
+            "status": "hold",
+            "verdict": "HOLD",
+            "gap_classes": ["guard_admission_trigger.malformed"],
+            "maat_semantic_judgment_required": False,
+        }
+    if not projection_present:
+        return {
+            **base,
+            "status": "hold",
+            "verdict": "HOLD",
+            "gap_classes": ["guard_admission.missing_projection"],
+            "maat_semantic_judgment_required": False,
+        }
+    if not isinstance(projection, dict) or projection.get("applicability") not in {"preventive_guard", "blocking_guard"}:
+        return {
+            **base,
+            "status": "hold",
+            "verdict": "HOLD",
+            "gap_classes": ["guard_admission.applicability"],
+            "maat_semantic_judgment_required": False,
+        }
+    trigger_mismatches = [
+        f"guard_admission.{field}_mismatch"
+        for field in ("proposed_S_ref", "applicability")
+        if projection.get(field) != trigger.get(field)
+    ]
+    if trigger_mismatches:
+        return {
+            **base,
+            "status": "hold",
+            "verdict": "HOLD",
+            "gap_classes": trigger_mismatches,
+            "maat_semantic_judgment_required": False,
+        }
+
+    evidence_refs = projection.get("hazard_evidence_refs")
+    current_evidence = (
+        isinstance(evidence_refs, list)
+        and bool(evidence_refs)
+        and all(isinstance(ref, str) and ref.strip() for ref in evidence_refs)
+        and projection.get("hazard_evidence_current") is True
+    )
+    if projection.get("blocks_primary_goal") is True and not current_evidence:
+        return {
+            **base,
+            "status": "reject_remove",
+            "verdict": "REJECT_REMOVE",
+            "gap_classes": ["guard_admission.primary_goal_block_without_current_hazard"],
+            "maat_semantic_judgment_required": False,
+        }
+
+    required_values = (
+        "proposed_S_ref", "primary_goal_ref", "hazardous_action", "actual_hazard_boundary",
+        "intervention_boundary", "guard_cost", "false_positive_or_availability_loss",
+        "operator_burden", "removal_condition",
+    )
+    gaps = [f"guard_admission.{field}" for field in required_values if not _present(projection.get(field))]
+    if not current_evidence:
+        gaps.append("guard_admission.hazard_evidence_refs")
+    if projection.get("preserves_primary_goal") is not True or projection.get("blocks_primary_goal") is True:
+        gaps.append("guard_admission.primary_goal_not_preserved")
+    if projection.get("intervention_at_actual_hazard_boundary") is not True:
+        gaps.append("guard_admission.actual_hazard_boundary_not_targeted")
+    if projection.get("supported_configuration_change") is True and projection.get("creates_latent_runtime_failure") is True:
+        gaps.append("guard_admission.supported_config_latent_failure")
+    for field in ("supported_configuration_change", "creates_latent_runtime_failure", "blocks_primary_goal"):
+        if type(projection.get(field)) is not bool:
+            gaps.append(f"guard_admission.{field}")
+    if projection.get("required_choices_resolved_at_admission") is not True:
+        gaps.append("guard_admission.required_choices_deferred_to_runtime")
+    compensations = projection.get("compensations")
+    if not isinstance(compensations, list):
+        gaps.append("guard_admission.compensations")
+    elif compensations:
+        gaps.append("guard_admission.prohibited_compensation")
+    return {
+        **base,
+        "status": "hold" if gaps else "pass",
+        "verdict": "HOLD" if gaps else "ACCEPT",
+        "gap_classes": gaps,
+        "maat_semantic_judgment_required": True,
+    }
+
+
+def apply_guard_admission_gate(
+    target: dict[str, Any],
+    source: Any,
+    *,
+    authoritative_judgment_from_source: bool = False,
+) -> dict[str, Any]:
+    supplied = source.get("guard_admission") if isinstance(source, dict) else None
+    gate = (
+        deepcopy(supplied)
+        if isinstance(supplied, dict) and supplied.get("schema") == "harness.cps_preflight.guard_admission.v1"
+        else validate_guard_admission(source)
+    )
+    target["guard_admission"] = gate
+    source_judgment = source.get("guard_admission_judgment") if isinstance(source, dict) else None
+    if authoritative_judgment_from_source:
+        if source_judgment is None:
+            target.pop("guard_admission_judgment", None)
+        else:
+            target["guard_admission_judgment"] = source_judgment
+    elif source_judgment is not None and "guard_admission_judgment" not in target:
+        target["guard_admission_judgment"] = source_judgment
+    pending_maat = gate.get("status") == "pass" and gate.get("maat_semantic_judgment_required") is True and target.get("guard_admission_judgment") != "ACCEPT"
+    if gate.get("status") not in {"pass", "not_required"} or pending_maat:
+        target["status"] = gate["status"] if not pending_maat else "hold"
+        if "C_boundary" in target:
+            target["C_boundary"] = "HOLD"
+        for field in ("selected_agents", "final_selected_agents", "local_body_scope"):
+            if field in target:
+                target[field] = {}
+        failure = (
+            "HOLD_GUARD_MAAT_JUDGMENT" if pending_maat
+            else "REJECT_REMOVE_GUARD" if gate.get("status") == "reject_remove"
+            else "HOLD_GUARD_ADMISSION"
+        )
+        failures = target.setdefault("failure_codes", [])
+        if failure not in failures:
+            failures.append(failure)
+    return target
+
+
 def build_derived_c_candidate(
     parent_binding: dict[str, Any],
     recovery_attempt_refs: list[str],
@@ -1429,6 +1585,11 @@ def _seed_requires_maat(packet: dict[str, Any]) -> tuple[bool, list[str]]:
         reasons.append("verification_or_evidence_floor_required")
     if _present(packet.get("cross_project_relation")):
         reasons.append("cross_project_relation_present")
+    guard_gate = validate_guard_admission(packet)
+    if isinstance(packet, dict) and ("guard_admission_trigger" in packet or "guard_admission" in packet):
+        reasons.append("guard_admission_gate")
+    if guard_gate.get("maat_semantic_judgment_required") is True:
+        reasons.append("guard_admission_semantic_judgment")
     return bool(reasons), reasons
 
 def build_cps_trace_events(seed_graph: dict[str, Any], packet: dict[str, Any], *, final_output: dict[str, Any] | None = None, events: list[dict[str, Any]] | None = None, iteration: int = 0, phase: str = "initial") -> list[dict[str, Any]]:
@@ -1597,6 +1758,7 @@ def build_candidate(packet: dict[str, Any], packet_path: Path, repo: Path) -> di
         "projection": packet.get("projection"),
         "node_projection": packet.get("node_projection"),
         "doc_ops": packet.get("doc_ops"),
+        "guard_admission": validate_guard_admission(packet),
         "physical_docops_gate": validate_physical_docops_route(packet),
         "mutation_closure": classify_mutation_closure(packet),
         "uncertainty": [
@@ -1712,7 +1874,9 @@ def adjudicate(candidate: dict[str, Any]) -> dict[str, Any]:
         route["status"] = "hold"
         route["C_boundary"] = "HOLD"
         route.setdefault("failure_codes", []).append("HOLD_C1_RUNTIME_EVIDENCE")
-    return apply_physical_docops_gate(apply_verification_gate(route, candidate), candidate)
+    return apply_guard_admission_gate(
+        apply_physical_docops_gate(apply_verification_gate(route, candidate), candidate), candidate,
+    )
 
 
 def _extract_json_object(text: str) -> dict[str, Any] | None:
@@ -1817,7 +1981,7 @@ def build_body_manifest(agents: Any) -> dict[str, dict[str, Any]]:
 
 
 def _maat_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
-    allowed = {"schema", "status", "C?", "Goal", "P?", "S?", "E?", "verification_links", "verification", "uncertainty", "request_to_maat", "route_enrichment"}
+    allowed = {"schema", "status", "C?", "Goal", "P?", "S?", "E?", "verification_links", "verification", "uncertainty", "request_to_maat", "route_enrichment", "guard_admission"}
     return {key: value for key, value in candidate.items() if key in allowed}
 
 
@@ -1847,6 +2011,7 @@ def _live_maat_prompt(candidate: dict[str, Any], packet: dict[str, Any], body_ma
             "Return exactly one JSON object and no markdown.",
             "Do not mutate files, run tools, use git, or claim final audit.",
             "Judge C-boundary, gaps, audit scope, and selected agent only.",
+            "When guard_admission is required, return guard_admission_judgment=ACCEPT or HOLD from Maat semantic judgment; structural validation is not semantic approval.",
             "Default/hermes-kann is not planner; if planning/compile is needed, select thoth.",
             "Echo semantic_provenance_binding byte-for-byte; do not inherit or synthesize any proof field.",
         ],
@@ -1867,12 +2032,17 @@ def _live_maat_prompt(candidate: dict[str, Any], packet: dict[str, Any], body_ma
             "candidate_agents": {"thoth": {"P": [], "S": [], "response": "need_local_body"}},
             "selected_agents": {"ptah": {"P": [], "S": [], "response": "need_local_body", "body_manifest_ids": [], "order": 1, "weight": 1.0, "dependencies": []}},
             "final_audit_needed": False,
+            "guard_admission_judgment": "ACCEPT|HOLD|NOT_REQUIRED",
             "semantic_anchor": packet.get("semantic_anchor"),
             "semantic_provenance_binding": packet.get("semantic_provenance_binding"),
             "failure_codes": [],
             "notes": []
         },
         "candidate": _maat_candidate(candidate),
+        "guard_admission_input": {
+            "structural_result": candidate.get("guard_admission"),
+            "semantic_projection": packet.get("guard_admission"),
+        },
         "body_manifest": manifests,
         "packet_metadata": {key: packet.get(key) for key in ("run_id", "project_slug", "mutation_scope", "route_candidates", "required_evidence_floor", "cross_project_relation", "semantic_anchor", "semantic_provenance_binding") if key in packet},
     }
@@ -1939,7 +2109,9 @@ def _normalize_live_maat(raw: dict[str, Any], candidate: dict[str, Any], session
         route["status"] = "hold"
         route["C_boundary"] = "HOLD"
         route.setdefault("failure_codes", []).append("HOLD_C1_RUNTIME_EVIDENCE")
-    return apply_physical_docops_gate(apply_verification_gate(route, candidate), candidate)
+    return apply_guard_admission_gate(
+        apply_physical_docops_gate(apply_verification_gate(route, candidate), candidate), candidate,
+    )
 
 
 def invoke_live_maat(candidate: dict[str, Any], packet: dict[str, Any], repo: Path, timeout: int = 180, body_manifest: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -1970,8 +2142,10 @@ def invoke_live_maat(candidate: dict[str, Any], packet: dict[str, Any], repo: Pa
             "selected_agents": {"maat": {"P": ["P1"], "S": ["S1"], "response": "hold"}},
             "final_audit_needed": False,
         })
-        return apply_verification_gate(route, candidate)
-    return _normalize_live_maat(parsed, candidate, session_id, stdout)
+        return apply_guard_admission_gate(apply_verification_gate(route, candidate), candidate)
+    return apply_guard_admission_gate(
+        _normalize_live_maat(parsed, candidate, session_id, stdout), packet,
+    )
 
 
 def build_agent_draft_probe(agent: str, route: dict[str, Any]) -> dict[str, Any]:
@@ -1990,6 +2164,8 @@ def build_agent_draft_probe(agent: str, route: dict[str, Any]) -> dict[str, Any]
             "S": {sid: route.get("accepted_S", {}).get(sid) for sid in s_ids if sid in route.get("accepted_S", {})},
             "E": [edge for edge in route.get("E", []) if any(sid in edge for sid in s_ids)],
             "verification_gate": route.get("verification_gate", {}),
+            "guard_admission": route.get("guard_admission", {}),
+            "guard_admission_judgment": route.get("guard_admission_judgment"),
             "AC": {"mode": route.get("AC_mode"), "audit_plan": route.get("audit_plan")},
             "Goal": "Return role_response only; do not execute local body.",
         },
@@ -2094,6 +2270,8 @@ def build_reducer_input(route: dict[str, Any], probe_responses: dict[str, Any], 
         "accepted_S": route.get("accepted_S", {}),
         "E": route.get("E", []),
         "verification_gate": route.get("verification_gate", {}),
+        "guard_admission": route.get("guard_admission", {}),
+        "guard_admission_judgment": route.get("guard_admission_judgment"),
         "physical_docops_gate": route.get("physical_docops_gate", {}),
         "projection": route.get("projection"),
         "doc_ops": route.get("doc_ops"),
@@ -2315,6 +2493,12 @@ def record_preflight_runtime_observation(
 
 def local_body_allowed(agent: str, reducer_result: dict[str, Any]) -> bool:
     """True only when the live reducer explicitly grants local-body dispatch for an agent."""
+    guard_gate = reducer_result.get("guard_admission")
+    if isinstance(guard_gate, dict):
+        if guard_gate.get("status") not in {"pass", "not_required"}:
+            return False
+        if guard_gate.get("maat_semantic_judgment_required") is True and reducer_result.get("guard_admission_judgment") != "ACCEPT":
+            return False
     if reducer_result.get("status") != "pass":
         return False
     scope = reducer_result.get("local_body_scope", {})
@@ -2322,9 +2506,14 @@ def local_body_allowed(agent: str, reducer_result: dict[str, Any]) -> bool:
         return False
     agent_scope = scope.get(agent)
     if isinstance(agent_scope, dict):
+        if any(agent_scope.get(key) for key in ("guard", "pin", "exception", "retry", "operator_workaround")):
+            return False
         grant = str(agent_scope.get("grant_status") or agent_scope.get("status") or "").lower()
         return bool(agent_scope.get("allow") or agent_scope.get("approved") or grant.startswith("granted"))
     if isinstance(agent_scope, list):
+        prohibited = {"guard", "another_guard", "pin", "exception", "retry", "operator_workaround"}
+        if isinstance(guard_gate, dict) and any(str(item).lower() in prohibited for item in agent_scope):
+            return False
         return bool(agent_scope)
     return agent_scope in {True, "allow", "approved", "need_local_body", "granted", "granted_bounded_read_only"}
 
@@ -2364,6 +2553,8 @@ def build_probe(agent: str, route: dict[str, Any], spec: dict[str, Any] | None =
         "local_S": {sid: accepted_s.get(sid) for sid in spec.get("S", []) if sid in accepted_s},
         "local_E": [edge for edge in edges if any(sid in edge for sid in spec.get("S", []))],
         "verification_gate": route.get("verification_gate", {}),
+        "guard_admission": route.get("guard_admission", {}),
+        "guard_admission_judgment": route.get("guard_admission_judgment"),
         "physical_docops_gate": route.get("physical_docops_gate", validate_physical_docops_route(route)),
         "ask": "accept/reject/need_local_body/hold",
         "body_policy": "local task body only after reducer_result grants local_body_scope",
@@ -2911,6 +3102,7 @@ def execute_preflight_chain(
     )
     if mode == "live-maat" and anchor_semantics and not _anchor_semantic_echo_valid(packet, route):
         return semantic_provenance_hold_chain(candidate)
+    apply_guard_admission_gate(route, candidate)
     route["mutation_closure"] = candidate.get("mutation_closure", {})
     route["route_candidate_catalog"] = route_candidate_catalog
     draft_probes, probe_responses = probe_agents_as_arrive(route, repo) if mode == "live-maat" else ({}, {})
@@ -2932,7 +3124,12 @@ def execute_preflight_chain(
     working_graph_operational: dict[str, Any] = {}
     materialization_failure: str | None = None
     reducer_result = apply_physical_docops_gate(reducer_result, route)
-    if reducer_result["physical_docops_gate"]["status"] != "pass":
+    apply_guard_admission_gate(reducer_result, route, authoritative_judgment_from_source=True)
+    if (
+        reducer_result["physical_docops_gate"]["status"] != "pass"
+        or reducer_result["guard_admission"].get("status") not in {"pass", "not_required"}
+        or reducer_result.get("status") != "pass"
+    ):
         reducer_result["final_selected_agents"] = {}
         reducer_result["local_body_scope"] = {}
     node_projection_gate = apply_node_projection_gate(route, reducer_result, packet)
