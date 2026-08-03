@@ -1657,6 +1657,259 @@ class TestCpsPreflightVerificationGate(TestCase):
         self.assertIn("response_received_before_repeat_request", hu_analysis["risk_points"])
 
 
+class TestGoalPreservingGuardAdmission(TestCase):
+    def guard_packet(self):
+        return {
+            "root_goal": "complete the supported payment operation",
+            "guard_admission_trigger": {
+                "proposed_S_ref": "S-GUARD",
+                "applicability": "blocking_guard",
+            },
+            "guard_admission": {
+                "applicability": "blocking_guard",
+                "proposed_S_ref": "S-GUARD",
+                "primary_goal_ref": "Goal-1",
+                "preserves_primary_goal": True,
+                "hazardous_action": "commit a duplicate payment",
+                "hazard_evidence_refs": ["incident:duplicate-payment:2026-08-03"],
+                "hazard_evidence_current": True,
+                "actual_hazard_boundary": "payment_commit",
+                "intervention_boundary": "payment_commit",
+                "intervention_at_actual_hazard_boundary": True,
+                "supported_configuration_change": False,
+                "creates_latent_runtime_failure": False,
+                "required_choices_resolved_at_admission": True,
+                "guard_cost": "one boundary check",
+                "false_positive_or_availability_loss": "valid commit may pause on duplicate evidence",
+                "operator_burden": "review the evidence ref on HOLD",
+                "removal_condition": "duplicate-commit hazard is removed from the payment boundary",
+                "blocks_primary_goal": False,
+                "compensations": [],
+            },
+        }
+
+    def test_non_guard_is_unaffected(self):
+        self.assertEqual(preflight.validate_guard_admission({"root_goal": "ordinary task"}), {
+            "schema": "harness.cps_preflight.guard_admission.v1",
+            "status": "not_required",
+            "verdict": "NOT_REQUIRED",
+            "gap_classes": [],
+            "authority": "structural_invariant_only",
+            "maat_semantic_judgment_required": False,
+        })
+
+    def test_read_only_observation_is_unaffected(self):
+        packet = {"execution_kind": "read-only", "observation": "inspect current source"}
+        gate = preflight.validate_guard_admission(packet)
+        self.assertEqual(gate["status"], "not_required")
+        self.assertEqual(gate["gap_classes"], [])
+
+    def test_guard_trigger_without_projection_holds(self):
+        packet = self.guard_packet()
+        del packet["guard_admission"]
+        packet["inline_response_contract"] = {"response": "continue"}
+        gate = preflight.validate_guard_admission(packet)
+        self.assertEqual(gate["verdict"], "HOLD")
+        self.assertIn("guard_admission.missing_projection", gate["gap_classes"])
+        candidate = preflight.build_candidate(packet, Path("packet.json"), REPO)
+        chain = preflight.execute_preflight_chain(packet, Path("packet.json"), REPO, "deterministic", candidate)
+        self.assertEqual(chain["route"]["status"], "hold")
+        self.assertEqual(chain["route"]["selected_agents"], {})
+
+    def test_guard_trigger_and_projection_mismatch_holds(self):
+        for field, value in (("proposed_S_ref", "S-OTHER"), ("applicability", "preventive_guard")):
+            packet = self.guard_packet()
+            packet["guard_admission"][field] = value
+            gate = preflight.validate_guard_admission(packet)
+            with self.subTest(field=field):
+                self.assertEqual(gate["verdict"], "HOLD")
+                self.assertIn(f"guard_admission.{field}_mismatch", gate["gap_classes"])
+
+    def test_malformed_guard_trigger_holds(self):
+        malformed = (
+            None,
+            [],
+            {},
+            {"proposed_S_ref": "S-GUARD"},
+            {"proposed_S_ref": "", "applicability": "blocking_guard"},
+            {"proposed_S_ref": "S-GUARD", "applicability": "blockng_guard"},
+        )
+        for trigger in malformed:
+            packet = self.guard_packet()
+            packet["guard_admission_trigger"] = trigger
+            gate = preflight.validate_guard_admission(packet)
+            with self.subTest(trigger=trigger):
+                self.assertEqual(gate["verdict"], "HOLD")
+                self.assertIn("guard_admission_trigger.malformed", gate["gap_classes"])
+
+    def test_guard_projection_without_authoritative_trigger_holds(self):
+        packet = self.guard_packet()
+        del packet["guard_admission_trigger"]
+        gate = preflight.validate_guard_admission(packet)
+        self.assertEqual(gate["verdict"], "HOLD")
+        self.assertIn("guard_admission_trigger.missing", gate["gap_classes"])
+
+    def test_present_guard_projection_with_invalid_applicability_holds(self):
+        packet = self.guard_packet()
+        packet["guard_admission"]["applicability"] = "blockng_guard"
+        gate = preflight.validate_guard_admission(packet)
+        self.assertEqual(gate["verdict"], "HOLD")
+        self.assertIn("guard_admission.applicability", gate["gap_classes"])
+
+    def test_guard_missing_current_hazard_evidence_holds(self):
+        packet = self.guard_packet()
+        packet["guard_admission"]["hazard_evidence_refs"] = []
+        gate = preflight.validate_guard_admission(packet)
+        self.assertEqual(gate["verdict"], "HOLD")
+        self.assertIn("guard_admission.hazard_evidence_refs", gate["gap_classes"])
+
+    def test_guard_blocking_before_actual_hazard_boundary_holds(self):
+        packet = self.guard_packet()
+        packet["guard_admission"]["intervention_boundary"] = "configuration_creation"
+        packet["guard_admission"]["intervention_at_actual_hazard_boundary"] = False
+        gate = preflight.validate_guard_admission(packet)
+        self.assertEqual(gate["verdict"], "HOLD")
+        self.assertIn("guard_admission.actual_hazard_boundary_not_targeted", gate["gap_classes"])
+
+    def test_supported_configuration_change_cannot_schedule_latent_failure(self):
+        packet = self.guard_packet()
+        packet["guard_admission"]["supported_configuration_change"] = True
+        packet["guard_admission"]["creates_latent_runtime_failure"] = True
+        gate = preflight.validate_guard_admission(packet)
+        self.assertEqual(gate["verdict"], "HOLD")
+        self.assertIn("guard_admission.supported_config_latent_failure", gate["gap_classes"])
+
+    def test_primary_goal_block_without_current_hazard_is_reject_remove(self):
+        packet = self.guard_packet()
+        packet["guard_admission"]["blocks_primary_goal"] = True
+        packet["guard_admission"]["hazard_evidence_refs"] = []
+        packet["guard_admission"]["hazard_evidence_current"] = False
+        gate = preflight.validate_guard_admission(packet)
+        self.assertEqual(gate["status"], "reject_remove")
+        self.assertEqual(gate["verdict"], "REJECT_REMOVE")
+
+    def test_complete_goal_preserving_guard_is_admitted_for_maat_judgment(self):
+        packet = self.guard_packet()
+        gate = preflight.validate_guard_admission(packet)
+        self.assertEqual(gate["status"], "pass")
+        self.assertEqual(gate["verdict"], "ACCEPT")
+        self.assertTrue(gate["maat_semantic_judgment_required"])
+        candidate = preflight.build_candidate(packet, Path("packet.json"), REPO)
+        escalation = candidate["route_enrichment"]["selective_maat_escalation"]
+        self.assertTrue(escalation["needed"])
+        self.assertIn("guard_admission_semantic_judgment", escalation["reasons"])
+
+    def test_live_maat_prompt_preserves_guard_semantic_projection(self):
+        packet = self.guard_packet()
+        candidate = preflight.build_candidate(packet, Path("packet.json"), REPO)
+        prompt = json.loads(preflight._live_maat_prompt(candidate, packet, {}))
+
+        self.assertEqual(prompt["guard_admission_input"], {
+            "structural_result": candidate["guard_admission"],
+            "semantic_projection": packet["guard_admission"],
+        })
+        for field in (
+            "primary_goal_ref", "hazardous_action", "hazard_evidence_refs",
+            "actual_hazard_boundary", "intervention_boundary", "guard_cost",
+            "removal_condition",
+        ):
+            self.assertEqual(
+                prompt["guard_admission_input"]["semantic_projection"][field],
+                packet["guard_admission"][field],
+            )
+
+    def test_structural_accept_cannot_close_without_valid_semantic_body(self):
+        candidate = preflight.build_candidate(self.guard_packet(), Path("packet.json"), REPO)
+        maat_accept = json.dumps({
+            "status": "pass",
+            "C_boundary": "PASS_ONE_C",
+            "selected_agents": {"ptah": {"P": [], "S": []}},
+            "guard_admission_judgment": "ACCEPT",
+        })
+        completed = subprocess.CompletedProcess(["hermes"], 0, maat_accept, "")
+
+        for semantic_body in (None, "malformed"):
+            packet = self.guard_packet()
+            if semantic_body is None:
+                del packet["guard_admission"]
+            else:
+                packet["guard_admission"] = semantic_body
+            with self.subTest(semantic_body=semantic_body), \
+                 patch.object(preflight.subprocess, "run", return_value=completed):
+                route = preflight.invoke_live_maat(candidate, packet, REPO)
+            self.assertEqual(route["status"], "hold")
+            self.assertEqual(route["C_boundary"], "HOLD")
+            self.assertEqual(route["selected_agents"], {})
+            self.assertIn("HOLD_GUARD_ADMISSION", route["failure_codes"])
+
+    def test_rejected_guard_cannot_be_released_by_workaround(self):
+        for workaround in ("pin", "exception", "retry", "operator_workaround"):
+            packet = self.guard_packet()
+            packet["guard_admission"]["blocks_primary_goal"] = True
+            packet["guard_admission"]["hazard_evidence_refs"] = []
+            packet["guard_admission"]["hazard_evidence_current"] = False
+            packet["guard_admission"]["compensations"] = [workaround]
+            gate = preflight.validate_guard_admission(packet)
+            for agent_scope in ({"allow": True, workaround: True}, [workaround]):
+                reducer = {
+                    "status": "pass",
+                    "local_body_scope": {"ptah": agent_scope},
+                    "guard_admission": gate,
+                }
+                with self.subTest(workaround=workaround, agent_scope=agent_scope):
+                    self.assertFalse(preflight.local_body_allowed("ptah", reducer))
+
+    def test_structural_accept_without_explicit_maat_accept_cannot_release(self):
+        gate = preflight.validate_guard_admission(self.guard_packet())
+        reducer = {
+            "status": "pass",
+            "local_body_scope": {"ptah": True},
+            "guard_admission": gate,
+        }
+        self.assertFalse(preflight.local_body_allowed("ptah", reducer))
+        reducer["guard_admission_judgment"] = "ACCEPT"
+        reducer["local_body_scope"]["ptah"] = ["operator_workaround"]
+        self.assertFalse(preflight.local_body_allowed("ptah", reducer))
+
+    def test_route_maat_hold_cannot_be_overridden_by_reducer_accept(self):
+        route = {
+            "status": "hold",
+            "guard_admission": preflight.validate_guard_admission(self.guard_packet()),
+            "guard_admission_judgment": "HOLD",
+        }
+        reducer = {
+            "status": "pass",
+            "guard_admission_judgment": "ACCEPT",
+            "final_selected_agents": {"ptah": {}},
+            "local_body_scope": {"ptah": True},
+        }
+        preflight.apply_guard_admission_gate(reducer, route, authoritative_judgment_from_source=True)
+        self.assertEqual(reducer["guard_admission_judgment"], "HOLD")
+        self.assertEqual(reducer["status"], "hold")
+        self.assertEqual(reducer["local_body_scope"], {})
+
+    def test_reject_remove_cannot_short_wire_to_pass(self):
+        packet = self.guard_packet()
+        packet["guard_admission"]["blocks_primary_goal"] = True
+        packet["guard_admission"]["hazard_evidence_refs"] = []
+        packet["guard_admission"]["hazard_evidence_current"] = False
+        packet["inline_response_contract"] = {"response": "continue"}
+        candidate = preflight.build_candidate(packet, Path("packet.json"), REPO)
+        chain = preflight.execute_preflight_chain(packet, Path("packet.json"), REPO, "deterministic", candidate)
+        self.assertEqual(chain["route"]["status"], "reject_remove")
+        self.assertEqual(chain["route"]["guard_admission"]["verdict"], "REJECT_REMOVE")
+
+    def test_guard_gate_is_carried_and_blocks_route_release(self):
+        packet = self.guard_packet()
+        packet["guard_admission"]["hazard_evidence_refs"] = []
+        candidate = preflight.build_candidate(packet, Path("packet.json"), REPO)
+        self.assertEqual(candidate["guard_admission"]["status"], "hold")
+        route = preflight.adjudicate(candidate)
+        self.assertEqual(route["status"], "hold")
+        self.assertEqual(route["selected_agents"], {})
+        self.assertEqual(route["guard_admission"]["verdict"], "HOLD")
+
+
 class TestMaatR3BoundedVerifierScope(TestCase):
     SOURCE = ".harness/hermes/tools/cps_preflight_route_gate.py"
     TEST = "test_cps_preflight_verification_gate.py"
