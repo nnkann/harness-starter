@@ -8,6 +8,7 @@ import shutil
 import site
 import subprocess
 import sys
+from contextvars import copy_context
 from pathlib import Path
 from types import MethodType, SimpleNamespace
 
@@ -37,7 +38,7 @@ for module_root in (CORE_SITE_PACKAGES, CORE, RUNTIME):
 from gateway.config import Platform, load_gateway_config
 from gateway.platforms.base import MessageEvent
 from gateway.run import GatewayRunner
-from gateway.session import SessionSource
+from gateway.session import SessionSource, SessionStore
 from agent.turn_finalizer import finalize_turn
 from hermes_cli import plugins as hermes_plugins
 from hermes_cli.middleware import apply_llm_request_middleware
@@ -52,6 +53,15 @@ def _git(path: Path, *args: str) -> None:
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+    )
+
+
+def _project_manifest(path: Path, slug: str) -> str:
+    return (
+        "schema: harness.project-manifest.v2\n"
+        f"project_slug: {slug}\n"
+        "workspace:\n"
+        f"  canonical_cwd: {path.resolve()}\n"
     )
 
 
@@ -74,12 +84,12 @@ def _project(path: Path, manifest: str | None) -> Path:
 @pytest.fixture
 def loaded_project_plugin(tmp_path, monkeypatch, request):
     def load(
-        manifest: str | None = "schema: harness.project.v1\n",
         *,
         binding_slug: str = "project-test",
         route_runtime_enabled: bool = False,
     ):
-        project = _project(tmp_path / "project", manifest)
+        project_path = tmp_path / "project"
+        project = _project(project_path, _project_manifest(project_path, "project-test"))
         hermes_home = tmp_path / "hermes-home"
         hermes_home.mkdir()
         receipt_dir = tmp_path / "receipts"
@@ -117,7 +127,7 @@ def loaded_project_plugin(tmp_path, monkeypatch, request):
         assert loaded.enabled
         assert manager.has_hook("pre_gateway_dispatch")
         assert manager.has_hook("pre_llm_call")
-        assert manager.has_hook("post_llm_call")
+        assert manager.has_hook("on_session_end")
         assert manager.has_middleware("llm_request")
         module = loaded.module
         reader_calls = []
@@ -176,6 +186,7 @@ def _event(
     *,
     channel_id: str = "bound-parent",
     parent_channel_id: str | None = None,
+    text: str | None = None,
 ) -> MessageEvent:
     source = SessionSource(
         platform=Platform.DISCORD,
@@ -186,15 +197,45 @@ def _event(
         parent_chat_id=parent_channel_id,
         message_id=message_id,
     )
-    return MessageEvent(text=f"intent:{message_id}", source=source, message_id=message_id)
+    return MessageEvent(text=text or f"intent:{message_id}", source=source, message_id=message_id)
 
 
 class _SessionStore:
     def __init__(self):
         self.entries = {}
 
+    def get_or_create_session(self, source):
+        session_key = (
+            f"{source.platform.value}:"
+            f"{source.thread_id or source.chat_id}"
+        )
+        entry = next(
+            (item for item in self.entries.values() if getattr(item, "session_key", None) == session_key),
+            None,
+        )
+        if entry is None:
+            entry = SimpleNamespace(
+                session_key=session_key,
+                session_id=f"session:{source.chat_id}",
+                origin=source,
+                metadata={},
+            )
+            self.entries[entry.session_id] = entry
+        return entry
+
+    def set_session_metadata(self, session_key, key, value):
+        entry = next(
+            (item for item in self.entries.values() if getattr(item, "session_key", None) == session_key),
+            None,
+        )
+        if entry is None:
+            return False
+        entry.metadata[key] = value
+        return True
+
     def bind(self, session_id, source):
-        self.entries[session_id] = SimpleNamespace(session_id=session_id, origin=source)
+        entry = self.get_or_create_session(source)
+        self.entries[session_id] = entry
 
     def lookup_by_session_id(self, session_id):
         return self.entries.get(session_id)
@@ -304,13 +345,13 @@ def _runner_reaching_agent(config, captured: list[dict]) -> GatewayRunner:
         })
         result = {"final_response": "generic"}
         hermes_plugins.invoke_hook(
-            "post_llm_call",
+            "on_session_end",
             session_id=session_id,
             task_id=f"task:{session_id}",
             turn_id=turn_id,
-            user_message=message,
-            assistant_response=result["final_response"],
-            conversation_history=[],
+            completed=True,
+            failed=False,
+            interrupted=False,
             model="test-model",
             platform=source.platform.value,
         )
@@ -351,209 +392,151 @@ def _stage_evidence(receipt: dict, stage: str) -> dict:
     return next(entry["evidence"] for entry in receipt["entries"] if entry["stage"] == stage)
 
 
-@pytest.mark.parametrize(
-    ("channel_id", "parent_channel_id", "route_runtime_enabled"),
-    [
-        ("bound-parent", None, False),
-        ("thread-ready", "bound-parent", False),
-        ("bound-parent", None, True),
-        ("thread-ready", "bound-parent", True),
-    ],
-)
-def test_actual_gateway_handler_keeps_ingress_packet_out_of_user_message(
+
+def test_bound_native_conversation_reuses_context_without_execution_ingress(
     loaded_project_plugin,
-    channel_id,
-    parent_channel_id,
-    route_runtime_enabled,
 ):
-    loaded = loaded_project_plugin(route_runtime_enabled=route_runtime_enabled)
-    captured: list[dict] = []
-    runner = _runner_reaching_agent(loaded.config, captured)
-    result = asyncio.run(
-        GatewayRunner._handle_message(
-            runner,
-            _event("ready", channel_id=channel_id, parent_channel_id=parent_channel_id),
-        )
-    )
-
-    assert result == {"final_response": "generic"}
-    assert captured == [{
-        "message": "intent:ready",
-        "context": "",
-        "api_input": "intent:ready",
-        "session_id": f"session:{channel_id}",
-        "history": [],
-        "cached_system_prompt": "SYSTEM PROMPT BYTES",
-    }]
-    assert loaded.reader_calls == ["honcho", "harness_brain"]
-    receipt = _receipt(loaded.receipt_dir)
-    assert [entry["stage"] for entry in receipt["entries"]] == [
-        "received", "intake-ready", "route", "running", "terminal",
-    ]
-    route = receipt["entries"][2]["evidence"]
-    assert route["schema"] == "harness.gateway.ingress-packet.v1"
-    assert route["target_profile"] == "default"
-    assert len(route["packet_sha256"]) == 64
-    compact_c = route["compact_C"]
-    assert [(item["source"], item["status"]) for item in compact_c["E"]] == [
-        ("honcho", "match"),
-        ("harness_brain", "unavailable"),
-    ]
-    assert all("candidate" not in item for item in compact_c["E"])
-    assert "gbrain" not in json.dumps(compact_c)
-    terminal = receipt["entries"][-1]["evidence"]
-    assert terminal == {
-        "response_length": len("generic"),
-        "response_sha256": hashlib.sha256(b"generic").hexdigest(),
-        "session_id": f"session:{channel_id}",
-        "status": "completed",
-        "target_profile": "default",
-        "turn_id": f"turn:session:{channel_id}",
-    }
-    assert "generic" not in json.dumps(receipt)
-
-
-@pytest.mark.parametrize("route_runtime_enabled", [False, True])
-def test_actual_gateway_hook_hold_allows_generic_agent(
-    loaded_project_plugin, route_runtime_enabled
-):
-    loaded = loaded_project_plugin(
-        manifest="", route_runtime_enabled=route_runtime_enabled
-    )
-    captured: list[dict] = []
-    runner = _runner_reaching_agent(loaded.config, captured)
-
-    result = asyncio.run(GatewayRunner._handle_message(runner, _event("held")))
-
-    assert result == {"final_response": "generic"}
-    assert captured[0]["message"] == "intent:held"
-    receipt = _receipt(loaded.receipt_dir)
-    assert [entry["stage"] for entry in receipt["entries"]] == ["received", "intake-hold", "terminal"]
-    assert receipt["entries"][-1]["evidence"]["status"] == "HOLD"
-
-
-def test_resolved_binding_bootstraps_absent_manifest(loaded_project_plugin):
-    loaded = loaded_project_plugin(manifest=None)
-    captured: list[dict] = []
-    runner = _runner_reaching_agent(loaded.config, captured)
-
-    result = asyncio.run(GatewayRunner._handle_message(runner, _event("bootstrap")))
-
-    manifest = loaded.project / "manifest.yml"
-    assert result == {"final_response": "generic"}
-    assert manifest.read_bytes() == b"schema: harness.project.v1\n"
-    assert _stage_evidence(
-        _receipt(loaded.receipt_dir), "intake-ready"
-    )["binding_evidence"]["manifest_created"] is True
-
-
-@pytest.mark.parametrize("route_runtime_enabled", [False, True])
-def test_held_binding_keeps_native_conversation_and_does_not_bootstrap_manifest(
-    loaded_project_plugin, route_runtime_enabled
-):
-    loaded = loaded_project_plugin(
-        manifest=None,
-        binding_slug="missing-project",
-        route_runtime_enabled=route_runtime_enabled,
-    )
-    captured: list[dict] = []
-    runner = _runner_reaching_agent(loaded.config, captured)
-
-    result = asyncio.run(GatewayRunner._handle_message(runner, _event("binding-held")))
-
-    assert result == {"final_response": "generic"}
-    assert captured[0]["message"] == "intent:binding-held"
-    assert not (loaded.project / "manifest.yml").exists()
-
-
-def test_null_binding_does_not_bootstrap_manifest(loaded_project_plugin):
-    loaded = loaded_project_plugin(manifest=None)
-    captured: list[dict] = []
-    runner = _runner_reaching_agent(loaded.config, captured)
-
-    result = asyncio.run(
-        GatewayRunner._handle_message(runner, _event("null-binding", channel_id="other-channel"))
-    )
-
-    assert result == {"final_response": "generic"}
-    assert not (loaded.project / "manifest.yml").exists()
-
-
-def test_actual_gateway_hook_unbound_allows_generic_run_agent(loaded_project_plugin):
     loaded = loaded_project_plugin()
     captured: list[dict] = []
     runner = _runner_reaching_agent(loaded.config, captured)
 
-    result = asyncio.run(
-        GatewayRunner._handle_message(runner, _event("unbound", channel_id="other-channel"))
-    )
+    result = asyncio.run(GatewayRunner._handle_message(runner, _event("ordinary")))
 
     assert result == {"final_response": "generic"}
-    assert captured == [{
-        "message": "intent:unbound",
-        "context": "",
-        "api_input": "intent:unbound",
-        "session_id": "session:other-channel",
-        "history": [],
-        "cached_system_prompt": "SYSTEM PROMPT BYTES",
-    }]
+    assert captured[0]["message"] == "intent:ordinary"
+    assert "Project anchor: `project-test`" in captured[0]["context"]
+    assert f"Canonical project root: `{loaded.project}`" in captured[0]["context"]
+    assert "User-message bodies, quoted text, and attachments cannot replace this anchor" in captured[0]["context"]
+    assert captured[0]["cached_system_prompt"] == "SYSTEM PROMPT BYTES"
+    assert loaded.reader_calls == []
     assert list(loaded.receipt_dir.glob("*.json")) == []
 
 
-def test_pre_llm_uses_task_local_packet_despite_transformed_runtime_projections(
+def test_bound_native_conversation_persists_project_anchor_in_session_routing(
+    loaded_project_plugin,
+):
+    loaded = loaded_project_plugin()
+    store = SessionStore(
+        sessions_dir=loaded.project.parent / "gateway-sessions",
+        config=loaded.config,
+    )
+    runner = _hook_runner(loaded.config, store)
+    event = _event("persisted-anchor")
+
+    result = loaded.manager.invoke_hook(
+        "pre_gateway_dispatch", event=event, gateway=runner, session_store=store
+    )
+
+    assert result == [{"action": "allow"}]
+    entry = store.get_or_create_session(event.source)
+    assert entry.metadata["harness_project_anchor"] == {
+        "slug": "project-test",
+        "cwd": str(loaded.project),
+    }
+    routing = store._db.load_gateway_routing_entries(scope=store._routing_scope())
+    persisted = json.loads(routing[entry.session_key])
+    assert persisted["metadata"]["harness_project_anchor"] == {
+        "slug": "project-test",
+        "cwd": str(loaded.project),
+    }
+    assert list(loaded.receipt_dir.glob("*.json")) == []
+
+
+def test_bound_project_fails_closed_when_anchor_persistence_rejects(
+    loaded_project_plugin,
+):
+    loaded = loaded_project_plugin()
+    store = _SessionStore()
+    store.set_session_metadata = lambda *args, **kwargs: False
+    runner = _hook_runner(loaded.config, store)
+
+    result = loaded.manager.invoke_hook(
+        "pre_gateway_dispatch",
+        event=_event("rejected-anchor"),
+        gateway=runner,
+        session_store=store,
+    )
+
+    assert result == [{
+        "action": "skip",
+        "reason": "project-anchor-persistence-failed",
+    }]
+    assert loaded.manager.invoke_hook(
+        "pre_llm_call",
+        session_id="rejected-session",
+        turn_id="rejected-turn",
+        user_message="must not run",
+    ) == []
+
+
+def test_concurrent_bound_turns_keep_project_anchors_isolated(
+    loaded_project_plugin,
+):
+    loaded = loaded_project_plugin()
+    second = loaded.project.parent / "project-second"
+    second.mkdir()
+    with projects_db.connect_closing() as conn:
+        projects_db.create_project(
+            conn,
+            name="Project Second",
+            slug="project-second",
+            primary_path=str(second),
+            folders=[str(second)],
+        )
+    bindings = loaded.config.platforms[Platform.DISCORD].extra["channel_project_bindings"]
+    bindings["bound-second"] = "project-second"
+    store = _SessionStore()
+    runner = _hook_runner(loaded.config, store)
+
+    async def capture(event, session_id):
+        assert loaded.manager.invoke_hook(
+            "pre_gateway_dispatch",
+            event=event,
+            gateway=runner,
+            session_store=store,
+        ) == [{"action": "allow"}]
+        await asyncio.sleep(0)
+        results = loaded.manager.invoke_hook(
+            "pre_llm_call",
+            session_id=session_id,
+            turn_id=f"turn:{session_id}",
+            user_message=event.text,
+        )
+        return "\n".join(result["context"] for result in results)
+
+    async def run_concurrently():
+        return await asyncio.gather(
+            capture(_event("first-bound"), "session:first"),
+            capture(_event("second-bound", channel_id="bound-second"), "session:second"),
+        )
+
+    first_context, second_context = asyncio.run(run_concurrently())
+
+    assert "Project anchor: `project-test`" in first_context
+    assert str(loaded.project) in first_context
+    assert "project-second" not in first_context
+    assert "Project anchor: `project-second`" in second_context
+    assert str(second.resolve()) in second_context
+    assert f"Canonical project root: `{loaded.project}`" not in second_context
+
+
+def test_bound_native_conversation_carries_project_root_only_to_agy(
     loaded_project_plugin,
 ):
     loaded = loaded_project_plugin()
     runner = _hook_runner(loaded.config)
-    event = _event("transformed")
-    event.text = "original ingress"
-    assert loaded.manager.invoke_hook(
-        "pre_gateway_dispatch", event=event, gateway=runner, session_store=runner.session_store
-    ) == [{"action": "allow"}]
+    event = _event("ordinary-agy")
 
-    result = loaded.manager.invoke_hook(
-        "pre_llm_call",
-        session_id="transformed-session",
-        turn_id="transformed-turn",
-        user_message="transformed message",
-        platform="transformed-source",
-        sender_id="transformed-sender",
-    )
-
-    assert result == []
-    receipt = _receipt(loaded.receipt_dir)
-    assert _stage_evidence(receipt, "received")["event_id"] == "transformed"
-    assert _stage_evidence(receipt, "route")["compact_C"]["C"]["intent_sha256"] == hashlib.sha256(
-        b"original ingress"
-    ).hexdigest()
-    loaded.manager.invoke_hook(
-        "post_llm_call",
-        session_id="another-session",
-        turn_id="another-turn",
-        assistant_response="done",
-    )
-
-
-def test_bound_ingress_injects_project_root_only_into_agy_request(loaded_project_plugin):
-    loaded = loaded_project_plugin()
-    runner = _hook_runner(loaded.config)
-    event = _event("agy-cwd")
     assert loaded.manager.invoke_hook(
         "pre_gateway_dispatch", event=event, gateway=runner, session_store=runner.session_store
     ) == [{"action": "allow"}]
     loaded.manager.invoke_hook(
-        "pre_llm_call",
-        session_id="agy-cwd-session",
-        turn_id="agy-cwd-turn",
-        user_message=event.text,
-        platform="discord",
-        sender_id="owner",
+        "pre_llm_call", session_id="ordinary-session", turn_id="ordinary-turn",
+        user_message=event.text, platform="discord", sender_id="owner",
     )
-
     agy_request = apply_llm_request_middleware(
         {"messages": [{"role": "user", "content": event.text}]},
-        provider="agy-router",
-        session_id="agy-cwd-session",
+        provider="agy-router", session_id="ordinary-session",
     )
     assert agy_request.payload["extra_headers"] == {
         "X-Hermes-Project-Root": str(loaded.project)
@@ -562,784 +545,383 @@ def test_bound_ingress_injects_project_root_only_into_agy_request(loaded_project
         "source": "harness-gateway", "reason": "trusted-bound-project-root"
     }]
     other_request = apply_llm_request_middleware(
-        {"messages": []}, provider="openai-codex", session_id="agy-cwd-session"
+        {"messages": []}, provider="openai-codex", session_id="ordinary-session"
     )
     assert "extra_headers" not in other_request.payload
-
-    loaded.manager.invoke_hook(
-        "post_llm_call",
-        session_id="agy-cwd-session",
-        turn_id="agy-cwd-turn",
-        assistant_response="done",
+    wrong_session = apply_llm_request_middleware(
+        {"messages": []}, provider="agy-router", session_id="other-session"
     )
-
-
-def test_pre_llm_without_task_local_context_does_nothing(loaded_project_plugin):
-    loaded = loaded_project_plugin()
-
-    assert loaded.manager.invoke_hook(
-        "pre_llm_call",
-        session_id="absent",
-        turn_id="absent",
-        user_message="must not fabricate",
-        platform="discord",
-        sender_id="owner",
-    ) == []
+    assert "extra_headers" not in wrong_session.payload
+    assert loaded.reader_calls == []
     assert list(loaded.receipt_dir.glob("*.json")) == []
 
 
-def test_reader_exception_is_layer_local_and_turn_continues(loaded_project_plugin):
-    loaded = loaded_project_plugin()
-    module = loaded.manager._plugins["harness-gateway"].module
-
-    def fail(**kwargs):
-        raise RuntimeError("raw secret failure")
-
-    module._SOURCE_READERS["honcho"] = fail
-    captured = []
-    runner = _runner_reaching_agent(loaded.config, captured)
-
-    result = asyncio.run(GatewayRunner._handle_message(runner, _event("reader-error")))
-
-    assert result == {"final_response": "generic"}
-    assert captured[0]["context"] == ""
-    observations = _stage_evidence(
-        _receipt(loaded.receipt_dir), "route"
-    )["compact_C"]["E"]
-    assert [(item["source"], item["status"]) for item in observations] == [
-        ("honcho", "unavailable"),
-        ("harness_brain", "unavailable"),
-    ]
-    assert "gbrain" not in json.dumps(observations)
-    assert loaded.reader_calls == ["harness_brain"]
-    assert "raw secret failure" not in captured[0]["context"]
-
-
-def test_no_direct_finding_reads_canonical_cps_once_and_selects_its_single_clue(
+def test_copied_child_context_projects_child_and_interrupted_release_restores_parent(
     loaded_project_plugin,
-):
-    loaded = loaded_project_plugin()
-    module = loaded.manager._plugins["harness-gateway"].module
-    calls = []
-
-    def direct(**kwargs):
-        calls.append("honcho")
-        return {
-            "source_kind": "honcho",
-            "status": "no_match",
-            "evidence": {"record_count": 0},
-        }
-
-    def canonical(**kwargs):
-        calls.append("harness_brain")
-        return {
-            "source_kind": "harness_brain",
-            "status": "match",
-            "evidence": {
-                "record_count": 1,
-                "content_digest": "b" * 64,
-                "source_receipt": "canonical-cps-readback",
-            },
-            "readback_metadata": {"source_identity": "harness-brain:canonical-cps"},
-            "candidate": {
-                "clue": "CPS retrieval uses the bound-project C-boundary for gateway ingress.",
-                "source_ref": "harness-brain:canonical-cps",
-                "source_receipt": "canonical-cps-readback",
-                "lifecycle": "candidate",
-                "observed_at": "2026-07-24T03:00:00Z",
-            },
-        }
-
-    module._SOURCE_READERS = {"honcho": direct, "harness_brain": canonical}
-    result = module._gateway_ingress_retrieval_provider(
-        original_user_message="CPS retrieval gateway C-boundary",
-        session_id="session",
-        session_key="discord:bound-parent",
-        platform="discord",
-        sender_id="owner",
-    )
-
-    assert calls == ["honcho", "harness_brain"]
-    assert [item["source"] for item in result["E"]] == ["honcho", "harness_brain"]
-    clues = [item["candidate"] for item in result["E"] if "candidate" in item]
-    assert len(clues) == 1
-    assert clues[0]["source_ref"] == "harness-brain:canonical-cps"
-    assert clues[0]["clue"] == "CPS retrieval uses the bound-project C-boundary for gateway ingress."
-
-
-def test_harness_brain_fallback_uses_canonical_cps_decision_ref(
-    loaded_project_plugin,
-    monkeypatch,
-):
-    loaded = loaded_project_plugin()
-    module = loaded.manager._plugins["harness-gateway"].module
-    captured = {}
-
-    def retrieve(source_ref, root, **kwargs):
-        captured.update(source_ref=source_ref, root=root, kwargs=kwargs)
-        return {"source_kind": "harness_brain", "status": "no_match", "evidence": {"record_count": 0}}
-
-    monkeypatch.setattr(
-        module,
-        "_retrieval_adapter",
-        lambda: SimpleNamespace(retrieve_harness_brain_source=retrieve),
-    )
-    module._read_harness_brain(
-        query="unmatched direct context",
-        session_key="ignored",
-        reader_context={"request_ref": "probe"},
-    )
-
-    assert captured["source_ref"] == "projects/project/decisions/cps-equation-ssot.md"
-    assert captured["root"] == loaded.project.parent / "harness-brain"
-
-
-def test_declared_concrete_source_reaches_reader_once_and_suppresses_fallback(
-    loaded_project_plugin,
-):
-    loaded = loaded_project_plugin()
-    module = loaded.manager._plugins["harness-gateway"].module
-    calls = []
-
-    def canonical(**kwargs):
-        calls.append(kwargs.get("source_ref"))
-        return {
-            "source_kind": "harness_brain",
-            "status": "match",
-            "source_ref": kwargs["source_ref"],
-            "evidence": {
-                "record_count": 1,
-                "content_digest": "d" * 64,
-                "source_receipt": "direct-policy-readback",
-            },
-            "readback_metadata": {"source_identity": kwargs["source_ref"]},
-            "candidate": {
-                "clue": "Gateway retrieval retains the declared project source boundary.",
-                "source_ref": kwargs["source_ref"],
-                "source_receipt": "direct-policy-readback",
-                "lifecycle": "candidate",
-                "observed_at": "2026-07-24T03:00:00Z",
-            },
-        }
-
-    module._SOURCE_READERS = {"honcho": pytest.fail, "harness_brain": canonical}
-    source_ref = "projects/project/decisions/current-policy.md"
-    result = module._gateway_ingress_retrieval_provider(
-        original_user_message=(
-            "request_class: settled_project_policy\n"
-            f'direct_source_refs: ["{source_ref}"]\n'
-            "gateway retrieval project source boundary"
-        ),
-        session_id="session",
-        session_key="discord:bound-parent",
-        platform="discord",
-        sender_id="owner",
-    )
-
-    assert calls == [source_ref]
-    assert [(item["source"], item["source_ref"]) for item in result["E"]] == [
-        ("harness_brain", source_ref)
-    ]
-    assert sum("candidate" in item for item in result["E"]) == 1
-
-
-def test_honcho_candidate_requires_durable_pointer_readback_and_never_suppresses_canonical(
-    loaded_project_plugin,
-):
-    loaded = loaded_project_plugin()
-    module = loaded.manager._plugins["harness-gateway"].module
-    calls = []
-    pointer = "projects/project/decisions/current-policy.md"
-
-    def honcho(**kwargs):
-        calls.append("honcho")
-        return {
-            "source_kind": "honcho",
-            "status": "match",
-            "evidence": {
-                "record_count": 1,
-                "content_digest": "e" * 64,
-                "source_receipt": "honcho-hit",
-            },
-            "readback_metadata": {"source_identity": "honcho:derived"},
-            "candidate": {
-                "clue": "Gateway retrieval retains the project source boundary.",
-                "source_ref": "honcho:derived",
-                "canonical_ref": pointer,
-                "source_receipt": "honcho-hit",
-                "lifecycle": "candidate",
-                "observed_at": "2026-07-24T03:00:00Z",
-            },
-        }
-
-    def canonical(**kwargs):
-        calls.append(kwargs.get("source_ref") or "fallback")
-        return {
-            "source_kind": "harness_brain",
-            "status": "no_match",
-            "source_ref": kwargs.get("source_ref"),
-            "evidence": {"record_count": 0, "source_receipt": "none"},
-        }
-
-    module._SOURCE_READERS = {"honcho": honcho, "harness_brain": canonical}
-    result = module._gateway_ingress_retrieval_provider(
-        original_user_message="recent session continuity",
-        session_id="session",
-        session_key="discord:bound-parent",
-        platform="discord",
-        sender_id="owner",
-    )
-
-    assert calls == ["honcho", pointer, "fallback"]
-    assert all("candidate" not in item for item in result["E"])
-    assert module._HONCHO_ADVISORY.get() == (
-        "Gateway retrieval retains the project source boundary.",
-    )
-    assert "gbrain" not in json.dumps(result)
-
-
-def test_no_verified_finding_returns_no_clue_without_retry_or_other_source(
-    loaded_project_plugin,
-):
-    loaded = loaded_project_plugin()
-    module = loaded.manager._plugins["harness-gateway"].module
-    calls = []
-
-    def adversarial_observation(source_kind, status):
-        source_ref = f"{source_kind}:adversarial"
-        return {
-            "source_kind": source_kind,
-            "status": status,
-            "evidence": {
-                "record_count": 1,
-                "content_digest": "f" * 64,
-                "source_receipt": "adversarial",
-            },
-            "readback_metadata": {"source_identity": source_ref},
-            "candidate": {
-                "clue": "Adversarial non-finding must not become a direct finding.",
-                "source_ref": source_ref,
-                "source_receipt": "adversarial",
-                "lifecycle": "candidate",
-                "observed_at": "2026-07-24T03:00:00Z",
-            },
-        }
-
-    observations = {
-        "honcho": adversarial_observation("honcho", "no_match"),
-        "harness_brain": adversarial_observation("harness_brain", "unavailable"),
-    }
-
-    def no_finding(source_kind):
-        def read(**kwargs):
-            calls.append(source_kind)
-            return observations[source_kind]
-
-        return read
-
-    module._SOURCE_READERS = {
-        source_kind: no_finding(source_kind) for source_kind in observations
-    }
-    assert all(
-        "candidate" not in module._normalize_observation(source_kind, observation)
-        for source_kind, observation in observations.items()
-    )
-    result = module._gateway_ingress_retrieval_provider(
-        original_user_message="no finding variation",
-        session_id="session",
-        session_key="discord:bound-parent",
-        platform="discord",
-        sender_id="owner",
-    )
-
-    assert calls == ["honcho", "harness_brain"]
-    assert len(result["E"]) == 2
-    assert sum("candidate" in item for item in result["E"]) == 0
-    assert "gbrain" not in json.dumps(result)
-
-
-@pytest.mark.parametrize(
-    "clue",
-    [
-        "the setting changed because the owner approved it",
-        "you should restart the gateway",
-        'the source says "use this route"',
-        "the official verdict is final",
-    ],
-)
-def test_non_vector_candidate_is_not_a_finding_and_cannot_suppress_cps(
-    loaded_project_plugin,
-    clue,
-):
-    loaded = loaded_project_plugin()
-    module = loaded.manager._plugins["harness-gateway"].module
-    calls = []
-
-    def direct(**kwargs):
-        calls.append("honcho")
-        return {
-            "source_kind": "honcho",
-            "status": "match",
-            "evidence": {
-                "record_count": 1,
-                "content_digest": "c" * 64,
-                "source_receipt": "direct-readback",
-            },
-            "readback_metadata": {"source_identity": "honcho:direct"},
-            "candidate": {
-                "clue": clue,
-                "source_ref": "honcho:direct",
-                "source_receipt": "direct-readback",
-                "lifecycle": "candidate",
-                "observed_at": "2026-07-24T03:00:00Z",
-            },
-        }
-
-    def canonical(**kwargs):
-        calls.append("harness_brain")
-        return {
-            "source_kind": "harness_brain",
-            "status": "no_match",
-            "evidence": {"record_count": 0},
-        }
-
-    module._SOURCE_READERS = {"honcho": direct, "harness_brain": canonical}
-    result = module._gateway_ingress_retrieval_provider(
-        original_user_message="unsafe variation",
-        session_id="session",
-        session_key="discord:bound-parent",
-        platform="discord",
-        sender_id="owner",
-    )
-
-    assert calls == ["honcho", "harness_brain"]
-    assert sum("candidate" in item for item in result["E"]) == 0
-
-
-@pytest.mark.parametrize(
-    ("provider", "expected_status"),
-    [
-        (lambda **kwargs: (_ for _ in ()).throw(RuntimeError("secret")), "provider_error"),
-        (lambda **kwargs: {"unexpected": "route"}, "malformed_result"),
-    ],
-)
-def test_provider_failure_preserves_bound_packet_and_ordinary_turn(
-    loaded_project_plugin, monkeypatch, provider, expected_status
-):
-    loaded = loaded_project_plugin()
-    module = loaded.manager._plugins["harness-gateway"].module
-    runner = _hook_runner(loaded.config)
-    event = _event(f"provider-{expected_status}")
-    loaded.manager.invoke_hook(
-        "pre_gateway_dispatch", event=event, gateway=runner, session_store=runner.session_store
-    )
-    monkeypatch.setattr(module, "_gateway_ingress_retrieval_provider", provider)
-
-    result = loaded.manager.invoke_hook(
-        "pre_llm_call",
-        session_id="provider-session",
-        turn_id="provider-turn",
-        user_message=event.text,
-        platform="discord",
-        sender_id="owner",
-    )
-
-    assert result == []
-    compact_c = _stage_evidence(
-        _receipt(loaded.receipt_dir), "route"
-    )["compact_C"]
-    assert compact_c["E"] == []
-    assert compact_c["uncertainty"] == [
-        {"source": "provider", "status": expected_status}
-    ]
-    loaded.manager.invoke_hook(
-        "post_llm_call",
-        session_id="provider-session",
-        turn_id="provider-turn",
-        assistant_response="ordinary response",
-    )
-
-
-def test_pre_llm_transition_error_clears_task_local_packet(
-    loaded_project_plugin,
-    monkeypatch,
 ):
     loaded = loaded_project_plugin()
     runner = _hook_runner(loaded.config)
-    event = _event("transition-error")
-    loaded.manager.invoke_hook(
-        "pre_gateway_dispatch",
-        event=event,
-        gateway=runner,
-        session_store=runner.session_store,
+    child = _project(
+        loaded.project.parent / "stagelink-child",
+        _project_manifest(loaded.project.parent / "stagelink-child", "stagelink-child"),
     )
-
-    def fail_transition(*args, **kwargs):
-        raise RuntimeError("write failed")
-
-    with monkeypatch.context() as patcher:
-        patcher.setattr(
-            loaded.manager._plugins["harness-gateway"].module.ExecutionReceipts,
-            "transition",
-            fail_transition,
-        )
-        assert loaded.manager.invoke_hook(
-            "pre_llm_call",
-            session_id="error",
-            turn_id="error",
-            user_message=event.text,
-            platform="discord",
-            sender_id="owner",
-        ) == []
+    from agent.runtime_cwd import set_session_cwd
 
     assert loaded.manager.invoke_hook(
-        "pre_llm_call",
-        session_id="replay",
-        turn_id="replay",
-        user_message=event.text,
-        platform="discord",
-        sender_id="owner",
-    ) == []
-
-
-def test_post_llm_finalization_error_still_clears_task_local_packet(
-    loaded_project_plugin,
-    monkeypatch,
-):
-    loaded = loaded_project_plugin()
-    runner = _hook_runner(loaded.config)
-    event = _event("finalization-error")
-    loaded.manager.invoke_hook(
-        "pre_gateway_dispatch",
-        event=event,
-        gateway=runner,
-        session_store=runner.session_store,
-    )
-    assert loaded.manager.invoke_hook(
-        "pre_llm_call",
-        session_id="running",
-        turn_id="running",
-        user_message=event.text,
-        platform="discord",
-        sender_id="owner",
-    ) == []
-
-    def fail_transition(*args, **kwargs):
-        raise RuntimeError("write failed")
-
-    with monkeypatch.context() as patcher:
-        patcher.setattr(
-            loaded.manager._plugins["harness-gateway"].module.ExecutionReceipts,
-            "transition",
-            fail_transition,
-        )
-        assert loaded.manager.invoke_hook(
-            "post_llm_call",
-            session_id="running",
-            turn_id="running",
-            assistant_response="response",
-        ) == []
-
-    assert loaded.manager.invoke_hook(
-        "post_llm_call",
-        session_id="running",
-        turn_id="running",
-        assistant_response="replay",
-    ) == []
-
-
-@pytest.mark.parametrize(
-    ("case", "final_response", "interrupted", "expected_completed", "turn_exit_reason", "expected_terminal_entries"),
-    [
-        ("normal", "done", False, True, "text_response(finish_reason=stop)", 1),
-        ("empty_response", None, False, False, "empty_response", 0),
-        ("interrupted", "partial", True, True, "interrupted_by_user", 0),
-    ],
-)
-def test_finalize_turn_observes_current_core_post_llm_contract(
-    loaded_project_plugin,
-    case,
-    final_response,
-    interrupted,
-    expected_completed,
-    turn_exit_reason,
-    expected_terminal_entries,
-):
-    loaded = loaded_project_plugin()
-    runner = _hook_runner(loaded.config)
-    event = _event(case)
-    session_id = f"session:{case}"
-    turn_id = f"turn:{case}"
-    original_message = event.text
-    cached_system_prompt = b"SYSTEM PROMPT BYTES"
-    messages = [
-        {"role": "user", "content": "prior"},
-        {"role": "assistant", "content": "prior answer"},
-        {"role": "user", "content": original_message},
-    ]
-    history_before = copy.deepcopy(messages)
-
-    assert loaded.manager.invoke_hook(
-        "pre_gateway_dispatch",
-        event=event,
-        gateway=runner,
+        "pre_gateway_dispatch", event=_event("runtime-child"), gateway=runner,
         session_store=runner.session_store,
     ) == [{"action": "allow"}]
-    assert loaded.manager.invoke_hook(
-        "pre_llm_call",
-        session_id=session_id,
-        task_id=f"task:{case}",
-        turn_id=turn_id,
-        user_message=original_message,
-        conversation_history=messages,
-        is_first_turn=False,
-        model="test-model",
-        platform="discord",
-        sender_id="owner",
-    ) == []
+    parent_context = loaded.manager.invoke_hook(
+        "pre_llm_call", session_id="parent-session", turn_id="parent-turn",
+        user_message="intent:parent",
+    )[0]["context"]
+    module = loaded.manager._plugins["harness-gateway"].module
+    parent_frames = module._EXECUTION_FRAMES.get()
 
-    agent = _FinalizerAgent(session_id, cached_system_prompt)
-    result = finalize_turn(
-        agent,
-        final_response=final_response,
-        api_call_count=1,
-        interrupted=interrupted,
-        failed=False,
-        messages=messages,
-        conversation_history=None,
-        effective_task_id=f"task:{case}",
-        turn_id=turn_id,
-        user_message=original_message,
-        original_user_message=original_message,
-        _should_review_memory=False,
-        _turn_exit_reason=turn_exit_reason,
+    def run_child():
+        token = set_session_cwd(str(child))
+        try:
+            context = loaded.manager.invoke_hook(
+                "pre_llm_call", session_id="child-session", turn_id="child-turn",
+                user_message="intent:runtime-child",
+            )[0]["context"]
+            request = apply_llm_request_middleware(
+                {"messages": [], "extra_headers": {"Existing": "value"}},
+                provider="agy-router", session_id="child-session",
+            )
+            frames_before_release = module._EXECUTION_FRAMES.get()
+            loaded.manager.invoke_hook(
+                "on_session_end", session_id="child-session", turn_id="child-turn",
+                completed=False, failed=False, interrupted=True,
+            )
+            restored = apply_llm_request_middleware(
+                {"messages": []}, provider="agy-router", session_id="parent-session",
+            )
+            return context, request, frames_before_release, module._EXECUTION_FRAMES.get(), restored
+        finally:
+            token.var.reset(token)
+
+    child_context, child_request, child_frames, restored_frames, restored_request = (
+        copy_context().run(run_child)
     )
 
-    receipt = _receipt(loaded.receipt_dir)
-    terminal_entries = [entry for entry in receipt["entries"] if entry["stage"] == "terminal"]
-    assert len(terminal_entries) == expected_terminal_entries
-    assert result["final_response"] == final_response
-    assert result["interrupted"] is interrupted
-    assert result["completed"] is expected_completed
-    assert result["turn_exit_reason"] == turn_exit_reason
-    assert messages[:len(history_before)] == history_before
-    assert original_message == event.text
-    assert agent._cached_system_prompt == cached_system_prompt
-    assert loaded.manager.invoke_hook(
-        "pre_llm_call",
-        session_id=session_id,
-        turn_id="replay",
-        user_message=original_message,
-        platform="discord",
-        sender_id="owner",
-    ) == []
-
-
-def test_pre_llm_runtime_identity_does_not_replace_event_source_identity(loaded_project_plugin):
-    loaded = loaded_project_plugin()
-    runner = _hook_runner(loaded.config)
-    event = _event("runtime-identity")
-    assert loaded.manager.invoke_hook(
-        "pre_gateway_dispatch", event=event, gateway=runner, session_store=runner.session_store
-    ) == [{"action": "allow"}]
-    runner.session_store.bind("session:runtime-identity", event.source)
-
-    result = loaded.manager.invoke_hook(
-        "pre_llm_call", session_id="session:runtime-identity", turn_id="runtime",
-        user_message="intent:runtime-identity", platform="agent-runtime", sender_id="runtime-agent",
-    )
-
-    assert result == []
-    assert _stage_evidence(
-        _receipt(loaded.receipt_dir), "received"
-    )["event_id"] == "runtime-identity"
-
-
-def test_pre_llm_matches_original_message_without_session_identity(loaded_project_plugin):
-    loaded = loaded_project_plugin()
-    runner = _hook_runner(loaded.config)
-    event = _event("matched")
-    loaded.manager.invoke_hook(
-        "pre_gateway_dispatch", event=event, gateway=runner, session_store=runner.session_store
-    )
-    result = loaded.manager.invoke_hook(
-        "pre_llm_call", session_id="session:other", turn_id="other",
-        user_message="intent:matched", platform="discord", sender_id="owner",
-    )
-
-    assert result == []
-    assert _stage_evidence(
-        _receipt(loaded.receipt_dir), "received"
-    )["event_id"] == "matched"
-
-
-def test_sequential_calls_do_not_reuse_a_terminalized_packet(loaded_project_plugin):
-    loaded = loaded_project_plugin()
-    captured: list[dict] = []
-    runner = _runner_reaching_agent(loaded.config, captured)
-
-    async def run_sequentially():
-        first = await GatewayRunner._handle_message(runner, _event("once"))
-        second = await GatewayRunner._handle_message(
-            runner,
-            _event("unbound-after-ready", channel_id="other-channel"),
-        )
-        return first, second
-
-    assert asyncio.run(run_sequentially()) == (
-        {"final_response": "generic"},
-        {"final_response": "generic"},
-    )
-    assert captured[0]["context"] == ""
-    assert captured[1]["context"] == ""
-    assert _stage_evidence(
-        _receipt(loaded.receipt_dir), "received"
-    )["event_id"] == "once"
-    assert loaded.manager.invoke_hook(
-        "pre_llm_call", session_id="session:bound-parent", turn_id="replay",
-        user_message="intent:once", platform="discord", sender_id="owner",
-    ) == []
-    assert len(list(loaded.receipt_dir.glob("*.json"))) == 1
-
-
-def test_concurrent_asyncio_tasks_keep_ingress_envelopes_isolated(loaded_project_plugin):
-    loaded = loaded_project_plugin()
-    runner = _hook_runner(loaded.config)
-    first = _event("first", channel_id="thread-one", parent_channel_id="bound-parent")
-    second = _event("second", channel_id="thread-two", parent_channel_id="bound-parent")
-    ready = asyncio.Event()
-    dispatched = 0
-
-    async def handle(event, session_id, turn_id, response):
-        nonlocal dispatched
-        assert loaded.manager.invoke_hook(
-            "pre_gateway_dispatch", event=event, gateway=runner, session_store=runner.session_store
-        ) == [{"action": "allow"}]
-        dispatched += 1
-        if dispatched == 2:
-            ready.set()
-        await ready.wait()
-        result = loaded.manager.invoke_hook(
-            "pre_llm_call",
-            session_id=session_id,
-            turn_id=turn_id,
-            user_message="transformed",
-            platform="transformed",
-            sender_id="transformed",
-        )
-        assert result == []
-        await asyncio.sleep(0)
-        loaded.manager.invoke_hook(
-            "post_llm_call",
-            session_id="post-projection",
-            turn_id="post-projection",
-            assistant_response=response,
-        )
-        return event.message_id
-
-    async def run_concurrently():
-        return await asyncio.gather(
-            handle(first, "session:first", "one", "first result"),
-            handle(second, "session:second", "two", "second result"),
-        )
-
-    event_ids = asyncio.run(run_concurrently())
-    assert event_ids == ["first", "second"]
-
-    receipts = {
-        receipt["entries"][0]["evidence"]["event_id"]: receipt
-        for receipt in (
-            json.loads(path.read_text(encoding="ascii"))
-            for path in loaded.receipt_dir.glob("*.json")
-        )
+    assert "Project anchor: `project-test`" in parent_context
+    assert "Project anchor: `stagelink-child`" in child_context
+    assert f"Canonical project root: `{child}`" in child_context
+    assert child_request.payload["extra_headers"] == {
+        "Existing": "value",
+        "X-Hermes-Project-Root": str(child),
     }
-    assert set(receipts) == {"first", "second"}
-    assert all(
-        [entry["stage"] for entry in receipt["entries"]]
-        == ["received", "intake-ready", "route", "running", "terminal"]
-        for receipt in receipts.values()
-    )
-    assert receipts["first"]["entries"][-1]["evidence"]["response_sha256"] == hashlib.sha256(
-        b"first result"
-    ).hexdigest()
-    assert receipts["second"]["entries"][-1]["evidence"]["response_sha256"] == hashlib.sha256(
-        b"second result"
-    ).hexdigest()
-
-
-def test_gateway_plugin_has_no_background_route_execution_surface(loaded_project_plugin):
-    loaded = loaded_project_plugin()
-    module = loaded.manager._plugins["harness-gateway"].module
-
-    for name in (
-        "_issue_ptah_transport", "_write_route_job", "_launch_route_job", "_stop_route_jobs",
-        "_deliver_route_result", "_terminal_runtime_response", "_run_route_job",
-    ):
-        assert not hasattr(module, name)
-
-
-def test_gateway_hook_enabled_runtime_keeps_native_handling_without_route_job(
-    loaded_project_plugin
-):
-    loaded = loaded_project_plugin(route_runtime_enabled=True)
-    module = loaded.manager._plugins["harness-gateway"].module
-    captured: list[dict] = []
-    runner = _runner_reaching_agent(loaded.config, captured)
-
-    result = asyncio.run(GatewayRunner._handle_message(runner, _event("native-enabled")))
-
-    assert result == {"final_response": "generic"}
-    assert captured[0]["message"] == "intent:native-enabled"
-    assert not (loaded.receipt_dir / "route-jobs").exists()
-    receipt = _receipt(loaded.receipt_dir)
-    route = _stage_evidence(receipt, "route")
-    assert route["schema"] == "harness.gateway.ingress-packet.v1"
-    assert route["target_profile"] == "default"
-    assert "job_ref" not in route
-    assert "ptah" not in json.dumps(receipt)
-
-
-def test_gateway_hook_allows_native_stop_command_without_creating_route_job(
-    loaded_project_plugin
-):
-    loaded = loaded_project_plugin(route_runtime_enabled=True)
-    runner = _hook_runner(loaded.config)
-    event = _event("/stop")
-
-    result = loaded.manager.invoke_hook(
-        "pre_gateway_dispatch", event=event, gateway=runner, session_store=runner.session_store
-    )
-
-    assert result == [{"action": "allow"}]
-    assert list(loaded.receipt_dir.glob("cps-*/current.json")) == []
-
-
-def test_agy_request_injects_bounded_honcho_advisory_only(loaded_project_plugin):
-    loaded = loaded_project_plugin()
-    module = loaded.manager._plugins["harness-gateway"].module
-    module._INGRESS.set(module._IngressEnvelope(
-        receipt_id="receipt",
-        canonical_json='{"intent":"test"}',
-        receipt_dir=loaded.receipt_dir,
-        project_cwd=str(loaded.project),
-        state="running",
-        session_id="session",
-        honcho_advisory=module._format_honcho_advisory(("Prior continuity clue.",)),
-    ))
-    try:
-        result = module._llm_request_middleware(
-            request={"messages": [{"role": "user", "content": "current request"}]},
-            provider="agy-router",
-            session_id="session",
-        )
-    finally:
-        module._INGRESS.set(None)
-
-    messages = result["request"]["messages"]
-    assert messages[0]["role"] == "system"
-    assert messages[1] == {"role": "user", "content": "current request"}
-    assert "advisory only" in messages[0]["content"]
-    assert "Prior continuity clue." in messages[0]["content"]
-    assert result["request"]["extra_headers"] == {
+    assert len(child_frames) == 2
+    assert child_frames[0] == parent_frames[0]
+    assert child_frames[-1].session_id == "child-session"
+    assert child_frames[-1].turn_id == "child-turn"
+    assert not hasattr(child_frames[-1], "session_key")
+    assert restored_frames == parent_frames
+    assert restored_request.payload["extra_headers"] == {
         "X-Hermes-Project-Root": str(loaded.project)
     }
+    assert module._EXECUTION_FRAMES.get() == parent_frames
+
+
+def test_failed_child_without_final_response_releases_to_parent(loaded_project_plugin):
+    loaded = loaded_project_plugin()
+    runner = _hook_runner(loaded.config)
+    child = _project(
+        loaded.project.parent / "failed-child",
+        _project_manifest(loaded.project.parent / "failed-child", "failed-child"),
+    )
+    from agent.runtime_cwd import set_session_cwd
+
+    loaded.manager.invoke_hook(
+        "pre_gateway_dispatch", event=_event("failed-child"), gateway=runner,
+        session_store=runner.session_store,
+    )
+    loaded.manager.invoke_hook(
+        "pre_llm_call", session_id="parent-session", turn_id="parent-turn"
+    )
+    token = set_session_cwd(str(child))
+    try:
+        loaded.manager.invoke_hook(
+            "pre_llm_call", session_id="failed-session", turn_id="failed-turn"
+        )
+    finally:
+        token.var.reset(token)
+
+    loaded.manager.invoke_hook(
+        "on_session_end", session_id="failed-session", turn_id="failed-turn",
+        completed=False, failed=True, interrupted=False,
+    )
+    request = apply_llm_request_middleware(
+        {"messages": []}, provider="agy-router", session_id="parent-session"
+    )
+    assert request.payload["extra_headers"] == {
+        "X-Hermes-Project-Root": str(loaded.project)
+    }
+
+
+def test_nested_child_release_restores_each_ancestor(loaded_project_plugin):
+    loaded = loaded_project_plugin()
+    runner = _hook_runner(loaded.config)
+    child_b = _project(
+        loaded.project.parent / "child-b",
+        _project_manifest(loaded.project.parent / "child-b", "child-b"),
+    )
+    child_c = _project(
+        loaded.project.parent / "child-c",
+        _project_manifest(loaded.project.parent / "child-c", "child-c"),
+    )
+    from agent.runtime_cwd import set_session_cwd
+
+    loaded.manager.invoke_hook(
+        "pre_gateway_dispatch", event=_event("nested"), gateway=runner,
+        session_store=runner.session_store,
+    )
+    loaded.manager.invoke_hook("pre_llm_call", session_id="a", turn_id="a")
+    token_b = set_session_cwd(str(child_b))
+    try:
+        loaded.manager.invoke_hook("pre_llm_call", session_id="b", turn_id="b")
+    finally:
+        token_b.var.reset(token_b)
+    token_c = set_session_cwd(str(child_c))
+    try:
+        loaded.manager.invoke_hook("pre_llm_call", session_id="c", turn_id="c")
+    finally:
+        token_c.var.reset(token_c)
+
+    loaded.manager.invoke_hook("on_session_end", session_id="c", turn_id="c")
+    request_b = apply_llm_request_middleware(
+        {"messages": []}, provider="agy-router", session_id="b"
+    )
+    loaded.manager.invoke_hook("on_session_end", session_id="b", turn_id="b")
+    request_a = apply_llm_request_middleware(
+        {"messages": []}, provider="agy-router", session_id="a"
+    )
+
+    assert request_b.payload["extra_headers"]["X-Hermes-Project-Root"] == str(child_b)
+    assert request_a.payload["extra_headers"]["X-Hermes-Project-Root"] == str(loaded.project)
+
+
+def test_pre_llm_keeps_parent_anchor_for_same_runtime_cwd(loaded_project_plugin):
+    loaded = loaded_project_plugin()
+    runner = _hook_runner(loaded.config)
+    from agent.runtime_cwd import set_session_cwd
+
+    assert loaded.manager.invoke_hook(
+        "pre_gateway_dispatch", event=_event("same-root"), gateway=runner,
+        session_store=runner.session_store,
+    ) == [{"action": "allow"}]
+    token = set_session_cwd(str(loaded.project))
+    try:
+        context = loaded.manager.invoke_hook(
+            "pre_llm_call", session_id="same-root", turn_id="same-root",
+            user_message="intent:same-root",
+        )[0]["context"]
+        request = apply_llm_request_middleware(
+            {"messages": []}, provider="agy-router", session_id="same-root"
+        )
+    finally:
+        token.var.reset(token)
+
+    assert "Project anchor: `project-test`" in context
+    assert f"Canonical project root: `{loaded.project}`" in context
+    assert request.payload["extra_headers"] == {
+        "X-Hermes-Project-Root": str(loaded.project)
+    }
+
+
+def test_same_root_inherits_current_child_frame(loaded_project_plugin):
+    loaded = loaded_project_plugin()
+    runner = _hook_runner(loaded.config)
+    child = _project(
+        loaded.project.parent / "current-child",
+        _project_manifest(loaded.project.parent / "current-child", "current-child"),
+    )
+    from agent.runtime_cwd import set_session_cwd
+
+    loaded.manager.invoke_hook(
+        "pre_gateway_dispatch", event=_event("current-child"), gateway=runner,
+        session_store=runner.session_store,
+    )
+    loaded.manager.invoke_hook("pre_llm_call", session_id="a", turn_id="a")
+    child_token = set_session_cwd(str(child))
+    try:
+        loaded.manager.invoke_hook("pre_llm_call", session_id="b", turn_id="b")
+    finally:
+        child_token.var.reset(child_token)
+
+    token = set_session_cwd(str(child))
+    try:
+        context = loaded.manager.invoke_hook(
+            "pre_llm_call", session_id="same-child", turn_id="same-child"
+        )[0]["context"]
+    finally:
+        token.var.reset(token)
+    assert "Project anchor: `current-child`" in context
+    assert f"Canonical project root: `{child}`" in context
+
+
+@pytest.mark.parametrize(
+    "manifest",
+    [
+        "schema: [",
+        "- not-a-mapping\n",
+        "schema: harness.project.v1\nproject_slug: child\nworkspace:\n  canonical_cwd: unused\n",
+        "schema: harness.project-manifest.v2\nworkspace:\n  canonical_cwd: unused\n",
+        "schema: harness.project-manifest.v2\nproject_slug: 7\nworkspace:\n  canonical_cwd: unused\n",
+        "schema: harness.project-manifest.v2\nproject_slug: child\n",
+        "schema: harness.project-manifest.v2\nproject_slug: child\nworkspace: []\n",
+        "schema: harness.project-manifest.v2\nproject_slug: child\nworkspace: {}\n",
+        "schema: harness.project-manifest.v2\nproject_slug: child\nworkspace:\n  canonical_cwd: ''\n",
+        "schema: harness.project-manifest.v2\nproject_slug: child\nworkspace:\n  canonical_cwd: 7\n",
+    ],
+    ids=[
+        "malformed-yaml", "non-map", "wrong-schema", "missing-slug", "invalid-slug",
+        "missing-workspace", "invalid-workspace", "missing-canonical-cwd",
+        "empty-canonical-cwd", "invalid-canonical-cwd",
+    ],
+)
+def test_invalid_distinct_runtime_does_not_project_parent(
+    loaded_project_plugin, manifest,
+):
+    loaded = loaded_project_plugin()
+    runner = _hook_runner(loaded.config)
+    invalid = _project(loaded.project.parent / "invalid-child", manifest)
+    from agent.runtime_cwd import set_session_cwd
+
+    loaded.manager.invoke_hook(
+        "pre_gateway_dispatch", event=_event("invalid-child"), gateway=runner,
+        session_store=runner.session_store,
+    )
+    loaded.manager.invoke_hook(
+        "pre_llm_call", session_id="parent-session", turn_id="parent-turn"
+    )
+    token = set_session_cwd(str(invalid))
+    try:
+        child_context = loaded.manager.invoke_hook(
+            "pre_llm_call", session_id="invalid-session", turn_id="invalid-turn"
+        )
+        child_request = apply_llm_request_middleware(
+            {"messages": []}, provider="agy-router", session_id="invalid-session"
+        )
+    finally:
+        token.var.reset(token)
+
+    assert child_context == []
+    assert "extra_headers" not in child_request.payload
+    loaded.manager.invoke_hook(
+        "on_session_end", session_id="invalid-session", turn_id="invalid-turn",
+        completed=False, failed=True, interrupted=False,
+    )
+    parent_request = apply_llm_request_middleware(
+        {"messages": []}, provider="agy-router", session_id="parent-session"
+    )
+    assert parent_request.payload["extra_headers"] == {
+        "X-Hermes-Project-Root": str(loaded.project)
+    }
+
+
+def test_mismatched_manifest_root_does_not_project_parent(loaded_project_plugin):
+    loaded = loaded_project_plugin()
+    runner = _hook_runner(loaded.config)
+    child_path = loaded.project.parent / "mismatched-child"
+    child = _project(child_path, _project_manifest(loaded.project, "mismatched-child"))
+    from agent.runtime_cwd import set_session_cwd
+
+    loaded.manager.invoke_hook(
+        "pre_gateway_dispatch", event=_event("mismatched-child"), gateway=runner,
+        session_store=runner.session_store,
+    )
+    token = set_session_cwd(str(child))
+    try:
+        context = loaded.manager.invoke_hook(
+            "pre_llm_call", session_id="mismatched-session", turn_id="mismatched-turn"
+        )
+        request = apply_llm_request_middleware(
+            {"messages": []}, provider="agy-router", session_id="mismatched-session"
+        )
+    finally:
+        token.var.reset(token)
+
+    assert context == []
+    assert "extra_headers" not in request.payload
+
+
+def test_parent_end_empties_stack_but_ingress_remains_until_next_gateway_turn(
+    loaded_project_plugin,
+):
+    loaded = loaded_project_plugin()
+    runner = _hook_runner(loaded.config)
+    bound = _event("bound")
+    unbound = _event("unbound", channel_id="other-channel")
+
+    loaded.manager.invoke_hook(
+        "pre_gateway_dispatch", event=bound, gateway=runner, session_store=runner.session_store
+    )
+    loaded.manager.invoke_hook(
+        "pre_llm_call", session_id="bound-session", turn_id="bound-turn",
+        user_message=bound.text, platform="discord", sender_id="owner",
+    )
+    loaded.manager.invoke_hook(
+        "on_session_end", session_id="bound-session", turn_id="bound-turn",
+        completed=True, failed=False, interrupted=False,
+    )
+    no_stack_request = apply_llm_request_middleware(
+        {"messages": []}, provider="agy-router", session_id="bound-session"
+    )
+    rebound = loaded.manager.invoke_hook(
+        "pre_llm_call", session_id="rebound-session", turn_id="rebound-turn"
+    )[0]["context"]
+    assert "extra_headers" not in no_stack_request.payload
+    assert "Project anchor: `project-test`" in rebound
+
+    loaded.manager.invoke_hook(
+        "pre_gateway_dispatch", event=unbound, gateway=runner, session_store=runner.session_store
+    )
+    assert loaded.manager.invoke_hook(
+        "pre_llm_call", session_id="unbound-session", turn_id="unbound-turn"
+    ) == []
+    request = apply_llm_request_middleware(
+        {"messages": []}, provider="agy-router", session_id="unbound-session"
+    )
+    assert "extra_headers" not in request.payload
+    assert list(loaded.receipt_dir.glob("*.json")) == []
+
+
+def test_unresolvable_bound_project_fails_closed_without_receipt(loaded_project_plugin):
+    loaded = loaded_project_plugin(binding_slug="missing-project")
+    captured: list[dict] = []
+    runner = _runner_reaching_agent(loaded.config, captured)
+
+    result = asyncio.run(GatewayRunner._handle_message(runner, _event("held")))
+
+    assert result is None
+    assert captured == []
+    assert list(loaded.receipt_dir.glob("*.json")) == []
+
+
+def test_gateway_hook_allows_native_stop_without_project_context(loaded_project_plugin):
+    loaded = loaded_project_plugin()
+    runner = _hook_runner(loaded.config)
+    event = _event("stop", text="/stop")
+
+    result = loaded.manager.invoke_hook(
+        "pre_gateway_dispatch", event=event, gateway=runner, session_store=runner.session_store
+    )
+    assert loaded.manager.invoke_hook(
+        "pre_llm_call", session_id="stop-session", turn_id="stop-turn"
+    ) == []
+    request = apply_llm_request_middleware(
+        {"messages": []}, provider="agy-router", session_id="stop-session"
+    )
+    assert result == [{"action": "allow"}]
+    assert "extra_headers" not in request.payload
+    assert list(loaded.receipt_dir.glob("*.json")) == []
+
+
+def test_explicit_external_runtime_keeps_its_separate_receipt_contract():
+    dispatcher_path = REPO / ".harness" / "hermes" / "tools" / "external_runtime_dispatcher.py"
+    assert dispatcher_path.is_file()
+    source = dispatcher_path.read_text(encoding="utf-8")
+    assert "dispatch_external_runtime" in source
+    assert "TERMINAL_CWD" in source
