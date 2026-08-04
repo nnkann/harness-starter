@@ -55,15 +55,9 @@ Binding에는 Git source snapshot, provider target, typed capability graph, clea
 
 ### Gateway ingress
 
-`.hermes/plugins/harness-gateway`는 Hermes의 project-bound Gateway event에만 ingress 계약을 적용한다. 현재 plugin hook은 다음을 수행한다.
+`.hermes/plugins/harness-gateway`는 bound Discord parent의 **일반 대화에는 trusted project-root carrier만** 제공한다. binding은 execution admission이 아니며, normal turn은 CPS intake·manifest revalidation·retrieval·receipt를 만들지 않는다. AGY provider request일 때만 validated root를 `X-Hermes-Project-Root`로 전달한다.
 
-1. Gateway project binding으로 project cwd를 해석한다.
-2. Git worktree root와 `manifest.yml` 경계를 검증한다.
-3. event·manifest hash·baseline worktree evidence를 canonical ingress packet으로 만든다.
-4. receipt를 `received → intake-ready → route → running → terminal`로 연결한다.
-5. binding 또는 intake가 hold이면 agent 호출 전에 중단하고, unbound event는 변경 없이 통과시킨다.
-
-이는 저장소에 구현된 ingress transport 계약 설명이며 live gateway 배포 상태를 의미하지 않는다.
+CPS ingress와 named external-runtime dispatch는 명시적 caller가 별도로 `process_bound_ingress` 및 execution receipt contract를 호출할 때만 생성된다.
 
 ## 빠른 시작
 
