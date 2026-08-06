@@ -36,7 +36,7 @@ if command -v gitleaks >/dev/null 2>&1; then
 else
   STAGED=$(git diff --cached --name-only --diff-filter=ACM -z | tr '\0' '\n')
   if [ -n "$STAGED" ]; then
-    # 패턴: AWS / Stripe / GitHub / GitLab / Slack / Supabase / Google / OpenAI / Anthropic / JWT / PEM / 일반.
+    # 패턴: AWS / Stripe / GitHub / GitLab / Slack / Google / OpenAI / Anthropic / JWT / PEM / 일반.
     # 최소 길이와 고유 접두사를 함께 사용해 오탐을 줄인다.
     PATTERN='sb_secret_[A-Za-z0-9_]{10,}'
     PATTERN="$PATTERN"'|service_role'
@@ -59,7 +59,6 @@ else
     EXEMPT_RE="$EXEMPT_RE"'|^docs/(WIP|incidents|decisions|guides|harness)/'
     EXEMPT_RE="$EXEMPT_RE"'|^scripts/install-secret-scan-hook\.sh$'
     EXEMPT_RE="$EXEMPT_RE"'|^[^/]+\.md$'
-    EXEMPT_RE="$EXEMPT_RE"'|^supabase/migrations/.*\.sql$'
     HITS=$(echo "$STAGED" | while IFS= read -r f; do
       [ -z "$f" ] && continue
       if echo "$f" | grep -qE "$EXEMPT_RE"; then continue; fi

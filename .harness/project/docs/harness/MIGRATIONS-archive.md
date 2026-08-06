@@ -3066,49 +3066,11 @@ harness-sync는 다운스트림도 사용하므로 삭제하지 않는다.
 
 
 
-## v0.34.5 — supabase/migrations/*.sql PostgreSQL role 이름 오탐 면제
+## v0.34.4 — AC pre-check false-block 에러 메시지 수정
 
 ### 변경 파일
 
-- `.claude/scripts/pre_commit_check.py` — `S1_LINE_EXEMPT`에 `^supabase/migrations/.*\.sql$` 추가
-- `scripts/install-secret-scan-hook.sh` — `EXEMPT_RE`에 `|^supabase/migrations/.*\.sql$` 추가 (동기화)
-- `.claude/scripts/tests/test_pre_commit.py` — `test_supabase_migration_sql_exempt` 회귀 테스트 신규
-
-### 다운스트림 영향
-
-**`supabase/migrations/*.sql`의 PostgreSQL role DCL이 시크릿으로 오탐되어 커밋 차단되는 문제 해소**:
-
-`GRANT ... TO service_role`, `REVOKE ... FROM service_role`, `CREATE POLICY ... = 'service_role'` 등
-PostgreSQL DCL에서 role 이름 `service_role`이 시크릿 패턴 `service_role(?![A-Z_])`에 걸려
-`line-confirmed` 차단됐음 (뒤 문자가 `;`·`,`·공백이라 negative lookahead 통과).
-
-v0.34.5부터 `supabase/migrations/*.sql` 파일은 `S1_LINE_EXEMPT` 면제.
-`scripts/install-secret-scan-hook.sh` grep 폴백도 동기화됨.
-
-**잔여 위험**: `supabase/migrations/` 면제로 인해 해당 경로 파일에서 진짜 시크릿(`sb_secret_*` 등)
-라인이 있어도 line-confirmed 미적용. 정상 워크플로우에서 migration SQL에 시크릿 리터럴을
-하드코딩하는 경우는 없으므로 잔여 위험 낮음.
-
-### 적용 방법
-
-자동. `harness-upgrade` 후 별도 수동 적용 없음.
-`scripts/install-secret-scan-hook.sh`를 재설치하면 grep 폴백에도 면제 반영됨:
-```bash
-bash scripts/install-secret-scan-hook.sh
-```
-
-### 검증
-
-- `pytest -m secret` 5/5 통과 (`test_supabase_migration_sql_exempt` 신규 포함)
-- 회귀 위험: 기존 4건 모두 통과 확인
-
-
-
-## v0.34.4 — pre-check false-block 2건 수정 (AC 에러 메시지·service_role 환경변수 이름)
-
-### 변경 파일
-
-- `.claude/scripts/pre_commit_check.py` — AC 섹션 미탐지 에러 메시지 개선, `service_role` 패턴 negative lookahead 추가
+- `.claude/scripts/pre_commit_check.py` — AC 섹션 미탐지 에러 메시지 개선
 
 ### 다운스트림 영향
 
@@ -3119,13 +3081,6 @@ bash scripts/install-secret-scan-hook.sh
 "AC 섹션 없음. `**Acceptance Criteria**:` (bold 형식) 헤더가 필요합니다."
 메시지로 즉시 원인 파악 가능. docs.md SSOT(bold 형식) 변경 없음.
 
-**이슈 2 — `service_role` 환경변수 이름 참조 false-block 해소**:
-
-`process.env.SUPABASE_SERVICE_ROLE_KEY` 등 대문자+언더스코어가 뒤에 오는
-환경변수 이름이 `service_role` 시크릿 패턴에 걸려 line-confirmed 차단됐음.
-v0.34.4부터 `service_role(?![A-Z_])` negative lookahead로 변수 이름은 면제.
-`"service_role"` 값 리터럴·`role: service_role` 직접 노출은 계속 차단.
-
 ### 적용 방법
 
 자동. `harness-upgrade` 후 별도 수동 적용 없음.
@@ -3133,7 +3088,6 @@ v0.34.4부터 `service_role(?![A-Z_])` negative lookahead로 변수 이름은 �
 ### 검증
 
 - `pytest -m secret` 4/4 통과
-- 회귀 위험: `service_role(?![A-Z_])` 패턴이 실제 시크릿 값을 false-negative할 가능성 — 실제 JWT 등 키 값에는 `_`가 뒤에 오지 않으므로 위험 없음
 
 
 
