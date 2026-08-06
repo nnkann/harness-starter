@@ -221,9 +221,8 @@ cps_reward_events
 1. 이 문서는 정책/설계 decision으로 유지한다.
 2. 기존 문서 전체 migration은 하지 않는다.
 3. 새 CPS learning 작업이나 관련 downstream 문서 수정 시 현재 템플릿으로 점진 보정한다.
-4. 실제 저장소는 Hermes core/state.db/Kanban DB가 아니라 Harness-owned semantic memory layer로 둔다. 현재 우선 후보는 Supabase Postgres + pgvector이며, repo-local JSONL/SQLite는 dry-run·fallback·export cache로만 취급한다.
-5. 실제 Supabase project 삭제/생성, migration apply, ingestion write, cron 생성은 owner 승인 후 별도 triage에서 수행한다.
-6. 구현 시 `.harness/hermes/**` adapter export는 수정 대상에서 제외한다.
+4. 실제 저장소는 Hermes core/state.db/Kanban DB가 아니라 Harness-owned semantic memory layer로 둔다. repo-local JSONL/SQLite는 dry-run·fallback·export cache로만 취급한다.
+5. 구현 시 `.harness/hermes/**` adapter export는 수정 대상에서 제외한다.
 
 ## Acceptance Criteria
 
@@ -238,4 +237,4 @@ cps_reward_events
 
 - 이 문서는 DB 테이블을 직접 생성하거나 migration하지 않는다.
 - 이 문서는 이후 triage/implementation이 참조할 project-owned SSOT다.
-- 실제 구현은 owner 승인 후 Supabase/Harness-owned project memory layer와 repo-local ingestion script 중 적절한 위치를 다시 판정한다.
+- 실제 구현은 owner 승인 후 Harness-owned project memory layer와 repo-local ingestion script 중 적절한 위치를 다시 판정한다.
