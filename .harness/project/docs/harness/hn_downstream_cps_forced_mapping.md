@@ -28,7 +28,7 @@ updated: 2026-06-06
 3. WIP frontmatter와 본문 `C → P → S → AC`를 새 P/S에 맞춘다.
 4. 그 사실을 upstream 학습 후보로 보고한다.
 
-실제 처리에서는 처음에 `problem: P2`, `s: [S2]`로 잘못 매핑했다. P2/S2는 자체 크롤러/서버/스토리지 운영 부담과 Supabase/R2 저장 계약에 관한 항목이므로, runtime adapter boundary 문제와 직접 대응하지 않는다. 사용자가 "CPS missing이고 문서 규약도 못 지킨 문서"라고 지적한 뒤 downstream CPS에 P4/S4를 추가해 수정했다.
+실제 처리에서는 처음에 `problem: P2`, `s: [S2]`로 잘못 매핑했다. P2/S2는 자체 크롤러/서버/스토리지 운영 부담과 R2 저장 계약에 관한 항목이므로, runtime adapter boundary 문제와 직접 대응하지 않는다. 사용자가 "CPS missing이고 문서 규약도 못 지킨 문서"라고 지적한 뒤 downstream CPS에 P4/S4를 추가해 수정했다.
 
 ## 영향
 

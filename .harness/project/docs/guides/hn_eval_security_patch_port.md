@@ -103,5 +103,5 @@ sample title: `service_role 키 git history 노출 사고_260418`.
 ## 역참조
 
 - 본 패치의 원본 변경: harness-starter `/eval --deep` 개선 (2026-04-18)
-- 관련 사고: Supabase service_role 키 + admin 비밀번호 평문 하드코딩 + git history 노출
+- 관련 사고: privileged backend credential 및 administrator credential 평문 하드코딩 + git history 노출
 - 관련 문서: `.claude/rules/security.md`, `.claude/memory/feedback_eval_secret_scan.md`

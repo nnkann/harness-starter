@@ -87,8 +87,8 @@ history 전체 스캔. 이미 들어간 시크릿 확인.
 
 시크릿이 git history에 한 번이라도 커밋되었다면:
 
-1. **해당 키를 즉시 발급 기관에서 rotation** (Supabase 대시보드, AWS IAM,
-   Stripe 대시보드). "history만 지우면 된다" 착각 금지.
+1. **해당 키를 즉시 발급 기관에서 rotation** (AWS IAM, Stripe 대시보드).
+   "history만 지우면 된다" 착각 금지.
 2. git history 재작성: BFG Repo-Cleaner 또는 `git filter-repo`로 해당
    파일/패턴 제거 후 force push.
 3. 팀 전체 re-clone 지시 (로컬 reflog에 남아있을 수 있음).

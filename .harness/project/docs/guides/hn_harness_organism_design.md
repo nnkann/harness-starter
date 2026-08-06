@@ -118,7 +118,7 @@ CPS 본문 Problem 수 기준 동적 계산으로 변경한다.
 
 ## security.md 처리 결정
 
-`security.md`는 Supabase·AWS·Stripe 키 보호 규칙 — **다운스트림 앱 전용**이다.
+`security.md`는 AWS·Stripe 키 보호 규칙 — **다운스트림 앱 전용**이다.
 harness-starter 자체는 앱이 없으므로 이 규칙이 적용될 대상이 없다.
 
 P3("다운스트림 사일런트 페일")와도 무관 — P3는 업그레이드 절차 누락이고

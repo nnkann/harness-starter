@@ -112,7 +112,7 @@ updated: 2026-05-12
 - 본질 명제: "검증 도구는 src를 봐야 한다"
 - 신호 정의 (다운스트림 보고서 + 사용자 정리):
   - **A**: 워크스페이스 모노레포 (루트 `package.json`에 `workspaces` 필드)
-  - **B**: 자동 생성 타입 의존 (`@supabase/supabase-js`·`@prisma/client`·
+  - **B**: 자동 생성 타입 의존 (`@prisma/client`·
     `@graphql-codegen/*` 의존성 발견 또는 `prisma/schema.prisma` 등 스키마
     파일 존재)
   - **C**: 패키지 빌드 후 자체 소비 (워크스페이스 패키지 `package.json`의
