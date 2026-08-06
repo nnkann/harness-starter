@@ -21,9 +21,6 @@ def _binding_inputs(args: argparse.Namespace) -> BindingInputs:
         vercel_org_id=args.vercel_org_id,
         vercel_project_id=args.vercel_project_id,
         vercel_target=args.vercel_target,
-        supabase_project_ref=args.supabase_project_ref,
-        supabase_schema_migration_scope_id=args.supabase_schema_migration_scope_id,
-        supabase_privileged_data_mutation_boundary_id=args.supabase_privileged_data_mutation_boundary_id,
         n8n_instance_host=args.n8n_instance_host,
         n8n_workflow_id=args.n8n_workflow_id,
         n8n_webhook_endpoint_sha256=args.n8n_webhook_endpoint_sha256,
@@ -42,9 +39,6 @@ def _add_binding_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--vercel-org-id")
     parser.add_argument("--vercel-project-id")
     parser.add_argument("--vercel-target")
-    parser.add_argument("--supabase-project-ref")
-    parser.add_argument("--supabase-schema-migration-scope-id")
-    parser.add_argument("--supabase-privileged-data-mutation-boundary-id")
     parser.add_argument("--n8n-instance-host")
     parser.add_argument("--n8n-workflow-id")
     parser.add_argument("--n8n-webhook-endpoint-sha256")
@@ -78,7 +72,7 @@ def main(argv: list[str] | None = None) -> int:
     sandbox.add_argument(
         "--network",
         action="store_true",
-        help="permit network only for exact Railway/Vercel/Supabase read-only discovery/status commands",
+        help="permit network only for exact Railway/Vercel read-only discovery/status commands",
     )
     sandbox.add_argument("--allow-write", action="append", default=[], type=Path)
     sandbox.add_argument("argv", nargs=argparse.REMAINDER)

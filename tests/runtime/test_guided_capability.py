@@ -187,16 +187,6 @@ def test_provider_discovery_requires_state_dir_and_runs_only_fixed_sandbox_comma
         },
     )
     set_target_identity(repo, "vercel.deploy", {"org_id": "org_1", "project_id": "project_1"})
-    set_target_identity(
-        repo,
-        "supabase.schema-migration",
-        {"project_ref": "project_1", "boundary_id": "boundary_1"},
-    )
-    set_target_identity(
-        repo,
-        "supabase.privileged-data-mutation",
-        {"project_ref": "project_1", "boundary_id": "boundary_1"},
-    )
     commit(repo, "bind")
     calls = []
 
@@ -210,8 +200,6 @@ def test_provider_discovery_requires_state_dir_and_runs_only_fixed_sandbox_comma
     expected = {
         "railway.deploy": ["railway", "status"],
         "vercel.deploy": ["vercel", "whoami"],
-        "supabase.schema-migration": ["supabase", "projects", "list"],
-        "supabase.privileged-data-mutation": ["supabase", "projects", "list"],
     }
     for capability_id, command in expected.items():
         result = discover_capability(
@@ -280,7 +268,6 @@ def test_runtime_contract_discovery_stays_source_only_and_provider_failure_holds
 def test_serialized_manifest_plan_and_discovery_do_not_include_secret_values(tmp_path, monkeypatch):
     repo = git_repo(tmp_path / "project")
     monkeypatch.setenv("RAILWAY_TOKEN", "railway-secret-value")
-    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "supabase-secret-value")
     bind(repo)
     set_target_identity(
         repo,
@@ -294,7 +281,7 @@ def test_serialized_manifest_plan_and_discovery_do_not_include_secret_values(tmp
     )
 
     manifest = (repo / ".harness/project-binding.json").read_text(encoding="utf-8")
-    plan = json.dumps(plan_capability(repo, "supabase.privileged-data-mutation"), sort_keys=True)
+    plan = json.dumps(plan_capability(repo, "railway.deploy"), sort_keys=True)
     discovery = json.dumps(
         discover_capability(
             repo,
@@ -308,7 +295,6 @@ def test_serialized_manifest_plan_and_discovery_do_not_include_secret_values(tmp
 
     serialized = manifest + plan + discovery
     assert os.environ["RAILWAY_TOKEN"] not in serialized
-    assert os.environ["SUPABASE_SERVICE_ROLE_KEY"] not in serialized
 
 
 def test_guided_capability_cli_has_fixed_namespace_without_generic_arguments(tmp_path, capsys):

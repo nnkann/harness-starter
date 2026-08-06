@@ -39,9 +39,6 @@ class BindingInputs:
     vercel_org_id: str | None = None
     vercel_project_id: str | None = None
     vercel_target: str | None = None
-    supabase_project_ref: str | None = None
-    supabase_schema_migration_scope_id: str | None = None
-    supabase_privileged_data_mutation_boundary_id: str | None = None
     n8n_instance_host: str | None = None
     n8n_workflow_id: str | None = None
     n8n_webhook_endpoint_sha256: str | None = None
@@ -86,11 +83,6 @@ class BindingInputs:
             vercel_org_id=optional(self.vercel_org_id),
             vercel_project_id=optional(self.vercel_project_id),
             vercel_target=optional(self.vercel_target),
-            supabase_project_ref=optional(self.supabase_project_ref),
-            supabase_schema_migration_scope_id=optional(self.supabase_schema_migration_scope_id),
-            supabase_privileged_data_mutation_boundary_id=optional(
-                self.supabase_privileged_data_mutation_boundary_id
-            ),
             n8n_instance_host=instance_host,
             n8n_workflow_id=optional(self.n8n_workflow_id),
             n8n_webhook_endpoint_sha256=endpoint_sha256,
@@ -134,14 +126,6 @@ def _provider_targets(inputs: BindingInputs) -> dict[str, dict[str, str | None]]
             "org_id": inputs.vercel_org_id,
             "project_id": inputs.vercel_project_id,
             "target": inputs.vercel_target,
-        },
-        "supabase_schema_migration": {
-            "project_ref": inputs.supabase_project_ref,
-            "schema_migration_scope_id": inputs.supabase_schema_migration_scope_id,
-        },
-        "supabase_privileged_data_mutation": {
-            "project_ref": inputs.supabase_project_ref,
-            "privileged_data_mutation_boundary_id": inputs.supabase_privileged_data_mutation_boundary_id,
         },
         "n8n": {
             "instance_host": inputs.n8n_instance_host,
@@ -199,15 +183,6 @@ def _capability_graph(
             provider_targets["vercel"], ["vercel.cli-session"], [],
         ),
         capability(
-            "supabase.schema-migration", "local_operation", "supabase", "schema_migration",
-            provider_targets["supabase_schema_migration"], ["supabase.cli-session"], [],
-        ),
-        capability(
-            "supabase.privileged-data-mutation", "local_operation", "supabase", "bounded_privileged_data_mutation",
-            provider_targets["supabase_privileged_data_mutation"], ["supabase.privileged-resolver"],
-            ["supabase.schema-migration"],
-        ),
-        capability(
             "n8n.workflow-publish-activation", "local_operation", "n8n", "workflow_publish_activation",
             provider_targets["n8n"], ["n8n.credential-resolver"], [],
         ),
@@ -228,10 +203,8 @@ def _capability_graph(
                 "railway_environment_id": inputs.railway_environment_id,
                 "railway_service_id": inputs.railway_service_id,
                 "railway_service_name": inputs.railway_service,
-                "supabase_project_ref": inputs.supabase_project_ref,
-                "supabase_schema_migration_scope_id": inputs.supabase_schema_migration_scope_id,
             },
-            ["deployed-api.runtime-credential-resolver"], ["railway.deploy", "supabase.schema-migration"],
+            ["deployed-api.runtime-credential-resolver"], ["railway.deploy"],
         ),
     ]
     graph: dict[str, Any] = {

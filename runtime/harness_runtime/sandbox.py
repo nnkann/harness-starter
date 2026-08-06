@@ -17,7 +17,6 @@ def _credential_stores() -> dict[str, Path]:
     home = Path(pwd.getpwuid(os.getuid()).pw_dir).resolve()
     return {
         "railway": home / ".railway",
-        "supabase": home / ".supabase",
         "vercel": home / "Library/Application Support/com.vercel.cli",
     }
 
@@ -84,11 +83,10 @@ def resolve_provider_readonly_command(command: Sequence[str]) -> list[str]:
     allowed = {
         "railway": {("status",)},
         "vercel": {("whoami",)},
-        "supabase": {("projects", "list")},
     }
     restriction = (
         "network access is restricted to read-only discovery/status with the approved "
-        "Railway CLI, Vercel CLI, or Supabase CLI"
+        "Railway CLI or Vercel CLI"
     )
     if provider not in allowed or tuple(argv[1:]) not in allowed[provider]:
         raise SandboxError(restriction)
@@ -182,7 +180,6 @@ def run_sandbox(
     for name in (
         "RAILWAY_API_TOKEN",
         "RAILWAY_TOKEN",
-        "SUPABASE_ACCESS_TOKEN",
         "VERCEL_TOKEN",
         "XDG_CONFIG_HOME",
         "XDG_DATA_HOME",

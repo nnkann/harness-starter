@@ -18,7 +18,6 @@ RECEIPT_SCHEMA = "harness.capability-execution-receipt.v1"
 IDENTITY_FIELDS = {
     "railway": frozenset({"project_id", "environment_id", "service_id", "service_name"}),
     "vercel": frozenset({"org_id", "project_id"}),
-    "supabase": frozenset({"project_ref", "boundary_id"}),
     "n8n": frozenset({"instance_id", "workflow_id", "contract_id"}),
     "deployed-api": frozenset({"deployment_id", "database_project_ref", "contract_id"}),
 }
@@ -26,8 +25,6 @@ IDENTITY_FIELDS = {
 PROVIDER_STATUS_COMMANDS = {
     "railway.deploy": ["railway", "status"],
     "vercel.deploy": ["vercel", "whoami"],
-    "supabase.schema-migration": ["supabase", "projects", "list"],
-    "supabase.privileged-data-mutation": ["supabase", "projects", "list"],
 }
 
 

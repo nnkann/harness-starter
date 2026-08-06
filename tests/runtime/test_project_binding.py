@@ -66,9 +66,6 @@ def explicit_target_args(repo: Path) -> list[str]:
         "--vercel-org-id", "vercel-org",
         "--vercel-project-id", "vercel-project",
         "--vercel-target", "production",
-        "--supabase-project-ref", "supabase-project",
-        "--supabase-schema-migration-scope-id", "schema-scope",
-        "--supabase-privileged-data-mutation-boundary-id", "mutation-boundary",
         "--n8n-instance-host", "automation.example.invalid",
         "--n8n-workflow-id", "workflow-1",
         "--n8n-webhook-endpoint-sha256", "a" * 64,
@@ -136,8 +133,6 @@ def test_generated_binding_contains_typed_provider_capability_graph(tmp_path):
     assert set(capabilities) == {
         "railway.deploy",
         "vercel.deploy",
-        "supabase.schema-migration",
-        "supabase.privileged-data-mutation",
         "n8n.workflow-publish-activation",
         "n8n.async-effects-runtime",
         "vercel.revalidate-runtime",
@@ -182,14 +177,6 @@ def test_cli_flags_populate_exact_secret_free_provider_identities_in_manifest_an
             "service_name": "service-test",
         },
         "vercel": {"org_id": "vercel-org", "project_id": "vercel-project", "target": "production"},
-        "supabase_schema_migration": {
-            "project_ref": "supabase-project",
-            "schema_migration_scope_id": "schema-scope",
-        },
-        "supabase_privileged_data_mutation": {
-            "project_ref": "supabase-project",
-            "privileged_data_mutation_boundary_id": "mutation-boundary",
-        },
         "n8n": {
             "instance_host": "automation.example.invalid",
             "workflow_id": "workflow-1",
@@ -202,8 +189,6 @@ def test_cli_flags_populate_exact_secret_free_provider_identities_in_manifest_an
     assert lock["provider_targets"] == expected_targets
     assert capabilities["railway.deploy"]["target_identity"] == expected_targets["railway"]
     assert capabilities["vercel.deploy"]["target_identity"] == expected_targets["vercel"]
-    assert capabilities["supabase.schema-migration"]["target_identity"] == expected_targets["supabase_schema_migration"]
-    assert capabilities["supabase.privileged-data-mutation"]["target_identity"] == expected_targets["supabase_privileged_data_mutation"]
     assert capabilities["n8n.workflow-publish-activation"]["target_identity"] == expected_targets["n8n"]
     assert capabilities["vercel.revalidate-runtime"]["target_identity"] == capabilities["vercel.deploy"]["target_identity"]
     assert capabilities["n8n.async-effects-runtime"]["target_identity"] == capabilities["n8n.workflow-publish-activation"]["target_identity"]
@@ -212,9 +197,8 @@ def test_cli_flags_populate_exact_secret_free_provider_identities_in_manifest_an
         "railway_environment_id": "railway-environment",
         "railway_service_id": "railway-service",
         "railway_service_name": "service-test",
-        "supabase_project_ref": "supabase-project",
-        "supabase_schema_migration_scope_id": "schema-scope",
     }
+    assert capabilities["deployed-api.db-write-runtime"]["dependencies"] == ["railway.deploy"]
     assert raw_endpoint not in json.dumps(manifest, sort_keys=True)
     assert raw_endpoint not in json.dumps(lock, sort_keys=True)
 
@@ -351,7 +335,6 @@ def test_sandbox_profile_limits_railway_credentials_to_network_mode_and_os_home(
     home = Path(pwd.getpwuid(os.getuid()).pw_dir).resolve()
     credential_stores = {
         "railway": home / ".railway",
-        "supabase": home / ".supabase",
         "vercel": home / "Library/Application Support/com.vercel.cli",
     }
     monkeypatch.setenv("HOME", str(fake_home))
@@ -460,7 +443,7 @@ def test_sandbox_executes_resolved_railway_identity_when_network_is_explicit(tmp
 
 def test_provider_network_commands_are_exact_read_only_operations(tmp_path, monkeypatch):
     executables = {}
-    for provider in ("railway", "vercel", "supabase"):
+    for provider in ("railway", "vercel"):
         executable = tmp_path / "bin" / provider
         executable.parent.mkdir(exist_ok=True)
         executable.write_text("#!/bin/sh\n", encoding="utf-8")
@@ -470,16 +453,12 @@ def test_provider_network_commands_are_exact_read_only_operations(tmp_path, monk
 
     assert resolve_provider_readonly_command(["railway", "status"])[0] == str(executables["railway"].resolve())
     assert resolve_provider_readonly_command(["vercel", "whoami"])[1:] == ["whoami"]
-    assert resolve_provider_readonly_command(["supabase", "projects", "list"])[1:] == ["projects", "list"]
 
     for command in (
         ["railway", "whoami"],
         ["railway", "up"],
         ["vercel", "project", "ls"],
         ["vercel", "deploy"],
-        ["supabase", "status"],
-        ["supabase", "db", "push"],
-        ["supabase", "status", "--workdir", "https://example.invalid"],
         ["n8n", "status"],
     ):
         with pytest.raises(SandboxError, match="read-only discovery/status"):
