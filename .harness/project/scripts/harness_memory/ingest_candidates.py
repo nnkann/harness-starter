@@ -2,7 +2,7 @@
 """Dry-run candidate builder for Harness CPS semantic memory.
 
 Default mode is read-only dry-run. It scans repo docs with YAML-ish frontmatter
-and emits candidate memory JSONL with source refs. It does not write to Supabase.
+and emits candidate memory JSONL with source refs.
 """
 from __future__ import annotations
 
@@ -184,7 +184,6 @@ def main() -> int:
         "out": str(out),
         "candidate_count": len(candidates),
         "skipped": skipped,
-        "write_to_supabase": False,
     }
     print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
     return 0
