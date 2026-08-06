@@ -61,9 +61,11 @@ def _resolve_project_binding(source, config):
 
 @dataclass(frozen=True)
 class _IngressProject:
+    state: str
     project_slug: str
     project_cwd: str
     runtime_cwd: str
+    policy: str = ""
 
 
 @dataclass(frozen=True)
@@ -82,6 +84,12 @@ _EXECUTION_FRAMES: ContextVar[tuple[_ExecutionFrame, ...]] = ContextVar(
     "harness_gateway_execution_frames",
     default=(),
 )
+
+_ADMISSION_KEY = "harness_admission"
+_ADMISSION_SCHEMA = "harness.gateway-admission"
+_ADMISSION_VERSION = 1
+_GLOBAL_UNBOUND_POLICY = "explicit-channel-binding-default"
+_SESSION_STORE = None
 
 
 def _resolve_runtime_project_root() -> Path | None:
@@ -124,55 +132,189 @@ def _resolve_runtime_project_binding(project_root: Path | None = None) -> _Proje
     return _ProjectBinding(slug=slug.strip(), cwd=str(canonical_root))
 
 
-def _persist_project_anchor(*, session_store, source, binding: _ProjectBinding) -> bool:
-    get_or_create = getattr(session_store, "get_or_create_session", None)
+def _read_admission(record) -> _IngressProject | None:
+    if not isinstance(record, dict):
+        return None
+    if (
+        record.get("schema") != _ADMISSION_SCHEMA
+        or type(record.get("version")) is not int
+        or record["version"] != _ADMISSION_VERSION
+    ):
+        return None
+    state = record.get("state")
+    if state == "global_unbound":
+        if set(record) != {"schema", "version", "state", "policy"}:
+            return None
+        if record.get("policy") != _GLOBAL_UNBOUND_POLICY:
+            return None
+        return _IngressProject(
+            state=state,
+            project_slug="",
+            project_cwd="",
+            runtime_cwd="",
+            policy=_GLOBAL_UNBOUND_POLICY,
+        )
+    if state != "project_admitted" or set(record) != {
+        "schema", "version", "state", "project",
+    }:
+        return None
+    project = record.get("project")
+    if not isinstance(project, dict) or set(project) != {"slug", "cwd"}:
+        return None
+    slug = project.get("slug")
+    cwd = project.get("cwd")
+    if (
+        not isinstance(slug, str)
+        or not slug.strip()
+        or slug != slug.strip()
+        or not isinstance(cwd, str)
+        or not cwd
+    ):
+        return None
+    root = Path(cwd).expanduser()
+    try:
+        resolved = root.resolve()
+    except Exception:
+        return None
+    if not root.is_absolute() or str(resolved) != cwd or not resolved.is_dir():
+        return None
+    return _IngressProject(
+        state=state,
+        project_slug=slug,
+        project_cwd=cwd,
+        runtime_cwd=str(_resolve_runtime_project_root() or ""),
+    )
+
+
+def _project_admission(binding: _ProjectBinding) -> dict:
+    return {
+        "schema": _ADMISSION_SCHEMA,
+        "version": _ADMISSION_VERSION,
+        "state": "project_admitted",
+        "project": {"slug": binding.slug, "cwd": binding.cwd},
+    }
+
+
+def _global_unbound_admission() -> dict:
+    return {
+        "schema": _ADMISSION_SCHEMA,
+        "version": _ADMISSION_VERSION,
+        "state": "global_unbound",
+        "policy": _GLOBAL_UNBOUND_POLICY,
+    }
+
+
+def _persist_admission(*, session_store, entry, record: dict) -> bool:
     set_metadata = getattr(session_store, "set_session_metadata", None)
-    if not callable(get_or_create) or not callable(set_metadata):
+    if not callable(set_metadata):
         return False
     try:
-        entry = get_or_create(source)
-        return bool(set_metadata(
-            entry.session_key,
-            "harness_project_anchor",
-            {"slug": binding.slug, "cwd": binding.cwd},
-        ))
+        return bool(set_metadata(entry.session_key, _ADMISSION_KEY, record))
     except Exception:
         return False
 
 
+def _restore_admission_from_session_identity(*session_ids) -> _IngressProject | None:
+    """Resolve admission only from an active public SessionStore identity."""
+    store = _SESSION_STORE
+    lookup = getattr(store, "lookup_by_session_id", None)
+    if not callable(lookup):
+        return None
+    for session_id in session_ids:
+        if not isinstance(session_id, str) or not session_id:
+            continue
+        try:
+            entry = lookup(session_id)
+        except Exception:
+            return None
+        if entry is None:
+            continue
+        metadata = getattr(entry, "metadata", None)
+        if not isinstance(metadata, dict) or _ADMISSION_KEY not in metadata:
+            return None
+        return _read_admission(metadata[_ADMISSION_KEY])
+    return None
+
+
 def _pre_gateway_dispatch(*, event, gateway, session_store, **kwargs):
+    global _SESSION_STORE
+
     _INGRESS_PROJECT.set(None)
     _EXECUTION_FRAMES.set(())
     # Native control commands retain their core behavior and do not inherit a
     # project-root carrier from an ordinary conversation turn.
     if event.is_command():
         return {"action": "allow"}
+    get_or_create = getattr(session_store, "get_or_create_session", None)
+    if not callable(get_or_create):
+        return {"action": "skip", "reason": "admission-session-unavailable"}
+    try:
+        entry = get_or_create(event.source)
+        metadata = getattr(entry, "metadata", None)
+    except Exception:
+        return {"action": "skip", "reason": "admission-session-unavailable"}
+    if not callable(getattr(session_store, "lookup_by_session_id", None)):
+        return {"action": "skip", "reason": "admission-session-unavailable"}
+    _SESSION_STORE = session_store
+    if not isinstance(metadata, dict):
+        return {"action": "skip", "reason": "invalid-harness-admission"}
+    if _ADMISSION_KEY in metadata:
+        ingress = _read_admission(metadata[_ADMISSION_KEY])
+        if ingress is None:
+            return {"action": "skip", "reason": "invalid-harness-admission"}
+        _INGRESS_PROJECT.set(ingress)
+        return {"action": "allow"}
     try:
         binding = _resolve_project_binding(event.source, gateway.config)
     except _ProjectBindingHold:
         return {"action": "skip", "reason": "bound-project-unavailable"}
     if binding is None:
+        record = _global_unbound_admission()
+        if not _persist_admission(session_store=session_store, entry=entry, record=record):
+            return {"action": "skip", "reason": "admission-persistence-failed"}
+        ingress = _read_admission(record)
+        if ingress is None:
+            return {"action": "skip", "reason": "invalid-harness-admission"}
+        _INGRESS_PROJECT.set(ingress)
         return {"action": "allow"}
-    if not _persist_project_anchor(
-        session_store=session_store,
-        source=event.source,
-        binding=binding,
-    ):
-        return {"action": "skip", "reason": "project-anchor-persistence-failed"}
-    _INGRESS_PROJECT.set(_IngressProject(
-        project_slug=binding.slug,
-        project_cwd=binding.cwd,
-        runtime_cwd=str(_resolve_runtime_project_root() or ""),
-    ))
+    record = _project_admission(binding)
+    if not _persist_admission(session_store=session_store, entry=entry, record=record):
+        return {"action": "skip", "reason": "admission-persistence-failed"}
+    ingress = _read_admission(record)
+    if ingress is None:
+        return {"action": "skip", "reason": "invalid-harness-admission"}
+    _INGRESS_PROJECT.set(ingress)
     return {"action": "allow"}
 
 
 def _pre_llm_call(*, session_id, **kwargs):
     frames = _EXECUTION_FRAMES.get()
     ingress = _INGRESS_PROJECT.get()
+    if not frames and ingress is None:
+        ingress = _restore_admission_from_session_identity(
+            session_id,
+            kwargs.get("parent_session_id"),
+        )
+        if ingress is not None:
+            _INGRESS_PROJECT.set(ingress)
     parent = frames[-1] if frames else ingress
     if parent is None:
         return None
+    if ingress is not None and ingress.state == "global_unbound":
+        _EXECUTION_FRAMES.set(frames + (_ExecutionFrame(
+            project_slug="",
+            project_cwd="",
+            session_id=str(session_id or ""),
+            turn_id=str(kwargs.get("turn_id") or ""),
+        ),))
+        return {
+            "context": (
+                "[Global unbound context — trusted gateway metadata]\n"
+                f"Admission policy: `{ingress.policy}`\n"
+                "No project is admitted for this channel/session lineage. Do not infer "
+                "a project from user text, conversation titles, attachments, or runtime CWD."
+            )
+        }
     runtime_root = _resolve_runtime_project_root()
     runtime_is_explicit = (
         runtime_root is not None

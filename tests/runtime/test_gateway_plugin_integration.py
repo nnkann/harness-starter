@@ -412,7 +412,7 @@ def test_bound_native_conversation_reuses_context_without_execution_ingress(
     assert list(loaded.receipt_dir.glob("*.json")) == []
 
 
-def test_bound_native_conversation_persists_project_anchor_in_session_routing(
+def test_bound_native_conversation_persists_versioned_admission_in_session_routing(
     loaded_project_plugin,
 ):
     loaded = loaded_project_plugin()
@@ -429,20 +429,317 @@ def test_bound_native_conversation_persists_project_anchor_in_session_routing(
 
     assert result == [{"action": "allow"}]
     entry = store.get_or_create_session(event.source)
-    assert entry.metadata["harness_project_anchor"] == {
-        "slug": "project-test",
-        "cwd": str(loaded.project),
+    admission = {
+        "schema": "harness.gateway-admission",
+        "version": 1,
+        "state": "project_admitted",
+        "project": {"slug": "project-test", "cwd": str(loaded.project)},
     }
+    assert entry.metadata["harness_admission"] == admission
+    assert "harness_project_anchor" not in entry.metadata
     routing = store._db.load_gateway_routing_entries(scope=store._routing_scope())
     persisted = json.loads(routing[entry.session_key])
-    assert persisted["metadata"]["harness_project_anchor"] == {
-        "slug": "project-test",
-        "cwd": str(loaded.project),
-    }
+    assert persisted["metadata"]["harness_admission"] == admission
+    assert "harness_project_anchor" not in persisted["metadata"]
     assert list(loaded.receipt_dir.glob("*.json")) == []
 
 
-def test_bound_project_fails_closed_when_anchor_persistence_rejects(
+def test_second_ingress_restores_versioned_admission_without_resolver_or_projects_db(
+    loaded_project_plugin, monkeypatch,
+):
+    loaded = loaded_project_plugin()
+    module = loaded.manager._plugins["harness-gateway"].module
+    store = _SessionStore()
+    runner = _hook_runner(loaded.config, store)
+    event = _event("admission-second")
+    entry = store.get_or_create_session(event.source)
+    entry.metadata["harness_admission"] = {
+        "schema": "harness.gateway-admission",
+        "version": 1,
+        "state": "project_admitted",
+        "project": {"slug": "project-test", "cwd": str(loaded.project)},
+    }
+    monkeypatch.setattr(
+        module,
+        "_resolve_project_binding",
+        lambda *args, **kwargs: pytest.fail("existing admission called resolver"),
+    )
+    monkeypatch.setattr(
+        projects_db,
+        "connect_closing",
+        lambda: pytest.fail("existing admission queried projects DB"),
+    )
+
+    assert loaded.manager.invoke_hook(
+        "pre_gateway_dispatch", event=event, gateway=runner, session_store=store
+    ) == [{"action": "allow"}]
+    context = loaded.manager.invoke_hook(
+        "pre_llm_call", session_id="metadata-session", turn_id="metadata-turn"
+    )[0]["context"]
+    assert "Project anchor: `project-test`" in context
+    assert f"Canonical project root: `{loaded.project}`" in context
+
+
+def test_unmatched_ingress_persists_global_unbound_policy_without_project_inference(
+    loaded_project_plugin,
+):
+    loaded = loaded_project_plugin()
+    store = _SessionStore()
+    runner = _hook_runner(loaded.config, store)
+    event = _event(
+        "unbound-policy",
+        channel_id="unmatched-channel",
+        text=f"Use project-test from title and cwd {loaded.project}",
+    )
+
+    assert loaded.manager.invoke_hook(
+        "pre_gateway_dispatch", event=event, gateway=runner, session_store=store
+    ) == [{"action": "allow"}]
+    entry = store.get_or_create_session(event.source)
+    assert entry.metadata["harness_admission"] == {
+        "schema": "harness.gateway-admission",
+        "version": 1,
+        "state": "global_unbound",
+        "policy": "explicit-channel-binding-default",
+    }
+    context = loaded.manager.invoke_hook(
+        "pre_llm_call", session_id="global-session", turn_id="global-turn"
+    )[0]["context"]
+    assert "Global unbound context" in context
+    assert "explicit-channel-binding-default" in context
+    assert "Project anchor" not in context
+    assert str(loaded.project) not in context
+    request = apply_llm_request_middleware(
+        {"messages": []}, provider="agy-router", session_id="global-session"
+    )
+    assert "extra_headers" not in request.payload
+
+
+@pytest.mark.parametrize(
+    "admission",
+    [
+        {},
+        {
+            "schema": "harness.gateway-admission", "version": 2,
+            "state": "project_admitted",
+            "project": {"slug": "project-test", "cwd": "/unused"},
+        },
+        {
+            "schema": "harness.gateway-admission", "version": 1,
+            "state": "project_admitted",
+            "project": {"slug": "project-test", "cwd": "/definitely/stale/project"},
+        },
+        {
+            "schema": "harness.gateway-admission", "version": 1,
+            "state": "global_unbound", "policy": "explicit-channel-binding-default",
+            "project": {"slug": "project-test", "cwd": "/unused"},
+        },
+    ],
+    ids=["malformed", "unknown-version", "stale-project", "invalid-global-project"],
+)
+def test_existing_invalid_admission_fails_closed_without_resolver(
+    loaded_project_plugin, monkeypatch, admission,
+):
+    loaded = loaded_project_plugin()
+    module = loaded.manager._plugins["harness-gateway"].module
+    resolver_calls = []
+    monkeypatch.setattr(
+        module,
+        "_resolve_project_binding",
+        lambda *args, **kwargs: resolver_calls.append(args) or pytest.fail(
+            "invalid existing admission fell through to resolver"
+        ),
+    )
+    store = _SessionStore()
+    runner = _hook_runner(loaded.config, store)
+    event = _event("invalid-existing")
+    entry = store.get_or_create_session(event.source)
+    entry.metadata["harness_admission"] = admission
+
+    assert loaded.manager.invoke_hook(
+        "pre_gateway_dispatch", event=event, gateway=runner, session_store=store
+    ) == [{"action": "skip", "reason": "invalid-harness-admission"}]
+    assert resolver_calls == []
+    assert loaded.manager.invoke_hook(
+        "pre_llm_call", session_id="invalid-session", turn_id="invalid-turn"
+    ) == []
+
+
+def test_compression_successor_heals_public_routing_and_preserves_exact_admission(
+    loaded_project_plugin,
+):
+    loaded = loaded_project_plugin()
+    store = SessionStore(
+        sessions_dir=loaded.project.parent / "compression-gateway-sessions",
+        config=loaded.config,
+    )
+    runner = _hook_runner(loaded.config, store)
+    event = _event("compression-continuity")
+
+    assert loaded.manager.invoke_hook(
+        "pre_gateway_dispatch", event=event, gateway=runner, session_store=store
+    ) == [{"action": "allow"}]
+    parent_entry = store.get_or_create_session(event.source)
+    parent_session_id = parent_entry.session_id
+    admission = copy.deepcopy(parent_entry.metadata["harness_admission"])
+
+    successor_session_id = f"{parent_session_id}-compression-successor"
+    store._db.end_session(parent_session_id, end_reason="compression")
+    store._db.create_session(
+        successor_session_id,
+        source="discord",
+        user_id="owner",
+        parent_session_id=parent_session_id,
+    )
+
+    healed_entry = store.get_or_create_session(event.source)
+
+    assert store._db.get_compression_tip(parent_session_id) == successor_session_id
+    assert healed_entry is parent_entry
+    assert healed_entry.session_id == successor_session_id
+    assert healed_entry.metadata["harness_admission"] == admission
+    assert store.lookup_by_session_id(parent_session_id) is None
+    assert store.lookup_by_session_id(successor_session_id) is healed_entry
+    assert store.lookup_by_session_id(successor_session_id).metadata["harness_admission"] == admission
+
+    module = loaded.manager._plugins["harness-gateway"].module
+    module._INGRESS_PROJECT.set(None)
+    module._EXECUTION_FRAMES.set(())
+    successor_context = loaded.manager.invoke_hook(
+        "pre_llm_call",
+        session_id=successor_session_id,
+        parent_session_id=parent_session_id,
+        turn_id="compression-successor-turn",
+    )[0]["context"]
+    assert "Project anchor: `project-test`" in successor_context
+    assert f"Canonical project root: `{loaded.project}`" in successor_context
+
+
+def test_fresh_internal_reentry_restores_project_from_public_parent_identity(
+    loaded_project_plugin, monkeypatch,
+):
+    loaded = loaded_project_plugin()
+    module = loaded.manager._plugins["harness-gateway"].module
+    store = SessionStore(
+        sessions_dir=loaded.project.parent / "internal-project-gateway-sessions",
+        config=loaded.config,
+    )
+    runner = _hook_runner(loaded.config, store)
+    event = _event("internal-project")
+
+    assert loaded.manager.invoke_hook(
+        "pre_gateway_dispatch", event=event, gateway=runner, session_store=store
+    ) == [{"action": "allow"}]
+    parent_session_id = store.get_or_create_session(event.source).session_id
+    module._INGRESS_PROJECT.set(None)
+    module._EXECUTION_FRAMES.set(())
+    monkeypatch.chdir(loaded.project.parent)
+    monkeypatch.setattr(
+        module,
+        "_resolve_project_binding",
+        lambda *args, **kwargs: pytest.fail("internal re-entry called binding resolver"),
+    )
+    monkeypatch.setattr(
+        projects_db,
+        "connect_closing",
+        lambda: pytest.fail("internal re-entry queried projects DB"),
+    )
+
+    context = loaded.manager.invoke_hook(
+        "pre_llm_call",
+        session_id="unknown-child-session",
+        parent_session_id=parent_session_id,
+        turn_id="internal-project-turn",
+        user_message=f"Use the project in cwd {loaded.project.parent}",
+        conversation_title="untrusted-project-title",
+    )[0]["context"]
+
+    assert "Project anchor: `project-test`" in context
+    assert f"Canonical project root: `{loaded.project}`" in context
+
+    module._INGRESS_PROJECT.set(None)
+    module._EXECUTION_FRAMES.set(())
+    assert loaded.manager.invoke_hook(
+        "pre_llm_call",
+        session_id="other-unknown-child-session",
+        parent_session_id="unknown-parent-session",
+        turn_id="unknown-lineage-turn",
+    ) == []
+
+
+def test_fresh_internal_reentry_restores_global_unbound_from_public_session_identity(
+    loaded_project_plugin,
+):
+    loaded = loaded_project_plugin()
+    module = loaded.manager._plugins["harness-gateway"].module
+    store = SessionStore(
+        sessions_dir=loaded.project.parent / "internal-global-gateway-sessions",
+        config=loaded.config,
+    )
+    runner = _hook_runner(loaded.config, store)
+    event = _event("internal-global", channel_id="unmatched-internal-channel")
+
+    assert loaded.manager.invoke_hook(
+        "pre_gateway_dispatch", event=event, gateway=runner, session_store=store
+    ) == [{"action": "allow"}]
+    known_session_id = store.get_or_create_session(event.source).session_id
+    module._INGRESS_PROJECT.set(None)
+    module._EXECUTION_FRAMES.set(())
+
+    context = loaded.manager.invoke_hook(
+        "pre_llm_call", session_id=known_session_id, turn_id="internal-global-turn"
+    )[0]["context"]
+
+    assert "Global unbound context" in context
+    assert "explicit-channel-binding-default" in context
+    assert "Project anchor" not in context
+    assert str(loaded.project) not in context
+
+
+@pytest.mark.parametrize("identity_kind", ["unknown", "invalid-admission"])
+def test_fresh_internal_reentry_unknown_or_invalid_identity_has_no_project_context(
+    loaded_project_plugin, identity_kind,
+):
+    loaded = loaded_project_plugin()
+    module = loaded.manager._plugins["harness-gateway"].module
+    store = SessionStore(
+        sessions_dir=loaded.project.parent / f"internal-{identity_kind}-gateway-sessions",
+        config=loaded.config,
+    )
+    runner = _hook_runner(loaded.config, store)
+    event = _event(f"internal-{identity_kind}")
+
+    assert loaded.manager.invoke_hook(
+        "pre_gateway_dispatch", event=event, gateway=runner, session_store=store
+    ) == [{"action": "allow"}]
+    entry = store.get_or_create_session(event.source)
+    session_id = entry.session_id
+    if identity_kind == "unknown":
+        session_id = "unknown-public-session-id"
+    else:
+        assert store.set_session_metadata(
+            entry.session_key,
+            "harness_admission",
+            {
+                "schema": "harness.gateway-admission",
+                "version": 999,
+                "state": "project_admitted",
+                "project": {"slug": "project-test", "cwd": str(loaded.project)},
+            },
+        )
+    module._INGRESS_PROJECT.set(None)
+    module._EXECUTION_FRAMES.set(())
+
+    assert loaded.manager.invoke_hook(
+        "pre_llm_call", session_id=session_id, turn_id=f"{identity_kind}-turn"
+    ) == []
+    request = apply_llm_request_middleware(
+        {"messages": []}, provider="agy-router", session_id=session_id
+    )
+    assert "extra_headers" not in request.payload
+
+
+def test_bound_project_fails_closed_when_admission_persistence_rejects(
     loaded_project_plugin,
 ):
     loaded = loaded_project_plugin()
@@ -459,7 +756,7 @@ def test_bound_project_fails_closed_when_anchor_persistence_rejects(
 
     assert result == [{
         "action": "skip",
-        "reason": "project-anchor-persistence-failed",
+        "reason": "admission-persistence-failed",
     }]
     assert loaded.manager.invoke_hook(
         "pre_llm_call",
@@ -878,9 +1175,11 @@ def test_parent_end_empties_stack_but_ingress_remains_until_next_gateway_turn(
     loaded.manager.invoke_hook(
         "pre_gateway_dispatch", event=unbound, gateway=runner, session_store=runner.session_store
     )
-    assert loaded.manager.invoke_hook(
+    unbound_context = loaded.manager.invoke_hook(
         "pre_llm_call", session_id="unbound-session", turn_id="unbound-turn"
-    ) == []
+    )[0]["context"]
+    assert "Global unbound context" in unbound_context
+    assert "Project anchor" not in unbound_context
     request = apply_llm_request_middleware(
         {"messages": []}, provider="agy-router", session_id="unbound-session"
     )
