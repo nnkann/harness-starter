@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://harness.local/contracts/capability-transport.schema.json",
+  "title": "Harness capability readiness transport terminal result",
+  "type": "object",
+  "required": [
+    "schema",
+    "capability_ref",
+    "correlation",
+    "status",
+    "digest",
+    "size",
+    "assessment",
+    "repair"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "harness.capability-transport.result.v1"},
+    "capability_ref": {"type": "string", "minLength": 1, "maxLength": 256},
+    "correlation": {"$ref": "#/$defs/correlation"},
+    "status": {"enum": ["delivered", "failed", "foundation_repair_required"]},
+    "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "size": {"type": "integer", "minimum": 0},
+    "assessment": {
+      "enum": [
+        "consumer_delivered",
+        "delivery_failure",
+        "delivery_timeout",
+        "delivery_signal",
+        "foundation_repair_required"
+      ]
+    },
+    "repair": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/repair"}
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "foundation_repair_required"}}},
+      "then": {
+        "properties": {
+          "assessment": {"const": "foundation_repair_required"},
+          "repair": {"$ref": "#/$defs/repair"}
+        }
+      },
+      "else": {"properties": {"repair": {"type": "null"}}}
+    }
+  ],
+  "$defs": {
+    "immutableReceipt": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "required": [
+        "schema",
+        "capability_ref",
+        "producer",
+        "recipient",
+        "action",
+        "expires_at",
+        "correlation",
+        "seal_digest"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schema": {"const": "harness.capability-transport.immutable-receipt.v1"},
+        "capability_ref": {"type": "string", "minLength": 1, "maxLength": 256},
+        "producer": {"type": "string", "minLength": 1, "maxLength": 256},
+        "recipient": {"type": "string", "minLength": 1, "maxLength": 256},
+        "action": {"type": "string", "minLength": 1, "maxLength": 256},
+        "expires_at": {"type": "string", "format": "date-time"},
+        "correlation": {"$ref": "#/$defs/correlation"},
+        "seal_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "correlation": {
+      "type": "object",
+      "required": ["project_id", "profile", "session_id", "task_id", "action", "digest"],
+      "additionalProperties": false,
+      "properties": {
+        "project_id": {"type": ["string", "null"], "maxLength": 256},
+        "profile": {"type": ["string", "null"], "maxLength": 256},
+        "session_id": {"type": ["string", "null"], "maxLength": 256},
+        "task_id": {"type": ["string", "null"], "maxLength": 256},
+        "action": {"type": ["string", "null"], "maxLength": 256},
+        "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "repair": {
+      "type": "object",
+      "required": ["ref", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "ref": {"type": "string", "minLength": 1, "maxLength": 256},
+        "reason": {
+          "enum": [
+            "binding_invalid",
+            "capability_ref_invalid",
+            "claim_malformed",
+            "host_context_invalid",
+            "sealed_claim_corrupt",
+            "sealed_claim_expired",
+            "sealed_delivery_unresolved",
+            "state_dir_unavailable",
+            "terminal_claim_corrupt",
+            "tool_arguments_invalid"
+          ]
+        }
+      }
+    }
+  }
+}
