@@ -3,7 +3,7 @@
 
 This is the first integration seam between Harness project memory and Honcho
 conversation/profile/session memory. It intentionally does not write to
-Supabase, Harness memory tables, or Honcho conclusions. The only Honcho-side
+Harness memory tables or Honcho conclusions. The only Honcho-side
 state touch is the Hermes Honcho client's idempotent session resolution path
 when a session key must be materialized to read context.
 """
@@ -74,8 +74,6 @@ def _extract_candidate_summary(row: dict[str, Any]) -> dict[str, Any]:
 
 def read_harness(repo: Path, candidates_path: Path, limit: int) -> dict[str, Any]:
     entry_source = repo / "README.md"
-    migration = repo / "supabase/migrations/202606150001_harness_cps_semantic_memory.sql"
-    cron_contract = repo / ".harness/project/cron/harness_cps_memory_cron.yaml"
     rows = _jsonl(candidates_path, limit)
     return {
         "source": "harness-local-repo",
@@ -85,15 +83,6 @@ def read_harness(repo: Path, candidates_path: Path, limit: int) -> dict[str, Any
         "project_entry_source": str(entry_source),
         "project_entry_source_present": entry_source.exists(),
         "project_entry_source_preview": _read_text(entry_source, 2200),
-        "cps_migration_present": migration.exists(),
-        "cps_migration_tables": [
-            "public.cps_memory_items",
-            "public.memory_source_refs",
-            "public.cps_inventory_snapshots",
-            "public.memory_ingest_runs",
-        ] if migration.exists() else [],
-        "cron_contract_present": cron_contract.exists(),
-        "cron_contract_preview": _read_text(cron_contract, 1800),
         "candidates_path": str(candidates_path),
         "candidate_count_read": len(rows),
         "candidate_summaries": [_extract_candidate_summary(r) for r in rows],
@@ -225,9 +214,6 @@ path={harness.get('project_entry_source')}
 
 [HARNESS_CPS_CONTEXT]
 repo={harness.get('repo')}
-cps_migration_present={harness.get('cps_migration_present')}
-cps_tables={harness.get('cps_migration_tables')}
-cron_contract_present={harness.get('cron_contract_present')}
 
 [HARNESS_MEMORY_CANDIDATES]
 {candidates}

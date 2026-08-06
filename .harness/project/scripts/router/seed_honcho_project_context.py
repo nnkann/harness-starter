@@ -67,7 +67,6 @@ def _read_candidates(path: Path, limit: int) -> list[dict[str, Any]]:
 def build_seed(repo: Path, candidates_path: Path, candidate_limit: int) -> str:
     entry_source = repo / "README.md"
     entry_source_text = _read(entry_source, 2600)
-    cron = _read(repo / ".harness/project/cron/harness_cps_memory_cron.yaml", 1800)
     candidates = _read_candidates(candidates_path, candidate_limit)
     payload = {
         "project": "harness-starter",
@@ -80,7 +79,7 @@ def build_seed(repo: Path, candidates_path: Path, candidate_limit: int) -> str:
             "completion": "Final completion requires graph closure evidence and trace keys, not a role checklist.",
             "review_audit": "Review checks artifact quality; CPS audit checks root_goal/task_AC graph closure, transition correctness, actor_binding rationale, and learning validity.",
             "adaptive_actor_binding": "Remembered CPS templates can suggest actor pools, but actual agent invocation is late-bound by expression step, evidence obligation, risk, context, and outcome trace.",
-            "owner_holds": "remote migration apply, Supabase writes, cron creation, and dashboard rename remain owner-approval holds unless explicitly approved.",
+            "owner_holds": "remote migration apply and cron creation remain owner-approval holds unless explicitly approved.",
         },
         "harness_memory_boundary": {
             "honcho": "conversation/profile/session memory and continuity",
@@ -89,7 +88,6 @@ def build_seed(repo: Path, candidates_path: Path, candidate_limit: int) -> str:
         },
         "project_entry_source": str(entry_source),
         "project_entry_source_excerpt": entry_source_text,
-        "memory_cron_contract_excerpt": cron,
         "candidate_source_ref_samples": candidates,
     }
     return "<harness_project_context_seed>\n" + json.dumps(payload, ensure_ascii=False, indent=2) + "\n</harness_project_context_seed>"
