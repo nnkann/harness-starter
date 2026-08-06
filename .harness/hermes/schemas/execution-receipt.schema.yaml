@@ -52,7 +52,7 @@
         "native_profile_ref", "native_correlation_id", "verification_profiles", "native_runs"
       ],
       "properties": {
-        "event": {"enum": ["dispatch", "poll", "blocker", "terminal"]},
+        "event": {"enum": ["dispatch", "heartbeat", "poll", "blocker", "terminal"]},
         "argv": {
           "type": "array",
           "minItems": 1,

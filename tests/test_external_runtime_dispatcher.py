@@ -116,6 +116,31 @@ class ExternalRuntimeDispatcherTests(unittest.TestCase):
             for key in dispatcher.SEMANTIC_KEYS:
                 self.assertNotIn(key, receipt["facts"])
 
+    def test_heartbeat_observed_advances_liveness_and_validates_schema(self):
+        identity = self.identity()
+        schema = json.loads(
+            (REPO / ".harness" / "hermes" / "schemas" / "execution-receipt.schema.yaml").read_text(encoding="utf-8")
+        )
+        validator = jsonschema.Draft202012Validator(schema)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            dispatched = dispatcher.dispatch_external_runtime(
+                "ptah", b"bounded body", root,
+                identity=identity, process_runner=lambda argv: 1234,
+            )
+            before = dispatcher.load_receipt_chain(identity, root)
+
+            heartbeat = dispatcher._append_observed(identity, root, "heartbeat")
+            chain = dispatcher.load_receipt_chain(identity, root)
+
+            self.assertEqual(len(chain), len(before) + 1)
+            self.assertEqual(heartbeat["status"], "observed")
+            self.assertEqual(heartbeat["facts"]["event"], "heartbeat")
+            self.assertEqual(heartbeat["transition_from_ref"], dispatched["receipt_ref"])
+            for key, value in identity.items():
+                self.assertEqual(heartbeat[key], value)
+            validator.validate(heartbeat)
+
     def test_legacy_caller_argv_overload_is_removed(self):
         parameters = inspect.signature(dispatcher.dispatch_external_runtime).parameters
         self.assertEqual(list(parameters)[:3], ["consumer_ref", "body", "record_root"])
@@ -225,6 +250,65 @@ class ExternalRuntimeDispatcherTests(unittest.TestCase):
                 )
 
             self.assertEqual((chain_path.read_bytes(), current_path.read_bytes()), before)
+
+    def test_run_job_keeps_raw_stdio_out_of_receipts(self):
+        body = b"approved raw stdio boundary body"
+        stdout_bytes = b"\x00RAW-STDOUT-SENTINEL\xff"
+        stderr_bytes = b"\x01RAW-STDERR-SENTINEL\xfe"
+        identity = self.identity(body)
+        schema = json.loads(
+            (REPO / ".harness" / "hermes" / "schemas" / "execution-receipt.schema.yaml").read_text(encoding="utf-8")
+        )
+        validator = jsonschema.Draft202012Validator(schema)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            dispatcher.dispatch_external_runtime(
+                "ptah", body, root, identity=identity, process_runner=lambda argv: 1234,
+            )
+            chain_path, current_path, _ = dispatcher._paths(identity, root)
+
+            def popen(argv, **kwargs):
+                kwargs["stdout"].write(stdout_bytes)
+                kwargs["stderr"].write(stderr_bytes)
+                process = mock.Mock()
+                process.wait.return_value = 0
+                return process
+
+            def native(profile, body_value, correlation, exit_status):
+                self.assertEqual(body_value, body)
+                return {
+                    "profile": profile,
+                    "correlation_id": correlation,
+                    "session_ref": f"state.db:sessions:{profile}",
+                    "session_digest": hashlib.sha256(f"session:{profile}".encode()).hexdigest(),
+                    "exit_status": exit_status,
+                    "output_digest": hashlib.sha256(f"output:{profile}".encode()).hexdigest(),
+                    "gate_status": "pass",
+                    "tool_evidence": [],
+                }
+
+            with mock.patch.object(dispatcher.subprocess, "Popen", side_effect=popen), \
+                 mock.patch.object(dispatcher, "_native_run_evidence", side_effect=native):
+                terminal = dispatcher.run_job(current_path)
+
+            case_dir = current_path.parent
+            expected_stdout = stdout_bytes * 3
+            expected_stderr = stderr_bytes * 3
+            self.assertEqual((case_dir / terminal["facts"]["stdout_artifact_ref"]).read_bytes(), expected_stdout)
+            self.assertEqual((case_dir / terminal["facts"]["stderr_artifact_ref"]).read_bytes(), expected_stderr)
+            for stream, content in (("stdout", expected_stdout), ("stderr", expected_stderr)):
+                self.assertEqual(terminal["facts"][f"{stream}_artifact_ref"], f"artifacts/{stream}.bin")
+                self.assertEqual(terminal["facts"][f"{stream}_digest"], hashlib.sha256(content).hexdigest())
+                self.assertEqual(terminal["facts"][f"{stream}_byte_count"], len(content))
+
+            chain = dispatcher.load_receipt_chain(identity, root)
+            current = json.loads(current_path.read_text(encoding="utf-8"))
+            serialized = [json.dumps(terminal), json.dumps(chain), json.dumps(current), chain_path.read_text(encoding="utf-8")]
+            for marker in ("RAW-STDOUT-SENTINEL", "RAW-STDERR-SENTINEL"):
+                self.assertTrue(all(marker not in value for value in serialized))
+            validator.validate(terminal)
+            for receipt in chain:
+                validator.validate(receipt)
 
     def test_terminal_rejects_goal_eligible_before_receipt_writes(self):
         identity = self.identity()

@@ -34,7 +34,7 @@
       "production_entrypoint": "append_heartbeat",
       "readback_digest": "d7dbd37e73657c4bebd967b54185ad491ab6d495953a9d49ae5d384aa4e6b4ba",
       "receipt_sequence_fixture": "receipt_sequences.json",
-      "test_ref": "tests/test_external_runtime_dispatcher.py::ExternalRuntimeDispatcherTests::test_dispatch_appends_durable_observed_before_launch_and_uses_identity"
+      "test_ref": "tests/test_external_runtime_dispatcher.py::ExternalRuntimeDispatcherTests::test_heartbeat_observed_advances_liveness_and_validates_schema"
     },
     {
       "authorization_fixture": null,

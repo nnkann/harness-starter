@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 TERMINAL_STATUSES = {"pass", "fail", "blocked"}
-OBSERVED_EVENTS = {"dispatch", "poll", "blocker"}
+OBSERVED_EVENTS = {"dispatch", "heartbeat", "poll", "blocker"}
 SEMANTIC_KEYS = {"verdict", "C", "P", "S", "AC", "task_AC", "closure"}
 RUNTIME_FACT_KEYS = {
     "event",
