@@ -53,6 +53,12 @@ Binding에는 Git source snapshot, provider target, typed capability graph, clea
 
 모든 producer·consumer state에는 저장소와 겹치지 않는 명시적 `HARNESS_STATE_DIR`가 필요하다. Hermes home, gateway state, caller 환경, 저장소 내부 state로 fallback하지 않는다. 상세 계약은 `docs/build-and-state-contract.md`에 있다.
 
+### Scheduled read-only consumer source contract
+
+`harness.scheduled-readonly-consumer.v1`은 bound project identity, stable job/script identity, script digest, schedule/delivery, `no_agent: true`, read-only capability, source ref와 두 required-name의 availability만 받는다. 허용 이름은 `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`로 고정되며 declaration, normalized plan, provisioner receipt와 cron argv에는 secret value가 들어가지 않는다.
+
+현재 adapter/provisioner 범위는 injected fixture와 fake invocation 검증뿐이다. Live Hermes CLI 실행, cron registry 변경, child 실행, C2 activation 또는 runtime closure를 제공한다고 해석하면 안 된다.
+
 ### Gateway ingress
 
 `.hermes/plugins/harness-gateway`는 bound Discord parent의 **일반 대화에는 trusted project-root carrier만** 제공한다. binding은 execution admission이 아니며, normal turn은 CPS intake·manifest revalidation·retrieval·receipt를 만들지 않는다. AGY provider request일 때만 validated root를 `X-Hermes-Project-Root`로 전달한다.
@@ -111,11 +117,14 @@ HARNESS_STATE_DIR="$state_dir" uv run --locked harness-runtime readback \
 - `manifest.yml`: project entry와 CPS routing boundary
 - `runtime/harness_runtime/project_binding.py`: binding desired state와 capability graph
 - `runtime/harness_runtime/guided_capability.py`: typed discovery·plan·status·apply gate
+- `runtime/harness_runtime/scheduled_consumer.py`: scheduled read-only declaration validation과 normalized digest
 - `runtime/harness_runtime/runtime.py`: isolated execution receipt producer·consumer
 - `runtime/harness_runtime/ingress.py`: bound event intake, canonical packet, lifecycle receipt
 - `.hermes/plugins/harness-gateway/`: Gateway hook adapter
 - `contracts/`: versioned machine-readable contracts
 - `adapters/`: project-facing adapter boundary
+- `adapters/hermes_scheduled_consumer_provisioner.py`: exact-job-ID fake cron argv reconciliation
+- `adapters/scheduled_readonly_consumer_adapter.py`: exact two-name fixture child environment boundary
 
 ## 검증
 
