@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://harness.local/contracts/l3-cohort-snapshot.v1.schema.json",
+  "title": "Harness L3 dynamic enrollment cohort snapshot",
+  "type": "object",
+  "required": [
+    "schema",
+    "enrollment_policy",
+    "cutoff",
+    "cohort_members",
+    "membership_digest"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "harness.l3-cohort-snapshot.v1"},
+    "enrollment_policy": {
+      "type": "object",
+      "required": ["source", "revision"],
+      "additionalProperties": false,
+      "properties": {
+        "source": {"type": "string", "minLength": 1},
+        "revision": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      }
+    },
+    "cutoff": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]+)?Z$"
+    },
+    "cohort_members": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/member"}
+    },
+    "membership_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "live_execution": {
+      "type": "object",
+      "required": ["before", "after", "mutation_count"],
+      "additionalProperties": false,
+      "properties": {
+        "before": {"type": "object"},
+        "after": {"type": "object"},
+        "mutation_count": {"const": 0}
+      }
+    },
+    "replay": {
+      "type": "object",
+      "required": [
+        "same_inputs_and_cutoff",
+        "first_snapshot_digest",
+        "replay_snapshot_digest",
+        "byte_identical"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "same_inputs_and_cutoff": {"const": true},
+        "first_snapshot_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "replay_snapshot_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "byte_identical": {"const": true}
+      }
+    }
+  },
+  "$defs": {
+    "registry_evidence": {
+      "type": "object",
+      "required": ["source", "project_id", "native_slug", "primary_root", "digest"],
+      "additionalProperties": false,
+      "properties": {
+        "source": {"const": "native_project_registry"},
+        "project_id": {"type": "string", "minLength": 1},
+        "native_slug": {"type": "string", "minLength": 1},
+        "primary_root": {"type": "string", "minLength": 1},
+        "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      }
+    },
+    "manifest_evidence": {
+      "type": "object",
+      "required": ["source", "path", "digest"],
+      "additionalProperties": false,
+      "properties": {
+        "source": {"const": "canonical_manifest"},
+        "path": {"type": "string", "minLength": 1},
+        "digest": {
+          "oneOf": [
+            {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+            {"type": "null"}
+          ]
+        }
+      }
+    },
+    "member": {
+      "type": "object",
+      "required": [
+        "project_id",
+        "native_slug",
+        "evaluation_slug",
+        "primary_root",
+        "classification",
+        "reason",
+        "gaps",
+        "evidence"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "project_id": {"type": "string", "minLength": 1},
+        "native_slug": {"type": "string", "minLength": 1},
+        "evaluation_slug": {
+          "oneOf": [
+            {"type": "string", "minLength": 1},
+            {"type": "null"}
+          ]
+        },
+        "primary_root": {"type": "string", "minLength": 1},
+        "classification": {
+          "enum": ["baseline_ready", "non_applicable-approved", "HOLD_GAP"]
+        },
+        "reason": {"type": "string", "minLength": 1},
+        "approval_reference": {"type": "string", "minLength": 1},
+        "candidate_non_regression_condition": {
+          "const": "candidate_does_not_reduce_required_membership"
+        },
+        "gaps": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "registry_alias_mismatch",
+              "registry_list_malformed",
+              "duplicate_registry_record",
+              "registry_show_duplicate_field",
+              "canonical_root_mismatch",
+              "manifest_missing",
+              "manifest_malformed",
+              "manifest_duplicate_key",
+              "manifest_schema_invalid",
+              "manifest_missing_required_fields",
+              "duplicate_project_id",
+              "duplicate_primary_root",
+              "duplicate_manifest_identity"
+            ]
+          }
+        },
+        "evidence": {
+          "type": "array",
+          "prefixItems": [
+            {"$ref": "#/$defs/registry_evidence"},
+            {"$ref": "#/$defs/manifest_evidence"}
+          ],
+          "minItems": 2,
+          "maxItems": 2
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"classification": {"const": "baseline_ready"}}},
+          "then": {
+            "properties": {"reason": {"const": "source_native_active_record"}},
+            "not": {
+              "anyOf": [
+                {"required": ["approval_reference"]},
+                {"required": ["candidate_non_regression_condition"]}
+              ]
+            }
+          }
+        },
+        {
+          "if": {"properties": {"classification": {"const": "non_applicable-approved"}}},
+          "then": {
+            "required": ["approval_reference", "candidate_non_regression_condition"],
+            "properties": {"reason": {"const": "explicit_non_applicable_approval"}}
+          }
+        },
+        {
+          "if": {"properties": {"classification": {"const": "HOLD_GAP"}}},
+          "then": {
+            "allOf": [
+              {"not": {"properties": {"reason": {"const": "source_native_active_record"}}}},
+              {
+                "not": {
+                  "anyOf": [
+                    {"required": ["approval_reference"]},
+                    {"required": ["candidate_non_regression_condition"]}
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

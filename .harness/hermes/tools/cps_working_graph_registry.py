@@ -957,7 +957,9 @@ def materialize_maat_body(
             expected_digest=operational_binding.get("expected_digest"),
         )
         if path.exists()
-        else store.create(work_id, maat_body, semantic_provenance_binding=semantic_provenance_binding)
+        else store.create(
+            work_id, maat_body, semantic_provenance_binding=semantic_provenance_binding,
+        )
     )
     if addendum is not None:
         graph = store.update_addendum(work_id, addendum)

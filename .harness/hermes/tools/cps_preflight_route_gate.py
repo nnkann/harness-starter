@@ -2278,6 +2278,14 @@ def build_reducer_input(route: dict[str, Any], probe_responses: dict[str, Any], 
         "candidate_agents": route.get("selected_agents", {}),
         "body_manifest": body_manifest or build_body_manifest(route.get("selected_agents", {})),
         "probe_responses": probe_responses,
+        "closure_evidence": {
+            agent: {
+                "closure_relevance": response.get("closure_relevance", "required"),
+                "status": str(response.get("response", "")).lower(),
+                "reason": response.get("reason"),
+            }
+            for agent, response in probe_responses.items() if isinstance(response, dict)
+        },
         "semantic_anchor": route.get("semantic_anchor"),
         "semantic_provenance_binding": route.get("semantic_provenance_binding"),
         "join_policy": {
@@ -2300,6 +2308,8 @@ def _maat_reducer_prompt(reducer_input: dict[str, Any]) -> str:
             "Do not return status HOLD just because an agent requested NEED_LOCAL_BODY. If all required probes are ACCEPT or NEED_LOCAL_BODY, return status PASS.",
             "The final_maat_judgment.json is the output of the final step and does not exist yet. Do NOT treat it as a missing prerequisite or hold the reducer because of its absence.",
             "If required probes are missing, rejected, or inconsistent, return status HOLD and no local_body_scope grants.",
+            "closure_relevance=observational denied/not_performed is evidence, not pass evidence or a closure blocker when every required node passes; preserve its exact status and reason and do not dispatch it.",
+            "Missing closure_relevance is required. Unknown closure_relevance fails closed and must never be inferred as observational.",
             "Echo semantic_provenance_binding byte-for-byte; do not inherit or synthesize any proof field.",
         ],
         "required_response_schema": {
@@ -2312,6 +2322,7 @@ def _maat_reducer_prompt(reducer_input: dict[str, Any]) -> str:
             "revised_E": [],
             "final_selected_agents": {},
             "local_body_scope": {},
+            "closure_evidence": reducer_input.get("closure_evidence", {}),
             "semantic_anchor": reducer_input.get("semantic_anchor"),
             "semantic_provenance_binding": reducer_input.get("semantic_provenance_binding"),
             "hold_reasons": [],
@@ -2321,6 +2332,71 @@ def _maat_reducer_prompt(reducer_input: dict[str, Any]) -> str:
         "reducer_input": reducer_input,
     }
     return json.dumps(payload, ensure_ascii=False, indent=2)
+
+
+def apply_closure_relevance_semantics(
+    reducer_result: dict[str, Any], probe_responses: dict[str, Any],
+) -> dict[str, Any]:
+    """Preserve observational outcomes while closing only over required nodes."""
+    result = dict(reducer_result)
+    if not probe_responses:
+        return result
+
+    evidence: dict[str, dict[str, Any]] = {}
+    required_failures: list[str] = []
+    unknown: list[str] = []
+    observational_reason_missing: list[str] = []
+    observational: set[str] = set()
+    passing = {"accept", "accepted", "pass", "completed", "need_local_body"}
+    for agent, raw in probe_responses.items():
+        response = raw if isinstance(raw, dict) else {}
+        relevance = str(response.get("closure_relevance", "required")).lower()
+        status = str(response.get("response") or response.get("status") or "missing").lower()
+        evidence[agent] = {
+            "closure_relevance": relevance,
+            "status": status,
+            "reason": response.get("reason"),
+        }
+        if relevance == "observational":
+            observational.add(agent)
+            if status in {"denied", "not_performed"} and not _present(response.get("reason")):
+                observational_reason_missing.append(agent)
+        elif relevance != "required":
+            unknown.append(agent)
+        elif status not in passing:
+            required_failures.append(agent)
+
+    selected = result.get("final_selected_agents")
+    if isinstance(selected, dict):
+        result["final_selected_agents"] = {agent: value for agent, value in selected.items() if agent not in observational}
+    scope = result.get("local_body_scope")
+    if isinstance(scope, dict):
+        result["local_body_scope"] = {agent: value for agent, value in scope.items() if agent not in observational}
+    result["closure_evidence"] = evidence
+    result["followup_dispatch"] = []
+    if unknown or required_failures or observational_reason_missing:
+        result["status"] = "hold"
+        result["C_boundary"] = "HOLD"
+        failures = list(result.get("failure_codes", []))
+        failure = (
+            "HOLD_UNKNOWN_CLOSURE_RELEVANCE" if unknown
+            else "HOLD_REQUIRED_NODE_FAILURE" if required_failures
+            else "HOLD_OBSERVATIONAL_REASON_MISSING"
+        )
+        if failure not in failures:
+            failures.append(failure)
+        result["failure_codes"] = failures
+        result["continuation_required"] = True
+        result["reentry_required"] = True
+        return result
+
+    result["status"] = "pass"
+    result["C_boundary"] = "PASS_ONE_C"
+    result["hold_reasons"] = []
+    result["failure_codes"] = []
+    result["continuation_required"] = False
+    result["reentry_required"] = False
+    return result
 
 
 def _normalize_maat_reducer_result(raw: dict[str, Any], reducer_input: dict[str, Any], session_id: str | None, stdout: str) -> dict[str, Any]:
@@ -2346,7 +2422,7 @@ def _normalize_maat_reducer_result(raw: dict[str, Any], reducer_input: dict[str,
         result["C_boundary"] = "HOLD"
         result["local_body_scope"] = {}
         result.setdefault("failure_codes", []).append("FAIL_REDUCER_LOCAL_BODY_SCOPE_INVALID")
-    return result
+    return apply_closure_relevance_semantics(result, reducer_input.get("probe_responses", {}))
 
 
 def invoke_maat_reducer(reducer_input: dict[str, Any], repo: Path, timeout: int = 180, process_runner=None) -> dict[str, Any]:
@@ -2424,7 +2500,9 @@ def materialize_preflight_working_graph(packet: dict[str, Any], reducer_result: 
         or validate_semantic_provenance(provenance, maat_body)["status"] != "pass"
     ):
         return {}
-    operational = materialize_maat_runtime_binding(maat_body, binding, provenance)
+    operational = materialize_maat_runtime_binding(
+        maat_body, binding, provenance,
+    )
     return {"cps_working_graph_operational": operational} if operational is not None else {}
 
 
@@ -2819,21 +2897,28 @@ def build_candidate_from_reentry(reentry_input: dict[str, Any], packet_path: Pat
 
 def final_output_from_judgment(final_judgment: dict[str, Any], hold_gap_loop: dict[str, Any]) -> dict[str, Any]:
     status = str(final_judgment.get("status", "hold")).lower()
+    terminal_summary = final_judgment.get("terminal_summary")
     if status == "pass":
-        return {
+        output = {
             "status": "pass",
             "Goal_closure": final_judgment.get("Goal_closure", {"status": "pass"}),
             "missing_evidence": [],
         }
+        if isinstance(terminal_summary, str) and terminal_summary.strip() and "\n" not in terminal_summary and "\r" not in terminal_summary:
+            output["terminal_summary"] = terminal_summary
+        return output
     missing = final_judgment.get("missing_evidence")
     if not isinstance(missing, list):
         missing = hold_gap_loop.get("missing_evidence", [])
     missing = [m for m in missing if m != "final_maat_judgment.json"]
-    return {
+    output = {
         "status": "hold",
         "Goal_closure": final_judgment.get("Goal_closure", {"status": "hold", "reason": "bounded HOLD after Maat final judgment"}),
         "missing_evidence": missing,
     }
+    if isinstance(terminal_summary, str) and terminal_summary.strip() and "\n" not in terminal_summary and "\r" not in terminal_summary:
+        output["terminal_summary"] = terminal_summary
+    return output
 
 
 def route_gate_usable(route: dict[str, Any], final_output: dict[str, Any], final_selected_agents: dict[str, Any], reducer_result: dict[str, Any]) -> bool:
@@ -2856,6 +2941,7 @@ def _maat_final_prompt(contribute_cps: dict[str, Any]) -> str:
             "Judge only the supplied CPS AC and Goal closure; do not invent new criteria.",
             "Treat eligible_for_maat_audit as evidence eligibility only; never infer acceptance or rewrite the root Goal.",
             "The final_maat_judgment.json is the output of this very step. Do NOT mark final_maat_judgment.json as missing in the missing_evidence list, and do not hold the judgment because of its absence. If the supplied contribute_CPS trace is valid, return status PASS.",
+            "After judgment, issue terminal_summary as one non-empty line with no CR or LF.",
         ],
         "required_response_schema": {
             "schema": "harness.cps_preflight.final_maat_judgment.v1",
@@ -2864,6 +2950,7 @@ def _maat_final_prompt(contribute_cps: dict[str, Any]) -> str:
             "Goal_closure": {"status": "pass|hold|fail", "reason": ""},
             "missing_evidence": [],
             "failure_codes": [],
+            "terminal_summary": "one non-empty line issued by Maat after final judgment",
             "notes": [],
         },
         "contribute_CPS": contribute_cps,
@@ -2884,6 +2971,13 @@ def _normalize_final_judgment(raw: dict[str, Any], session_id: str | None, stdou
     result.setdefault("missing_evidence", [])
     result.setdefault("failure_codes", [])
     result.setdefault("notes", [])
+    summary = result.get("terminal_summary")
+    if not isinstance(summary, str) or not summary.strip() or "\n" in summary or "\r" in summary:
+        result.pop("terminal_summary", None)
+        result["status"] = "hold"
+        result["Goal_closure"] = {"status": "hold", "reason": "Maat terminal_summary is missing or not a non-empty single line"}
+        result.setdefault("missing_evidence", []).append("terminal_summary")
+        result.setdefault("failure_codes", []).append("HOLD_TERMINAL_SUMMARY_INVALID")
     return result
 
 
@@ -3121,6 +3215,7 @@ def execute_preflight_chain(
         "hold_reasons": ["deterministic mode does not approve reducer-based local body dispatch"],
         "failure_codes": ["HOLD_DETERMINISTIC_REDUCER_REQUIRED"],
     }
+    reducer_result = apply_closure_relevance_semantics(reducer_result, probe_responses)
     working_graph_operational: dict[str, Any] = {}
     materialization_failure: str | None = None
     reducer_result = apply_physical_docops_gate(reducer_result, route)
@@ -3157,16 +3252,36 @@ def execute_preflight_chain(
     handoff_transport: dict[str, Any] = {"status": "not_required", "dispatch_count": 0, "agents": {}}
     if selected_agent_runner is not None and local_bodies:
         transport_results: dict[str, Any] = {}
+        terminal_receipts = True
         for agent, body in local_bodies.items():
             instruction = json.dumps(
                 body, sort_keys=True, ensure_ascii=False, separators=(",", ":"),
             ).encode("utf-8")
-            selected_agent_runner(agent, instruction)
+            receipt = selected_agent_runner(agent, instruction)
+            receipt_valid = isinstance(receipt, dict) and receipt.get("terminal") is True and (
+                receipt.get("execution_mode") == "foreground"
+                or (
+                    receipt.get("execution_mode") == "background"
+                    and receipt.get("notify_on_complete") is False
+                    and receipt.get("internal_poll_readback") is True
+                )
+            )
+            terminal_receipts = terminal_receipts and receipt_valid
             transport_results[agent] = {
-                "status": "dispatched",
+                "status": "terminal" if receipt_valid else "dispatched",
                 "instruction_sha256": hashlib.sha256(instruction).hexdigest(),
+                "terminal_receipt": receipt,
             }
-        handoff_transport = {"status": "dispatched", "dispatch_count": len(transport_results), "agents": transport_results}
+        handoff_transport = {
+            "status": "terminal" if terminal_receipts else "hold",
+            "dispatch_count": len(transport_results),
+            "agents": transport_results,
+        }
+        if not terminal_receipts:
+            reducer_result["status"] = "hold"
+            reducer_result["C_boundary"] = "HOLD"
+            reducer_result.setdefault("hold_reasons", []).append("chain member terminal receipt is invalid")
+            reducer_result.setdefault("failure_codes", []).append("HOLD_TERMINAL_RECEIPT")
     local_body_dispatch = build_local_body_dispatch(route, reducer_result, local_bodies, final_selected_agents, selected_manifest)
     contribute_cps = build_contribute_cps(packet, candidate, route, probe_responses, reducer_result, local_body_dispatch)
     if materialization_failure is not None:
@@ -3395,8 +3510,15 @@ def main(argv: list[str] | None = None) -> int:
     packet = args.packet if args.packet.is_absolute() else args.repo / args.packet
     out_dir = args.out_dir or (args.repo / ".harness" / "project" / "runs" / "preflight_route_gate" / packet.stem)
     result = run(packet, out_dir, args.repo, args.mode)
-    print(json.dumps(result, indent=2, ensure_ascii=False) if args.json else f"preflight_route_gate={'PASS' if result['ok'] else 'HOLD'} out_dir={result['out_dir']}")
-    return 0 if result["ok"] else 2
+    if args.json:
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        valid_egress = True
+    else:
+        summary = result.get("final_output", {}).get("terminal_summary")
+        valid_egress = isinstance(summary, str) and bool(summary.strip()) and "\n" not in summary and "\r" not in summary
+        if valid_egress:
+            print(summary)
+    return 0 if result["ok"] and valid_egress else 2
 
 
 if __name__ == "__main__":

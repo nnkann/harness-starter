@@ -23,6 +23,9 @@
         "stderr": {"$ref": "#/$defs/artifact"}
       }
     },
+    "experience_binding": {"$ref": "#/$defs/experience_binding"},
+    "paired_evaluation": {"$ref": "#/$defs/paired_evaluation"},
+    "evaluator_result": {"$ref": "#/$defs/evaluator_result"},
     "execution": {
       "type": "object",
       "required": ["argv", "argv_sha256", "environment", "environment_sha256", "git_commit", "git_tree", "worktree_cwd", "worktree_cwd_sha256"],
@@ -59,7 +62,7 @@
           "status": {"const": "observed"},
           "exit_code": {"const": null}
         },
-        "not": {"required": ["execution"]}
+        "not": {"anyOf": [{"required": ["execution"]}, {"required": ["evaluator_result"]}]}
       }
     },
     {
@@ -80,9 +83,278 @@
     {
       "if": {"properties": {"status": {"const": "fail"}}},
       "then": {"properties": {"exit_code": {"not": {"const": 0}}}}
+    },
+    {
+      "if": {"required": ["paired_evaluation"], "properties": {"event": {"const": "terminal"}, "status": {"const": "pass"}}},
+      "then": {"required": ["evaluator_result"]}
+    },
+    {
+      "if": {"required": ["evaluator_result"]},
+      "then": {"required": ["paired_evaluation"], "properties": {"event": {"const": "terminal"}, "status": {"const": "pass"}}}
+    },
+    {
+      "not": {"required": ["experience_binding", "paired_evaluation"]}
     }
   ],
   "$defs": {
+    "sha256_identity": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "bounded_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024
+    },
+    "source_manifest": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 1024,
+        "pattern": "^(?!/)(?!.*\\\\)(?!.*//)(?!(?:\\.|\\.\\.)(?:/|$))(?!.*\\/(?:\\.|\\.\\.)(?:/|$)).+$"
+      },
+      "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+    },
+    "source_revision": {
+      "type": "object",
+      "required": ["revision_ref", "manifest"],
+      "additionalProperties": false,
+      "properties": {
+        "revision_ref": {
+          "type": "string",
+          "pattern": "^source-manifest:sha256:[0-9a-f]{64}$"
+        },
+        "manifest": {"$ref": "#/$defs/source_manifest"}
+      }
+    },
+    "source_revision_projection": {
+      "type": "object",
+      "required": ["baseline", "candidate"],
+      "additionalProperties": false,
+      "properties": {
+        "baseline": {"$ref": "#/$defs/source_revision"},
+        "candidate": {"$ref": "#/$defs/source_revision"}
+      }
+    },
+    "experience_binding": {
+      "type": "object",
+      "required": [
+        "candidate_ref",
+        "candidate_admission_digest",
+        "executor_packet_digest",
+        "correlation_key_name",
+        "correlation_key_value",
+        "evaluation_split",
+        "held_in_ref",
+        "held_in_digest",
+        "phase",
+        "source_revision_ref",
+        "retention_seconds"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "candidate_ref": {"$ref": "#/$defs/bounded_ref"},
+        "candidate_admission_digest": {"$ref": "#/$defs/sha256_identity"},
+        "executor_packet_digest": {"$ref": "#/$defs/sha256_identity"},
+        "correlation_key_name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,63}$"
+        },
+        "correlation_key_value": {"$ref": "#/$defs/bounded_ref"},
+        "evaluation_split": {"const": "held_in"},
+        "held_in_ref": {"$ref": "#/$defs/bounded_ref"},
+        "held_in_digest": {"$ref": "#/$defs/sha256_identity"},
+        "phase": {"enum": ["baseline", "candidate", "revert"]},
+        "source_revision_ref": {"$ref": "#/$defs/bounded_ref"},
+        "retention_seconds": {"type": "integer", "minimum": 1}
+      }
+    },
+    "decision_observation": {
+      "type": "object",
+      "required": ["failure_evidence", "causal_hypothesis", "targeted_change", "predicted_benefit", "at_risk_regression"],
+      "additionalProperties": false,
+      "properties": {
+        "failure_evidence": {"$ref": "#/$defs/evidence_identity"},
+        "causal_hypothesis": {"type": "string", "minLength": 16, "maxLength": 1024, "pattern": "\\S"},
+        "targeted_change": {"$ref": "#/$defs/evidence_identity"},
+        "predicted_benefit": {"type": "string", "minLength": 16, "maxLength": 1024, "pattern": "\\S"},
+        "at_risk_regression": {"type": "string", "minLength": 16, "maxLength": 1024, "pattern": "\\S"}
+      }
+    },
+    "evidence_identity": {
+      "type": "object",
+      "required": ["ref", "sha256"],
+      "additionalProperties": false,
+      "properties": {
+        "ref": {"$ref": "#/$defs/bounded_ref"},
+        "sha256": {"$ref": "#/$defs/sha256_identity"}
+      }
+    },
+    "criteria": {
+      "type": "object",
+      "required": ["benefit", "non_inferiority", "regression", "uncertainty"],
+      "additionalProperties": false,
+      "properties": {
+        "benefit": {"$ref": "#/$defs/bounded_ref"},
+        "non_inferiority": {"$ref": "#/$defs/bounded_ref"},
+        "regression": {"$ref": "#/$defs/bounded_ref"},
+        "uncertainty": {"$ref": "#/$defs/bounded_ref"}
+      }
+    },
+    "pair_plan": {
+      "type": "object",
+      "required": [
+        "pair_ref", "candidate_ref", "c_ref", "graph_ref", "candidate_admission_digest",
+        "executor_packet_digest", "source_revision_projection", "baseline_revision_ref", "candidate_revision_ref", "model_identity",
+        "model_configuration_digest", "evaluator_identity", "evaluator_configuration_digest",
+        "result_contract_ref", "result_contract_digest", "held_in_ref", "held_in_digest", "held_out_ref",
+        "held_out_digest", "sampling_identity", "target_ac_refs", "criteria", "preserved_ac_refs", "decision_observation",
+        "retention_seconds"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "pair_ref": {"$ref": "#/$defs/bounded_ref"},
+        "candidate_ref": {"$ref": "#/$defs/bounded_ref"},
+        "c_ref": {"$ref": "#/$defs/bounded_ref"},
+        "graph_ref": {"$ref": "#/$defs/bounded_ref"},
+        "candidate_admission_digest": {"$ref": "#/$defs/sha256_identity"},
+        "executor_packet_digest": {"$ref": "#/$defs/sha256_identity"},
+        "source_revision_projection": {"$ref": "#/$defs/source_revision_projection"},
+        "baseline_revision_ref": {
+          "type": "string", "pattern": "^source-manifest:sha256:[0-9a-f]{64}$"
+        },
+        "candidate_revision_ref": {
+          "type": "string", "pattern": "^source-manifest:sha256:[0-9a-f]{64}$"
+        },
+        "model_identity": {"$ref": "#/$defs/bounded_ref"},
+        "model_configuration_digest": {"$ref": "#/$defs/sha256_identity"},
+        "evaluator_identity": {"$ref": "#/$defs/bounded_ref"},
+        "evaluator_configuration_digest": {"$ref": "#/$defs/sha256_identity"},
+        "result_contract_ref": {"$ref": "#/$defs/bounded_ref"},
+        "result_contract_digest": {"$ref": "#/$defs/sha256_identity"},
+        "held_in_ref": {"$ref": "#/$defs/bounded_ref"},
+        "held_in_digest": {"$ref": "#/$defs/sha256_identity"},
+        "held_out_ref": {"$ref": "#/$defs/bounded_ref"},
+        "held_out_digest": {"$ref": "#/$defs/sha256_identity"},
+        "sampling_identity": {"$ref": "#/$defs/bounded_ref"},
+        "target_ac_refs": {
+          "type": "array", "minItems": 1, "maxItems": 32, "uniqueItems": true,
+          "items": {"$ref": "#/$defs/bounded_ref"}
+        },
+        "criteria": {"$ref": "#/$defs/criteria"},
+        "preserved_ac_refs": {
+          "type": "array", "minItems": 1, "maxItems": 32, "uniqueItems": true,
+          "items": {"$ref": "#/$defs/bounded_ref"}
+        },
+        "decision_observation": {"$ref": "#/$defs/decision_observation"},
+        "retention_seconds": {"type": "integer", "minimum": 1}
+      }
+    },
+    "paired_evaluation": {
+      "type": "object",
+      "required": [
+        "pair_plan", "pair_plan_digest", "decision_observation_digest", "arm", "evaluation_split",
+        "source_revision_ref", "split_ref", "split_digest"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "pair_plan": {"$ref": "#/$defs/pair_plan"},
+        "pair_plan_digest": {"$ref": "#/$defs/sha256_identity"},
+        "decision_observation_digest": {"$ref": "#/$defs/sha256_identity"},
+        "arm": {"enum": ["baseline", "candidate"]},
+        "evaluation_split": {"enum": ["held_in", "held_out"]},
+        "source_revision_ref": {"$ref": "#/$defs/bounded_ref"},
+        "split_ref": {"$ref": "#/$defs/bounded_ref"},
+        "split_digest": {"$ref": "#/$defs/sha256_identity"}
+      }
+    },
+    "evaluator_result": {
+      "type": "object",
+      "required": [
+        "evaluator_identity", "evaluator_configuration_digest", "result_contract_ref",
+        "result_contract_digest", "evaluation_state", "evaluated_phase",
+        "observed_ac_values", "unresolved_inputs"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "evaluator_identity": {"$ref": "#/$defs/bounded_ref"},
+        "evaluator_configuration_digest": {"$ref": "#/$defs/sha256_identity"},
+        "result_contract_ref": {"$ref": "#/$defs/bounded_ref"},
+        "result_contract_digest": {"$ref": "#/$defs/sha256_identity"},
+        "evaluation_state": {"const": "partial_unresolved"},
+        "evaluated_phase": {"const": "phase_1_source_observation"},
+        "observed_ac_values": {
+          "type": "object",
+          "required": ["C-L3.4:AC1", "C-L3.4:AC3", "C-L3.4:AC4"],
+          "additionalProperties": false,
+          "properties": {
+            "C-L3.4:AC1": {"type": "boolean"},
+            "C-L3.4:AC3": {"type": "boolean"},
+            "C-L3.4:AC4": {"type": "boolean"}
+          }
+        },
+        "unresolved_inputs": {
+          "type": "object",
+          "required": [
+            "C-L3.4:AC2", "C-L3.4:AC5", "C-L3.4:AC6", "C-L3.4:AC7",
+            "C-L3.4:AC8", "C-L3.4:AC9", "C-L3.4:AC10", "C-L3.4:AC11",
+            "C-L3.4:AC12", "C-L3.4:AC13", "C-L3.4:AC14"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "C-L3.4:AC2": {"$ref": "#/$defs/constructor_owner_hold"},
+            "C-L3.4:AC5": {"$ref": "#/$defs/readback_owner_hold"},
+            "C-L3.4:AC6": {"$ref": "#/$defs/constructor_owner_hold"},
+            "C-L3.4:AC7": {"$ref": "#/$defs/readback_owner_hold"},
+            "C-L3.4:AC8": {"$ref": "#/$defs/readback_owner_hold"},
+            "C-L3.4:AC9": {"$ref": "#/$defs/constructor_owner_hold"},
+            "C-L3.4:AC10": {"$ref": "#/$defs/readback_owner_hold"},
+            "C-L3.4:AC11": {"$ref": "#/$defs/readback_owner_hold"},
+            "C-L3.4:AC12": {"$ref": "#/$defs/anubis_owner_hold"},
+            "C-L3.4:AC13": {"$ref": "#/$defs/anubis_owner_hold"},
+            "C-L3.4:AC14": {"$ref": "#/$defs/evaluator_owner_hold"}
+          }
+        }
+      }
+    },
+    "constructor_owner_hold": {
+      "type": "object",
+      "required": ["owner_ref", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "owner_ref": {"const": "runtime/harness_runtime/runtime.py#_construct_l35_source_observation"},
+        "status": {"const": "no_value_and_owner_hold"}
+      }
+    },
+    "readback_owner_hold": {
+      "type": "object",
+      "required": ["owner_ref", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "owner_ref": {"const": "runtime/harness_runtime/runtime.py#paired_readback"},
+        "status": {"const": "no_value_and_owner_hold"}
+      }
+    },
+    "anubis_owner_hold": {
+      "type": "object",
+      "required": ["owner_ref", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "owner_ref": {"const": "independent-verifier:anubis:C-L3.4"},
+        "status": {"const": "no_value_and_owner_hold"}
+      }
+    },
+    "evaluator_owner_hold": {
+      "type": "object",
+      "required": ["owner_ref", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "owner_ref": {"const": "maat:C-L3.4:AC14-direct-runtime-evaluator"},
+        "status": {"const": "no_value_and_owner_hold"}
+      }
+    },
     "artifact": {
       "type": "object",
       "required": ["ref", "sha256", "bytes"],

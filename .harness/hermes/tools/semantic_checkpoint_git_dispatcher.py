@@ -29,6 +29,9 @@ TOP_KEYS = {
 }
 PROVIDER = "openai-codex"
 MODEL = "gpt-5.3-codex-spark"
+ADAPTATION_CANDIDATE_SCHEMA = "harness.l3-adaptation-candidate.v1"
+MAX_EXECUTOR_BOUNDARY_ITEMS = 128
+_SHA256_IDENTITY = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 
 def _now() -> str:
@@ -62,6 +65,266 @@ def build_worker_argv(packet_path: Path) -> list[str]:
     ]
 
 
+def _exact_candidate_mapping(value: Any, keys: set[str], context: str) -> dict[str, Any]:
+    if not isinstance(value, dict) or set(value) != keys:
+        raise ValueError(f"candidate admission {context} fields are not exact")
+    return value
+
+
+def _candidate_text(value: Any, context: str) -> str:
+    if not isinstance(value, str) or not value or len(value) > 1024:
+        raise ValueError(f"candidate admission {context} is invalid")
+    return value
+
+
+def _candidate_texts(value: Any, context: str, *, allow_empty: bool = False, limit: int = 64) -> list[str]:
+    if not isinstance(value, list) or (not value and not allow_empty) or len(value) > limit:
+        raise ValueError(f"candidate admission {context} must be bounded")
+    items = [_candidate_text(item, context) for item in value]
+    if len(items) != len(set(items)):
+        raise ValueError(f"candidate admission {context} contains duplicates")
+    return items
+
+
+def _candidate_identity(admission: Any, expected_sha256: str) -> dict[str, Any]:
+    if not isinstance(admission, dict) or not isinstance(expected_sha256, str) or _SHA256_IDENTITY.fullmatch(expected_sha256) is None:
+        raise ValueError("candidate admission identity is invalid")
+    try:
+        canonical = json.dumps(
+            admission, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        ).encode("utf-8") + b"\n"
+    except (TypeError, ValueError) as exc:
+        raise ValueError("candidate admission is not canonicalizable") from exc
+    actual = "sha256:" + hashlib.sha256(canonical).hexdigest()
+    if actual != expected_sha256:
+        raise ValueError("candidate admission identity mismatch")
+    return admission
+
+
+def _candidate_path_parts(value: str) -> tuple[str, ...]:
+    if ":" in value or not _valid_repo_relative_path(value):
+        raise ValueError("candidate allowed write ref is invalid")
+    return tuple(value.split("/"))
+
+
+def _path_parts_overlap(left: tuple[str, ...], right: tuple[str, ...]) -> bool:
+    return left == right[: len(left)] or right == left[: len(right)]
+
+
+def _path_like_preserved_ref(value: str) -> tuple[str, ...] | None:
+    if ":" in value or not _valid_repo_relative_path(value):
+        return None
+    return tuple(value.split("/"))
+
+
+def _candidate_cohort_member(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError("candidate admission cohort member is malformed")
+    classification = value.get("classification")
+    keys = {
+        "project_id", "native_slug", "evaluation_slug", "primary_root",
+        "classification", "reason", "gaps",
+    }
+    if classification == "non_applicable-approved":
+        keys |= {"approval_reference", "candidate_non_regression_condition"}
+    elif classification != "baseline_ready":
+        raise ValueError("candidate admission cohort member classification is unsupported")
+    member = _exact_candidate_mapping(value, keys, "cohort member")
+    for key in ("project_id", "native_slug", "evaluation_slug", "primary_root", "reason"):
+        _candidate_text(member[key], f"cohort member.{key}")
+    _candidate_texts(member["gaps"], "cohort member.gaps", allow_empty=True)
+    if classification == "non_applicable-approved":
+        _candidate_text(member["approval_reference"], "cohort member.approval_reference")
+        if member["candidate_non_regression_condition"] != "candidate_does_not_reduce_required_membership":
+            raise ValueError("candidate admission cohort member non-regression condition is invalid")
+    return member
+
+
+def _candidate_observability(value: Any) -> None:
+    budget = _exact_candidate_mapping(
+        value,
+        {"allowed_projections", "correlation_key", "retention_seconds", "cardinality_ceiling", "max_dashboards", "max_alerts"},
+        "observability",
+    )
+    projections = _candidate_texts(budget["allowed_projections"], "observability.allowed_projections")
+    if any(re.fullmatch(r"[a-z][a-z0-9_]{0,63}", projection) is None for projection in projections):
+        raise ValueError("candidate admission observability projection is invalid")
+    correlation = _exact_candidate_mapping(
+        budget["correlation_key"], {"name", "definition"}, "observability.correlation_key"
+    )
+    if correlation["name"] not in projections:
+        raise ValueError("candidate admission observability correlation key is invalid")
+    definition = _candidate_text(correlation["definition"], "observability.correlation_key.definition")
+    if len(definition) < 8:
+        raise ValueError("candidate admission observability correlation definition is invalid")
+    for key in ("retention_seconds", "cardinality_ceiling"):
+        if isinstance(budget[key], bool) or not isinstance(budget[key], int) or budget[key] < 1:
+            raise ValueError(f"candidate admission observability.{key} is invalid")
+    for key in ("max_dashboards", "max_alerts"):
+        if isinstance(budget[key], bool) or not isinstance(budget[key], int) or budget[key] < 0:
+            raise ValueError(f"candidate admission observability.{key} is invalid")
+
+
+def _candidate_boundary_projection(admission: dict[str, Any]) -> tuple[list[str], list[str], list[str]]:
+    top_fields = {"schema", "candidate_ref", "status", "cohort", "baseline", "candidate", "fixed_evaluation", "criteria", "immutable_controls", "authority", "observability"}
+    top = _exact_candidate_mapping(
+        admission,
+        top_fields,
+        "top-level",
+    )
+    if top["schema"] != ADAPTATION_CANDIDATE_SCHEMA or top["status"] != "candidate-only":
+        raise ValueError("candidate admission schema or status is unsupported")
+    _candidate_text(top["candidate_ref"], "candidate_ref")
+
+    cohort = _exact_candidate_mapping(
+        top["cohort"],
+        {"artifact_ref", "artifact_sha256", "schema", "enrollment_policy_revision", "cutoff", "membership_digest", "members"},
+        "cohort",
+    )
+    for key in ("artifact_ref", "schema", "cutoff"):
+        _candidate_text(cohort[key], f"cohort.{key}")
+    if cohort["schema"] != "harness.l3-cohort-snapshot.v1" or not isinstance(cohort["members"], list) or not cohort["members"]:
+        raise ValueError("candidate admission cohort is malformed")
+    for key in ("artifact_sha256", "enrollment_policy_revision", "membership_digest"):
+        if not isinstance(cohort[key], str) or _SHA256_IDENTITY.fullmatch(cohort[key]) is None:
+            raise ValueError(f"candidate admission cohort.{key} is invalid")
+    if re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?Z", cohort["cutoff"]) is None:
+        raise ValueError("candidate admission cohort.cutoff is invalid")
+    members = [_candidate_cohort_member(member) for member in cohort["members"]]
+    member_identities = [(member["project_id"], member["native_slug"], member["primary_root"]) for member in members]
+    if len(members) > 64 or len(member_identities) != len(set(member_identities)):
+        raise ValueError("candidate admission cohort members are not bounded and unique")
+
+    baseline = _exact_candidate_mapping(top["baseline"], {"commit", "tree", "worktree_state"}, "baseline")
+    state = _exact_candidate_mapping(baseline["worktree_state"], {"clean", "status_digest"}, "baseline.worktree_state")
+    for key in ("commit", "tree"):
+        if not isinstance(baseline[key], str) or re.fullmatch(r"[0-9a-f]{40,64}", baseline[key]) is None:
+            raise ValueError(f"candidate admission baseline.{key} is invalid")
+    if not isinstance(state["clean"], bool) or not isinstance(state["status_digest"], str) or _SHA256_IDENTITY.fullmatch(state["status_digest"]) is None:
+        raise ValueError("candidate admission baseline worktree state is invalid")
+
+    candidate = _exact_candidate_mapping(
+        top["candidate"],
+        {"identity", "baseline_commit", "allowed_write_refs", "causal_hypothesis", "target"},
+        "candidate",
+    )
+    target = _exact_candidate_mapping(candidate["target"], {"c_ref", "ac_ref", "expected_ac_effect"}, "candidate.target")
+    for key in ("identity", "causal_hypothesis"):
+        _candidate_text(candidate[key], f"candidate.{key}")
+    for key in ("c_ref", "ac_ref", "expected_ac_effect"):
+        _candidate_text(target[key], f"candidate.target.{key}")
+    if candidate["baseline_commit"] != baseline["commit"]:
+        raise ValueError("candidate admission baseline binding is invalid")
+    allowed_write_refs = _candidate_texts(candidate["allowed_write_refs"], "allowed_write_refs")
+    allowed_parts = [_candidate_path_parts(ref) for ref in allowed_write_refs]
+    if any(_path_parts_overlap(left, right) for index, left in enumerate(allowed_parts) for right in allowed_parts[index + 1 :]):
+        raise ValueError("candidate allowed write refs are parent/child ambiguous")
+
+    evaluation = _exact_candidate_mapping(top["fixed_evaluation"], {"model", "evaluator", "splits"}, "fixed_evaluation")
+    model = _exact_candidate_mapping(evaluation["model"], {"identity", "configuration_digest"}, "fixed_evaluation.model")
+    evaluator = _exact_candidate_mapping(evaluation["evaluator"], {"identity", "configuration_digest"}, "fixed_evaluation.evaluator")
+    splits = _exact_candidate_mapping(
+        evaluation["splits"],
+        {"held_in_ref", "held_in_digest", "held_out_ref", "held_out_digest", "sampling_identity", "secrecy_boundary"},
+        "fixed_evaluation.splits",
+    )
+    for mapping, context in ((model, "model"), (evaluator, "evaluator")):
+        _candidate_text(mapping["identity"], f"{context}.identity")
+        if not isinstance(mapping["configuration_digest"], str) or _SHA256_IDENTITY.fullmatch(mapping["configuration_digest"]) is None:
+            raise ValueError(f"candidate admission {context} configuration is invalid")
+    for key in ("held_in_ref", "held_out_ref", "sampling_identity", "secrecy_boundary"):
+        _candidate_text(splits[key], f"splits.{key}")
+    for key in ("held_in_digest", "held_out_digest"):
+        if not isinstance(splits[key], str) or _SHA256_IDENTITY.fullmatch(splits[key]) is None:
+            raise ValueError(f"candidate admission splits.{key} is invalid")
+    if splits["held_in_ref"] == splits["held_out_ref"] or splits["held_in_digest"] == splits["held_out_digest"] or splits["secrecy_boundary"] != "held_out_opaque_no_content_access":
+        raise ValueError("candidate admission evaluation split boundary is invalid")
+
+    criteria = _exact_candidate_mapping(
+        top["criteria"],
+        {"benefit", "non_inferiority", "regression_stop", "uncertainty_disposition", "preserved_ac_refs"},
+        "criteria",
+    )
+    fixed_criteria = {
+        "benefit": "direct_target_runtime_evidence_reduces_declared_ac_failure",
+        "non_inferiority": "all_declared_preserved_ac_and_control_surfaces_remain_non_regressed",
+        "regression_stop": "any_material_semantic_regression_requires_revert",
+        "uncertainty_disposition": "missing_direct_evidence_or_unresolved_uncertainty_requires_owner_hold",
+    }
+    if any(criteria[key] != value for key, value in fixed_criteria.items()):
+        raise ValueError("candidate admission criteria are unsupported")
+    preserved_ac_refs = _candidate_texts(criteria["preserved_ac_refs"], "criteria.preserved_ac_refs", limit=32)
+    controls = _exact_candidate_mapping(
+        top["immutable_controls"],
+        {"evaluator_ref", "held_out_ref", "permission_boundary_ref", "maat_disposition_ref", "sia_promotion_ref", "cohort_policy_ref", "execution_receipt_schema_ref", "additional_refs"},
+        "immutable_controls",
+    )
+    control_keys = (
+        "evaluator_ref", "held_out_ref", "permission_boundary_ref", "maat_disposition_ref",
+        "sia_promotion_ref", "cohort_policy_ref", "execution_receipt_schema_ref",
+    )
+    control_refs = [_candidate_text(controls[key], f"immutable_controls.{key}") for key in control_keys]
+    additional_refs = _candidate_texts(controls["additional_refs"], "immutable_controls.additional_refs", allow_empty=True)
+    if controls["evaluator_ref"] != evaluator["identity"] or controls["held_out_ref"] != splits["held_out_ref"] or controls["cohort_policy_ref"] != cohort["enrollment_policy_revision"]:
+        raise ValueError("candidate admission linked controls are inconsistent")
+    authority = _exact_candidate_mapping(
+        top["authority"],
+        {"confirm", "revert", "owner_hold", "learning_consideration", "learning_automatic"},
+        "authority",
+    )
+    if authority != {"confirm": "Maat", "revert": "Maat", "owner_hold": "Maat", "learning_consideration": "SIA", "learning_automatic": False}:
+        raise ValueError("candidate admission authority is unsupported")
+    _candidate_observability(top["observability"])
+
+    preserved_refs = [
+        model["identity"], evaluator["identity"], splits["held_in_ref"], splits["held_out_ref"],
+        splits["sampling_identity"], *preserved_ac_refs, *control_refs, *additional_refs,
+    ]
+    path_controls = [parts for ref in preserved_refs if (parts := _path_like_preserved_ref(ref)) is not None]
+    if any(_path_parts_overlap(mutable, control) for mutable in allowed_parts for control in path_controls):
+        raise ValueError("candidate allowed write ref overlaps a preserved control")
+
+    must_preserve = [
+        f"baseline.commit={baseline['commit']}",
+        f"baseline.tree={baseline['tree']}",
+        f"baseline.worktree_state.clean={str(state['clean']).lower()}",
+        f"baseline.worktree_state.status_digest={state['status_digest']}",
+        f"fixed_evaluation.model.identity={model['identity']}",
+        f"fixed_evaluation.model.configuration_digest={model['configuration_digest']}",
+        f"fixed_evaluation.evaluator.identity={evaluator['identity']}",
+        f"fixed_evaluation.evaluator.configuration_digest={evaluator['configuration_digest']}",
+        *[f"fixed_evaluation.splits.{key}={splits[key]}" for key in ("held_in_ref", "held_in_digest", "held_out_ref", "held_out_digest", "sampling_identity", "secrecy_boundary")],
+        *[f"criteria.preserved_ac_ref={ref}" for ref in preserved_ac_refs],
+        *[f"immutable_controls.{key}={controls[key]}" for key in control_keys],
+        *[f"immutable_controls.additional_ref={ref}" for ref in additional_refs],
+        "authority.confirm=Maat", "authority.revert=Maat", "authority.owner_hold=Maat",
+        "authority.learning_consideration=SIA", "authority.learning_automatic=false",
+    ]
+    forbidden_effects = [
+        "forbid:repository_mutation:outside_allowed_write_refs",
+        f"forbid:mutation:evaluator:{controls['evaluator_ref']}",
+        f"forbid:exposure:evaluator:{controls['evaluator_ref']}",
+        f"forbid:mutation:held_out:{controls['held_out_ref']}",
+        f"forbid:read:held_out:{controls['held_out_ref']}",
+        f"forbid:exposure:held_out:{controls['held_out_ref']}",
+        f"forbid:mutation:permission:{controls['permission_boundary_ref']}",
+        f"forbid:authority_change:permission:{controls['permission_boundary_ref']}",
+        f"forbid:mutation:maat_disposition:{controls['maat_disposition_ref']}",
+        f"forbid:authority_change:maat_disposition:{controls['maat_disposition_ref']}",
+        f"forbid:mutation:sia_promotion:{controls['sia_promotion_ref']}",
+        f"forbid:authority_change:sia_promotion:{controls['sia_promotion_ref']}",
+        f"forbid:mutation:cohort_policy:{controls['cohort_policy_ref']}",
+        f"forbid:mutation:receipt_schema:{controls['execution_receipt_schema_ref']}",
+        *[f"forbid:mutation:immutable_control:{ref}" for ref in additional_refs],
+        "forbid:authority:PASS", "forbid:authority:closure", "forbid:authority:promotion",
+        "forbid:authority:task_state",
+    ]
+    for name, values in (("must_preserve", must_preserve), ("forbidden_effects", forbidden_effects)):
+        if not values or len(values) > MAX_EXECUTOR_BOUNDARY_ITEMS or len(values) != len(set(values)):
+            raise ValueError(f"candidate {name} is not bounded and unique")
+    return allowed_write_refs, must_preserve, forbidden_effects
+
+
 def build_executor_local_packet(
     *,
     work_id: str,
@@ -71,16 +334,28 @@ def build_executor_local_packet(
     source_refs: Iterable[str],
     task_AC: Iterable[Any],
     evidence_requirements: Iterable[Any],
+    candidate_admission: dict[str, Any],
+    expected_candidate_admission_sha256: str,
 ) -> dict[str, Any]:
+    admission = _candidate_identity(candidate_admission, expected_candidate_admission_sha256)
+    allowed_write_refs, must_preserve, forbidden_effects = _candidate_boundary_projection(admission)
+    task_refs = list(task_AC)
+    correlated_sources = list(source_refs)
+    for ref in (admission["candidate_ref"], expected_candidate_admission_sha256):
+        if ref not in correlated_sources:
+            correlated_sources.append(ref)
     packet = {
         "family": "executor_local_packet",
         "work_id": work_id,
         "graph_ref": graph_ref,
         "local_nodes": list(local_nodes),
         "local_edges": list(local_edges),
-        "source_refs": list(source_refs),
-        "task_AC": list(task_AC),
+        "source_refs": correlated_sources,
+        "task_AC": task_refs,
         "evidence_requirements": list(evidence_requirements),
+        "allowed_write_refs": allowed_write_refs,
+        "must_preserve": must_preserve,
+        "forbidden_effects": forbidden_effects,
     }
     if not all((packet["work_id"], packet["graph_ref"], packet["local_nodes"], packet["source_refs"], packet["task_AC"], packet["evidence_requirements"])):
         raise ValueError("executor packet requires selected refs and execution requirements")

@@ -19,6 +19,7 @@ harness-runtime = "harness_runtime.cli:main"
 harness-project-binding = "harness_runtime.binding_cli:main"
 harness-guided-capability = "harness_runtime.capability_cli:main"
 harness-project-enroll = "harness_runtime.enrollment_cli:main"
+source-observation-producer = "harness_runtime.l3_source_observation_producer:main"
 
 [tool.setuptools]
 packages = ["harness_runtime", "contracts"]

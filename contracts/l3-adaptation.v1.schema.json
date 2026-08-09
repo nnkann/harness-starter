@@ -1,0 +1,314 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://harness.local/contracts/l3-adaptation.v1.schema.json",
+  "title": "Harness manually admitted bounded L3 adaptation candidate",
+  "type": "object",
+  "required": [
+    "schema",
+    "candidate_ref",
+    "status",
+    "cohort",
+    "baseline",
+    "candidate",
+    "fixed_evaluation",
+    "criteria",
+    "immutable_controls",
+    "authority",
+    "observability"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "harness.l3-adaptation-candidate.v1"},
+    "candidate_ref": {"type": "string", "minLength": 1, "maxLength": 1024},
+    "status": {"const": "candidate-only"},
+    "cohort": {"$ref": "#/$defs/cohort"},
+    "baseline": {"$ref": "#/$defs/baseline"},
+    "candidate": {"$ref": "#/$defs/candidate"},
+    "fixed_evaluation": {"$ref": "#/$defs/fixed_evaluation"},
+    "criteria": {"$ref": "#/$defs/criteria"},
+    "immutable_controls": {"$ref": "#/$defs/immutable_controls"},
+    "authority": {"$ref": "#/$defs/authority"},
+    "observability": {"$ref": "#/$defs/observability"}
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024
+    },
+    "unique_refs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/ref"}
+    },
+
+    "cohort": {
+      "type": "object",
+      "required": [
+        "artifact_ref",
+        "artifact_sha256",
+        "schema",
+        "enrollment_policy_revision",
+        "cutoff",
+        "membership_digest",
+        "members"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "artifact_ref": {"$ref": "#/$defs/ref"},
+        "artifact_sha256": {"$ref": "#/$defs/sha256"},
+        "schema": {"const": "harness.l3-cohort-snapshot.v1"},
+        "enrollment_policy_revision": {"$ref": "#/$defs/sha256"},
+        "cutoff": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]+)?Z$"
+        },
+        "membership_digest": {"$ref": "#/$defs/sha256"},
+        "members": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/member"}
+        }
+      }
+    },
+    "member": {
+      "type": "object",
+      "required": [
+        "project_id",
+        "native_slug",
+        "evaluation_slug",
+        "primary_root",
+        "classification",
+        "reason",
+        "gaps"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "project_id": {"$ref": "#/$defs/ref"},
+        "native_slug": {"$ref": "#/$defs/ref"},
+        "evaluation_slug": {"$ref": "#/$defs/ref"},
+        "primary_root": {"$ref": "#/$defs/ref"},
+        "classification": {"enum": ["baseline_ready", "non_applicable-approved"]},
+        "reason": {"$ref": "#/$defs/ref"},
+        "gaps": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/ref"}
+        },
+        "approval_reference": {"$ref": "#/$defs/ref"},
+        "candidate_non_regression_condition": {
+          "const": "candidate_does_not_reduce_required_membership"
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"classification": {"const": "baseline_ready"}}},
+          "then": {
+            "not": {
+              "anyOf": [
+                {"required": ["approval_reference"]},
+                {"required": ["candidate_non_regression_condition"]}
+              ]
+            }
+          }
+        },
+        {
+          "if": {"properties": {"classification": {"const": "non_applicable-approved"}}},
+          "then": {
+            "required": ["approval_reference", "candidate_non_regression_condition"]
+          }
+        }
+      ]
+    },
+    "baseline": {
+      "type": "object",
+      "required": ["commit", "tree", "worktree_state"],
+      "additionalProperties": false,
+      "properties": {
+        "commit": {"type": "string", "pattern": "^[0-9a-f]{40,64}$"},
+        "tree": {"type": "string", "pattern": "^[0-9a-f]{40,64}$"},
+        "worktree_state": {
+          "type": "object",
+          "required": ["clean", "status_digest"],
+          "additionalProperties": false,
+          "properties": {
+            "clean": {"type": "boolean"},
+            "status_digest": {"$ref": "#/$defs/sha256"}
+          }
+        }
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "required": [
+        "identity",
+        "baseline_commit",
+        "allowed_write_refs",
+        "causal_hypothesis",
+        "target"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "identity": {"$ref": "#/$defs/ref"},
+        "baseline_commit": {"type": "string", "pattern": "^[0-9a-f]{40,64}$"},
+        "allowed_write_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)(?!.*\\\\).+$"
+          }
+        },
+        "causal_hypothesis": {"type": "string", "minLength": 8, "maxLength": 1024},
+        "target": {
+          "type": "object",
+          "required": ["c_ref", "ac_ref", "expected_ac_effect"],
+          "additionalProperties": false,
+          "properties": {
+            "c_ref": {"$ref": "#/$defs/ref"},
+            "ac_ref": {"$ref": "#/$defs/ref"},
+            "expected_ac_effect": {"type": "string", "minLength": 8, "maxLength": 1024}
+          }
+        }
+      }
+    },
+    "identity_and_config": {
+      "type": "object",
+      "required": ["identity", "configuration_digest"],
+      "additionalProperties": false,
+      "properties": {
+        "identity": {"$ref": "#/$defs/ref"},
+        "configuration_digest": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "fixed_evaluation": {
+      "type": "object",
+      "required": ["model", "evaluator", "splits"],
+      "additionalProperties": false,
+      "properties": {
+        "model": {"$ref": "#/$defs/identity_and_config"},
+        "evaluator": {"$ref": "#/$defs/identity_and_config"},
+        "splits": {
+          "type": "object",
+          "required": [
+            "held_in_ref",
+            "held_in_digest",
+            "held_out_ref",
+            "held_out_digest",
+            "sampling_identity",
+            "secrecy_boundary"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "held_in_ref": {"$ref": "#/$defs/ref"},
+            "held_in_digest": {"$ref": "#/$defs/sha256"},
+            "held_out_ref": {"$ref": "#/$defs/ref"},
+            "held_out_digest": {"$ref": "#/$defs/sha256"},
+            "sampling_identity": {"$ref": "#/$defs/ref"},
+            "secrecy_boundary": {"const": "held_out_opaque_no_content_access"}
+          }
+        }
+      }
+    },
+    "criteria": {
+      "type": "object",
+      "required": [
+        "benefit",
+        "non_inferiority",
+        "regression_stop",
+        "uncertainty_disposition",
+        "preserved_ac_refs"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "benefit": {"const": "direct_target_runtime_evidence_reduces_declared_ac_failure"},
+        "non_inferiority": {"const": "all_declared_preserved_ac_and_control_surfaces_remain_non_regressed"},
+        "regression_stop": {"const": "any_material_semantic_regression_requires_revert"},
+        "uncertainty_disposition": {"const": "missing_direct_evidence_or_unresolved_uncertainty_requires_owner_hold"},
+        "preserved_ac_refs": {"$ref": "#/$defs/unique_refs"}
+      }
+    },
+    "immutable_controls": {
+      "type": "object",
+      "required": [
+        "evaluator_ref",
+        "held_out_ref",
+        "permission_boundary_ref",
+        "maat_disposition_ref",
+        "sia_promotion_ref",
+        "cohort_policy_ref",
+        "execution_receipt_schema_ref",
+        "additional_refs"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "evaluator_ref": {"$ref": "#/$defs/ref"},
+        "held_out_ref": {"$ref": "#/$defs/ref"},
+        "permission_boundary_ref": {"$ref": "#/$defs/ref"},
+        "maat_disposition_ref": {"$ref": "#/$defs/ref"},
+        "sia_promotion_ref": {"$ref": "#/$defs/ref"},
+        "cohort_policy_ref": {"$ref": "#/$defs/ref"},
+        "execution_receipt_schema_ref": {"$ref": "#/$defs/ref"},
+        "additional_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/ref"}
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "required": ["confirm", "revert", "owner_hold", "learning_consideration", "learning_automatic"],
+      "additionalProperties": false,
+      "properties": {
+        "confirm": {"const": "Maat"},
+        "revert": {"const": "Maat"},
+        "owner_hold": {"const": "Maat"},
+        "learning_consideration": {"const": "SIA"},
+        "learning_automatic": {"const": false}
+      }
+    },
+    "observability": {
+      "type": "object",
+      "required": [
+        "allowed_projections",
+        "correlation_key",
+        "retention_seconds",
+        "cardinality_ceiling",
+        "max_dashboards",
+        "max_alerts"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "allowed_projections": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"}
+        },
+        "correlation_key": {
+          "type": "object",
+          "required": ["name", "definition"],
+          "additionalProperties": false,
+          "properties": {
+            "name": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"},
+            "definition": {"type": "string", "minLength": 8, "maxLength": 1024}
+          }
+        },
+        "retention_seconds": {"type": "integer", "minimum": 1},
+        "cardinality_ceiling": {"type": "integer", "minimum": 1},
+        "max_dashboards": {"type": "integer", "minimum": 0},
+        "max_alerts": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

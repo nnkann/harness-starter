@@ -1,3 +1,4 @@
+import inspect
 import json
 import hashlib
 import subprocess
@@ -16,6 +17,10 @@ import cps_working_graph_registry as registry
 
 
 class WorkingGraphRegistryTests(unittest.TestCase):
+    def test_working_graph_has_no_packet_supplied_semantic_mapping_gate(self):
+        for function in (registry.WorkingGraphRegistry.create, registry.WorkingGraphRegistry.apply_maat_delta, registry.materialize_maat_body):
+            self.assertNotIn("semantic_reference_mappings", inspect.signature(function).parameters)
+
     def provenance(self, root: Path):
         del root
         repo = TOOLS.parents[2]

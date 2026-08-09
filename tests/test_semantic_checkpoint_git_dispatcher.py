@@ -1,4 +1,6 @@
 import copy
+import hashlib
+import inspect
 import json
 import os
 import sys
@@ -9,6 +11,8 @@ import subprocess
 from pathlib import Path
 from unittest import mock
 
+from jsonschema import Draft202012Validator
+
 TOOLS = Path(__file__).resolve().parents[1] / ".harness" / "hermes" / "tools"
 SCHEMAS = TOOLS.parent / "schemas"
 sys.path.insert(0, str(TOOLS))
@@ -17,6 +21,133 @@ import semantic_checkpoint_git_dispatcher as dispatcher
 
 
 class DispatcherTests(unittest.TestCase):
+    def candidate_admission(self):
+        return {
+            "schema": "harness.l3-adaptation-candidate.v1",
+            "candidate_ref": "C-L3.1:manual-candidate-001",
+            "status": "candidate-only",
+            "cohort": {
+                "artifact_ref": "/tmp/c-l3-cohort.json",
+                "artifact_sha256": "sha256:" + "1" * 64,
+                "schema": "harness.l3-cohort-snapshot.v1",
+                "enrollment_policy_revision": "sha256:" + "2" * 64,
+                "cutoff": "2026-08-07T06:19:31Z",
+                "membership_digest": "sha256:" + "3" * 64,
+                "members": [
+                    {
+                        "project_id": "project-1",
+                        "native_slug": "project-1",
+                        "evaluation_slug": "project-1-evaluation",
+                        "primary_root": "/tmp/project-1",
+                        "classification": "baseline_ready",
+                        "reason": "source_native_active_record",
+                        "gaps": [],
+                    }
+                ],
+            },
+            "baseline": {
+                "commit": "4" * 40,
+                "tree": "5" * 40,
+                "worktree_state": {"clean": False, "status_digest": "sha256:" + "6" * 64},
+            },
+            "candidate": {
+                "identity": "isolated:manual-candidate-001",
+                "baseline_commit": "4" * 40,
+                "allowed_write_refs": ["runtime/target.py"],
+                "causal_hypothesis": "A bounded target change removes the declared failure.",
+                "target": {
+                    "c_ref": "C-L3.target",
+                    "ac_ref": "AC-runtime-1",
+                    "expected_ac_effect": "Reduce the declared target failure without changing controls.",
+                },
+            },
+            "fixed_evaluation": {
+                "model": {"identity": "model:fixed-v1", "configuration_digest": "sha256:" + "7" * 64},
+                "evaluator": {"identity": "evaluator:fixed-v1", "configuration_digest": "sha256:" + "8" * 64},
+                "splits": {
+                    "held_in_ref": "split:held-in-v1",
+                    "held_in_digest": "sha256:" + "9" * 64,
+                    "held_out_ref": "split:held-out-v1",
+                    "held_out_digest": "sha256:" + "a" * 64,
+                    "sampling_identity": "sampling:fixed-v1",
+                    "secrecy_boundary": "held_out_opaque_no_content_access",
+                },
+            },
+            "criteria": {
+                "benefit": "direct_target_runtime_evidence_reduces_declared_ac_failure",
+                "non_inferiority": "all_declared_preserved_ac_and_control_surfaces_remain_non_regressed",
+                "regression_stop": "any_material_semantic_regression_requires_revert",
+                "uncertainty_disposition": "missing_direct_evidence_or_unresolved_uncertainty_requires_owner_hold",
+                "preserved_ac_refs": ["AC-control-1"],
+            },
+            "immutable_controls": {
+                "evaluator_ref": "evaluator:fixed-v1",
+                "held_out_ref": "split:held-out-v1",
+                "permission_boundary_ref": "authority:permission-v1",
+                "maat_disposition_ref": "authority:maat-v1",
+                "sia_promotion_ref": "authority:sia-v1",
+                "cohort_policy_ref": "sha256:" + "2" * 64,
+                "execution_receipt_schema_ref": "contracts/execution-receipt.schema.json",
+                "additional_refs": ["contracts/control-surface.v1"],
+            },
+            "authority": {
+                "confirm": "Maat",
+                "revert": "Maat",
+                "owner_hold": "Maat",
+                "learning_consideration": "SIA",
+                "learning_automatic": False,
+            },
+            "observability": {
+                "allowed_projections": ["candidate_ref"],
+                "correlation_key": {"name": "candidate_ref", "definition": "Exact candidate correlation."},
+                "retention_seconds": 86400,
+                "cardinality_ceiling": 100,
+                "max_dashboards": 0,
+                "max_alerts": 0,
+            },
+        }
+
+    def candidate_admission_sha256(self, admission):
+        canonical = json.dumps(
+            admission, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        ).encode("utf-8") + b"\n"
+        return "sha256:" + hashlib.sha256(canonical).hexdigest()
+
+    def test_packet_local_source_native_ac_is_not_promoted_or_mapping_gated(self):
+        admission = self.candidate_admission()
+        source_ac_ref = admission["candidate"]["target"]["ac_ref"]
+        packet = dispatcher.build_executor_local_packet(
+            work_id="work-1", graph_ref="graph:work-1", local_nodes=["S1"], local_edges=[],
+            source_refs=["source:native"], task_AC=[source_ac_ref], evidence_requirements=["direct evidence"],
+            candidate_admission=admission,
+            expected_candidate_admission_sha256=self.candidate_admission_sha256(admission),
+        )
+
+        self.assertEqual(packet["task_AC"], [source_ac_ref])
+        self.assertNotIn("semantic_reference_mappings", packet)
+
+    def build_candidate_packet(self, admission=None, expected_sha256=None):
+        admission = admission or self.candidate_admission()
+        return dispatcher.build_executor_local_packet(
+            work_id="work-1",
+            graph_ref="cps://project/work-1@r2",
+            local_nodes=[{"ref": "S:git"}],
+            local_edges=[{"ref": "P->S"}],
+            source_refs=[
+                "/tmp/maat-c-l3-1-manual-adaptation-contract.txt",
+                "sha256:979a1a2e7498f8c985b2548054b259a60c14bd0add2817fffc5ba7459941a690",
+            ],
+            task_AC=["focused tests pass"],
+            evidence_requirements=[
+                "later exact pre/post/revert readback",
+                "later execution_receipt refs/facts",
+            ],
+            candidate_admission=admission,
+            expected_candidate_admission_sha256=(
+                expected_sha256 or self.candidate_admission_sha256(admission)
+            ),
+        )
+
     def packet(self):
         return {
             "schema": "harness.cps.semantic-checkpoint-git-closure.v1",
@@ -435,17 +566,206 @@ class DispatcherTests(unittest.TestCase):
             self.assertEqual(dispatcher.poll_checkpoint("work-1@r2", root)["status"], "git_failed")
 
     def test_executor_local_packet_is_selected_ref_projection(self):
-        packet = dispatcher.build_executor_local_packet(
-            work_id="work-1", graph_ref="cps://project/work-1@r2",
-            local_nodes=[{"ref": "S:git"}], local_edges=[{"ref": "P->S"}],
-            source_refs=["contract:dispatcher"], task_AC=["focused tests pass"],
-            evidence_requirements=["command and exit code"],
-        )
+        admission = self.candidate_admission()
+        identity = self.candidate_admission_sha256(admission)
+        packet = self.build_candidate_packet(admission, identity)
         self.assertEqual(packet["family"], "executor_local_packet")
         self.assertNotIn("commands", packet)
         self.assertEqual(packet["local_nodes"], [{"ref": "S:git"}])
+        self.assertEqual(packet["allowed_write_refs"], ["runtime/target.py"])
+        self.assertEqual(
+            packet["source_refs"],
+            [
+                "/tmp/maat-c-l3-1-manual-adaptation-contract.txt",
+                "sha256:979a1a2e7498f8c985b2548054b259a60c14bd0add2817fffc5ba7459941a690",
+                admission["candidate_ref"],
+                identity,
+            ],
+        )
+        self.assertEqual(
+            packet["evidence_requirements"],
+            ["later exact pre/post/revert readback", "later execution_receipt refs/facts"],
+        )
+        self.assertTrue(packet["must_preserve"])
+        self.assertTrue(packet["forbidden_effects"])
+        self.assertNotIn("evidence_required", packet)
+        self.assertIn(f"baseline.commit={admission['baseline']['commit']}", packet["must_preserve"])
+        self.assertIn("authority.confirm=Maat", packet["must_preserve"])
+        self.assertIn(
+            "forbid:read:held_out:split:held-out-v1", packet["forbidden_effects"]
+        )
+        for prohibited in ("receipt", "status", "baseline", "revert", "result", "verdict", "PASS", "closure", "promotion"):
+            self.assertNotIn(prohibited, packet)
         receipt = dispatcher.build_git_worker_receipt(packet, "git_failed", errors=[str(i) for i in range(50)])
         self.assertEqual(len(receipt["errors"]), dispatcher.MAX_RECEIPT_ERRORS)
+
+    def test_candidate_local_identity_shape_and_authority_fail_closed(self):
+        admission = self.candidate_admission()
+        with self.assertRaisesRegex(ValueError, "identity mismatch"):
+            self.build_candidate_packet(admission, "sha256:" + "0" * 64)
+
+        mutations = [
+            (("schema",), "harness.l3-adaptation-candidate.v2"),
+            (("status",), "PASS"),
+            (("criteria", "benefit"), "weaker"),
+            (("authority", "confirm"), "Ptah"),
+        ]
+        for path, value in mutations:
+            with self.subTest(path=path):
+                changed = copy.deepcopy(admission)
+                target = changed
+                for key in path[:-1]:
+                    target = target[key]
+                target[path[-1]] = value
+                with self.assertRaises(ValueError):
+                    self.build_candidate_packet(changed)
+
+        for path in ((), ("baseline",), ("fixed_evaluation", "splits"), ("immutable_controls",)):
+            with self.subTest(unknown_at=path):
+                changed = copy.deepcopy(admission)
+                target = changed
+                for key in path:
+                    target = target[key]
+                target["unknown"] = True
+                with self.assertRaisesRegex(ValueError, "fields"):
+                    self.build_candidate_packet(changed)
+
+    def test_candidate_local_allowed_write_ref_denial_matrix(self):
+        denied = [
+            [],
+            ["runtime/target.py", "runtime/target.py"],
+            ["runtime", "runtime/target.py"],
+            ["/runtime/target.py"],
+            ["runtime\\target.py"],
+            ["runtime/./target.py"],
+            ["runtime/../target.py"],
+            ["runtime//target.py"],
+            ["runtime/*.py"],
+            ["runtime/e\u0301.py"],
+            [1],
+        ]
+        for refs in denied:
+            with self.subTest(refs=refs):
+                admission = self.candidate_admission()
+                admission["candidate"]["allowed_write_refs"] = refs
+                with self.assertRaises(ValueError):
+                    self.build_candidate_packet(admission)
+
+    def test_candidate_local_rejects_malformed_cohort_member_and_observability(self):
+        mutations = [
+            (("cohort", "members"), [{"project_id": "project-1"}]),
+            (("cohort", "members", 0, "classification"), "HOLD_GAP"),
+            (("cohort", "members", 0, "gaps"), ["gap", "gap"]),
+            (("cohort", "members", 0, "unknown"), "value"),
+            (("cohort", "artifact_sha256"), "not-a-digest"),
+            (("cohort", "enrollment_policy_revision"), "not-a-digest"),
+            (("cohort", "membership_digest"), "not-a-digest"),
+            (("cohort", "cutoff"), "not-a-cutoff"),
+            (("observability", "allowed_projections"), []),
+            (("observability", "allowed_projections"), ["candidate_ref", "candidate_ref"]),
+            (("observability", "allowed_projections"), ["Invalid-Projection"]),
+            (("observability", "correlation_key"), "candidate_ref"),
+            (("observability", "correlation_key"), {"name": "candidate_ref"}),
+            (("observability", "correlation_key", "name"), "other_ref"),
+            (("observability", "correlation_key", "definition"), "short"),
+            (("observability", "correlation_key", "unknown"), "value"),
+            (("observability", "retention_seconds"), 0),
+            (("observability", "retention_seconds"), True),
+            (("observability", "cardinality_ceiling"), "unbounded"),
+            (("observability", "max_dashboards"), -1),
+            (("observability", "max_alerts"), False),
+        ]
+        for path, value in mutations:
+            with self.subTest(path=path, value=value):
+                admission = self.candidate_admission()
+                target = admission
+                for key in path[:-1]:
+                    target = target[key]
+                target[path[-1]] = value
+                with self.assertRaises(ValueError):
+                    self.build_candidate_packet(admission)
+
+    def test_candidate_local_rejects_control_namespace_write_refs_in_compiler_and_schema(self):
+        schema = json.loads((SCHEMAS / "executor-local-packet.schema.yaml").read_text())
+        validator = Draft202012Validator(schema)
+        denied = [
+            "evaluator:fixed-v1",
+            "split:held-out-v1",
+            "authority:permission-v1",
+            "authority:maat-v1",
+            "authority:sia-v1",
+            "sha256:" + "2" * 64,
+        ]
+        for ref in denied:
+            with self.subTest(ref=ref):
+                admission = self.candidate_admission()
+                admission["candidate"]["allowed_write_refs"] = [ref]
+                with self.assertRaises(ValueError):
+                    self.build_candidate_packet(admission)
+
+                packet = self.build_candidate_packet()
+                packet["allowed_write_refs"] = [ref]
+                self.assertTrue(list(validator.iter_errors(packet)))
+
+    def test_candidate_local_rejects_equal_ancestor_and_descendant_controls(self):
+        for mutable, control in (
+            ("contracts/control-surface.v1", "contracts/control-surface.v1"),
+            ("contracts", "contracts/control-surface.v1"),
+            ("contracts/control-surface.v1/child", "contracts/control-surface.v1"),
+            ("contracts", "contracts/execution-receipt.schema.json"),
+        ):
+            with self.subTest(mutable=mutable, control=control):
+                admission = self.candidate_admission()
+                admission["candidate"]["allowed_write_refs"] = [mutable]
+                admission["immutable_controls"]["additional_refs"] = [control]
+                with self.assertRaisesRegex(ValueError, "overlaps"):
+                    self.build_candidate_packet(admission)
+
+    def test_candidate_local_schema_meta_validation_and_compiler_parity(self):
+        schema = json.loads((SCHEMAS / "executor-local-packet.schema.yaml").read_text())
+        Draft202012Validator.check_schema(schema)
+        validator = Draft202012Validator(schema)
+        packet = self.build_candidate_packet()
+        validator.validate(packet)
+
+        for field in ("allowed_write_refs", "must_preserve", "forbidden_effects"):
+            with self.subTest(missing=field):
+                changed = copy.deepcopy(packet)
+                del changed[field]
+                self.assertTrue(list(validator.iter_errors(changed)))
+            for invalid in ([], ["duplicate", "duplicate"], [""]):
+                with self.subTest(field=field, invalid=invalid):
+                    changed = copy.deepcopy(packet)
+                    changed[field] = invalid
+                    self.assertTrue(list(validator.iter_errors(changed)))
+        changed = copy.deepcopy(packet)
+        changed["unknown"] = {"recursive": True}
+        self.assertTrue(list(validator.iter_errors(changed)))
+        changed = copy.deepcopy(packet)
+        changed["commands"] = ["execute"]
+        self.assertTrue(list(validator.iter_errors(changed)))
+
+    def test_candidate_local_builder_path_has_no_side_effect_access(self):
+        source = "\n".join(
+            inspect.getsource(function)
+            for function in (
+                dispatcher._exact_candidate_mapping,
+                dispatcher._candidate_text,
+                dispatcher._candidate_texts,
+                dispatcher._candidate_identity,
+                dispatcher._candidate_path_parts,
+                dispatcher._path_parts_overlap,
+                dispatcher._path_like_preserved_ref,
+                dispatcher._candidate_boundary_projection,
+                dispatcher.build_executor_local_packet,
+                dispatcher._valid_repo_relative_path,
+            )
+        )
+        for prohibited in (
+            "open(", "read_text(", "read_bytes(", "write_text(", "write_bytes(",
+            "subprocess", "os.", "environ", "socket", "urllib", "requests", "_git(", "dispatch_",
+        ):
+            self.assertNotIn(prohibited, source)
 
     def test_git_worker_receipt_has_only_dispatcher_terminal_statuses(self):
         packet = self.packet()
@@ -484,7 +804,7 @@ class DispatcherTests(unittest.TestCase):
         self.assertEqual(set(checkpoint_schema["required"]), dispatcher.TOP_KEYS - {"closure_AC_ref", "CPS_refs"})
         self.assertFalse(checkpoint_schema["additionalProperties"])
         self.assertEqual(checkpoint_schema["properties"]["schema"]["const"], dispatcher.SCHEMA)
-        self.assertEqual(set(executor_schema["required"]), {"family", "work_id", "graph_ref", "local_nodes", "local_edges", "source_refs", "task_AC", "evidence_requirements"})
+        self.assertEqual(set(executor_schema["required"]), {"family", "work_id", "graph_ref", "local_nodes", "local_edges", "source_refs", "task_AC", "evidence_requirements", "allowed_write_refs", "must_preserve", "forbidden_effects"})
         self.assertFalse(executor_schema["additionalProperties"])
         self.assertNotIn("commands", executor_schema["properties"])
 

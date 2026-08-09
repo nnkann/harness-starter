@@ -5,6 +5,8 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
 from unittest import TestCase
 from unittest.mock import patch
@@ -887,18 +889,129 @@ class TestCpsPreflightVerificationGate(TestCase):
     def test_execute_preflight_chain_dispatches_minimal_stable_instruction(self):
         runner_calls = []
 
-        chain = self.production_handoff_chain(lambda agent, body: runner_calls.append((agent, body)))
+        def foreground_runner(agent, body):
+            runner_calls.append((agent, body))
+            return {"execution_mode": "foreground", "terminal": True, "exit_code": 0}
+
+        chain = self.production_handoff_chain(foreground_runner)
 
         expected = json.dumps(
             chain["local_bodies"]["ptah"], sort_keys=True, ensure_ascii=False, separators=(",", ":"),
         ).encode("utf-8")
         self.assertEqual(runner_calls, [("ptah", expected)])
-        self.assertEqual(chain["handoff_transport"]["status"], "dispatched")
+        self.assertEqual(chain["handoff_transport"]["status"], "terminal")
         self.assertEqual(chain["handoff_transport"]["dispatch_count"], 1)
         self.assertEqual(set(chain["local_bodies"]["ptah"]), {
             "C_ref", "source_refs", "boundary", "owner", "P_to_S", "node_AC",
         })
         self.assertNotIn("handoff_envelope", expected.decode())
+
+    def test_observational_denial_is_preserved_without_holding_required_pass_closure(self):
+        reducer = {
+            "status": "hold", "C_boundary": "HOLD",
+            "final_selected_agents": {"ptah": {}, "anubis": {}},
+            "local_body_scope": {"ptah": True, "anubis": True},
+            "hold_reasons": ["anubis: carrier denied"],
+            "failure_codes": ["HOLD_ANUBIS_DENIED"],
+        }
+        responses = {
+            "ptah": {"response": "ACCEPT", "reason": "implementation complete", "closure_relevance": "required"},
+            "anubis": {"response": "NOT_PERFORMED", "reason": "carrier denied", "closure_relevance": "observational"},
+        }
+
+        result = preflight.apply_closure_relevance_semantics(reducer, responses)
+
+        self.assertEqual(result["status"], "pass")
+        self.assertEqual(result["C_boundary"], "PASS_ONE_C")
+        self.assertEqual(result["closure_evidence"]["anubis"], {
+            "closure_relevance": "observational", "status": "not_performed", "reason": "carrier denied",
+        })
+        self.assertEqual(result["final_selected_agents"], {"ptah": {}})
+        self.assertEqual(result["local_body_scope"], {"ptah": True})
+        self.assertEqual(result["hold_reasons"], [])
+        self.assertEqual(result["failure_codes"], [])
+        self.assertFalse(result["continuation_required"])
+        self.assertFalse(result["reentry_required"])
+        self.assertEqual(result["followup_dispatch"], [])
+
+    def test_required_failure_and_unknown_relevance_fail_closed(self):
+        for response, failure in (
+            ({"response": "DENIED", "reason": "required verifier denied", "closure_relevance": "required"}, "HOLD_REQUIRED_NODE_FAILURE"),
+            ({"response": "DENIED", "reason": "missing relevance is required"}, "HOLD_REQUIRED_NODE_FAILURE"),
+            ({"response": "ACCEPT", "reason": "unknown policy", "closure_relevance": "optional"}, "HOLD_UNKNOWN_CLOSURE_RELEVANCE"),
+            ({"response": "NOT_PERFORMED", "closure_relevance": "observational"}, "HOLD_OBSERVATIONAL_REASON_MISSING"),
+        ):
+            with self.subTest(response=response):
+                result = preflight.apply_closure_relevance_semantics(
+                    {"status": "pass", "final_selected_agents": {"anubis": {}}, "local_body_scope": {"anubis": True}},
+                    {"anubis": response},
+                )
+                self.assertEqual(result["status"], "hold")
+                self.assertEqual(result["C_boundary"], "HOLD")
+                self.assertIn(failure, result["failure_codes"])
+                self.assertTrue(result["continuation_required"])
+
+    def test_chain_member_runner_receipt_records_foreground_or_internal_background_readback(self):
+        for receipt in (
+            {"execution_mode": "foreground", "terminal": True, "exit_code": 0},
+            {"execution_mode": "background", "notify_on_complete": False, "internal_poll_readback": True, "terminal": True, "exit_code": 0},
+        ):
+            with self.subTest(receipt=receipt):
+                chain = self.production_handoff_chain(lambda agent, body: receipt)
+                recorded = chain["handoff_transport"]["agents"]["ptah"]["terminal_receipt"]
+                self.assertEqual(recorded, receipt)
+                self.assertEqual(chain["handoff_transport"]["status"], "terminal")
+
+        invalid = self.production_handoff_chain(lambda agent, body: {
+            "execution_mode": "background", "notify_on_complete": True,
+            "internal_poll_readback": False, "terminal": True, "exit_code": 0,
+        })
+        self.assertEqual(invalid["handoff_transport"]["status"], "hold")
+        self.assertEqual(invalid["reducer_result"]["status"], "hold")
+        self.assertIn("HOLD_TERMINAL_RECEIPT", invalid["reducer_result"]["failure_codes"])
+
+    def test_final_terminal_summary_validation_and_non_json_egress_are_exact(self):
+        summary = "Maat final: required nodes passed"
+        valid = preflight._normalize_final_judgment(
+            {"status": "pass", "Goal_closure": {"status": "pass"}, "terminal_summary": summary},
+            "maat-session", "{}",
+        )
+        self.assertEqual(valid["terminal_summary"], summary)
+        self.assertEqual(valid["status"], "pass")
+
+        failed = preflight._normalize_final_judgment(
+            {"status": "fail", "Goal_closure": {"status": "fail"}, "terminal_summary": "Maat final: required node failed"},
+            "maat-session", "{}",
+        )
+        failure_output = preflight.final_output_from_judgment(failed, {"missing_evidence": []})
+        self.assertEqual(failure_output["status"], "hold")
+        self.assertEqual(failure_output["terminal_summary"], "Maat final: required node failed")
+
+        for invalid in (None, "", "two\nlines", "two\rlines"):
+            raw = {"status": "pass", "Goal_closure": {"status": "pass"}}
+            if invalid is not None:
+                raw["terminal_summary"] = invalid
+            with self.subTest(invalid=invalid):
+                held = preflight._normalize_final_judgment(raw, "maat-session", "{}")
+                self.assertEqual(held["status"], "hold")
+                self.assertIn("HOLD_TERMINAL_SUMMARY_INVALID", held["failure_codes"])
+                self.assertNotIn("terminal_summary", held)
+
+        stdout = StringIO()
+        with patch.object(preflight, "run", return_value={
+            "ok": True, "final_output": {"terminal_summary": summary},
+        }), redirect_stdout(stdout):
+            exit_code = preflight.main(["--packet", "packet.json"])
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(stdout.getvalue(), summary + "\n")
+
+        stdout = StringIO()
+        with patch.object(preflight, "run", return_value={
+            "ok": True, "final_output": {},
+        }), redirect_stdout(stdout):
+            exit_code = preflight.main(["--packet", "packet.json"])
+        self.assertEqual(exit_code, 2)
+        self.assertEqual(stdout.getvalue(), "")
 
     def test_selective_maat_escalation_uses_explicit_signals(self):
         short = preflight.build_candidate({"root_goal": "rewrite this sentence"}, Path("packet.json"), REPO)
@@ -1186,7 +1299,7 @@ class TestCpsPreflightVerificationGate(TestCase):
                 final = {
                     "ptah": {"status": "pass"},
                     "anubis": {"status": "pass", "verdict": "pass"},
-                    "maat": {"status": "pass", "Goal_closure": {"status": "pass"}},
+                    "maat": {"status": "pass", "Goal_closure": {"status": "pass"}, "terminal_summary": "R2C fixture verification complete"},
                 }[profile]
                 count = 2 if profile == duplicate_profile else 1
                 with sqlite3.connect(state_path) as connection:
@@ -1298,6 +1411,21 @@ class TestCpsPreflightVerificationGate(TestCase):
     def test_R2C_03_malformed_identity_tail_and_postterminal_fail_closed(self):
         import external_runtime_dispatcher as dispatcher
         body, identity = self.r2c_identity()
+        maat_verdict = {
+            "status": "pass",
+            "Goal_closure": {"status": "pass"},
+            "terminal_summary": "R2C fixture verification complete",
+        }
+        extracted = dispatcher._json_object_from_output(f"native output\n{json.dumps(maat_verdict)}\n")
+        self.assertEqual(extracted, maat_verdict)
+        self.assertEqual(extracted["terminal_summary"], maat_verdict["terminal_summary"])
+        self.assertEqual(dispatcher._native_verdict("maat", json.dumps(maat_verdict)), "pass")
+        self.assertIsNone(dispatcher._native_verdict("maat", json.dumps(maat_verdict["Goal_closure"])))
+        self.assertIsNone(dispatcher._native_verdict("maat", "{malformed"))
+        self.assertIsNone(dispatcher._native_verdict("maat", json.dumps({"result": "no verdict"})))
+        self.assertIsNone(dispatcher._native_verdict(
+            "maat", f"{json.dumps(maat_verdict)}\n{json.dumps(maat_verdict)}",
+        ))
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             malformed, _ = self.run_r2c(root, {"run_handle": "caller-claim"})

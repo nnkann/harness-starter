@@ -376,21 +376,30 @@ def _tool_exit_status(content: str) -> int:
 
 def _json_object_from_output(output: str) -> dict[str, Any] | None:
     decoder = json.JSONDecoder()
-    parsed: dict[str, Any] | None = None
+    decoded: list[tuple[int, int, dict[str, Any]]] = []
     for index, character in enumerate(output):
         if character != "{":
             continue
         try:
-            value, _ = decoder.raw_decode(output[index:])
+            value, end = decoder.raw_decode(output[index:])
         except json.JSONDecodeError:
             continue
-        if isinstance(value, dict) and (
+        if isinstance(value, dict):
+            decoded.append((index, index + end, value))
+    top_level = [
+        value
+        for start, end, value in decoded
+        if not any(outer_start < start and end <= outer_end for outer_start, outer_end, _ in decoded)
+    ]
+    candidates = [
+        value for value in top_level
+        if (
             isinstance(value.get("status"), str)
             or isinstance(value.get("verdict"), str)
             or isinstance(value.get("Goal_closure"), dict)
-        ):
-            parsed = value
-    return parsed
+        )
+    ]
+    return candidates[0] if len(candidates) == 1 else None
 
 
 def _native_verdict(profile: str, output: str) -> str | None:

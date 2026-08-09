@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://harness.local/contracts/scheduled-readonly-consumer.v1.schema.json",
+  "title": "Harness scheduled read-only consumer declaration",
+  "type": "object",
+  "required": ["schema", "project", "job", "script", "no_agent", "capability", "required_names", "source"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "harness.scheduled-readonly-consumer.v1"},
+    "project": {
+      "type": "object",
+      "required": ["id", "root"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "root": {"type": "string", "minLength": 1}
+      }
+    },
+    "job": {
+      "type": "object",
+      "required": ["identity", "schedule", "delivery"],
+      "additionalProperties": false,
+      "properties": {
+        "identity": {"type": "string", "minLength": 1},
+        "schedule": {"type": "string", "minLength": 1},
+        "delivery": {"type": "string", "minLength": 1}
+      }
+    },
+    "script": {
+      "type": "object",
+      "required": ["identity", "digest"],
+      "additionalProperties": false,
+      "properties": {
+        "identity": {"type": "string", "minLength": 1},
+        "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      }
+    },
+    "no_agent": {"const": true},
+    "capability": {
+      "type": "object",
+      "required": ["class", "access"],
+      "additionalProperties": false,
+      "properties": {
+        "class": {"const": "scheduled_readonly_consumer"},
+        "access": {"const": "read_only"}
+      }
+    },
+    "required_names": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "uniqueItems": true,
+      "items": {"enum": ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]},
+      "allOf": [
+        {"contains": {"const": "SUPABASE_URL"}, "minContains": 1, "maxContains": 1},
+        {"contains": {"const": "SUPABASE_SERVICE_ROLE_KEY"}, "minContains": 1, "maxContains": 1}
+      ]
+    },
+    "source": {
+      "type": "object",
+      "required": ["class", "ref", "availability"],
+      "additionalProperties": false,
+      "properties": {
+        "class": {"enum": ["injected_fixture", "project_instance_adapter"]},
+        "ref": {"type": "string", "minLength": 1},
+        "availability": {
+          "type": "object",
+          "required": ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"],
+          "additionalProperties": false,
+          "properties": {
+            "SUPABASE_URL": {"const": true},
+            "SUPABASE_SERVICE_ROLE_KEY": {"const": true}
+          }
+        }
+      }
+    }
+  }
+}
