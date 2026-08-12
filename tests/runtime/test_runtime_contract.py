@@ -487,6 +487,7 @@ def _l35_source_chain(
     producer = {
         "schema": "harness.l3-ac14-source-producer-result.v1",
         "declaration_ref": "C-L3.5-PE2/D-CURRENT-2026-08-09",
+        "candidate_source_revision": plan["source_revision_projection"]["candidate"],
         "cell": producer_cell,
         "facts": {
             "source_native_preserved_ac": {
@@ -1856,6 +1857,110 @@ def test_l35_source_observation_constructor_preserves_false_facts_and_exact_evid
         }
     )
     assert observation["evidence_refs"] == expected_refs
+
+
+def test_l35_current_source_revision_projects_over_stale_candidate_identity_without_new_route(
+    tmp_path, monkeypatch
+):
+    plan, trusted = _l35_context_bound_to_real_source_producer()
+    current_revision = plan["candidate_revision_ref"]
+    stale_revision = "source-manifest:sha256:" + "0" * 64
+    admission = trusted["candidate_admission"]
+    admission["candidate"]["identity"] = stale_revision
+    admission_digest = _canonical_digest(admission)
+    packet = trusted["executor_packet"]
+    packet["source_refs"] = [admission["candidate_ref"], admission_digest]
+    packet_digest = _canonical_digest(packet)
+    plan["candidate_admission_digest"] = admission_digest
+    plan["executor_packet_digest"] = packet_digest
+    trusted.update(
+        expected_candidate_admission_digest=admission_digest,
+        expected_executor_packet_digest=packet_digest,
+        expected_pair_plan_digest=_canonical_digest(plan),
+    )
+    selector = {
+        "schema": "harness.l3-source-native-cell-observation.v1",
+        "declaration_ref": "C-L3.5-PE2/D-CURRENT-2026-08-09",
+        "cell": "candidate/held_in",
+    }
+    completed = subprocess.run(
+        [sys.executable, str(_L35_PRODUCER_PATH), "--stdin-only"],
+        input=_canonical_line(selector),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    assert completed.returncode == 0 and completed.stderr == b""
+    produced = json.loads(completed.stdout)
+    assert produced["cell"]["source_revision_ref"] == current_revision
+    assert produced["candidate_source_revision"] == {
+        "manifest": plan["source_revision_projection"]["candidate"]["manifest"],
+        "revision_ref": current_revision,
+    }
+
+    chain = _l35_source_chain(
+        plan=plan,
+        trusted=trusted,
+        cell={"arm": "candidate", "evaluation_split": "held_in"},
+    )
+    chain["source_output"] = completed.stdout
+    output_digest = hashlib.sha256(completed.stdout).hexdigest()
+    terminal = json.loads(chain["source_terminal_receipt"])
+    terminal["artifacts"]["stdout"].update(
+        sha256=output_digest, bytes=len(completed.stdout)
+    )
+    chain["source_terminal_receipt"] = _persisted_receipt_line(terminal)
+    chain["readback_projection"]["binding"]["source_revision_ref"] = current_revision
+    chain["readback_projection"]["artifacts"] = terminal["artifacts"]
+    chain["readback_projection"]["output_sha256"] = "sha256:" + output_digest
+    chain["readback_projection"]["terminal_receipt_sha256"] = (
+        "sha256:" + hashlib.sha256(chain["source_terminal_receipt"]).hexdigest()
+    )
+    chain["source_readback_projection"] = _canonical_line(
+        chain["readback_projection"]
+    )
+
+    observation = json.loads(runtime_module._construct_l35_source_observation(
+        source_case_id=chain["source_case_id"],
+        evaluator_case_id=chain["evaluator_case_id"],
+        source_output=chain["source_output"],
+        source_dispatch_receipt=chain["source_dispatch_receipt"],
+        source_terminal_receipt=chain["source_terminal_receipt"],
+        source_readback_projection=chain["source_readback_projection"],
+        pair_plan=plan,
+        paired_cell=chain["cell"],
+        **trusted,
+    ))
+
+    assert observation["binding"]["source_revision_ref"] == current_revision
+    assert json.loads(chain["source_readback_projection"])["binding"]["source_revision_ref"] == current_revision
+    assert current_revision.encode() in chain["source_output"]
+    assert observation["owner_holds"] == _L35_OWNER_HOLDS
+    serialized = _canonical_line(observation).decode()
+    assert "replay" not in serialized
+    assert "declaration_route" not in serialized
+
+    state_dir = tmp_path / "isolated-state"
+    monkeypatch.setenv("HARNESS_STATE_DIR", str(state_dir))
+    terminal = runtime_module.execute_paired_cell(
+        chain["evaluator_case_id"],
+        "maat",
+        chain["source_output"],
+        _L35_EVALUATOR_COMMAND,
+        source_case_id=chain["source_case_id"],
+        source_dispatch_receipt=chain["source_dispatch_receipt"],
+        source_terminal_receipt=chain["source_terminal_receipt"],
+        source_readback_projection=chain["source_readback_projection"],
+        worktree_cwd=_clean_git_worktree(tmp_path / "worktree"),
+        pair_plan=plan,
+        paired_cell=chain["cell"],
+        **trusted,
+    )
+    assert terminal["paired_evaluation"]["source_revision_ref"] == current_revision
+    persisted = runtime_module.readback(
+        chain["evaluator_case_id"], expected_consumer="maat"
+    )["receipt"]
+    assert persisted["paired_evaluation"]["source_revision_ref"] == current_revision
 
 
 def test_l35_source_observation_constructor_rejects_same_case_future_stale_mixed_and_substituted_evidence():

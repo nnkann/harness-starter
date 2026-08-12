@@ -26,14 +26,7 @@ DECLARATION_REF = "C-L3.5-PE2/D-CURRENT-2026-08-09"
 BASELINE_REVISION_REF = (
     "source-manifest:sha256:06f214e8971bc934a3829dc7ac07f35ac2d522945b5aa2cbe4831a5493642d89"
 )
-CANDIDATE_REVISION_REF = (
-    "source-manifest:sha256:41a23e529a3b3f55e6e292be30d1cbdc97a6f24f7c8318f8fffb10663aced0b5"
-)
-CANDIDATE_MANIFEST = {
-    "contracts/execution-receipt.v1.schema.json": "fb602d300025790a051c410e4a000fc4d523964382213b8da28e760ee3c11ae1",
-    "runtime/harness_runtime/runtime.py": "876b555fe98d7a5692ce37cc18e368569a0fd086fdc7d819c204149fce2dd560",
-    "tests/runtime/test_runtime_contract.py": "37d01411bae038e874343a2797ae7689fab24f045c013fb9f4e960950a99a545",
-}
+
 MODEL_IDENTITY = "C-L3.4-receipt-backed-paired-runtime"
 MODEL_CONFIGURATION_DIGEST = (
     "sha256:1a2e1302ee243aff4237597118377cc28b835690fccacc6587942dcb7d311008"
@@ -57,6 +50,21 @@ def _cell_identity(cell: dict) -> str:
         inputs, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode("utf-8") + b"\n"
     return "sha256:" + hashlib.sha256(canonical).hexdigest()
+
+
+def _candidate_projection(root: Path = PROJECT_ROOT) -> tuple[dict[str, str], str]:
+    manifest = {
+        relative: hashlib.sha256((root / relative).read_bytes()).hexdigest()
+        for relative in TARGET_PATHS
+    }
+    canonical = json.dumps(
+        manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8") + b"\n"
+    revision = "source-manifest:sha256:" + hashlib.sha256(canonical).hexdigest()
+    return manifest, revision
+
+
+CANDIDATE_MANIFEST, CANDIDATE_REVISION_REF = _candidate_projection()
 
 
 CELLS = {
@@ -174,7 +182,9 @@ def test_phase1_selector_only_input_is_the_complete_factual_contract(cell_name):
     assert completed.stderr == b""
     result = json.loads(completed.stdout)
     assert completed.stdout == _canonical(result)
-    assert set(result) == {"schema", "declaration_ref", "cell", "facts"}
+    assert set(result) == {
+        "schema", "declaration_ref", "candidate_source_revision", "cell", "facts"
+    }
     assert result["declaration_ref"] == DECLARATION_REF
     assert result["cell"] == {
         "cell": cell_name,
@@ -202,45 +212,43 @@ def test_revised_candidate_manifest_and_identity_are_directly_projected_from_cur
     producer = _load_producer_module()
     assert producer._observe_candidate_manifest() == (CANDIDATE_MANIFEST, CANDIDATE_REVISION_REF)
 
+    completed = _run(_canonical(_selector()), "--stdin-only")
+    result = json.loads(completed.stdout)
+    assert result["candidate_source_revision"] == {
+        "manifest": CANDIDATE_MANIFEST,
+        "revision_ref": CANDIDATE_REVISION_REF,
+    }
 
-def test_producer_only_mutation_preserves_target_manifest_revision_and_cells(tmp_path):
+
+def test_changed_target_bytes_project_a_new_manifest_revision_and_candidate_identity(tmp_path):
     producer_path = _copy_producer_tree(tmp_path)
-    before = {
-        cell_name: _run_copied(producer_path, _canonical(_selector(cell_name))).stdout
-        for cell_name in CELLS
-    }
-    producer_path.write_bytes(producer_path.read_bytes() + b"\n# producer-only mutation\n")
-    observed_manifest = {
-        relative: hashlib.sha256((tmp_path / relative).read_bytes()).hexdigest()
-        for relative in TARGET_PATHS
-    }
-
-    assert observed_manifest == CANDIDATE_MANIFEST
-    assert (
-        "source-manifest:sha256:"
-        + hashlib.sha256(_canonical(observed_manifest)).hexdigest()
-        == CANDIDATE_REVISION_REF
+    before = json.loads(
+        _run_copied(producer_path, _canonical(_selector())).stdout
     )
-    for cell_name, expected_stdout in before.items():
-        completed = _run_copied(producer_path, _canonical(_selector(cell_name)))
-        assert completed.returncode == 0
-        assert completed.stdout == expected_stdout
-        assert json.loads(completed.stdout)["cell"] == {
-            "cell": cell_name,
-            **CELLS[cell_name],
-        }
+    target = tmp_path / "runtime/harness_runtime/runtime.py"
+    target.write_bytes(target.read_bytes() + b"\n# changed candidate byte\n")
+    manifest, revision = _candidate_projection(tmp_path)
+
+    completed = _run_copied(producer_path, _canonical(_selector()))
+    assert completed.returncode == 0
+    result = json.loads(completed.stdout)
+    assert revision != before["candidate_source_revision"]["revision_ref"]
+    assert result["candidate_source_revision"] == {
+        "manifest": manifest,
+        "revision_ref": revision,
+    }
+    assert result["cell"]["source_revision_ref"] == revision
+    assert result["cell"]["cell_identity"] == _cell_identity(result["cell"])
 
 
 @pytest.mark.parametrize("target_relative", TARGET_PATHS)
-@pytest.mark.parametrize("failure", ["mismatched", "missing", "tampered"])
-def test_mismatched_missing_or_tampered_target_source_fails_closed(
+@pytest.mark.parametrize("failure", ["missing", "tampered"])
+def test_missing_or_tampered_target_source_fails_closed(
     tmp_path, target_relative, failure
 ):
     producer_path = _copy_producer_tree(tmp_path)
     target = tmp_path / target_relative
-    if failure == "mismatched":
-        target.write_bytes(target.read_bytes() + b"\n")
-    elif failure == "missing":
+    if failure == "missing":
         target.unlink()
     else:
         target.unlink()

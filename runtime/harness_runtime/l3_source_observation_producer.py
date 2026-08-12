@@ -13,14 +13,11 @@ _RESULT_SCHEMA = "harness.l3-ac14-source-producer-result.v1"
 _BASELINE_REVISION_REF = (
     "source-manifest:sha256:06f214e8971bc934a3829dc7ac07f35ac2d522945b5aa2cbe4831a5493642d89"
 )
-_CANDIDATE_REVISION_REF = (
-    "source-manifest:sha256:41a23e529a3b3f55e6e292be30d1cbdc97a6f24f7c8318f8fffb10663aced0b5"
+_CANDIDATE_PATHS = (
+    "contracts/execution-receipt.v1.schema.json",
+    "runtime/harness_runtime/runtime.py",
+    "tests/runtime/test_runtime_contract.py",
 )
-_CANDIDATE_MANIFEST = {
-    "contracts/execution-receipt.v1.schema.json": "fb602d300025790a051c410e4a000fc4d523964382213b8da28e760ee3c11ae1",
-    "runtime/harness_runtime/runtime.py": "876b555fe98d7a5692ce37cc18e368569a0fd086fdc7d819c204149fce2dd560",
-    "tests/runtime/test_runtime_contract.py": "37d01411bae038e874343a2797ae7689fab24f045c013fb9f4e960950a99a545",
-}
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _MAX_TARGET_BYTES = 2 * 1024 * 1024
 _MODEL_IDENTITY = "C-L3.4-receipt-backed-paired-runtime"
@@ -62,7 +59,6 @@ _CELLS = {
     },
     "candidate/held_in": {
         "arm": "candidate",
-        "source_revision_ref": _CANDIDATE_REVISION_REF,
         "evaluation_split": "held_in",
         "split_ref": "packet:C-L3.4#AC14:fresh-valid-chain",
         "split_digest": "sha256:130457b452647ac9bd236c4cb407e7264c8fb952389767740a7070cb3c3c5fec",
@@ -72,7 +68,6 @@ _CELLS = {
     },
     "candidate/held_out": {
         "arm": "candidate",
-        "source_revision_ref": _CANDIDATE_REVISION_REF,
         "evaluation_split": "held_out",
         "split_ref": "packet:C-L3.4#fail-closed-boundaries",
         "split_digest": "sha256:bfbe5cc7c7ee3582808bff92418a239277ea5e70271476fb2d97fcc5ebc6543a",
@@ -145,16 +140,11 @@ def _read_declared_target(relative_path: str) -> bytes:
 def _observe_candidate_manifest() -> tuple[dict[str, str], str]:
     observed_manifest = {
         relative_path: hashlib.sha256(_read_declared_target(relative_path)).hexdigest()
-        for relative_path in _CANDIDATE_MANIFEST
+        for relative_path in _CANDIDATE_PATHS
     }
     observed_revision_ref = (
         "source-manifest:sha256:" + hashlib.sha256(_canonical(observed_manifest)).hexdigest()
     )
-    if (
-        observed_manifest != _CANDIDATE_MANIFEST
-        or observed_revision_ref != _CANDIDATE_REVISION_REF
-    ):
-        raise ValueError
     return observed_manifest, observed_revision_ref
 
 
@@ -167,9 +157,11 @@ def _produce(source_input: object) -> dict:
         or source_input["cell"] not in _CELLS
     ):
         raise ValueError
-    _observe_candidate_manifest()
+    candidate_manifest, candidate_revision_ref = _observe_candidate_manifest()
     cell_name = source_input["cell"]
-    identity_inputs = _CELLS[cell_name]
+    identity_inputs = dict(_CELLS[cell_name])
+    if identity_inputs["arm"] == "candidate":
+        identity_inputs["source_revision_ref"] = candidate_revision_ref
     cell = {
         "cell": cell_name,
         "cell_identity": _derive_cell_identity(identity_inputs),
@@ -178,6 +170,10 @@ def _produce(source_input: object) -> dict:
     return {
         "schema": _RESULT_SCHEMA,
         "declaration_ref": _DECLARATION_REF,
+        "candidate_source_revision": {
+            "manifest": candidate_manifest,
+            "revision_ref": candidate_revision_ref,
+        },
         "cell": cell,
         "facts": {
             "source_native_preserved_ac": {

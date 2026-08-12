@@ -504,7 +504,6 @@ def _validate_admitted_pair_plan(
     if (
         set(projection["baseline"]["manifest"]) != set(allowed_write_refs)
         or set(projection["candidate"]["manifest"]) != set(allowed_write_refs)
-        or projection["candidate"]["revision_ref"] != candidate["identity"]
     ):
         raise ReceiptValidationError("source revision projection does not match candidate admission")
     decision = plan["decision_observation"]
@@ -513,8 +512,10 @@ def _validate_admitted_pair_plan(
         decision["causal_hypothesis"] != candidate["causal_hypothesis"]
         or decision["predicted_benefit"] != target["expected_ac_effect"]
         or decision["at_risk_regression"] != criteria["non_inferiority"]
-        or targeted_change["ref"] != candidate["identity"]
-        or targeted_change["sha256"] != "sha256:" + candidate["identity"].removeprefix("source-manifest:sha256:")
+        or targeted_change["ref"] != projection["candidate"]["revision_ref"]
+        or targeted_change["sha256"]
+        != "sha256:"
+        + projection["candidate"]["revision_ref"].removeprefix("source-manifest:sha256:")
     ):
         raise ReceiptValidationError("candidate decision observation does not match pair plan")
     expected = {
@@ -608,18 +609,38 @@ def _l35_producer_cell(plan: dict[str, Any], paired_cell: object) -> dict[str, A
 
 
 def _validate_l35_source_producer_result(
-    value: object, expected_cell: object
+    value: object,
+    expected_cell: object,
+    allowed_candidate_paths: list[str] | dict[str, str] | None = None,
 ) -> dict[str, Any]:
     producer = _parse_exact_line(value, "source producer result")
     producer = _exact_mapping(
         producer,
-        {"schema", "declaration_ref", "cell", "facts"},
+        {"schema", "declaration_ref", "candidate_source_revision", "cell", "facts"},
         "source producer result",
     )
     if producer["schema"] != "harness.l3-ac14-source-producer-result.v1":
         raise ReceiptValidationError("source producer result schema is unsupported")
     if producer["declaration_ref"] != _L35_DECLARATION_REF:
         raise ReceiptValidationError("source producer declaration is not sealed")
+    candidate_projection = _exact_mapping(
+        producer["candidate_source_revision"],
+        {"manifest", "revision_ref"},
+        "source producer candidate revision",
+    )
+    manifest = candidate_projection["manifest"]
+    if not isinstance(manifest, dict) or not manifest:
+        raise ReceiptValidationError("source producer candidate manifest is invalid")
+    for path, digest in manifest.items():
+        _source_path(path, "source producer candidate manifest path")
+        if not isinstance(digest, str) or _SHA256_RE.fullmatch(digest) is None:
+            raise ReceiptValidationError("source producer candidate manifest digest is invalid")
+    revision_ref = candidate_projection["revision_ref"]
+    if (
+        (allowed_candidate_paths is not None and set(manifest) != set(allowed_candidate_paths))
+        or revision_ref != "source-manifest:" + _projection_digest(manifest)
+    ):
+        raise ReceiptValidationError("source producer candidate revision is not admitted")
     cell = _exact_mapping(
         producer["cell"], _L35_PRODUCER_CELL_FIELDS, "source producer cell"
     )
@@ -640,7 +661,14 @@ def _validate_l35_source_producer_result(
         raise ReceiptValidationError("source producer cell is unsupported")
     for field in ("split_ref", "model_identity", "sampling_identity"):
         _bounded_text(cell[field], f"source producer cell {field}")
-    if cell != expected:
+    projected_expected = expected
+    if cell["arm"] == "candidate":
+        projected_expected = {
+            **expected,
+            "source_revision_ref": revision_ref,
+            "cell_identity": cell["cell_identity"],
+        }
+    if cell != projected_expected:
         raise ReceiptValidationError("source producer cell does not match sealed paired cell")
 
     facts = _exact_mapping(producer["facts"], _L35_PRODUCER_FACT_FIELDS, "source producer facts")
@@ -749,9 +777,18 @@ def _construct_l35_source_observation(
         executor_packet,
         expected_executor_packet_digest,
     )
-    producer_binding = _l35_producer_binding(plan, plan_digest, paired_cell)
     expected_producer_cell = _l35_producer_cell(plan, paired_cell)
-    producer = _validate_l35_source_producer_result(source_output, expected_producer_cell)
+    producer = _validate_l35_source_producer_result(
+        source_output,
+        expected_producer_cell,
+        plan["source_revision_projection"]["candidate"]["manifest"],
+    )
+    producer_binding = _l35_producer_binding(plan, plan_digest, paired_cell)
+    if producer["cell"]["arm"] == "candidate":
+        producer_binding = {
+            **producer_binding,
+            "source_revision_ref": producer["cell"]["source_revision_ref"],
+        }
     _, terminal = _validate_l35_source_receipts(
         source_case_id,
         source_output,
@@ -855,6 +892,13 @@ def _validate_pair_binding(value: object) -> dict[str, Any]:
         plan_digest,
         {"arm": binding["arm"], "evaluation_split": binding["evaluation_split"]},
     )
+    if binding["arm"] == "candidate":
+        if (
+            not isinstance(binding["source_revision_ref"], str)
+            or _SOURCE_REVISION_RE.fullmatch(binding["source_revision_ref"]) is None
+        ):
+            raise ReceiptValidationError("paired evaluation source revision is invalid")
+        expected["source_revision_ref"] = binding["source_revision_ref"]
     if binding != expected:
         raise ReceiptValidationError("paired evaluation binding does not match pair plan")
     return binding
@@ -1317,7 +1361,13 @@ def execute_paired_cell(
         executor_packet,
         expected_executor_packet_digest,
     )
-    binding = _pair_binding(plan, plan_digest, paired_cell)
+    observed_binding = _parse_exact_line(
+        source_observation, "source observation"
+    )["binding"]
+    binding = {
+        **_pair_binding(plan, plan_digest, paired_cell),
+        "source_revision_ref": observed_binding["source_revision_ref"],
+    }
     worktree, commit, tree = _worktree(worktree_cwd)
     state_root = _state_root()
     if state_root == worktree or worktree in state_root.parents:

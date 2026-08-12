@@ -442,12 +442,12 @@ class TestCpsPreflightVerificationGate(TestCase):
         self.assertEqual(chain["reducer_result"]["node_projection_gate"]["status"], "hold")
         self.assertEqual(chain["final_judgment"]["source"], "local_node_projection_gate")
 
-    def test_configured_contract_is_active_cps_preflight_route_gate_contract(self):
+    def test_configured_contract_is_active_execution_direct_transport_contract(self):
         self.assertTrue(preflight.CONTRACT_PATH.is_file())
         contract = preflight.CONTRACT_PATH.read_text(encoding="utf-8")
-        self.assertIn("title: CPS Preflight Route-Gate Work Contract", contract)
+        self.assertIn("title: CPS Execution-Direct Local Body Work Contract", contract)
         self.assertIn("status: active", contract)
-        self.assertIn("c: cps_preflight_route_gate", contract)
+        self.assertIn("execution_direct_local_body:", contract)
 
     def candidate(self, verification, p=None, s=None, e=None):
         packet = {
@@ -854,12 +854,13 @@ class TestCpsPreflightVerificationGate(TestCase):
             "pass",
         )
 
-    def production_handoff_chain(self, runner):
+    def production_handoff_chain(self, runner, packet_overrides=None):
         packet = {
             "root_goal": "bounded handoff", "C_ref": "C:stable",
             "source_refs": ["source:stable"], "mutation_scope": ["runtime"],
             "task_AC": ["AC1"], "route_candidates": ["ptah"],
         }
+        packet.update(packet_overrides or {})
         candidate = preflight.build_candidate(packet, Path("packet.json"), REPO)
         route = preflight.adjudicate(candidate)
         route.update({
@@ -886,7 +887,7 @@ class TestCpsPreflightVerificationGate(TestCase):
                 selected_agent_runner=runner,
             )
 
-    def test_execute_preflight_chain_dispatches_minimal_stable_instruction(self):
+    def test_T1_successful_handoff_invokes_owner_once_with_unchanged_body_bytes(self):
         runner_calls = []
 
         def foreground_runner(agent, body):
@@ -905,6 +906,89 @@ class TestCpsPreflightVerificationGate(TestCase):
             "C_ref", "source_refs", "boundary", "owner", "P_to_S", "node_AC",
         })
         self.assertNotIn("handoff_envelope", expected.decode())
+
+    def test_T1_need_local_body_without_concrete_body_is_one_bounded_observation(self):
+        closure = preflight.apply_closure_relevance_semantics(
+            {"status": "pass", "final_selected_agents": {"ptah": {}}, "local_body_scope": {"ptah": True}},
+            {"ptah": {"response": "need_local_body", "reason": "body absent", "closure_relevance": "required"}},
+        )
+        self.assertEqual(closure["status"], "unresolved")
+        self.assertEqual(closure["transport_observations"], [{
+            "agent": "ptah", "status": "need_local_body", "reason": "body absent",
+        }])
+        self.assertFalse(closure["continuation_required"])
+        self.assertFalse(closure["reentry_required"])
+
+        with patch.object(preflight, "build_agent_body_map", return_value=({"ptah": {}}, {})):
+            chain = self.production_handoff_chain(lambda agent, body: self.fail("owner must not run"))
+
+        transport = chain["handoff_transport"]
+        self.assertEqual(transport["status"], "observed")
+        self.assertEqual(transport["observations"], [{
+            "agent": "ptah", "status": "need_local_body", "reason": "selected local body is absent",
+        }])
+        self.assertEqual({key: transport[key] for key in (
+            "dispatch_count", "continuation_count", "reentry_count", "derived_C_count", "followup_dispatch_count",
+        )}, {key: 0 for key in (
+            "dispatch_count", "continuation_count", "reentry_count", "derived_C_count", "followup_dispatch_count",
+        )})
+        self.assertIsNone(chain["continuation_receipt"])
+
+    def test_T1_observational_carrier_gap_preserves_product_route_and_closure(self):
+        reducer = {
+            "status": "pass", "C_boundary": "PASS_ONE_C", "revised_C": {"C1": "accepted"},
+            "final_selected_agents": {"ptah": {}, "anubis": {}},
+            "local_body_scope": {"ptah": True, "anubis": True},
+            "product_owner": "ptah", "final_AC": ["PRODUCT-AC1"], "selected_product_action": "apply",
+        }
+        responses = {
+            "ptah": {"response": "ACCEPT", "reason": "required product complete", "closure_relevance": "required"},
+            "anubis": {"response": "DENIED", "reason": "carrier unavailable", "closure_relevance": "observational"},
+        }
+
+        result = preflight.apply_closure_relevance_semantics(reducer, responses)
+
+        for key in ("revised_C", "product_owner", "final_AC", "selected_product_action"):
+            self.assertEqual(result[key], reducer[key])
+        self.assertEqual(result["closure_evidence"]["anubis"], {
+            "closure_relevance": "observational", "status": "denied", "reason": "carrier unavailable",
+        })
+        self.assertEqual(result["final_selected_agents"], {"ptah": {}})
+        self.assertEqual(result["followup_dispatch"], [])
+        self.assertFalse(result["continuation_required"])
+        self.assertFalse(result["reentry_required"])
+
+    def test_T1_packet_selected_body_hash_self_claim_does_not_gate_dispatch(self):
+        calls = []
+        chain = self.production_handoff_chain(
+            lambda agent, body: calls.append((agent, body)) or {
+                "execution_mode": "foreground", "terminal": True, "exit_code": 0,
+            },
+            {"selected_body_sha256": {"ptah": "0" * 64}},
+        )
+
+        self.assertEqual(len(calls), 1)
+        transport = chain["handoff_transport"]
+        self.assertEqual(transport["dispatch_count"], 1)
+        self.assertEqual(transport["selected_body_authority"], "unavailable")
+        self.assertEqual(transport["ignored_packet_selected_body_sha256"], ["ptah"])
+        self.assertEqual(transport["continuation_count"], 0)
+        self.assertEqual(transport["reentry_count"], 0)
+        self.assertEqual(transport["derived_C_count"], 0)
+        self.assertEqual(transport["followup_dispatch_count"], 0)
+        self.assertIsNone(chain["continuation_receipt"])
+
+    def test_T1_product_failure_has_no_hold_gap_successor_or_continuation_route(self):
+        contribution = {"C": {"C1": "selected"}, "P": {}, "S": {}, "E": []}
+        reducer = {"revised_C": contribution["C"]}
+        final = {"status": "fail", "missing_evidence": ["PRODUCT-AC1"]}
+
+        gap = preflight.build_hold_gap_loop(contribution, final, reducer)
+
+        self.assertEqual(gap["status"], "unresolved")
+        self.assertIsNone(gap["return_to"])
+        self.assertIsNone(gap["next_action"])
+        self.assertEqual(gap["missing_evidence"], ["PRODUCT-AC1"])
 
     def test_observational_denial_is_preserved_without_holding_required_pass_closure(self):
         reducer = {
@@ -934,7 +1018,7 @@ class TestCpsPreflightVerificationGate(TestCase):
         self.assertFalse(result["reentry_required"])
         self.assertEqual(result["followup_dispatch"], [])
 
-    def test_required_failure_and_unknown_relevance_fail_closed(self):
+    def test_T1_required_product_failure_stays_unresolved_without_successor_route(self):
         for response, failure in (
             ({"response": "DENIED", "reason": "required verifier denied", "closure_relevance": "required"}, "HOLD_REQUIRED_NODE_FAILURE"),
             ({"response": "DENIED", "reason": "missing relevance is required"}, "HOLD_REQUIRED_NODE_FAILURE"),
@@ -949,9 +1033,11 @@ class TestCpsPreflightVerificationGate(TestCase):
                 self.assertEqual(result["status"], "hold")
                 self.assertEqual(result["C_boundary"], "HOLD")
                 self.assertIn(failure, result["failure_codes"])
-                self.assertTrue(result["continuation_required"])
+                self.assertFalse(result["continuation_required"])
+                self.assertFalse(result["reentry_required"])
+                self.assertEqual(result["followup_dispatch"], [])
 
-    def test_chain_member_runner_receipt_records_foreground_or_internal_background_readback(self):
+    def test_T1_terminal_receipt_gap_is_non_authoritative_and_owner_runs_once(self):
         for receipt in (
             {"execution_mode": "foreground", "terminal": True, "exit_code": 0},
             {"execution_mode": "background", "notify_on_complete": False, "internal_poll_readback": True, "terminal": True, "exit_code": 0},
@@ -966,9 +1052,29 @@ class TestCpsPreflightVerificationGate(TestCase):
             "execution_mode": "background", "notify_on_complete": True,
             "internal_poll_readback": False, "terminal": True, "exit_code": 0,
         })
-        self.assertEqual(invalid["handoff_transport"]["status"], "hold")
-        self.assertEqual(invalid["reducer_result"]["status"], "hold")
-        self.assertIn("HOLD_TERMINAL_RECEIPT", invalid["reducer_result"]["failure_codes"])
+        self.assertEqual(invalid["handoff_transport"]["status"], "observed")
+        self.assertEqual(invalid["handoff_transport"]["dispatch_count"], 1)
+        self.assertEqual(invalid["handoff_transport"]["agents"]["ptah"]["status"], "unknown")
+        self.assertEqual(invalid["reducer_result"]["status"], "pass")
+        self.assertEqual(invalid["reducer_result"].get("C_boundary"), "PASS_ONE_C")
+        self.assertNotIn("HOLD_TERMINAL_RECEIPT", invalid["reducer_result"].get("failure_codes", []))
+        self.assertIsNone(invalid["continuation_receipt"])
+
+    def test_T1_contribute_cps_has_no_transport_owned_final_ac_surface(self):
+        contribution = preflight.build_contribute_cps(
+            {"root_goal": "product goal", "task_AC": ["PRODUCT-AC1"]},
+            {"Goal": "product goal", "C?": {"C1": "accepted"}},
+            {"C": {"C1": "accepted"}, "accepted_P": {}, "accepted_S": {}, "E": []},
+            {}, {"status": "pass", "final_selected_agents": {}, "local_body_scope": {}},
+            {"aggregate": {"direct_dispatch_count": 0}},
+        )
+
+        self.assertNotIn("task_AC", contribution)
+        self.assertNotIn("AC_evidence", contribution)
+        self.assertNotIn("Goal_closure", contribution)
+        self.assertEqual(contribution["Goal"], "product goal")
+        self.assertEqual(contribution["final_AC"], ["PRODUCT-AC1"])
+        self.assertEqual(contribution["transport_diagnostics"]["direct_dispatch_count"], 0)
 
     def test_final_terminal_summary_validation_and_non_json_egress_are_exact(self):
         summary = "Maat final: required nodes passed"
@@ -1086,7 +1192,7 @@ class TestCpsPreflightVerificationGate(TestCase):
         self.assertEqual(result["reentry_iterations"], 0)
         self.assertEqual(events[-1]["event_type"], "workflow_closed")
 
-    def test_fresh_verified_repair_reuses_c_ac_route_receipt_without_route_model_call(self):
+    def test_receipt_lineage_does_not_reuse_or_gate_selected_route(self):
         packet = {
             "root_goal": "repair AC3",
             "task_AC": [{"id": "AC3", "text": "fresh repair"}],
@@ -1135,23 +1241,22 @@ class TestCpsPreflightVerificationGate(TestCase):
              patch.object(preflight, "invoke_maat_reducer", return_value=reducer_result) as reducer:
             chain = preflight.execute_preflight_chain(packet, Path("packet.json"), REPO, "live-maat", candidate)
 
-        route_maat.assert_not_called()
+        route_maat.assert_called_once()
         reducer.assert_called_once()
         self.assertEqual(chain["receipt_delta_gate"]["action"], "reenter")
-        for key in ("receipt_identity", "C_ref", "AC_digest", "graph_revision", "parent_edge_ref"):
-            self.assertEqual(chain["C_AC_route_receipt"][key], route_receipt[key])
-        self.assertEqual(chain["route"]["C"], route["C"])
-        self.assertEqual(chain["route"]["accepted_P"], route["accepted_P"])
-        self.assertEqual(chain["route"]["accepted_S"], route["accepted_S"])
+        self.assertFalse(chain["receipt_delta_gate"]["semantic_gate"])
+        self.assertIsNone(chain["continuation_receipt"])
 
         mismatch = json.loads(json.dumps(packet))
         mismatch["prior_continuation_receipt"]["C_AC_route_receipt"]["C_ref"] = "C:other"
         mismatch_candidate = preflight.build_candidate(mismatch, Path("packet.json"), REPO)
-        with patch.object(preflight, "invoke_live_maat") as mismatch_route_maat:
+        with patch.object(preflight, "invoke_live_maat", return_value=route) as mismatch_route_maat, \
+             patch.object(preflight, "probe_agents_as_arrive", return_value=({}, {})), \
+             patch.object(preflight, "invoke_maat_reducer", return_value=reducer_result):
             held = preflight.execute_preflight_chain(mismatch, Path("packet.json"), REPO, "live-maat", mismatch_candidate)
-        mismatch_route_maat.assert_not_called()
-        self.assertEqual(held["receipt_delta_gate"]["action"], "hold_mismatch")
-        self.assertIn("receipt_delta.C_AC_route_receipt_identity_mismatch", held["receipt_delta_gate"]["gap_classes"])
+        mismatch_route_maat.assert_called_once()
+        self.assertFalse(held["receipt_delta_gate"]["semantic_gate"])
+        self.assertIsNone(held["continuation_receipt"])
 
     def test_execution_needed_without_verification_s_holds_with_gap_class(self):
         gap, route = self.route_gap({"execution_kind": "execution-needed", "evidence_mode": "source-backed"})

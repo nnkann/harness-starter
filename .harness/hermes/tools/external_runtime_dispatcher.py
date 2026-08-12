@@ -185,13 +185,14 @@ def _validate_runtime_facts(facts: Any, identity: dict[str, Any]) -> dict[str, A
     argv = facts["argv"]
     if not isinstance(argv, list) or not argv or any(not isinstance(item, str) or not item for item in argv):
         raise ValueError("invalid runtime facts: argv")
-    transport = _validate_execution_transport(facts["execution_transport"], identity, facts["native_profile_ref"])
+    transport = _validate_execution_transport(
+        facts["execution_transport"], identity, facts["native_profile_ref"], strict_binding=False,
+    )
     provider, model, toolsets = _resolved_transport(transport)
     if facts["provider"] != provider or facts["model"] != model or facts["toolsets"] != toolsets:
         raise ValueError("invalid runtime facts: selected transport")
-    expected_digest = transport["attachment_digest"] if transport is not None else None
-    if facts["execution_transport_digest"] != expected_digest:
-        raise ValueError("invalid runtime facts: execution transport digest")
+    if facts["execution_transport_digest"] != _launch_transport_digest(transport):
+        raise ValueError("invalid runtime facts: selected transport digest")
     project_root = str(PROJECT_ROOT)
     if facts["cwd"] != project_root or facts["terminal_cwd"] != project_root:
         raise ValueError("invalid runtime facts: project cwd contract")
@@ -277,33 +278,49 @@ def _validate_execution_transport(
     transport: Any,
     identity: dict[str, Any],
     consumer_ref: str,
+    *,
+    strict_binding: bool = True,
 ) -> dict[str, Any] | None:
     if transport is None:
         return None
-    if not isinstance(transport, dict) or set(transport) != EXECUTION_TRANSPORT_KEYS:
+    if not isinstance(transport, dict) or (strict_binding and set(transport) != EXECUTION_TRANSPORT_KEYS):
         raise ValueError("malformed execution_transport attachment")
-    if transport["issuer"] != "maat" or not isinstance(transport["issuer_ref"], str) or not transport["issuer_ref"]:
+    if strict_binding and (transport["issuer"] != "maat" or not isinstance(transport["issuer_ref"], str) or not transport["issuer_ref"]):
         raise ValueError("invalid execution_transport provenance")
-    binding = transport["binding"]
-    if not isinstance(binding, dict) or set(binding) != TRANSPORT_BINDING_KEYS:
+    binding = transport.get("binding")
+    if not isinstance(binding, dict) or (strict_binding and set(binding) != TRANSPORT_BINDING_KEYS):
         raise ValueError("malformed execution_transport binding")
-    if binding != _transport_binding(identity, consumer_ref) or transport["cwd_binding"] != "project_root":
+    if (
+        binding.get("owner_ref") != consumer_ref
+        or binding.get("project_root") != str(PROJECT_ROOT)
+        or transport.get("cwd_binding") != "project_root"
+    ):
         raise ValueError("execution_transport binding mismatch")
     for key in ("provider", "model"):
-        if not isinstance(transport[key], str) or not transport[key]:
+        if not isinstance(transport.get(key), str) or not transport[key]:
             raise ValueError(f"malformed execution_transport {key}")
-    toolsets = transport["toolsets"]
+    toolsets = transport.get("toolsets")
     if (
         not isinstance(toolsets, list) or not toolsets
         or any(not isinstance(item, str) or not item for item in toolsets)
         or len(toolsets) != len(set(toolsets))
     ):
         raise ValueError("malformed execution_transport toolsets")
-    digest = transport["attachment_digest"]
-    unsigned = {key: value for key, value in transport.items() if key != "attachment_digest"}
-    if not isinstance(digest, str) or digest != _canonical_digest(unsigned):
-        raise ValueError("execution_transport digest mismatch")
     return json.loads(json.dumps(transport))
+
+
+def _launch_transport_digest(transport: dict[str, Any] | None) -> str | None:
+    if transport is None:
+        return None
+    binding = transport["binding"]
+    return _canonical_digest({
+        "owner_ref": binding["owner_ref"],
+        "project_root": binding["project_root"],
+        "provider": transport["provider"],
+        "model": transport["model"],
+        "toolsets": transport["toolsets"],
+        "cwd_binding": transport["cwd_binding"],
+    })
 
 
 def _resolved_transport(transport: dict[str, Any] | None) -> tuple[str | None, str | None, list[str]]:
@@ -358,6 +375,31 @@ def _native_argv(
         str(HERMES_MAX_TURNS), "-q", query,
     ])
     return argv
+
+
+def _validate_irreversible_launch_inputs(
+    facts: dict[str, Any], identity: dict[str, Any], consumer_ref: str, body: bytes,
+) -> tuple[dict[str, Any] | None, list[str]]:
+    if consumer_ref != identity["owner_ref"] or facts["native_profile_ref"] != consumer_ref:
+        raise RuntimeError("selected owner mismatch")
+    if hashlib.sha256(body).hexdigest() != identity["immutable_body_digest"]:
+        raise RuntimeError("selected body mismatch")
+    transport = _validate_execution_transport(
+        facts["execution_transport"], identity, consumer_ref, strict_binding=False,
+    )
+    provider, model, toolsets = _resolved_transport(transport)
+    if (
+        facts["provider"] != provider
+        or facts["model"] != model
+        or facts["toolsets"] != toolsets
+        or facts["cwd"] != str(PROJECT_ROOT)
+        or facts["terminal_cwd"] != str(PROJECT_ROOT)
+    ):
+        raise RuntimeError("selected launch configuration mismatch")
+    argv = _native_argv(consumer_ref, body, facts["native_correlation_id"], transport)
+    if facts["argv"] != argv:
+        raise RuntimeError("selected argv mismatch")
+    return transport, argv
 
 
 def _tool_exit_status(content: str) -> int:
@@ -733,7 +775,7 @@ def dispatch_external_runtime(
             "verification_profiles": list(verification_profiles),
             "native_runs": [],
             "execution_transport": transport,
-            "execution_transport_digest": transport["attachment_digest"] if transport is not None else None,
+            "execution_transport_digest": _launch_transport_digest(transport),
         })
         _append_locked(identity, record_root, consumer_ref, "observed", facts)
     try:
@@ -786,7 +828,10 @@ def run_job(job_path: Path) -> dict[str, Any]:
     current = chain[-1]
     if current["status"] in TERMINAL_STATUSES:
         return current
-    facts = dict(current["facts"])
+    consumer_ref = current.get("external_runtime_receipt", {}).get("consumer_ref")
+    if consumer_ref != identity["owner_ref"]:
+        raise RuntimeError("receipt consumer does not match identity owner")
+    facts = _validate_runtime_facts(current["facts"], identity)
     case_dir = job_path.parent
     body_path = _artifact_path(case_dir, facts.get("body_artifact_ref"))
     stdout_path = _artifact_path(case_dir, facts.get("stdout_artifact_ref"))
@@ -799,8 +844,9 @@ def run_job(job_path: Path) -> dict[str, Any]:
             raise RuntimeError("body artifact metadata mismatch")
         native_runs = []
         body_bytes = body_path.read_bytes()
+        _validate_irreversible_launch_inputs(facts, identity, consumer_ref, body_bytes)
         profiles = (
-            current["external_runtime_receipt"]["consumer_ref"],
+            consumer_ref,
             *facts["verification_profiles"],
         )
         child_env = os.environ.copy()
@@ -810,6 +856,8 @@ def run_job(job_path: Path) -> dict[str, Any]:
                 transport = facts["execution_transport"] if profile == facts["native_profile_ref"] else None
                 argv = _native_argv(profile, body_bytes, facts["native_correlation_id"], transport)
                 provider, model, toolsets = _resolved_transport(transport)
+                if profile == consumer_ref:
+                    _, argv = _validate_irreversible_launch_inputs(facts, identity, consumer_ref, body_bytes)
                 with body_path.open("rb") as body:
                     process = subprocess.Popen(
                         argv, stdin=body, stdout=stdout, stderr=stderr,

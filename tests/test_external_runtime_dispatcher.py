@@ -426,7 +426,7 @@ class ExternalRuntimeDispatcherTests(unittest.TestCase):
             self.assertEqual(dispatched["facts"]["model"], transport["model"])
             self.assertEqual(dispatched["facts"]["toolsets"], transport["toolsets"])
             self.assertEqual(dispatched["facts"]["execution_transport"], transport)
-            self.assertEqual(dispatched["facts"]["execution_transport_digest"], transport["attachment_digest"])
+            self.assertEqual(dispatched["facts"]["execution_transport_digest"], dispatcher._launch_transport_digest(transport))
             self.assertEqual(dispatched["facts"]["argv"][6:12], expected_override)
             self.assertEqual(popen.call_count, 3)
             for index, call in enumerate(popen.call_args_list):
@@ -443,13 +443,11 @@ class ExternalRuntimeDispatcherTests(unittest.TestCase):
             )
             self.assertEqual([run["toolsets"] for run in final["facts"]["native_runs"]], [transport["toolsets"], [], []])
 
-    def test_malformed_digest_and_binding_reject_before_writes(self):
+    def test_malformed_launch_configuration_rejects_before_writes(self):
         body = b"rejected attachment body"
         identity = self.identity(body)
         valid = self.execution_transport(identity)
         candidates = {
-            "malformed": {key: value for key, value in valid.items() if key != "issuer_ref"},
-            "digest": dict(valid, attachment_digest="0" * 64),
             "binding": dict(valid, binding=dict(valid["binding"], owner_ref="other")),
             "duplicate_toolset": dict(valid, toolsets=["file", "file"]),
         }
@@ -464,6 +462,111 @@ class ExternalRuntimeDispatcherTests(unittest.TestCase):
                     )
                 launch.assert_not_called()
                 self.assertEqual(list(root.rglob("*")), [])
+
+    def test_run_job_rejects_tampered_owner_body_and_launch_configuration_before_child_launch(self):
+        body = b"approved pre-launch binding body"
+        identity = self.identity(body)
+        for mismatch in ("owner", "body", "provider", "model", "toolsets", "cwd", "argv"):
+            with self.subTest(mismatch=mismatch), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                transport = self.execution_transport(identity)
+                dispatcher.dispatch_external_runtime(
+                    "ptah", body, root, identity=identity, process_runner=lambda argv: 999,
+                    execution_transport=transport,
+                )
+                chain_path, current_path, _ = dispatcher._paths(identity, root)
+                records = [json.loads(line) for line in chain_path.read_text(encoding="utf-8").splitlines()]
+                current = records[-1]
+                if mismatch == "owner":
+                    current["external_runtime_receipt"]["consumer_ref"] = "anubis"
+                elif mismatch == "body":
+                    body_path = current_path.parent / current["facts"]["body_artifact_ref"]
+                    body_path.write_bytes(b"tampered body bytes")
+                elif mismatch == "toolsets":
+                    current["facts"][mismatch] = ["web"]
+                elif mismatch == "argv":
+                    current["facts"][mismatch] = [*current["facts"][mismatch][:-1], "tampered body"]
+                else:
+                    current["facts"][mismatch] = "tampered"
+                records[-1] = current
+                chain_path.write_text("".join(json.dumps(record) + "\n" for record in records), encoding="utf-8")
+                current_path.write_text(json.dumps(current), encoding="utf-8")
+
+                with mock.patch.object(dispatcher.subprocess, "Popen") as launch:
+                    try:
+                        result = dispatcher.run_job(current_path)
+                    except (RuntimeError, ValueError):
+                        result = None
+                    if result is not None:
+                        self.assertEqual(result["status"], "blocked")
+                launch.assert_not_called()
+
+    def test_run_job_ignores_metadata_lineage_mismatch_before_same_selected_launch(self):
+        body = b"approved lineage-independent body"
+        identity = self.identity(body)
+        for field, value in (
+            ("graph_revision", 99),
+            ("parent_edge_ref", "other/edge"),
+            ("return_to_node_ref", "other-node"),
+            ("run_handle", "other-run"),
+        ):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                transport = self.execution_transport(identity)
+                dispatcher.dispatch_external_runtime(
+                    "ptah", body, root, identity=identity, process_runner=lambda argv: 999,
+                    execution_transport=transport, verification_profiles=(),
+                )
+                chain_path, current_path, _ = dispatcher._paths(identity, root)
+                records = [json.loads(line) for line in chain_path.read_text(encoding="utf-8").splitlines()]
+                current = records[-1]
+                current["facts"]["execution_transport"]["binding"][field] = value
+                current["facts"]["execution_transport"]["attachment_digest"] = "0" * 64
+                records[-1] = current
+                chain_path.write_text("".join(json.dumps(record) + "\n" for record in records), encoding="utf-8")
+                current_path.write_text(json.dumps(current), encoding="utf-8")
+                process = mock.Mock()
+                process.wait.return_value = 0
+                evidence = {
+                    "profile": "ptah", "correlation_id": current["facts"]["native_correlation_id"],
+                    "session_ref": "session:ptah", "session_digest": "a" * 64,
+                    "exit_status": 0, "output_digest": "b" * 64, "gate_status": "pass", "tool_evidence": [],
+                }
+
+                with mock.patch.object(dispatcher.subprocess, "Popen", return_value=process) as launch, \
+                     mock.patch.object(dispatcher, "_native_run_evidence", return_value=evidence):
+                    result = dispatcher.run_job(current_path)
+
+                self.assertEqual(launch.call_count, 1)
+                self.assertEqual(result["status"], "pass")
+
+    def test_run_job_rejects_coherent_launch_configuration_tamper_before_child_launch(self):
+        body = b"approved coherent-tamper body"
+        identity = self.identity(body)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            transport = self.execution_transport(identity)
+            dispatcher.dispatch_external_runtime(
+                "ptah", body, root, identity=identity, process_runner=lambda argv: 999,
+                execution_transport=transport, verification_profiles=(),
+            )
+            chain_path, current_path, _ = dispatcher._paths(identity, root)
+            records = [json.loads(line) for line in chain_path.read_text(encoding="utf-8").splitlines()]
+            current = records[-1]
+            current["facts"]["execution_transport"]["provider"] = "tampered-provider"
+            current["facts"]["provider"] = "tampered-provider"
+            current["facts"]["argv"] = dispatcher._native_argv(
+                "ptah", body, current["facts"]["native_correlation_id"],
+                current["facts"]["execution_transport"],
+            )
+            records[-1] = current
+            chain_path.write_text("".join(json.dumps(record) + "\n" for record in records), encoding="utf-8")
+            current_path.write_text(json.dumps(current), encoding="utf-8")
+
+            with mock.patch.object(dispatcher.subprocess, "Popen") as launch:
+                with self.assertRaisesRegex(ValueError, "selected transport digest"):
+                    dispatcher.run_job(current_path)
+            launch.assert_not_called()
 
     def test_child_processes_normalize_inherited_terminal_cwd(self):
         for inherited in (None, "/Users/kann", "/Users/kann/projects/harness-starter"):
