@@ -463,6 +463,20 @@ def test_noncanonical_duplicate_malformed_or_wrong_argv_has_no_result():
         assert completed.stdout == b""
 
 
+def test_default_runtime_test_sources_do_not_reference_historical_global_tmp_artifacts():
+    historical_artifact_names = (
+        "c-l3-0b-r3-live-cohort-candidate.json",
+        "maat-c-l3-4-e1-admitted-candidate.json",
+    )
+
+    source_under_test = Path(__file__).resolve()
+    for source_path in (PROJECT_ROOT / "tests/runtime").glob("test_*.py"):
+        if source_path.resolve() == source_under_test:
+            continue
+        source = source_path.read_text(encoding="utf-8")
+        assert all(name not in source for name in historical_artifact_names)
+
+
 def test_project_entry_point_and_source_use_only_declaration_bound_reads_and_stdin():
     pyproject = (MODULE_PATH.parents[2] / "pyproject.toml").read_text(encoding="utf-8")
     assert (

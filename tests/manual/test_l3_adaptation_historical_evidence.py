@@ -1,6 +1,7 @@
 import copy
 import hashlib
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -12,7 +13,7 @@ from harness_runtime.l3_adaptation import (
     serialize_admission,
 )
 
-COHORT_PATH = Path("/tmp/c-l3-0b-r3-live-cohort-candidate.json")
+COHORT_PATH = Path(os.environ["HARNESS_HISTORICAL_L3_COHORT_PATH"])
 COHORT_BYTES = COHORT_PATH.read_bytes()
 COHORT_SHA256 = "0caf2513e3870db4773a9097aa9ab8fbcd74323b80fb9664ad1b8f214d4258a1"
 BASELINE_COMMIT = "4bd38ae20a27535166354ddcc5a77d55691fa296"
