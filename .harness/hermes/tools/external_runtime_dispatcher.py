@@ -66,6 +66,21 @@ EXECUTION_TRANSPORT_KEYS = {
 TRANSPORT_BINDING_KEYS = {*IDENTITY_KEYS, "project_root"}
 TERMINAL_RETENTION_SECONDS = 7 * 24 * 60 * 60
 _last_prune_at: dict[Path, float] = {}
+
+
+class DirectNamedProfileDispatchDisabled(RuntimeError):
+    """The legacy runner is not a CPS ingress and cannot launch profiles."""
+
+
+_DIRECT_NAMED_PROFILE_DISPATCH_MESSAGE = (
+    "direct named-profile dispatch is disabled: it bypasses the canonical bound Harness ingress"
+)
+
+
+def _reject_direct_named_profile_dispatch() -> None:
+    raise DirectNamedProfileDispatchDisabled(_DIRECT_NAMED_PROFILE_DISPATCH_MESSAGE)
+
+
 PRUNE_INTERVAL_SECONDS = 5 * 60
 
 
@@ -728,6 +743,7 @@ def dispatch_external_runtime(
     execution_transport: dict[str, Any] | None = None,
     verification_profiles: tuple[str, ...] = ("anubis", "maat"),
 ) -> dict[str, Any]:
+    _reject_direct_named_profile_dispatch()
     record_root = Path(record_root)
     if not isinstance(body, bytes):
         raise TypeError("body must be bytes")
@@ -818,6 +834,7 @@ def append_terminal_receipt(
 
 
 def run_job(job_path: Path) -> dict[str, Any]:
+    _reject_direct_named_profile_dispatch()
     job_path = Path(job_path)
     record_root = job_path.parents[3]
     candidate = json.loads(job_path.read_text(encoding="utf-8"))

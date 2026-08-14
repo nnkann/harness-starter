@@ -127,6 +127,7 @@ def loaded_project_plugin(tmp_path, monkeypatch, request):
         assert loaded.enabled
         assert manager.has_hook("pre_gateway_dispatch")
         assert manager.has_hook("pre_llm_call")
+        assert manager.has_hook("pre_tool_call")
         assert manager.has_hook("on_session_end")
         assert manager.has_middleware("llm_request")
         module = loaded.module
@@ -763,6 +764,55 @@ def test_bound_project_fails_closed_when_admission_persistence_rejects(
         session_id="rejected-session",
         turn_id="rejected-turn",
         user_message="must not run",
+    ) == []
+
+
+@pytest.mark.parametrize(
+    ("tool_name", "args"),
+    (
+        ("terminal", {"command": "hermes -p maat chat -q 'bypass'"}),
+        ("terminal", {"command": "maat -z 'bypass'"}),
+        ("execute_code", {"code": "import subprocess\nsubprocess.run(['hermes', '-p', 'maat'])"}),
+    ),
+)
+def test_bound_turn_blocks_direct_named_profile_ingress(
+    loaded_project_plugin, monkeypatch, tool_name, args,
+):
+    loaded = loaded_project_plugin()
+    module = loaded.manager._plugins["harness-gateway"].module
+    monkeypatch.setattr(module, "_named_profile_launchers", lambda: frozenset({"maat"}))
+    store = _SessionStore()
+    runner = _hook_runner(loaded.config, store)
+    event = _event("block-direct-profile")
+
+    assert loaded.manager.invoke_hook(
+        "pre_gateway_dispatch", event=event, gateway=runner, session_store=store,
+    ) == [{"action": "allow"}]
+    session_id = store.get_or_create_session(event.source).session_id
+    assert loaded.manager.invoke_hook(
+        "pre_llm_call", session_id=session_id, turn_id="block-direct-profile-turn",
+    )
+
+    block_message = hermes_plugins.resolve_pre_tool_block(
+        tool_name, args, session_id=session_id,
+    )
+
+    assert block_message is not None
+    assert "bypass the bound Harness ingress" in block_message
+
+
+def test_unbound_or_non_profile_tool_is_not_blocked_by_ingress_guard(loaded_project_plugin):
+    loaded = loaded_project_plugin()
+    store = _SessionStore()
+    runner = _hook_runner(loaded.config, store)
+    event = _event("unbound-tool", channel_id="unbound-channel")
+
+    assert loaded.manager.invoke_hook(
+        "pre_gateway_dispatch", event=event, gateway=runner, session_store=store,
+    ) == [{"action": "allow"}]
+    session_id = store.get_or_create_session(event.source).session_id
+    assert loaded.manager.invoke_hook(
+        "pre_tool_call", tool_name="terminal", args={"command": "git status --short"}, session_id=session_id,
     ) == []
 
 

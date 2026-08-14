@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import sys
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -90,6 +91,86 @@ _ADMISSION_SCHEMA = "harness.gateway-admission"
 _ADMISSION_VERSION = 1
 _GLOBAL_UNBOUND_POLICY = "explicit-channel-binding-default"
 _SESSION_STORE = None
+
+
+def _named_profile_launchers() -> frozenset[str]:
+    """Read installed profile names without selecting or launching one."""
+    profiles = Path.home() / ".hermes" / "profiles"
+    try:
+        return frozenset(
+            item.name for item in profiles.iterdir()
+            if item.is_dir() and item.name != "default"
+        )
+    except OSError:
+        return frozenset()
+
+
+def _is_direct_named_profile_launch(command: object) -> bool:
+    """Detect shell forms that would create a named-profile dispatch root."""
+    if not isinstance(command, str) or not command.strip():
+        return False
+    if re.search(
+        r"(?:^|[;&|]\s*)(?:\S*/)?hermes(?:\s+\S+)*?\s+(?:-p|--profile)(?:\s|=)",
+        command,
+    ):
+        return True
+    launchers = _named_profile_launchers()
+    if not launchers:
+        return False
+    names = "|".join(re.escape(name) for name in sorted(launchers, key=len, reverse=True))
+    return re.search(
+        rf"(?:^|[;&|]\s*)(?:(?:env|command)\s+)?(?:\S*/)?(?:{names})(?=\s|$)",
+        command,
+    ) is not None
+
+
+def _is_embedded_named_profile_launch(code: object) -> bool:
+    """Detect a named profile encoded as an execute_code subprocess argument."""
+    if not isinstance(code, str):
+        return False
+    if _is_direct_named_profile_launch(code):
+        return True
+    if not re.search(r"\b(?:subprocess|os)\s*\.", code):
+        return False
+    if re.search(r"['\"]hermes['\"].{0,200}['\"](?:-p|--profile)['\"]", code, re.DOTALL):
+        return True
+    launchers = _named_profile_launchers()
+    if not launchers:
+        return False
+    names = "|".join(re.escape(name) for name in sorted(launchers, key=len, reverse=True))
+    return re.search(rf"['\"](?:{names})['\"]", code) is not None
+
+
+def _bound_project_for_tool(session_id: object) -> _IngressProject | None:
+    ingress = _INGRESS_PROJECT.get()
+    if ingress is None:
+        ingress = _restore_admission_from_session_identity(session_id)
+    if ingress is None or ingress.state != "project_admitted" or not ingress.project_cwd:
+        return None
+    return ingress
+
+
+def _pre_tool_call(*, tool_name="", args=None, session_id="", **kwargs):
+    """Block a prompt-created named dispatch before it reaches the shell."""
+    if _bound_project_for_tool(session_id) is None or not isinstance(args, dict):
+        return None
+    if tool_name == "terminal" and _is_direct_named_profile_launch(args.get("command")):
+        return {
+            "action": "block",
+            "message": (
+                "Blocked: direct named-profile launch would bypass the bound Harness ingress. "
+                "Return the observed relation through the current bound flow instead."
+            ),
+        }
+    if tool_name == "execute_code" and _is_embedded_named_profile_launch(args.get("code")):
+        return {
+            "action": "block",
+            "message": (
+                "Blocked: embedded named-profile launch would bypass the bound Harness ingress. "
+                "Return the observed relation through the current bound flow instead."
+            ),
+        }
+    return None
 
 
 def _resolve_runtime_project_root() -> Path | None:
@@ -398,5 +479,6 @@ def _on_session_end(*, session_id="", turn_id="", **kwargs):
 def register(ctx):
     ctx.register_hook("pre_gateway_dispatch", _pre_gateway_dispatch)
     ctx.register_hook("pre_llm_call", _pre_llm_call)
+    ctx.register_hook("pre_tool_call", _pre_tool_call)
     ctx.register_hook("on_session_end", _on_session_end)
     ctx.register_middleware("llm_request", _llm_request_middleware)

@@ -5,4 +5,5 @@ kind: standalone
 provides_hooks:
   - pre_gateway_dispatch
   - pre_llm_call
+  - pre_tool_call
   - post_llm_call
