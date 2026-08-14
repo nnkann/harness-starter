@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import re
 import sys
 from contextvars import ContextVar
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 _RUNTIME = Path(__file__).resolve().parents[3] / "runtime"
@@ -11,6 +12,15 @@ if _RUNTIME.is_dir() and str(_RUNTIME) not in sys.path:
     sys.path.insert(0, str(_RUNTIME))
 
 from hermes_cli import projects_db
+from hermes_cli.config import cfg_get, load_config
+from hermes_constants import get_hermes_home
+from harness_runtime import (
+    EventRef,
+    ExecutionReceipts,
+    IngressValidationError,
+    ProjectRef,
+    process_bound_ingress,
+)
 
 
 class _ProjectBindingHold(Exception):
@@ -77,6 +87,14 @@ class _ExecutionFrame:
     turn_id: str
 
 
+@dataclass(frozen=True)
+class _IngressReceipt:
+    receipt_id: str
+    receipt_dir: Path
+    session_id: str = ""
+    turn_id: str = ""
+
+
 _INGRESS_PROJECT: ContextVar[_IngressProject | None] = ContextVar(
     "harness_gateway_ingress_project",
     default=None,
@@ -84,6 +102,10 @@ _INGRESS_PROJECT: ContextVar[_IngressProject | None] = ContextVar(
 _EXECUTION_FRAMES: ContextVar[tuple[_ExecutionFrame, ...]] = ContextVar(
     "harness_gateway_execution_frames",
     default=(),
+)
+_INGRESS_RECEIPT: ContextVar[_IngressReceipt | None] = ContextVar(
+    "harness_gateway_ingress_receipt",
+    default=None,
 )
 
 _ADMISSION_KEY = "harness_admission"
@@ -317,11 +339,49 @@ def _restore_admission_from_session_identity(*session_ids) -> _IngressProject | 
     return None
 
 
+def _receipt_dir() -> Path:
+    config = load_config()
+    entry = cfg_get(config, "plugins", "entries", "harness-gateway", default={})
+    if isinstance(entry, dict) and isinstance(entry.get("receipt_dir"), str):
+        return Path(entry["receipt_dir"]).expanduser()
+    return get_hermes_home() / "harness-gateway" / "receipts"
+
+
+def _record_bound_ingress(event, ingress: _IngressProject) -> None:
+    """Record intake for one bound event without selecting a CPS route."""
+    source = event.source
+    text = event.text if isinstance(event.text, str) else ""
+    payload_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    event_ref = EventRef(
+        event_id=str(event.message_id or source.message_id or payload_hash[:16]),
+        payload_hash=payload_hash,
+        channel_id=str(source.parent_chat_id or source.chat_id),
+        bound=True,
+        parent_event_id=getattr(event, "reply_to_message_id", None),
+    )
+    receipt_dir = _receipt_dir()
+    try:
+        result = process_bound_ingress(
+            event_ref,
+            ProjectRef.bind_cwd(ingress.project_cwd),
+            intent=text,
+            receipt_dir=receipt_dir,
+        )
+    except IngressValidationError:
+        return
+    if result.get("status") == "READY":
+        _INGRESS_RECEIPT.set(_IngressReceipt(
+            receipt_id=result["cps_receipt_id"],
+            receipt_dir=receipt_dir,
+        ))
+
+
 def _pre_gateway_dispatch(*, event, gateway, session_store, **kwargs):
     global _SESSION_STORE
 
     _INGRESS_PROJECT.set(None)
     _EXECUTION_FRAMES.set(())
+    _INGRESS_RECEIPT.set(None)
     # Native control commands retain their core behavior and do not inherit a
     # project-root carrier from an ordinary conversation turn.
     if event.is_command():
@@ -344,6 +404,8 @@ def _pre_gateway_dispatch(*, event, gateway, session_store, **kwargs):
         if ingress is None:
             return {"action": "skip", "reason": "invalid-harness-admission"}
         _INGRESS_PROJECT.set(ingress)
+        if ingress.state == "project_admitted":
+            _record_bound_ingress(event, ingress)
         return {"action": "allow"}
     try:
         binding = _resolve_project_binding(event.source, gateway.config)
@@ -365,6 +427,7 @@ def _pre_gateway_dispatch(*, event, gateway, session_store, **kwargs):
     if ingress is None:
         return {"action": "skip", "reason": "invalid-harness-admission"}
     _INGRESS_PROJECT.set(ingress)
+    _record_bound_ingress(event, ingress)
     return {"action": "allow"}
 
 
@@ -429,6 +492,22 @@ def _pre_llm_call(*, session_id, **kwargs):
         session_id=str(session_id or ""),
         turn_id=str(kwargs.get("turn_id") or ""),
     ),))
+    receipt = _INGRESS_RECEIPT.get()
+    if receipt is not None:
+        consumer_session_id = str(session_id or "")
+        consumer_turn_id = str(kwargs.get("turn_id") or "")
+        try:
+            ExecutionReceipts(receipt.receipt_dir).transition(
+                receipt.receipt_id,
+                "consumer-running",
+                {"session_id": consumer_session_id, "turn_id": consumer_turn_id},
+            )
+        except IngressValidationError:
+            _INGRESS_RECEIPT.set(None)
+        else:
+            _INGRESS_RECEIPT.set(replace(
+                receipt, session_id=consumer_session_id, turn_id=consumer_turn_id,
+            ))
     return {
         "context": (
             "[Bound project context — trusted gateway metadata]\n"
@@ -439,6 +518,34 @@ def _pre_llm_call(*, session_id, **kwargs):
             "project files and tool workdirs from the canonical project root."
         )
     }
+
+
+def _post_llm_call(*, session_id, turn_id, assistant_response, **kwargs):
+    receipt = _INGRESS_RECEIPT.get()
+    if (
+        receipt is None
+        or receipt.session_id != str(session_id or "")
+        or receipt.turn_id != str(turn_id or "")
+        or not isinstance(assistant_response, str)
+    ):
+        return None
+    response = assistant_response.encode("utf-8")
+    try:
+        ExecutionReceipts(receipt.receipt_dir).transition(
+            receipt.receipt_id,
+            "terminal",
+            {
+                "session_id": receipt.session_id,
+                "turn_id": receipt.turn_id,
+                "response_sha256": hashlib.sha256(response).hexdigest(),
+                "response_length": len(response),
+            },
+        )
+    except IngressValidationError:
+        pass
+    finally:
+        _INGRESS_RECEIPT.set(None)
+    return None
 
 
 def _llm_request_middleware(*, request, provider="", session_id="", **kwargs):
@@ -473,6 +580,9 @@ def _on_session_end(*, session_id="", turn_id="", **kwargs):
         if frame.session_id == session_id and frame.turn_id == turn_id:
             _EXECUTION_FRAMES.set(frames[:index] + frames[index + 1:])
             break
+    receipt = _INGRESS_RECEIPT.get()
+    if receipt is not None and receipt.session_id == session_id and receipt.turn_id == turn_id:
+        _INGRESS_RECEIPT.set(None)
     return None
 
 
@@ -480,5 +590,6 @@ def register(ctx):
     ctx.register_hook("pre_gateway_dispatch", _pre_gateway_dispatch)
     ctx.register_hook("pre_llm_call", _pre_llm_call)
     ctx.register_hook("pre_tool_call", _pre_tool_call)
+    ctx.register_hook("post_llm_call", _post_llm_call)
     ctx.register_hook("on_session_end", _on_session_end)
     ctx.register_middleware("llm_request", _llm_request_middleware)

@@ -400,6 +400,7 @@ class ExecutionReceipts:
         stages = [entry["stage"] for entry in receipt["entries"]]
         valid = stages in (
             ["received", "intake-ready", "route", "running", "terminal"],
+            ["received", "intake-ready", "consumer-running", "terminal"],
             ["received", "intake-ready", "terminal"],
             ["received", "intake-hold", "terminal"],
         )

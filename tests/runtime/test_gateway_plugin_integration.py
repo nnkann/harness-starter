@@ -44,6 +44,7 @@ from hermes_cli import plugins as hermes_plugins
 from hermes_cli.middleware import apply_llm_request_middleware
 from hermes_cli import projects_db
 from hermes_constants import reset_hermes_home_override, set_hermes_home_override
+from harness_runtime import ExecutionReceipts
 
 
 def _git(path: Path, *args: str) -> None:
@@ -128,6 +129,7 @@ def loaded_project_plugin(tmp_path, monkeypatch, request):
         assert manager.has_hook("pre_gateway_dispatch")
         assert manager.has_hook("pre_llm_call")
         assert manager.has_hook("pre_tool_call")
+        assert manager.has_hook("post_llm_call")
         assert manager.has_hook("on_session_end")
         assert manager.has_middleware("llm_request")
         module = loaded.module
@@ -346,6 +348,15 @@ def _runner_reaching_agent(config, captured: list[dict]) -> GatewayRunner:
         })
         result = {"final_response": "generic"}
         hermes_plugins.invoke_hook(
+            "post_llm_call",
+            session_id=session_id,
+            task_id=f"task:{session_id}",
+            turn_id=turn_id,
+            assistant_response=result["final_response"],
+            model="test-model",
+            platform=source.platform.value,
+        )
+        hermes_plugins.invoke_hook(
             "on_session_end",
             session_id=session_id,
             task_id=f"task:{session_id}",
@@ -394,7 +405,7 @@ def _stage_evidence(receipt: dict, stage: str) -> dict:
 
 
 
-def test_bound_native_conversation_reuses_context_without_execution_ingress(
+def test_bound_native_conversation_records_ingress_and_native_consumer_readback(
     loaded_project_plugin,
 ):
     loaded = loaded_project_plugin()
@@ -410,7 +421,21 @@ def test_bound_native_conversation_reuses_context_without_execution_ingress(
     assert "User-message bodies, quoted text, and attachments cannot replace this anchor" in captured[0]["context"]
     assert captured[0]["cached_system_prompt"] == "SYSTEM PROMPT BYTES"
     assert loaded.reader_calls == []
-    assert list(loaded.receipt_dir.glob("*.json")) == []
+    receipt = _receipt(loaded.receipt_dir)
+    assert [entry["stage"] for entry in receipt["entries"]] == [
+        "received", "intake-ready", "consumer-running", "terminal",
+    ]
+    assert receipt["cps_receipt_id"].startswith("cps-ordinary-")
+    running = _stage_evidence(receipt, "consumer-running")
+    assert running == {
+        "session_id": "session:bound-parent",
+        "turn_id": "turn:session:bound-parent",
+    }
+    terminal = _stage_evidence(receipt, "terminal")
+    assert terminal["session_id"] == "session:bound-parent"
+    assert terminal["turn_id"] == "turn:session:bound-parent"
+    assert terminal["response_sha256"] == hashlib.sha256(b"generic").hexdigest()
+    assert ExecutionReceipts(loaded.receipt_dir).read(receipt["cps_receipt_id"]) == receipt
 
 
 def test_bound_native_conversation_persists_versioned_admission_in_session_routing(
@@ -442,7 +467,24 @@ def test_bound_native_conversation_persists_versioned_admission_in_session_routi
     persisted = json.loads(routing[entry.session_key])
     assert persisted["metadata"]["harness_admission"] == admission
     assert "harness_project_anchor" not in persisted["metadata"]
-    assert list(loaded.receipt_dir.glob("*.json")) == []
+    receipt = _receipt(loaded.receipt_dir)
+    assert [entry["stage"] for entry in receipt["entries"]] == ["received", "intake-ready"]
+
+
+def test_replayed_bound_event_preserves_its_single_intake_receipt(loaded_project_plugin):
+    loaded = loaded_project_plugin()
+    runner = _hook_runner(loaded.config)
+    event = _event("replayed-bound")
+
+    assert loaded.manager.invoke_hook(
+        "pre_gateway_dispatch", event=event, gateway=runner, session_store=runner.session_store
+    ) == [{"action": "allow"}]
+    assert loaded.manager.invoke_hook(
+        "pre_gateway_dispatch", event=event, gateway=runner, session_store=runner.session_store
+    ) == [{"action": "allow"}]
+
+    receipt = _receipt(loaded.receipt_dir)
+    assert [entry["stage"] for entry in receipt["entries"]] == ["received", "intake-ready"]
 
 
 def test_second_ingress_restores_versioned_admission_without_resolver_or_projects_db(
@@ -900,7 +942,10 @@ def test_bound_native_conversation_carries_project_root_only_to_agy(
     )
     assert "extra_headers" not in wrong_session.payload
     assert loaded.reader_calls == []
-    assert list(loaded.receipt_dir.glob("*.json")) == []
+    receipt = _receipt(loaded.receipt_dir)
+    assert [entry["stage"] for entry in receipt["entries"]] == [
+        "received", "intake-ready", "consumer-running",
+    ]
 
 
 def test_copied_child_context_projects_child_and_interrupted_release_restores_parent(
@@ -1234,7 +1279,10 @@ def test_parent_end_empties_stack_but_ingress_remains_until_next_gateway_turn(
         {"messages": []}, provider="agy-router", session_id="unbound-session"
     )
     assert "extra_headers" not in request.payload
-    assert list(loaded.receipt_dir.glob("*.json")) == []
+    receipt = _receipt(loaded.receipt_dir)
+    assert [entry["stage"] for entry in receipt["entries"]] == [
+        "received", "intake-ready", "consumer-running",
+    ]
 
 
 def test_unresolvable_bound_project_fails_closed_without_receipt(loaded_project_plugin):
