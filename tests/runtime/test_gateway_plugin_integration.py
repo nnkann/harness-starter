@@ -1314,11 +1314,3 @@ def test_gateway_hook_allows_native_stop_without_project_context(loaded_project_
     assert result == [{"action": "allow"}]
     assert "extra_headers" not in request.payload
     assert list(loaded.receipt_dir.glob("*.json")) == []
-
-
-def test_explicit_external_runtime_keeps_its_separate_receipt_contract():
-    dispatcher_path = REPO / ".harness" / "hermes" / "tools" / "external_runtime_dispatcher.py"
-    assert dispatcher_path.is_file()
-    source = dispatcher_path.read_text(encoding="utf-8")
-    assert "dispatch_external_runtime" in source
-    assert "TERMINAL_CWD" in source

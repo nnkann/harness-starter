@@ -18,7 +18,6 @@ source_control:
 
 cps:
   intake: hermes-kann
-  route_gate: hermes-maat
   execution_receipt_contract: execution-receipt.v1
 
 refs:
